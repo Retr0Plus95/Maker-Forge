@@ -226,6 +226,46 @@ async function settle() {
   check(/cube\.obj \(12 triangles\)/.test(st().base.stl.name), "named with its triangle count", st().base.stl.name);
   st().paint.ops = [{ k: "dir", up: 1, side: 2, down: 255, angle: 30 }]; MF.paint.repaint(); await settle();
   check(Object.keys(painted()).length === 3, "an imported model can be painted", JSON.stringify(painted()));
+  // Session 15: an imported model is kept in a saved project file; without it the paint survives
+  // opening the same file again
+  {
+    const openPayload = async text => {
+      const f = new win.File([text], "p.json", { type: "application/json" }), inp = document.querySelector("#projInput"), r0 = MF.rev;
+      Object.defineProperty(inp, "files", { value: [f], configurable: true }); inp.dispatchEvent(new win.Event("change"));
+      for (let i = 0; i < 100 && MF.rev === r0; i++) await sleep(30);
+      await settle();
+    };
+    const before = JSON.stringify(painted()), withModel = MF.projectPayload(true), without = MF.projectPayload(false);
+    check(JSON.parse(withModel).model && !JSON.parse(without).model, "a saved project file keeps the imported model; the autosave does not", `${(withModel.length / 1024).toFixed(0)} KB vs ${(without.length / 1024).toFixed(0)} KB`);
+    await MF.paint.importModel(new win.File([objText.replace(/ 20\n/g, " 30\n")], "tall.obj")); await settle();
+    check(!st().paint.ops.length, "a different model clears the paint", st().base.stl.name);
+    await openPayload(withModel);
+    check(st().base.type === "stl" && /cube\.obj/.test(st().base.stl.name) && near(C.solidBounds(MF.parts[0].solid).size[1], 20, 1e-6) && JSON.stringify(painted()) === before,
+      "opening the project file brings back the model and its paint", JSON.stringify(painted()));
+    await openPayload(without);
+    const tabText = document.querySelector("#panel").textContent;    // the Paint tab is showing
+    check(!MF.parts.length && st().paint.ops.length === 1 && /painted on cube\.obj/.test(tabText) && [...document.querySelectorAll("#panel button")].some(b => /Open cube\.obj again/.test(b.textContent)),
+      "a project without its model says which file to open, and keeps the paint steps", MF.parts.length + " parts");
+    st().base.stl.scale = 150;
+    await openPayload(JSON.stringify(Object.assign(JSON.parse(without), { state: Object.assign(JSON.parse(without).state, { base: Object.assign(JSON.parse(without).state.base, { stl: { name: st().base.stl.name, scale: 150 } }) }) })));
+    await MF.paint.importModel(new win.File([objText], "cube.obj")); await settle();
+    check(st().paint.ops.length === 1 && st().base.stl.scale === 150 && Object.keys(painted()).length === 3, "opening the same file again keeps its paint and its scale", `${st().base.stl.scale}%, ${JSON.stringify(painted())}`);
+    st().base.stl.scale = 100; MF.rebuild(false); await settle();
+    // hostile models in a project file are dropped, never half-loaded
+    const P0 = JSON.parse(withModel), bad = [
+      ["not base64", { name: "x", tris: "%%%" }],
+      ["not whole triangles", { name: "x", tris: P0.model.tris.slice(0, 40) }],
+      ["NaN corners", { name: "x", tris: (() => { const a = new Float32Array(9).fill(NaN); let s = ""; new Uint8Array(a.buffer).forEach(b => s += String.fromCharCode(b)); return win.btoa(s); })() }],
+      ["a number instead of data", { name: "<img src=x onerror=alert(1)>", tris: 12 }],
+    ];
+    for (const [what, model] of bad) {
+      await openPayload(JSON.stringify(Object.assign({}, P0, { model })));
+      check(!MF.parts.length && !document.body.innerHTML.includes("onerror=alert"), `a model that is ${what} is left out`, MF.parts.length + " parts");
+    }
+    await openPayload(JSON.stringify(Object.assign({}, P0, { model: Object.assign({}, P0.model, { paint: "AAAA" }) })));
+    check(MF.parts.length === 1 && C.checkMesh(MF.parts[0].solid).open === 0, "paint of the wrong length is dropped, the model kept");
+    st().paint.ops = []; MF.paint.repaint(); await settle();
+  }
   let err = ""; try { await MF.paint.importModel(new win.File(["hello"], "bad.obj")); } catch (e) { err = e.message; }
   check(/No triangles/.test(err), "a file with no triangles is refused with a message", err);
   st().paint.ops = [];

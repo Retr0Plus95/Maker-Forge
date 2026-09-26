@@ -844,9 +844,15 @@ function applySnapshot(json){
 function undo(){ if (history.past.length < 2) return; history.future.push(history.past.pop()); applySnapshot(history.past[history.past.length-1]); updateHistoryButtons(); }
 function redo(){ if (!history.future.length) return; const j = history.future.pop(); history.past.push(j); applySnapshot(j); updateHistoryButtons(); }
 function updateHistoryButtons(){ $("#undoBtn").disabled = history.past.length < 2; $("#redoBtn").disabled = !history.future.length; }
-function projectPayload(){
+// the imported model a project was made with, when it did not come with the project ("" otherwise)
+function missingModel(){ return state.base.type === "stl" && !stlData && state.base.stl && state.base.stl.name ? state.base.stl.name.replace(/ \([\d,.\s\u00a0\u202f]+ triangles\)$/, "") : ""; }
+// withModel: a project file keeps an imported model (its triangles, Y up, and the paint it came with);
+// the autosave, the recent list and share links leave it out and ask for the file again
+function projectPayload(withModel){
+  const model = withModel && state.base.type === "stl" && stlData ? { name:state.base.stl.name,
+    tris:b64url(new Uint8Array(stlData.buffer, stlData.byteOffset, stlData.byteLength)), paint:stlPaint ? b64url(stlPaint) : null } : undefined;
   return JSON.stringify({ app:"Maker Forge", v:5, saved:new Date().toISOString(),
-    state:JSON.parse(serialize()), assets:Object.fromEntries(Object.entries(assets).map(([k,v])=>[k,v.dataURL])) });
+    state:JSON.parse(serialize()), assets:Object.fromEntries(Object.entries(assets).map(([k,v])=>[k,v.dataURL])), model });
 }
 /* Share link: the project, pictures left out, deflated into the part of the address after "#p=".
    That part never reaches a server. Opening one goes through sanitizeProject like any project file. */
@@ -5317,7 +5323,9 @@ function sphereFields(p){
   numField(p,{ label:"Diameter (mm)", min:10,max:250,step:1, get:()=>state.base.sphere.dia, set:v=>state.base.sphere.dia=v, onChange:baseChanged });
 }
 function stlFields(p){
-  buttonRow(p, [[stlData?"Open a different model":"Choose a model file", ()=>$("#stlInput").click()]]);
+  const missing = missingModel();
+  if (missing) note(p, `This project was made with <b>${esc(missing)}</b>, which is not saved with it (the autosave, the recent list and share links leave models out; a saved project file keeps it). Open that file again and its paint and settings come back.`);
+  buttonRow(p, [[stlData?"Open a different model":missing?"Open "+missing+" again":"Choose a model file", ()=>$("#stlInput").click()]]);
   note(p, stlData ? esc(state.base.stl.name) : "STL, OBJ or 3MF. Any model works, including one made from a photo by an AI service. 3mf files from Bambu Studio or PrusaSlicer keep their painting.");
   if (stlData) note(p, "Colour it on the <b>Paint</b> tab: by height, by face, from a picture, or with a brush.");
   if (stlData) numField(p,{ label:"Scale (%)", min:5,max:400,step:1, get:()=>state.base.stl.scale, set:v=>state.base.stl.scale=v, onChange:baseChanged });
@@ -6542,7 +6550,11 @@ function paintOpFields(parent, o){
 function tabPaint(p){
   if (!state.paint) state.paint = DEFAULTS().paint;
   p.insertAdjacentHTML("beforeend", `<h2>Paint</h2>`);
-  if (!modelParts.length){ p.insertAdjacentHTML("beforeend", `<div class="card empty">Make or import a model first. Then paint it here in up to eight colours.</div>`); }
+  const missing = missingModel();
+  if (missing){
+    p.insertAdjacentHTML("beforeend", `<div class="card empty">This project was painted on <b>${esc(missing)}</b>, which is not saved with it. Open that file again and its paint comes back.</div>`);
+    buttonRow(p, [["Open "+missing+" again", ()=>$("#stlInput").click()]]);
+  } else if (!modelParts.length){ p.insertAdjacentHTML("beforeend", `<div class="card empty">Make or import a model first. Then paint it here in up to eight colours.</div>`); }
   note(p, "Paint any model in up to eight filament colours, by hand or automatically. The paint goes into the 3mf files, so Bambu Studio, OrcaSlicer and PrusaSlicer print it without painting it again there.");
   paletteRow(p);
   const sum = document.createElement("div"); sum.id = "paintSummary"; sum.className = "card psum"; p.appendChild(sum);
@@ -6665,7 +6677,8 @@ function tabExport(p){
       const { url, pics } = await makeShareLink(), inp = out.querySelector("input");
       inp.value = url; out.hidden = false; inp.select();
       let copied = false; try { await navigator.clipboard.writeText(url); copied = true; } catch(e){}
-      notify((copied ? "Link copied. " : "Select the link and copy it. ") + (pics ? `${pics} picture${pics === 1 ? " is" : "s are"} not in the link.` : "") +
+      notify((copied ? "Link copied. " : "Select the link and copy it. ") + (pics ? `${pics} picture${pics === 1 ? " is" : "s are"} not in the link. ` : "") +
+        (state.base.type === "stl" && stlData ? "The imported model is not in the link: send the model file too. " : "") +
         (location.protocol === "file:" ? " It points to this file on your computer: it opens for others once Maker Forge is on a website." : ""));
     }]]);
     g2.appendChild(out);
@@ -6676,7 +6689,7 @@ function tabExport(p){
       ["Open project", ()=>$("#projInput").click()],
       ["Start over", ()=>{
         if (!confirm("Start over with an empty project?")) return;
-        state = applyPrinterPref(DEFAULTS()); Object.keys(assets).forEach(k=>delete assets[k]); stlData = null;
+        state = applyPrinterPref(DEFAULTS()); Object.keys(assets).forEach(k=>delete assets[k]); stlData = null; stlPaint = null; stlCache = null;
         history.past.length = 0; history.future.length = 0;
         renderTab(); rebuildAll(true); pushHistory();
       }]
@@ -6837,10 +6850,14 @@ async function importModelFile(file){
   } else raw = C.parseSTL(await file.arrayBuffer());
   const y = new Float32Array(raw.length);
   for (let i=0;i<raw.length;i+=3){ y[i]=raw[i]; y[i+1]=raw[i+2]; y[i+2]=-raw[i+1]; }    // Z up (printers) to Y up (the view)
-  clearPaintForNewModel();
+  const name = `${file.name} (${(raw.length/9).toLocaleString()} triangles)`;
+  // the same file opened again for a project saved without it (autosave, recent list, share link):
+  // its paint steps, scale and filaments are kept
+  const again = state.base.type === "stl" && !stlData && !!state.base.stl && state.base.stl.name === name;
+  if (!again) clearPaintForNewModel();
   stlData = y; stlPaint = paint; stlCache = null; state.base.type = "stl";
-  state.base.stl = { name:`${file.name} (${(raw.length/9).toLocaleString()} triangles)`, scale:100 };
-  if (paint){
+  state.base.stl = { name, scale: again ? state.base.stl.scale : 100 };
+  if (paint && !again){
     // the file's filament colours; a filament it uses but gives no colour for still gets a filament here
     const spare = ["#ffffff","#161616","#c12e1f","#0a2989","#f0b429","#12633f","#7b4bd8","#8fb8c9"];
     let top = 0; for (let i=0;i<paint.length;i++) if (paint[i] > top) top = paint[i];
@@ -6852,7 +6869,8 @@ async function importModelFile(file){
   }
   state.items.forEach(d=>{ d.place = defaultPlace(); d.solids = null; });
   userMoved = false; renderTab(); await rebuildAll(false); pushHistory();
-  if (paint) notify(`Opened ${file.name} with its painting. Change it on the Paint tab.`);
+  if (again) notify(`Opened ${file.name} again: its paint and settings are back.`);
+  else if (paint) notify(`Opened ${file.name} with its painting. Change it on the Paint tab.`);
 }
 stlInput.onchange = async ()=>{
   const file = stlInput.files[0]; stlInput.value = ""; if (!file) return;
@@ -7056,7 +7074,22 @@ function sanitizeProject(data){
     if (typeof url === "string" && /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(url) && url.length < 12e6)
       assetsIn[cleanStr(id, 40, "a")] = url;
   }
-  return { state: st, assets: assetsIn };
+  // an imported model kept in a project file: little-endian float triangles (Y up), one paint byte each
+  let model = null;
+  const m = data.model;
+  if (m && typeof m === "object" && typeof m.tris === "string" && m.tris.length < 200e6){
+    try {
+      const bytes = unb64url(m.tris), n = bytes.length / 36;
+      if (Number.isInteger(n) && n > 0 && n <= 4e6){
+        const tris = new Float32Array(bytes.buffer, bytes.byteOffset, bytes.length / 4);
+        let ok = true;
+        for (let i = 0; i < tris.length; i++) if (!Number.isFinite(tris[i]) || Math.abs(tris[i]) > 1e6){ ok = false; break; }
+        const paint = ok && typeof m.paint === "string" ? unb64url(m.paint) : null;
+        if (ok) model = { name: cleanStr(m.name, 300, "model"), tris, paint: paint && paint.length === n ? paint : null };
+      }
+    } catch(e){}
+  }
+  return { state: st, assets: assetsIn, model };
 }
 async function loadProject(data){
   if (!data || !data.state) return false;
@@ -7071,6 +7104,7 @@ async function loadProject(data){
   state.printer = Object.assign(DEFAULTS().printer, data.state.printer||{});
   state.model = Object.assign(DEFAULTS().model, data.state.model||{});
   state.view = Object.assign(DEFAULTS().view, data.state.view||{});
+  stlData = data.model ? data.model.tris : null; stlPaint = data.model ? data.model.paint : null; stlCache = null;
   Object.keys(assets).forEach(k=>delete assets[k]);
   for (const [id,url] of Object.entries(data.assets||{})){
     try { assets[id] = { dataURL:url, canvas:await dataURLToCanvas(url) }; } catch(e){}
@@ -7082,6 +7116,7 @@ async function loadProject(data){
   });
   applyTheme(); renderTab(); renderStarts(); await rebuildAll(true); renderTab();
   logLine("Project opened");
+  if (missingModel()) setTimeout(()=>notify(`This project was made with ${missingModel()}, which is not saved with it. Open that file again and its paint and settings come back.`), 400);
   return true;
 }
 async function offerDownload(filename, data, mime){
@@ -7107,7 +7142,9 @@ function modelName(){
 function saveProjectFile(){
   const n = modelName().replace(/\s+/g,"-").toLowerCase();
   pushRecent(modelName());
-  offerDownload(n+".json", projectPayload(), "application/json");
+  const payload = projectPayload(true);
+  offerDownload(n+".json", payload, "application/json");
+  if (state.base.type === "stl" && stlData) notify(`The imported model is saved in the project file too (${(payload.length/1e6).toFixed(1)} MB).`);
 }
 async function exportOutlineCAD(){
   if (!tracerInfo || !tracerInfo.polys.length){ notify("Trace a part first."); return; }
@@ -7347,7 +7384,7 @@ window.MakerForge = {
   phone: { spec: phoneSpec, get info(){ return phoneInfo; }, list: PHONES },
   get overlay(){ return overlay.children.length; },
   rebuild: rebuildAll,
-  get camera(){ return camera; }, get controls(){ return controls; }, shareLink: makeShareLink,
+  get camera(){ return camera; }, get controls(){ return controls; }, shareLink: makeShareLink, projectPayload,
   get measure(){ return measurePts.map(q => q.toArray().map(v => +v.toFixed(3))); },
   get defaults(){ return DEFAULTS().base; },
   render: renderTab,

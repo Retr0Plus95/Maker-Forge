@@ -10,8 +10,10 @@ new work, and read the relevant "Session N" section before touching that feature
 ## Layout
 
 - `src/core.js` – geometry library, no DOM, exposed as `window.PRCore`. Runs in Node for tests.
-- `src/app.html` – UI, state, generators, export. Contains the placeholder `/*CORE*/`.
-- `build.py` – inlines `src/core.js` into `src/app.html` → `index.html`.
+- `src/app.html` – UI, state, generators, export. Contains the placeholders `/*CORE*/` and `/*FONTS*/{}`.
+- `build.py` – inlines `src/core.js` and the fonts in `fonts/` (with their licences) into `src/app.html` → `index.html`.
+- `fonts/` – the built-in fonts as WOFF2 files and `LICENSES.md`, copied from the @fontsource packages by
+  `npm run fonts` (`tools-fonts.js`). Run it after adding a font to `FONTS`.
 - `index.html` – the built single-file app. **Generated: edit `src/`, never `index.html` directly.**
 - `tools-*.js` – headless tests (jsdom + a software canvas stub in `tools-test-env.js`), plus
   `tools-browser-check.js`, which runs the app in real Chromium.
@@ -19,7 +21,7 @@ new work, and read the relevant "Session N" section before touching that feature
 ## Setup
 
 ```
-npm install          # test deps only: jsdom, three@0.128.0, earcut@2.2.4, jszip@3.10.1, the @fontsource fonts
+npm install          # dev deps only: jsdom, three@0.128.0, earcut@2.2.4, jszip@3.10.1 (tests), @fontsource/* (npm run fonts)
 python3 build.py
 ```
 
@@ -48,8 +50,8 @@ tests accept `CORE=1` for the fast geometry-only part.
 ## Conventions
 
 - Keep the app a single self-contained file with no build toolchain beyond `build.py`.
-  Runtime libraries load from CDNs (three.js r128, OrbitControls, earcut 2.2.4, JSZip 3.10.1), and the fonts
-  from the @fontsource 5.3.0 packages on jsDelivr (`fontFaceCSS` in `src/app.html`; no Google Fonts).
+  Runtime libraries load from CDNs (three.js r128, OrbitControls, earcut 2.2.4, JSZip 3.10.1). The fonts are
+  built in (`fonts/`, packed by `build.py`, used by `fontFaceCSS` in `src/app.html`); the page never downloads a font.
 - Every new generator control must actually change the model (the audit flags "dead controls").
 - Every loaded project goes through `sanitizeProject`: clamp numbers, never inject markup.
   New settings need clamping and a hostile-project test like the existing ones.

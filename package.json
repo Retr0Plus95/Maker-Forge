@@ -6,6 +6,7 @@
   "license": "MIT",
   "scripts": {
     "build": "python3 build.py",
+    "fonts": "node tools-fonts.js",
     "test:tracer": "node tools-tracer-test.js index.html && node tools-tracer-paper-test.js index.html && node tools-tracer-logo-test.js index.html && node tools-tracer-plate-test.js index.html",
     "test:smoke": "node tools-smoke-test.js index.html",
     "test:audit": "node tools-audit.js index.html",

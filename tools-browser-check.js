@@ -124,17 +124,12 @@ function pageCoverage() {
     const page = await ctx.newPage();
     await page.route(/cdn\.jsdelivr\.net/, r => {
       const u = r.request().url(), l = LIBS.find(([re]) => re.test(u));
-      // fonts: the same @fontsource files, from the test dependencies (a missing one is a real 404)
-      const font = /\/npm\/@fontsource\/([a-z0-9-]+)@[\d.]+\/(files\/[a-z0-9-]+\.woff2)$/.exec(u);
-      if (font) {
-        const f = path.join(NM, "@fontsource", font[1], font[2]);
-        if (!fs.existsSync(f)) { errors.push(`${label}: font not found ${u}`); return r.fulfill({ status: 404, body: "" }); }
-        return r.fulfill({ status: 200, contentType: "font/woff2", headers: { "access-control-allow-origin": "*" }, body: fs.readFileSync(f) });
-      }
+      // the fonts are built into the page: a font download means one is missing from fonts/
+      if (/\/@fontsource\/|\.woff2?(\?|$)/.test(u)) { errors.push(`${label}: a font was downloaded ${u}`); return r.abort(); }
       if (!l) { errors.push(`${label}: unexpected CDN request ${u}`); return r.abort(); }
       return r.fulfill({ status: 200, contentType: "application/javascript", headers: { "access-control-allow-origin": "*" }, body: fs.readFileSync(path.join(NM, l[1])) });
     });
-    // the app must not ask Google (or anyone but jsDelivr) for fonts any more
+    // nor ask Google (or anyone) for fonts
     await page.route(/fonts\.(googleapis|gstatic)\.com/, r => { errors.push(`${label}: Google Fonts request ${r.request().url()}`); return r.abort(); });
     page.on("pageerror", e => errors.push(`${label}: page error: ${e.message}`));
     page.on("console", m => { if (m.type() === "error") errors.push(`${label}: console: ${m.text()}`); });
@@ -176,16 +171,17 @@ function pageCoverage() {
   const page = await openPage({ width: 1440, height: 900 }, "desktop");
   if (env.THEME === "dark") await page.evaluate(() => { const MF = window.MakerForge; MF.state.view.theme = "dark"; document.documentElement.setAttribute("data-theme", "dark"); });
   await shot(page, "start", "Start: default name keychain", await modelInfo(page, "start"));
-  // every lettering font and the Easy reading font, from the jsDelivr @fontsource files (served locally here)
+  // every lettering font and the Easy reading font, built into the page
   {
     const f = await page.evaluate(async () => {
       const rules = [...document.getElementById("webFonts").sheet.cssRules];
       const faces = [...new Set(rules.map(r => `${r.style.fontWeight} 40px ${r.style.fontFamily}`))], bad = [];
       for (const k of faces) { try { if (!(await document.fonts.load(k, "AaZz")).length) bad.push(k); } catch (e) { bad.push(k); } }
-      return { n: faces.length, rules: rules.length, bad };
+      const inline = rules.every(r => /url\("?data:font\/woff2;base64,/.test(r.style.getPropertyValue("src")));
+      return { n: faces.length, rules: rules.length, bad, inline };
     });
-    if (f.bad.length || f.n < 36) findings.push({ where: "fonts", what: `${f.bad.length} of ${f.n} fonts did not load: ${f.bad.slice(0, 5).join(", ")}` });
-    notes.push(`fonts: ${f.n - f.bad.length} of ${f.n} font faces (${f.rules} alphabet rules) loaded from the jsDelivr @fontsource files`);
+    if (f.bad.length || f.n < 36 || !f.inline) findings.push({ where: "fonts", what: `${f.bad.length} of ${f.n} fonts did not load${f.inline ? "" : ", and not every font is built in"}: ${f.bad.slice(0, 5).join(", ")}` });
+    notes.push(`fonts: ${f.n - f.bad.length} of ${f.n} font faces (${f.rules} alphabet files) loaded, all built into the page`);
   }
   // drop the same two-colour badge the smoke test uses, through the Art tab's drop zone
   {

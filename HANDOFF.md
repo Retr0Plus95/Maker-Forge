@@ -11,8 +11,9 @@ Paste this into a new chat along with the repository files to continue.
 | File | Role |
 | --- | --- |
 | `src/core.js` | Geometry library, no DOM. Exposed as `window.PRCore`. Runs in Node for tests. |
-| `src/app.html` | UI, state, generators, export. Contains the placeholder `/*CORE*/` where core is inlined. |
-| `build.py` | Inlines core into app, producing `index.html`. |
+| `src/app.html` | UI, state, generators, export. Contains the placeholders `/*CORE*/` where core is inlined and `/*FONTS*/{}` where the fonts go. |
+| `build.py` | Inlines core and the fonts (base64, with `fonts/LICENSES.md` as a comment) into app, producing `index.html`. |
+| `fonts/`, `tools-fonts.js` | The built-in fonts (Session 14): 111 WOFF2 files, one per font, weight and alphabet, and `LICENSES.md`. `npm run fonts` copies them from the `@fontsource` dev dependencies after a font is added to `FONTS`. |
 | `index.html` | The built single-file app. |
 | `tools-test-env.js` | jsdom environment with a software 2D canvas stub; `boot(file)` returns `{ window, errors }`. |
 | `tools-smoke-test.js` | Clicks every tab, generator, preset, button and export path. |
@@ -33,7 +34,7 @@ Paste this into a new chat along with the repository files to continue.
 | `package.json` | Test dependencies and script shortcuts (`npm run build`, `test:tracer`, `test:smoke`, `test:audit`, `test:print`, `test:jigsaw`, `test:litho`, `test:enclosure`, `test:paint`, `test:phonecase`, `test:size`, `survey:print`, `check:browser`). |
 | `README.md`, `LICENSE` | Docs, MIT. |
 
-Dependencies load from CDNs at runtime: three.js r128, OrbitControls, earcut 2.2.4, JSZip 3.10.1, and the fonts from the @fontsource 5.3.0 packages, all from jsDelivr (Google Fonts until v0.17.1). Test deps: `npm i` (or `npm i jsdom three@0.128.0 earcut@2.2.4 jszip@3.10.1`).
+Dependencies load from CDNs at runtime: three.js r128, OrbitControls, earcut 2.2.4, JSZip 3.10.1, all from jsDelivr. The fonts are built in (Session 14; Google Fonts until v0.17.0). Dev deps: `npm i` (jsdom, three@0.128.0, earcut@2.2.4 and jszip@3.10.1 for the tests, `@fontsource/*` for `npm run fonts`).
 
 **Files not in the Session 6 bundle.** Only `HANDOFF.md`, `index.html`, `app.html` and `tools-tracer-paper-test.js` arrived in Session 6. `src/core.js` was extracted from `index.html` (rebuilding reproduced the v0.11.2 `index.html` byte for byte), and `build.py`, `tools-test-env.js`, `tools-smoke-test.js`, `tools-audit.js` and `tools-tracer-test.js` were rewritten from their descriptions here. `README.md`, `LICENSE` and `tools-security-test.js` were not available and are not in the bundle: if you have the originals, keep them, and consider diffing your old test tools against the new ones.
 
@@ -491,7 +492,7 @@ New tools
 49. Stencils and cookie stamps from the tracer, with bridges added automatically.
 50. Topographic relief maps from an elevation picture, painted by height.
 
-## Session 14: ready to go public, no Google Fonts (v0.17.1)
+## Session 14: ready to go public, fonts built in (v0.17.1)
 
 v0.17.0 was merged as Retr0Plus95/Maker-Forge#3 (squash). The owner is making the repository public and hosting `index.html` on their own website. Before that:
 
@@ -500,12 +501,12 @@ v0.17.0 was merged as Retr0Plus95/Maker-Forge#3 (squash). The owner is making th
 **Changed:**
 - Personal details about the owner were taken out of this file (their eyesight, the lettering of their logo). The old wording is still in the history of `main`; rewriting it was judged not worth it.
 - The PrusaSlicer 3mf and the OBJ named the app "PhotoRelief Studio" (its old name) in their headers; both say "Maker Forge" now.
-- **No Google Fonts.** The 34 lettering fonts and Atkinson Hyperlegible load from the `@fontsource` 5.3.0 packages on jsDelivr, the CDN the libraries already use, so a visitor's browser talks to jsDelivr only. `fontFaceCSS()` (after `FONTS` in `src/app.html`) writes one `@font-face` per font, weight and alphabet (111 rules; `FONT_SUBSETS` lists the alphabets each font has, `FONT_RANGES` the unicode ranges, which are the same across all packages), so a file downloads only when a letter in its range is drawn; the Easy reading font is no longer added by `applyPrefs`. The app grew by 3 KB. Embedding the fonts instead was measured and left: +1 MB (Latin only) to +2.5 MB (every alphabet) for every visitor. To add a font: add it to `FONTS` and `FONT_SUBSETS` (the alphabets are the `/* <id>-<subset>-<weight>-normal */` comments in the package's `<weight>.css`), and `npm i -D --save-exact @fontsource/<id>@5.3.0` for the browser check.
-- The `@fontsource` packages are test dependencies: `tools-browser-check.js` serves their files for the jsDelivr font URLs (as it does the libraries), loads all 36 faces (a missing one is a finding) and reports any request to Google as an error. The Easy reading dialog, the About text, the README (privacy line, dependencies, security: the hostile-file tests are named correctly now, `tools-security-test.js` never existed) and `CLAUDE.md` say where fonts come from.
+- **No Google Fonts; the fonts are built in.** The 34 lettering fonts and Atkinson Hyperlegible are in `fonts/` as WOFF2 files from the `@fontsource` 5.3.0 packages (one per font, weight and alphabet: 111 files, 1.9 MB, every alphabet each font has) with `fonts/LICENSES.md` (35 fonts: 30 under the SIL Open Font License 1.1, 5 under Apache 2.0, with each copyright line and both licence texts). `build.py` packs them into `index.html` as base64 (`FONT_FILES`, keyed `<font>-<alphabet>-<weight>`) and puts `LICENSES.md` in front of them as a comment, so every copy of the page carries the licences. `fontFaceCSS()` writes one `@font-face` per file with a `data:` URL and the alphabet's `unicode-range` (`FONT_RANGES`), so the browser decodes a file only when it draws a letter in that range. The page never downloads a font; it is 3.3 MB (about 2.1 MB over the wire with compression). A first step in this session loaded them from jsDelivr instead (+3 KB); the owner asked for them built in. To add a font: add it to `FONTS`, `npm i -D --save-exact @fontsource/<id>@5.3.0`, `npm run fonts`, `python3 build.py`.
+- `tools-browser-check.js` loads all 36 faces, checks that every rule is built in, and reports any font download or Google request as an error.
 
 **Verified:** full smoke test (22 quick starts, 20 objects, 328 clicks), the paint (with the renamed headers), printability and size tests, the name plate audit (no findings), the print survey (identical to v0.17.0), and the real-browser check (`PRINT=1 MOBILE=1`: 150 screenshots, no findings, no page errors, 36 of 36 font faces loaded, the real-font printability of every quick start identical to v0.17.0, so the glyphs are the same).
 
-**For the website:** only `index.html` is needed. It must be served over https (copying a share link uses the clipboard), preferably as its own page; inside an iframe it needs `allow-scripts allow-same-origin allow-downloads`. A Content-Security-Policy, if the site sets one, must allow `cdn.jsdelivr.net` for scripts and fonts, and the page's own inline script and styles.
+**For the website:** only `index.html` is needed. It must be served over https (copying a share link uses the clipboard), preferably as its own page; inside an iframe it needs `allow-scripts allow-same-origin allow-downloads`. A Content-Security-Policy, if the site sets one, must allow `cdn.jsdelivr.net` for scripts, `data:` for fonts (`font-src data:`), and the page's own inline script and styles.
 
 ## Unfinished (in priority order)
 

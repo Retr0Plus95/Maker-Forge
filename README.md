@@ -2,7 +2,7 @@
 
 A browser-based studio for designing **multi-colour 3D prints** from photos, logos and names, and exporting them ready to slice.
 
-Everything runs locally in the browser. No account, no uploads, no server: your images and models never leave the machine. (The page does load its libraries and fonts from jsDelivr, a public CDN, so that one service sees that it was opened. No Google Fonts, no analytics.) One HTML file, no build toolchain, MIT licensed.
+Everything runs locally in the browser. No account, no uploads, no server: your images and models never leave the machine. (The page does load its three code libraries from jsDelivr, a public CDN, so that one service sees that it was opened. The fonts are built in. No Google Fonts, no analytics.) One HTML file, no build toolchain, MIT licensed.
 
 ---
 
@@ -118,7 +118,7 @@ console.log(PRCore.checkMesh(solid));   // { tris, open: 0, volume }
 
 ### Dependencies
 
-Loaded from CDNs at runtime, no package manager: [three.js](https://threejs.org) r128 (preview and primitives), [earcut](https://github.com/mapbox/earcut) (polygon triangulation), [JSZip](https://stuk.github.io/jszip/) (3mf and zip writing), and the name plate typefaces from [Fontsource](https://fontsource.org) 5.3.0, all from jsDelivr. A font file downloads only when it is used, one file per alphabet.
+Loaded from CDNs at runtime, no package manager: [three.js](https://threejs.org) r128 (preview and primitives), [earcut](https://github.com/mapbox/earcut) (polygon triangulation), [JSZip](https://stuk.github.io/jszip/) (3mf and zip writing), all from jsDelivr. The 35 fonts (the name plate typefaces and Atkinson Hyperlegible) are **built into `index.html`**: `fonts/` holds them as WOFF2 files from [Fontsource](https://fontsource.org) 5.3.0, one per font, weight and alphabet, and `build.py` packs them in (1.9 MB). `npm run fonts` copies them again after a font is added.
 
 ---
 
@@ -181,7 +181,7 @@ Everything runs locally; nothing is uploaded. The threats worth defending are a 
 
 - Project files pass through `sanitizeProject`: prototype-pollution keys are stripped, every number is finite and clamped, and anything that decides memory or time (trace resolution, grid cells, letter height and so on) has hard limits. Colours must be `#rrggbb` before they reach a style attribute, text is length-capped, fonts and object types are whitelisted, vectors must be three finite numbers, and embedded images must be `data:image/png|jpeg|webp|gif`. The box, painter, phone case, jigsaw, lithophane and printability tests each throw a deliberately hostile file at the loader.
 - All user text reaches the page through `textContent` or `esc()`.
-- Every script is pinned by version and Subresource Integrity hash (`integrity="sha384-…"`), computed from the npm package files, so the browser refuses a tampered copy. Font files are pinned by version but cannot carry SRI; fonts cannot run code.
+- Every script is pinned by version and Subresource Integrity hash (`integrity="sha384-…"`), computed from the npm package files, so the browser refuses a tampered copy. The fonts are built in, so nothing else is fetched.
 
 ## Known limitations
 
@@ -209,4 +209,4 @@ The printer library has 39 printers from Bambu Lab (A1 mini, A1, P1P, P1S / X1C,
 
 ## Licence
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE). The fonts in `fonts/`, also built into `index.html`, keep their own licences (SIL Open Font License 1.1, or Apache 2.0 for five of them): see [fonts/LICENSES.md](fonts/LICENSES.md), which `build.py` also copies into the page.

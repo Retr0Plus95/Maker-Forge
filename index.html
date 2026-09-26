@@ -115,6 +115,8 @@ button,input,select,textarea{font:inherit;color:inherit}
   background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);border-radius:999px;padding:7px 14px;
   font-size:12.5px;font-weight:600;box-shadow:var(--shadow);z-index:2}
 .explode input{accent-color:var(--accent);width:92px}
+.explode.section{right:auto;left:14px}
+.explode.section b{font-variant-numeric:tabular-nums;min-width:58px;text-align:right}
 .notice{position:absolute;left:50%;bottom:52px;transform:translateX(-50%);max-width:min(520px,calc(100% - 80px));
   background:var(--ink);color:var(--panel);padding:11px 16px;border-radius:12px;font-weight:600;font-size:13px;
   opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:var(--shadow);z-index:4}
@@ -311,7 +313,7 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.15.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.16.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -350,9 +352,12 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
       <button id="vWire" aria-pressed="false" title="Wireframe">◇</button>
       <button id="vLayout" aria-pressed="false" title="Lay the parts out as they print">⊞</button>
       <button id="vRuler" aria-pressed="true" title="Rulers and model size">📏</button>
+      <button id="vMeasure" aria-pressed="false" title="Measure: click two points on the model">↔</button>
+      <button id="vSection" aria-pressed="false" title="Section: cut the model open at a height">✂</button>
       <button id="vShot" title="Save a picture">◎</button>
     </div>
     <div class="explode" id="explodeBox" hidden><span>Explode</span><input type="range" id="explodeR" min="0" max="60" step="1" value="0" aria-label="Explode parts"></div>
+    <div class="explode section" id="sectionBox" hidden><span>Cut at</span><input type="range" id="sectionR" min="0" max="100" step="1" value="50" aria-label="Height of the cut"><b id="sectionV"></b></div>
     <div class="notice" id="notice" role="status" aria-live="polite"></div>
     <div class="statusbar" id="statusbar">
       <button class="statusline" id="statusLine" title="Show the activity log">Ready</button>
@@ -3030,7 +3035,7 @@ const DEFAULTS = () => ({
   base:{
     type:"nameplate", slot:0,
     board:{ shape:"rect", w:70, h:50, r:8, thick:1.2, hole:false, holeDia:4, holeX:0, holeY:19 },
-    nameplate:{ text:"Emma", font:0, letterHeight:22, spacing:0, lineGap:1.1, arc:0, style:"traced", border:3.2, join:0.6,
+    nameplate:{ text:"Emma", batch:false, names:"Emma\nNoah\nOlivia\nLiam", font:0, letterHeight:22, spacing:0, lineGap:1.1, arc:0, style:"traced", border:3.2, join:0.6,
       thick:2.4, hole:"left", holeDia:4, rim:2.6, dot:"heart", dotScale:1.6, end:"none", endScale:1,
       sym:{ glyph:"♥", glyph2:"★", side:"both", size:1 },
       pic:{ on:false, item:0, side:"left", size:1.1, colour:true, gap:2 },
@@ -3050,6 +3055,7 @@ const DEFAULTS = () => ({
       sizeAxis:"width", size:60, thick:5, offset:0, roundHoles:true, circularity:0.86,
       snap:0.5, holeClear:0.2, mirror:false, workRes:900,
       scaleFrom:"measure", paper:"A4", paperRes:1500, strokes:[], brushMode:"off", brushSize:2, minLine:0, colours:"one", colourH:0.6,
+      plateHole:"none", plateHoleDia:4, plateScrew:"M3", plateSink:true,
       extra:"none", sizeOf:"part", plateShape:"outline", plateMargin:3, plateThick:2, plateRadius:4, plateMode:"raised", inlay:0.6, plateSlot:1, wall:1.6, cap:1.2 },
     lightbox:{ mode:"backlit", width:170, frame:10, frameThick:3, panelThick:0.8, colourH:0.8, lightAware:true,
       layers:4, layerGap:2.4, layerThick:1.2, spread:0.75,
@@ -3067,7 +3073,7 @@ const DEFAULTS = () => ({
     stl:{ name:"", scale:100 },
     enclosure:{ w:100, d:64, h:36, wall:2, floor:2, radius:4, lid:"screw", lidThick:2.4, lipH:3, lipW:1.2, fit:0.2,
       fasten:"insert", screw:"M3", head:"sink", teardrop:true, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
-      labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 },
+      labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
       board:"none", boardX:0, boardY:0, boardRot:false, standH:5, bw:60, bd:40, bsx:52, bsy:32, bscrew:"M3", boxSlot:1, lidSlot:1,
       cut:[ { face:"front", kind:"usbc", u:-25, v:12, w:9.2, h:3.4, r:1.6, rot:false },
             { face:"front", kind:"btn", u:0, v:18, dia:12.2, rot:false },
@@ -3085,7 +3091,7 @@ const DEFAULTS = () => ({
 let state = DEFAULTS();
 const assets = {};
 let stlData = null, uid = 1, tab = "make";
-let viewOpts = { explode:0, wire:false, layout:false, showPrint:false, rulers:true };
+let viewOpts = { explode:0, wire:false, layout:false, showPrint:false, rulers:true, measure:false, section:false, cut:50 };
 
 function newItem(name, canvas, extra){
   const aspect = canvas.width/canvas.height;
@@ -3123,6 +3129,36 @@ function updateHistoryButtons(){ $("#undoBtn").disabled = history.past.length < 
 function projectPayload(){
   return JSON.stringify({ app:"Maker Forge", v:4, saved:new Date().toISOString(),
     state:JSON.parse(serialize()), assets:Object.fromEntries(Object.entries(assets).map(([k,v])=>[k,v.dataURL])) });
+}
+/* Share link: the project, pictures left out, deflated into the part of the address after "#p=".
+   That part never reaches a server. Opening one goes through sanitizeProject like any project file. */
+const b64url = bytes => { let s = ""; for (let i=0;i<bytes.length;i+=0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
+const unb64url = t => Uint8Array.from(atob(t.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
+async function squeeze(text, back){
+  if (typeof CompressionStream === "undefined") return null;
+  const st = back ? new DecompressionStream("deflate-raw") : new CompressionStream("deflate-raw");
+  const reader = new Blob([text]).stream().pipeThrough(st).getReader(), chunks = []; let n = 0;
+  for (;;){ const { done, value } = await reader.read(); if (done) break; n += value.length; if (n > 4e6){ reader.cancel(); throw new Error("too big"); } chunks.push(value); }
+  const out = new Uint8Array(n); let o = 0; chunks.forEach(c => { out.set(c, o); o += c.length; });
+  return out;
+}
+async function makeShareLink(){
+  const st = JSON.parse(serialize()), pics = st.items.filter(it => !it.text).length;
+  st.items = st.items.filter(it => it.text); st.active = st.items.length ? 0 : -1;
+  const json = JSON.stringify({ app:"Maker Forge", v:4, state:st }), packed = await squeeze(json);
+  const tail = packed ? "#p=" + b64url(packed) : "#j=" + b64url(new TextEncoder().encode(json));
+  return { url: location.href.split("#")[0] + tail, pics };
+}
+async function readShareLink(){
+  const h = location.hash || "";
+  if (!/^#[pj]=/.test(h) || h.length > 2e6) return null;
+  try {
+    const bytes = unb64url(h.slice(3));
+    const text = h[1] === "p" ? new TextDecoder().decode(await squeeze(bytes, true)) : new TextDecoder().decode(bytes);
+    const data = JSON.parse(text);
+    return data && data.state ? data : null;
+  } catch (e){ notify("That share link could not be read."); return null; }
 }
 function saveLocal(){
   if (state.view && state.view.autosave === false) return;
@@ -3702,7 +3738,7 @@ const ENC_FACE_NAME = Object.fromEntries(ENC_FACES.map(([k,v]) => [k, v.toLowerC
 const ENC_WALLS = new Set(["front","back","left","right"]);
 function newOpening(kind, face){
   const k = encHas(CUTOUTS, kind) ? kind : "round", d = CUTOUTS[k];
-  const c = { face: encHas(ENC_FACE_NAME, face) ? face : "front", kind:k, u:0, v:0, rot:false };
+  const c = { face: encHas(ENC_FACE_NAME, face) ? face : "front", kind:k, u:0, v:0, rot:false, label:"", labelPos:"below", top:"flat", notch:false };
   for (const key of ["w","h","r","dia","hw","hh","hd","size","style"]) if (d[key] != null) c[key] = d[key];
   return c;
 }
@@ -4181,7 +4217,8 @@ function buildEnclosure(){
       };
       const anyNotch = Object.values(notchesOn).some(l => l.length);
       if (bosses.length || anyNotch){                   // straight lips that stop short of the posts
-        const gx = bosses.length ? Math.abs(bosses[0][0]) - bossR - fit - 0.3 : a, gz = bosses.length ? Math.abs(bosses[0][1]) - bossR - fit - 0.3 : b - lipW;
+        // without posts they stop short of the rounded inside corners, where a square end would not fit
+        const gx = bosses.length ? Math.abs(bosses[0][0]) - bossR - fit - 0.3 : a - ri, gz = bosses.length ? Math.abs(bosses[0][1]) - bossR - fit - 0.3 : b - Math.max(lipW, ri);
         for (const s of [-1,1]) runs(-gx, gx, gaps[s > 0 ? "front" : "back"]).forEach(([p, q]) =>
           lid.push(C.extrudePolysAt([{ outer: encRect(p, s > 0 ? b - lipW : -b, q, s > 0 ? b : -b + lipW), holes:[] }], lidT, lidT + lipH)));
         for (const s of [-1,1]) runs(-gz, gz, gaps[s > 0 ? "right" : "left"]).forEach(([p, q]) =>
@@ -4224,7 +4261,9 @@ function maskRadiusPx(mask, w, h){
   for (let y=bb.minY;y<=bb.maxY;y++) for (let x=bb.minX;x<=bb.maxX;x++) if (mask[y*w + x]) R = Math.max(R, Math.hypot(Math.abs(x + 0.5 - cx) + 0.5, Math.abs(y + 0.5 - cy) + 0.5));
   return R;
 }
+let plateHoles = null;
 function tracerExtras(T, mask, w, h, mmPerPx, polys, solid){
+  plateHoles = null;
   const slot = clamp(state.base.slot, 0, state.slots.length - 1), pxPerMm = 1/mmPerPx, offPx = (+T.offset || 0)*pxPerMm;
   const opt = { mmPerPx, iso:0, eps:mmPerPx*0.3, minSeg:mmPerPx*0.4 };
   let parts = [{ name:"Traced part", slot, solid }];
@@ -4259,17 +4298,63 @@ function tracerExtras(T, mask, w, h, mmPerPx, polys, solid){
       const s = C.signedDistanceField(P.mask, W2, H2), fix = grow > 0.5 ? 0.5 : 0;
       for (let i=0;i<s.length;i++) F[i] = s[i] + grow + fix;
     }
+    // holes in the plate, placed where they clear the shape: a hanging hole near the top, a keychain
+    // loop on a tab over the top edge, or two or four countersunk screw holes
+    const holeKind = T.plateHole || "none", holes = [];
+    if (holeKind !== "none"){
+      const sd = C.signedDistanceField(P.mask, W2, H2), sc = SCREWS[encHas(SCREWS, T.plateScrew) ? T.plateScrew : "M3"];
+      const screws = holeKind === "screws2" || holeKind === "screws4", sink = screws && T.plateSink !== false;
+      const rMm = screws ? sc.clear/2 : clamp(+T.plateHoleDia || 4, 1.5, 12)/2, R = rMm*pxPerMm, rim = 1.6*pxPerMm;
+      const need = (sink ? sc.head/2 + 0.3 : rMm)*pxPerMm + rim, csD = sink ? Math.min((sc.head - sc.clear)/2, pt - 0.6) : 0;
+      const at = (x, y) => { const i = Math.round(y)*W2 + Math.round(x); return i >= 0 && i < F.length ? i : -1; };
+      const ok = (x, y, r) => { const i = at(x, y); return i >= 0 && F[i] >= r && -sd[i] >= r; };
+      let x0 = W2, x1 = -1, y0 = H2, y1 = -1;
+      for (let y=0;y<H2;y++) for (let x=0;x<W2;x++) if (F[y*W2 + x] > 0){ if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      const mx = (x0 + x1)/2, my = (y0 + y1)/2, stepPx = Math.max(1, Math.round(0.25*pxPerMm));
+      const best = (score, r) => { let b = null, bs = -Infinity;       // the free spot scoring highest
+        for (let y=y0;y<=y1;y+=stepPx) for (let x=x0;x<=x1;x+=stepPx) if (ok(x, y, r)){ const v = score(x, y); if (v > bs){ bs = v; b = [x, y]; } }
+        return b; };
+      const wanted = holeKind === "screws4" ? 4 : holeKind === "screws2" ? 2 : 1;
+      if (holeKind === "hang") { const b = best((x, y) => -y - Math.abs(x - mx)*0.5, need); if (b) holes.push({ x:b[0], y:b[1], r:rMm }); }
+      else if (holeKind === "loop"){
+        // a round tab standing out over the top edge, with the hole in it clear of the shape
+        const rt = R + rim; let top = y0;
+        for (let y=y0;y<=y1;y++) if (F[at(mx, y)] > 0){ top = y; break; }
+        let cy = top - rt*0.3;
+        while (cy < top + rt && at(mx, cy) >= 0 && -sd[at(mx, cy)] < R + rim) cy += 1;
+        for (let y=Math.max(0, Math.floor(cy - rt - 2));y<=Math.min(H2 - 1, Math.ceil(cy + rt + 2));y++)
+          for (let x=Math.max(0, Math.floor(mx - rt - 2));x<=Math.min(W2 - 1, Math.ceil(mx + rt + 2));x++){ const i = y*W2 + x; F[i] = Math.max(F[i], rt - Math.hypot(x + 0.5 - mx, y + 0.5 - cy)); }
+        holes.push({ x:mx, y:cy, r:rMm });
+      } else if (holeKind === "screws2"){
+        for (const sx of [-1,1]){ const b = best((x, y) => sx*(x - mx) - Math.abs(y - my)*0.3, need); if (b) holes.push({ x:b[0], y:b[1], r:rMm, sink }); }
+      } else for (const sx of [-1,1]) for (const sy of [-1,1]){
+        const b = best((x, y) => sx*(x - mx)/(x1 - x0 + 1) + sy*(y - my)/(y1 - y0 + 1), need);
+        if (b && !holes.some(q => Math.hypot(q.x - b[0], q.y - b[1]) < 2*need)) holes.push({ x:b[0], y:b[1], r:rMm, sink });
+      }
+      holes.forEach(q => { q.mx = (q.x + 0.5 - W2/2)*mmPerPx; q.my = (H2/2 - (q.y + 0.5))*mmPerPx; q.csD = q.sink ? csD : 0; });
+      plateHoles = { wanted, placed:holes.length, needMm: (need/pxPerMm - Math.max(0, +T.plateMargin || 0)) };
+    }
     const plate = C.fieldToPolys(F, W2, H2, opt), plateSlot = clamp(+T.plateSlot || 0, 0, state.slots.length - 1), sol = [];
     const mode = T.plateMode || "raised", depth = mode === "raised" ? 0 : clamp(+T.inlay || 0.6, 0.2, pt - 0.2);
+    // the plate as slabs, split where a countersink widens, each with its holes at that height
+    const withHoles = (list, z) => list.map(q => { const inO = C.insideRing(q.outer);
+      return { outer:q.outer, holes:[...q.holes, ...holes.filter(hh => inO(hh.mx, hh.my)).map(hh => {
+        const r = hh.r + (hh.csD ? Math.max(0, z - (pt - hh.csD)) : 0);
+        return C.ringCircle(r, Math.max(24, Math.round(r*10))).map(([x, y]) => [x + hh.mx, y + hh.my]); })] }; });
+    const slabs = (list, a, b) => {
+      const zs = [a]; holes.some(hh => hh.csD) && [...new Set(holes.map(hh => hh.csD))].forEach(d => { for (let z = pt - d; z < b - 1e-6; z += 0.2) if (z > a + 1e-6) zs.push(+z.toFixed(4)); });
+      const cut = [...new Set(zs)].sort((p, q) => p - q); cut.push(b);
+      return cut.slice(0, -1).map((z, k) => C.extrudePolysAt(withHoles(list, (z + cut[k + 1])/2), z, cut[k + 1]));
+    };
     if (mode === "raised"){
-      sol.push(C.extrudePolysAt(plate, 0, pt));
+      sol.push(...slabs(plate, 0, pt));
       parts = [{ name:"Traced part", slot, solid:C.extrudePolysAt(polys, pt, pt + T.thick) }];
     } else {
       const Pm = padMask(mask, w, h, pad), ls = C.signedDistanceField(Pm.mask, W2, H2), g = new Float32Array(ls.length);
       for (let i=0;i<g.length;i++) g[i] = Math.min(F[i], -(ls[i] + offPx));
-      sol.push(C.extrudePolysAt(plate, 0, pt - depth));
+      sol.push(...slabs(plate, 0, pt - depth));
       const top = C.fieldToPolys(g, W2, H2, opt);
-      if (top.length) sol.push(C.extrudePolysAt(top, pt - depth, pt));
+      if (top.length) sol.push(...slabs(top, pt - depth, pt));
       parts = mode === "flush" ? [{ name:"Traced part", slot, solid:C.extrudePolysAt(polys, pt - depth, pt) }] : [];
     }
     parts.push({ name:"Back plate", slot:plateSlot, solid:C.mergeSolids(sol.filter(Boolean)) });
@@ -4598,7 +4683,7 @@ function buildTracer(){
     }
   }
   tracerInfo = { w, h, img:shown, transparent:!!alpha, leftOut, finished:extra.size, rough, mask, polys, mmPerPx, thrUsed, polarity, outerW, outerH, dims, holes:holeReport, src:src0,
-    thickened: thickened*mmPerPx*mmPerPx, colours: colourCount,
+    thickened: thickened*mmPerPx*mmPerPx, colours: colourCount, plateHoles,
     paper: paperMmPerPx ? T.paper : null, quad: paperQuad };
   return extra.parts;
 }
@@ -5105,6 +5190,56 @@ async function buildJigsaw(){
 }
 
 /* Name plate generator (raised, engraved, single or double sided). */
+/* A list of names: one plate per name with the current settings, laid out in rows on the bed. Pasted
+   spreadsheet rows or CSV keep their first column. */
+function batchNames(text){
+  return String(text || "").split(/\r?\n/).map(l => l.split(/[,;\t]/)[0].replace(/^\s*"|"\s*$/g, "").trim()).filter(Boolean).slice(0, 60);
+}
+// each name's plate is kept while the settings stay the same, so editing the list only builds new names
+const batchCache = { key:"", plates:new Map() };
+async function buildNameBatch(){
+  const np = state.base.nameplate, names = batchNames(np.names), keep = np.text, plates = [];
+  if (!names.length){ notify("Type the names, one per line."); return []; }
+  const key = JSON.stringify({ ...np, text:"", names:"", batch:false, slots:state.slots.map(sl => sl.hex),
+    items: np.pic && np.pic.on ? state.items.map(d => `${d.id}:${d._srcSig || ""}:${d.skip}`) : [] });
+  if (batchCache.key !== key){ batchCache.key = key; batchCache.plates.clear(); }
+  let worst = { pieces:0, holes:0, name:"" };
+  try {
+    for (let i=0;i<names.length;i++){
+      const line = $("#statusLine"); if (line) line.textContent = `Building name plates… ${i+1} of ${names.length}`;
+      let hit = batchCache.plates.get(names[i]);
+      if (!hit){
+        np.text = names[i];
+        hit = { parts: await buildNamePlate(), info: { ...plateInfo } };
+        batchCache.plates.set(names[i], hit);
+        await new Promise(r => setTimeout(r, 0));
+      }
+      const parts = hit.parts;
+      if (hit.info.pieces > worst.pieces) worst = { ...hit.info, name:names[i] };
+      const mn = [Infinity, Infinity], mx = [-Infinity, -Infinity];
+      parts.forEach(q => { const b = C.solidBounds(q.solid); mn[0] = Math.min(mn[0], b.mn[0]); mn[1] = Math.min(mn[1], b.mn[2]); mx[0] = Math.max(mx[0], b.mx[0]); mx[1] = Math.max(mx[1], b.mx[2]); });
+      if (parts.length) plates.push({ parts, mn, mx });
+    }
+  } finally { np.text = keep; }
+  // rows as wide as the bed allows, 4 mm apart, the whole layout centred
+  const bedW = (state.printer.bed || [256,256,256])[0] - 10, gap = 4, place = [];
+  let x = 0, z = 0, rowD = 0;
+  plates.forEach(pl => {
+    const w = pl.mx[0] - pl.mn[0], d = pl.mx[1] - pl.mn[1];
+    if (x > 0 && x + w > bedW){ x = 0; z += rowD + gap; rowD = 0; }
+    place.push([x - pl.mn[0], z - pl.mn[1]]); x += w + gap; rowD = Math.max(rowD, d);
+  });
+  let a = [Infinity, Infinity], b = [-Infinity, -Infinity];
+  plates.forEach((pl, i) => { a[0] = Math.min(a[0], pl.mn[0] + place[i][0]); a[1] = Math.min(a[1], pl.mn[1] + place[i][1]); b[0] = Math.max(b[0], pl.mx[0] + place[i][0]); b[1] = Math.max(b[1], pl.mx[1] + place[i][1]); });
+  const cx = (a[0] + b[0])/2, cz = (a[1] + b[1])/2, groups = new Map();
+  plates.forEach((pl, i) => pl.parts.forEach(q => {
+    const key = q.name + "|" + q.slot;
+    if (!groups.has(key)) groups.set(key, { name:q.name, slot:q.slot, list:[] });
+    groups.get(key).list.push(C.transformSolid(q.solid, 1, place[i][0] - cx, 0, place[i][1] - cz));
+  }));
+  plateInfo = { pieces:worst.pieces || 1, holes:worst.holes, name:worst.name, count:plates.length };
+  return [...groups.values()].map(g => ({ name:g.name, slot:g.slot, solid:C.mergeSolids(g.list) }));
+}
 async function buildNamePlate(){
   const np = state.base.nameplate, f = FONTS[clamp(np.font,0,FONTS.length-1)];
   // raster finer for small letters: the outline is traced sub-pixel, but a denser grid still helps
@@ -5432,6 +5567,7 @@ function normalizeItem(d){
 const view = $("#view");
 const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true, preserveDrawingBuffer:true });
 renderer.setPixelRatio(Math.min(2, window.devicePixelRatio||1));
+renderer.localClippingEnabled = true;
 view.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(40,1,0.5,4000);
@@ -5445,10 +5581,14 @@ const modelGroup = new THREE.Group(); scene.add(modelGroup);
 let bedHelper = null, baseGeom = null, baseSoup = null, baseMesh = null;
 let partsVer = 0, modelParts = [], plateInfo = { pieces:1, holes:0 }, lastSize = new THREE.Vector3(60,4,30), userMoved = false;
 const slotMats = [], wireMats = [];
+// the section view: a plane that keeps everything below the cut; inside faces show through it
+const cutPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
 function slotMat(i){
   const list = viewOpts.wire ? wireMats : slotMats;
   if (!list[i]) list[i] = new THREE.MeshStandardMaterial({ roughness:0.55, metalness:0.02, flatShading:true, wireframe:viewOpts.wire });
   list[i].color.set(state.slots[i] ? state.slots[i].hex : "#8a8f94");
+  list[i].clippingPlanes = viewOpts.section ? [cutPlane] : [];
+  list[i].side = viewOpts.section ? THREE.DoubleSide : THREE.FrontSide;
   return list[i];
 }
 function makeBed(){
@@ -5504,12 +5644,12 @@ function frameCamera(size, mode){
   const half = Math.min(camera.fov/2, Math.atan(Math.tan(camera.fov*Math.PI/360)*Math.max(0.2, camera.aspect))*180/Math.PI);
   const dd = r/Math.sin(half*Math.PI/180)*1.05;
   controls.target.copy(c);
-  if (mode === "top") camera.position.set(c.x+0.001,c.y+dd,c.z+0.001);
+  if (mode === "top") camera.position.set(c.x,c.y+dd,c.z+0.001);           // back of the bed at the top of the screen
   else if (mode === "front") camera.position.set(c.x,c.y,c.z+dd);
   else if (mode === "back") camera.position.set(c.x,c.y,c.z-dd);
   else if (mode === "left") camera.position.set(c.x-dd,c.y,c.z);
   else if (mode === "right") camera.position.set(c.x+dd,c.y,c.z);
-  else if (mode === "bottom") camera.position.set(c.x+0.001,c.y-dd,c.z+0.001);
+  else if (mode === "bottom") camera.position.set(c.x,c.y-dd,c.z+0.001);
   else { const k = dd/Math.hypot(0.12,0.6,0.78); camera.position.set(c.x+0.12*k, c.y+0.6*k, c.z+0.78*k); }
   controls.update();
 }
@@ -5528,12 +5668,77 @@ $("#vShot").onclick = ()=>{
   renderer.domElement.toBlob(b => offerDownload("maker-forge.png", b), "image/png");
 };
 $("#explodeR").oninput = e => { viewOpts.explode = +e.target.value; refreshScene(); };
+function updateSection(){
+  const h = (lastSize ? lastSize.y : 10)*viewOpts.cut/100;
+  cutPlane.constant = h + 1e-3;
+  $("#sectionV").textContent = mm(h);
+  [...slotMats, ...wireMats].forEach(m => { if (!m) return; m.clippingPlanes = viewOpts.section ? [cutPlane] : []; m.side = viewOpts.section ? THREE.DoubleSide : THREE.FrontSide; m.needsUpdate = true; });
+}
+$("#vSection").onclick = e => {
+  viewOpts.section = !viewOpts.section; e.currentTarget.setAttribute("aria-pressed", viewOpts.section);
+  $("#sectionBox").hidden = !viewOpts.section; updateSection();
+  if (viewOpts.section) notify("Drag the slider to cut the model open and look at its walls and posts.");
+};
+$("#sectionR").oninput = e => { viewOpts.cut = +e.target.value; updateSection(); };
+// the measuring tape: two points on the model (a corner close to the click is taken exactly), the
+// distance between them and how far apart they are along each axis
+const measureGroup = new THREE.Group(); scene.add(measureGroup);
+let measurePts = [];
+function clearMeasure(){ measurePts = []; while (measureGroup.children.length){ const o = measureGroup.children.pop(); if (o.geometry) o.geometry.dispose(); if (o.material){ if (o.material.map) o.material.map.dispose(); o.material.dispose(); } } }
+function drawMeasure(){
+  while (measureGroup.children.length){ const o = measureGroup.children.pop(); if (o.geometry) o.geometry.dispose(); if (o.material){ if (o.material.map) o.material.map.dispose(); o.material.dispose(); } }
+  const big = Math.max(lastSize.x, lastSize.y, lastSize.z, 20), acc = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#1f6f8b";
+  measurePts.forEach(p => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(big*0.008, 12, 8), new THREE.MeshBasicMaterial({ color:acc, depthTest:false }));
+    m.position.copy(p); m.renderOrder = 6; measureGroup.add(m);
+  });
+  if (measurePts.length === 2){
+    const [a, b] = measurePts, line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), new THREE.LineBasicMaterial({ color:acc, depthTest:false }));
+    line.renderOrder = 6; measureGroup.add(line);
+    const lab = rulerLabel(mm(a.distanceTo(b)), Math.min(12, Math.max(2.6, big*0.05)), acc);
+    lab.position.copy(a).add(b).multiplyScalar(0.5); lab.position.y += big*0.03; measureGroup.add(lab);
+  }
+}
+$("#vMeasure").onclick = e => {
+  viewOpts.measure = !viewOpts.measure; e.currentTarget.setAttribute("aria-pressed", viewOpts.measure);
+  clearMeasure();
+  notify(viewOpts.measure ? "Click two points on the model to measure between them. A corner near the click is used exactly." : "Measuring off.");
+};
+function measureAt(e){
+  const r = renderer.domElement.getBoundingClientRect();
+  ray.setFromCamera({ x:((e.clientX-r.left)/r.width)*2-1, y:-((e.clientY-r.top)/r.height)*2+1 }, camera);
+  const hit = ray.intersectObjects(modelGroup.children, false)[0];
+  if (!hit){ notify("Click on the model itself."); return; }
+  // snap to the corner of the part nearest the click when it is within 12 px on screen and close to
+  // the surface that was hit (so a corner hidden behind the model is never taken)
+  let p = hit.point.clone();
+  if (hit.object.geometry){
+    const pos = hit.object.geometry.attributes.position, best = { d:Infinity, v:null }, v = new THREE.Vector3(), reach = Math.max(2, Math.max(lastSize.x, lastSize.y, lastSize.z)*0.05);
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    for (let k=0;k<pos.count;k++){
+      v.fromBufferAttribute(pos, k).applyMatrix4(hit.object.matrixWorld);
+      if (v.distanceTo(hit.point) > reach) continue;
+      const sc = v.clone().project(camera), px = Math.hypot((sc.x + 1)/2*r.width - mx, (1 - sc.y)/2*r.height - my);
+      const dw = v.distanceTo(hit.point);                // of the corners near the click, the one nearest the surface point
+      if (px < 12 && dw < best.d){ best.d = dw; best.v = v.clone(); }
+    }
+    if (best.v) p = best.v;
+  }
+  if (measurePts.length >= 2) measurePts = [];
+  measurePts.push(p); drawMeasure();
+  if (measurePts.length === 2){
+    const [a, b] = measurePts, d = b.clone().sub(a);
+    notify(`${mm(a.distanceTo(b))} apart (across ${mm(Math.abs(d.x))}, front to back ${mm(Math.abs(d.z))}, up ${mm(Math.abs(d.y))}). Click again to measure something else.`);
+    logLine(`Measured ${mm(a.distanceTo(b))}`);
+  }
+}
 
 const ray = new THREE.Raycaster(); let downAt = null;
 renderer.domElement.addEventListener("pointerdown", e => downAt = [e.clientX,e.clientY]);
 renderer.domElement.addEventListener("pointerup", e => {
   if (!downAt || Math.hypot(e.clientX-downAt[0], e.clientY-downAt[1]) > 5) return;
   downAt = null;
+  if (viewOpts.measure){ measureAt(e); return; }
   const d = state.items[state.active]; if (!d) return;
   const r = renderer.domElement.getBoundingClientRect();
   ray.setFromCamera({ x:((e.clientX-r.left)/r.width)*2-1, y:-((e.clientY-r.top)/r.height)*2+1 }, camera);
@@ -5562,7 +5767,7 @@ async function rebuildAll(resetItems){
     modelParts.forEach(p => { if (p.geom && p.geom !== baseGeom) p.geom.dispose(); });
     let parts = [];
     const t = state.base.type;
-    if (t === "nameplate") parts = await buildNamePlate();
+    if (t === "nameplate") parts = state.base.nameplate.batch ? await buildNameBatch() : await buildNamePlate();
     else if (t === "canvas") parts = buildCanvasPanel();
     else if (t === "bobble") parts = buildBobble();
     else if (t === "cutter") parts = buildCutter();
@@ -5602,6 +5807,7 @@ async function rebuildAll(resetItems){
     modelParts = parts.slice(); partsVer++;
     if (t === "jigsaw" && tab === "make"){ drawJigsawPreview(); updateJigsawSummary(); }
     if (t === "lithophane" && tab === "make"){ drawLithoPreview(); updateLithoSummary(); }
+    if (t === "tracer" && tab === "make"){ const cv = document.getElementById("tracerPreview"); if (cv) drawTracerPreview(cv); }
     state.items.forEach(d => (d.solids||[]).forEach((s,i)=>{ if (s) modelParts.push({ name:state.slots[i].name, slot:i, solid:s, geom:solidToGeometry(s) }); }));
     refreshScene(); runChecks();
     // the lines under sliders often describe the result ("Inside: …"): bring them up to date, and
@@ -5654,6 +5860,8 @@ function refreshScene(){
   const size = empty ? new THREE.Vector3(10,1,10) : pb ? new THREE.Vector3(pb.size[0], pb.size[1], pb.size[2]) : box.getSize(new THREE.Vector3()).multiplyScalar(sc);
   lastSize = size;
   $("#stSize").textContent = empty ? "–" : `${mm(size.x)} × ${mm(size.z)} × ${mm(size.y)}`;
+  if (measurePts.length) clearMeasure();
+  if (viewOpts.section) updateSection();
   if (!userMoved) frameCamera(size,"angle");
   makeBed();
 }
@@ -5923,8 +6131,8 @@ function runChecks(){
   }
   if (state.base.type === "nameplate")
     list.push(plateInfo.pieces > 1
-      ? { k:"bad", t:`Plate is in ${plateInfo.pieces} separate pieces`, s:"Raise the border, bridge the gaps, or pick a handwriting font that joins letters." }
-      : { k:"ok", t:"Plate is one solid piece", s:"The letters and the plate print as a single object." });
+      ? { k:"bad", t:`${plateInfo.count ? `“${esc(plateInfo.name)}”: plate` : "Plate"} is in ${plateInfo.pieces} separate pieces`, s:"Raise the border, bridge the gaps, or pick a handwriting font that joins letters." }
+      : { k:"ok", t:plateInfo.count ? `${plateInfo.count} name plates, each one solid piece` : "Plate is one solid piece", s:"The letters and the plate print as a single object." });
 
   for (const d of state.items){
     if (!d._cm || d.mode === "relief") continue;
@@ -6527,6 +6735,19 @@ function tracerExtraStep(step, T){
       note(c, T.plateMode === "raised" ? `The shape stands ${mm(T.thick)} on top of the plate (its thickness from step 5).`
         : T.plateMode === "flush" ? "The shape sits in a pocket with its top flush with the plate: one smooth face in two colours."
         : "The shape is cut into the plate. No separate part.");
+      selField(c, "Holes in the plate", [["none","None"],["hang","A hanging hole"],["loop","A keychain loop"],["screws2","Two screw holes"],["screws4","Four screw holes"]],
+        ()=>T.plateHole || "none", v=>{ T.plateHole = v; renderTab(); baseChanged(); });
+      if (T.plateHole === "hang" || T.plateHole === "loop")
+        numField(c,{ label:"Hole diameter (mm)", min:1.5,max:12,step:0.5, get:()=>T.plateHoleDia ?? 4, set:v=>T.plateHoleDia=v, onChange:baseChanged });
+      if (T.plateHole === "screws2" || T.plateHole === "screws4"){
+        selField(c, "Screw size", Object.keys(SCREWS).map(k => [k, k]), ()=>encHas(SCREWS, T.plateScrew) ? T.plateScrew : "M3", v=>{ T.plateScrew = v; baseChanged(); });
+        checkField(c, "Countersunk (flat heads)", ()=>T.plateSink !== false, v=>{ T.plateSink = v; baseChanged(); });
+      }
+      if (T.plateHole && T.plateHole !== "none"){
+        const ph = plateHoles;
+        note(c, !ph ? "" : ph.placed >= ph.wanted ? (T.plateHole === "loop" ? "The loop sits on a tab over the top edge." : `Placed where ${ph.wanted === 1 ? "it clears" : "they clear"} the shape.`)
+          : `Only ${ph.placed} of ${ph.wanted} fit clear of the shape: make the plate margin about ${Math.ceil(Math.max(1, ph.needMm) + 1)} mm wider.`);
+      }
       slotField(c, "Plate colour", ()=>String(T.plateSlot), v=>{ T.plateSlot = +v; baseChanged(); });
       if (T.scaleFrom === "measure")
         segField(c, [["part","Step 4 size is the shape"],["whole","Step 4 size is the whole plate"]], ()=>T.sizeOf, v=>{ T.sizeOf = v; baseChanged(); }, "two");
@@ -6669,10 +6890,20 @@ function noneFields(p){
 }
 function nameplateFields(p){
   const np = state.base.nameplate;
+  segField(p, [["one","One name"],["list","A list of names"]], ()=>np.batch ? "list" : "one", v=>{ np.batch = v === "list"; renderTab(); baseChanged(); }, "two");
   const w = document.createElement("div"); w.className = "field full";
-  w.innerHTML = `<label for="npText">Name</label><textarea class="ta" id="npText" rows="1" placeholder="Emma">${esc(np.text)}</textarea>`;
-  p.appendChild(w);
-  w.querySelector("textarea").oninput = e => { np.text = e.target.value; schedule(); pushHistory(); };
+  if (np.batch){
+    w.innerHTML = `<label for="npNames">Names, one per line</label><textarea class="ta" id="npNames" rows="6" placeholder="Emma&#10;Noah&#10;Olivia">${esc(np.names || "")}</textarea><div class="sub"></div>`;
+    p.appendChild(w);
+    const sub = w.querySelector(".sub"), count = () => { const n = batchNames(np.names).length; sub.textContent = `${n} name${n === 1 ? "" : "s"} (up to 60). Each becomes its own plate, laid out on the bed. Pasted spreadsheet rows keep their first column.`; };
+    count();
+    let t0 = 0;
+    w.querySelector("textarea").oninput = e => { np.names = e.target.value.slice(0, 4000); count(); clearTimeout(t0); t0 = setTimeout(()=>{ schedule(); pushHistory(); }, 500); };
+  } else {
+    w.innerHTML = `<label for="npText">Name</label><textarea class="ta" id="npText" rows="1" placeholder="Emma">${esc(np.text)}</textarea>`;
+    p.appendChild(w);
+    w.querySelector("textarea").oninput = e => { np.text = e.target.value; schedule(); pushHistory(); };
+  }
   fontField(p, ()=>np.font, v=>{ np.font = v; renderTab(); baseChanged(); });
   numField(p,{ label:"Letter height (mm)", min:8,max:60,step:0.5, get:()=>np.letterHeight, set:v=>np.letterHeight=v, onChange:baseChanged });
   numField(p,{ label:"Border around letters (mm)", min:1,max:12,step:0.1, get:()=>np.border, set:v=>np.border=v, onChange:baseChanged,
@@ -6869,7 +7100,7 @@ function tracerFields(p){
   }
   step(1, "Photo", c => {
     note(c, `Tracing <b>${esc(d.name)}</b>. Shot from straight above, on a plain contrasting background, gives the cleanest outline.`);
-    const cv = document.createElement("canvas"); cv.className = "tracepreview"; c.appendChild(cv);
+    const cv = document.createElement("canvas"); cv.className = "tracepreview"; cv.id = "tracerPreview"; c.appendChild(cv);
     drawTracerPreview(cv);
     segField(c, [["photo","Photo + outline"],["mask","What was found"]], ()=>tracerView, v=>{ tracerView = v; drawTracerPreview(cv); }, "two");
   });
@@ -7754,9 +7985,22 @@ function tabExport(p){
   group(p,"A keychain for every name", g2 => {
     note(g2, "One name per line. Each becomes its own 3mf inside a single zip, using the current name plate settings.");
     const w = document.createElement("div"); w.className = "field full";
-    w.innerHTML = `<label for="batch">Names</label><textarea class="ta" id="batch" rows="3" placeholder="Emma&#10;Noah&#10;Olivia"></textarea>`;
+    w.innerHTML = `<label for="batch">Names</label><textarea class="ta" id="batch" rows="3" placeholder="Emma&#10;Noah&#10;Olivia">${state.base.nameplate.batch ? esc(state.base.nameplate.names || "") : ""}</textarea>`;
     g2.appendChild(w);
     buttonRow(g2, [["Export one keychain per name", ()=>exportBatch(w.querySelector("textarea").value)]]);
+  });
+  group(p,"Share a link", g2 => {
+    note(g2, "Everything you set up fits in a link: send it and the other person opens the same design. Pictures are left out; send the project file for those.");
+    const out = document.createElement("div"); out.className = "field full"; out.hidden = true;
+    out.innerHTML = `<label for="shareOut">Link</label><input type="text" class="txt" id="shareOut" readonly>`;
+    buttonRow(g2, [["Copy a share link", async ()=>{
+      const { url, pics } = await makeShareLink(), inp = out.querySelector("input");
+      inp.value = url; out.hidden = false; inp.select();
+      let copied = false; try { await navigator.clipboard.writeText(url); copied = true; } catch(e){}
+      notify((copied ? "Link copied. " : "Select the link and copy it. ") + (pics ? `${pics} picture${pics === 1 ? " is" : "s are"} not in the link.` : "") +
+        (location.protocol === "file:" ? " It points to this file on your computer: it opens for others once Maker Forge is on a website." : ""));
+    }]]);
+    g2.appendChild(out);
   });
   group(p,"Project file", g2 => {
     buttonRow(g2, [
@@ -8013,6 +8257,7 @@ function sanitizeProject(data){
     T.extra = one(T.extra, ["none","plate","hollow"]); T.sizeOf = one(T.sizeOf, ["part","whole"]);
     T.plateShape = one(T.plateShape, ["outline","circle","rect"]); T.plateMode = one(T.plateMode, ["raised","flush","engraved"]);
     T.colours = one(T.colours, ["one","keep"]); T.scaleFrom = one(T.scaleFrom, ["measure","paper","file"]);
+    T.plateHole = one(T.plateHole, ["none","hang","loop","screws2","screws4"]); T.plateScrew = encHas(SCREWS, T.plateScrew) ? T.plateScrew : "M3"; T.plateSink = T.plateSink !== false;
   }
   if (st.base && st.base.enclosure && typeof st.base.enclosure === "object"){
     const E = st.base.enclosure, one = (v, list) => list.includes(v) ? v : list[0];
@@ -8035,7 +8280,7 @@ function sanitizeProject(data){
   }
   if (st.base && st.base.nameplate){
     const np = st.base.nameplate;
-    np.text = cleanStr(np.text, 200, "Name");
+    np.text = cleanStr(np.text, 200, "Name"); np.batch = np.batch === true; np.names = cleanStr(np.names, 4000, "");
     if (np.sym){ np.sym.glyph = cleanStr(np.sym.glyph, 8, ""); np.sym.glyph2 = cleanStr(np.sym.glyph2, 8, ""); }
   }
   const assetsIn = {};
@@ -8152,11 +8397,12 @@ async function exportZip(e){
   finally { if (btn){ btn.disabled = false; btn.textContent = label; } }
 }
 async function exportBatch(text){
-  const names = (text||"").split("\n").map(s=>s.trim()).filter(Boolean);
+  const names = batchNames(text);
   if (!names.length){ notify("Type at least one name, one per line."); return; }
   if (state.base.type !== "nameplate"){ notify("Switch the object to Name plate first."); return; }
   notify(`Building ${names.length} keychains…`);
-  const keep = state.base.nameplate.text, zip = new JSZip();
+  const keep = state.base.nameplate.text, keepBatch = state.base.nameplate.batch, zip = new JSZip();
+  state.base.nameplate.batch = false;
   try {
     for (const n of names){
       state.base.nameplate.text = n;
@@ -8177,7 +8423,7 @@ async function exportBatch(text){
     await offerDownload("name-keychains.zip", blob);
     notify(`Exported ${names.length} keychains.`);
   } catch (err){ notify("Batch failed: "+err.message); console.error(err); }
-  state.base.nameplate.text = keep;
+  state.base.nameplate.text = keep; state.base.nameplate.batch = keepBatch;
   schedule();
 }
 
@@ -8248,7 +8494,8 @@ window.MakerForge = {
   printNow: runPrintability, optimize: optimizePrint, revertOptimize, exportParts,
   get overlay(){ return overlay.children.length; },
   rebuild: rebuildAll,
-  get camera(){ return camera; }, get controls(){ return controls; },
+  get camera(){ return camera; }, get controls(){ return controls; }, shareLink: makeShareLink,
+  get measure(){ return measurePts.map(q => q.toArray().map(v => +v.toFixed(3))); },
   get defaults(){ return DEFAULTS().base; },
   render: renderTab,
   notify,
@@ -8265,6 +8512,13 @@ window.MakerForge = {
   } catch(e){}
   if (!restored) await rebuildAll(true);
   history.past.push(serialize()); updateHistoryButtons();
+  // a share link opens on top of what was there, which Undo brings back
+  const shared = await readShareLink();
+  if (shared && await loadProject(shared)){
+    history.past.push(serialize()); updateHistoryButtons(); saveLocal();
+    try { window.history.replaceState(null, "", location.pathname + location.search); } catch(e){}
+    notify("Opened a shared project. Undo takes you back to what you had before.");
+  }
 })();
 })();
 </script>

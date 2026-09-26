@@ -26,6 +26,7 @@ const EXPECTED_DEAD = [
   [/^Minimum difference from the background/, "the test picture has only strong contrast"],
   [/^Keep only the (biggest|main) piece/, "the test picture is one piece"],
   [/^Ignore pieces smaller than/, "the test picture has no small pieces", () => win.MakerForge.state.base.type === "tracer"],
+  [/^Thicken lines thinner than/, "the test picture has no lines thinner than 3 mm", () => win.MakerForge.state.base.type === "tracer"],
   [/^Remove specks below|small marks and labels/, "the test picture has no specks or small marks"],
   [/contrast|saturation/i, "the two-colour test picture does not change with colour adjustments"],
   [/^Preview zoom/, "only zooms the picture preview on the Art tab"],

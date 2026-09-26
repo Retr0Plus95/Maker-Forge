@@ -5,7 +5,9 @@
 //   - the 3D view actually draws the model (pixels differ from the background);
 //   - layout: sideways page scroll, panel content wider than the panel, HUD pills hidden behind the
 //     view buttons, text cut off in buttons and labels;
-//   - web fonts loaded, and the checks list with real glyph shapes (the jsdom stub draws boxes).
+//   - web fonts loaded, and the checks list with real glyph shapes (the jsdom stub draws boxes);
+//   - what only a browser does: an SVG drawn at its own size, the measuring tape, the section view and
+//     a share link opened in a second page.
 //
 //   node tools-browser-check.js index.html [out-dir]        (default out-dir: browser-check/)
 //   ONLY=nameplate,enclosure   objects to open (skips quick starts unless PRESETS=1)
@@ -117,7 +119,7 @@ function pageCoverage() {
     proxy: env.HTTPS_PROXY ? { server: env.HTTPS_PROXY } : undefined,
   });
   const errors = [];
-  async function openPage(viewport, label) {
+  async function openPage(viewport, label, url) {
     const ctx = await browser.newContext({ viewport, deviceScaleFactor: 1, colorScheme: env.THEME === "dark" ? "dark" : "light" });
     const page = await ctx.newPage();
     await page.route(/cdn\.jsdelivr\.net/, r => {
@@ -135,7 +137,7 @@ function pageCoverage() {
     page.on("requestfailed", r => { if (!/fonts\./.test(r.url())) errors.push(`${label}: request failed: ${r.url()} ${r.failure() && r.failure().errorText}`); });
     // a clean start: no saved project from an earlier run
     await page.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
-    await page.goto("file://" + FILE);
+    await page.goto(url || "file://" + FILE);
     await page.waitForFunction(() => window.MakerForge && window.MakerForge.rev > 0 && !window.MakerForge.busy, null, { timeout: 60000 });
     await page.evaluate(() => document.fonts.ready);
     return page;
@@ -235,6 +237,62 @@ function pageCoverage() {
       const title = await page.evaluate(() => (document.querySelector("#sheetTitle") || {}).textContent || "");
       await shot(page, `object-${obj}-${i}`, `Object ${obj}, Make page ${i + 1}/${n}: ${title}`, i ? {} : info);
     }
+  }
+  // ---------- things only a real browser does ----------
+  {
+    const r = await page.evaluate(async () => {
+      const MF = window.MakerForge, sleep = ms => new Promise(q => setTimeout(q, ms)), out = {};
+      const settle = async () => { const r0 = MF.rev; for (let i = 0; i < 40 && MF.rev === r0 && !MF.busy; i++) await sleep(30); for (let i = 0; i < 1200; i++){ if (!MF.busy){ await sleep(60); if (!MF.busy) break; } await sleep(25); } };
+      // an SVG drawn in mm keeps its size: a 40 × 20 mm plate with a 6 mm hole on a 60 × 40 mm page
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="60mm" height="40mm" viewBox="0 0 60 40"><path fill="#111" fill-rule="evenodd" d="M10 10 H50 V30 H10 Z M30 17 a3 3 0 1 0 0.001 0 Z"/></svg>`;
+      const dt = new DataTransfer(); dt.items.add(new File([svg], "plate.svg", { type:"image/svg+xml" }));
+      [...document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "art").click(); await sleep(100);
+      const n0 = MF.state.items.length;
+      document.querySelector("#drop").dispatchEvent(new DragEvent("drop", { bubbles:true, cancelable:true, dataTransfer:dt }));
+      for (let i = 0; i < 100 && MF.state.items.length === n0; i++) await sleep(50);
+      const s = document.querySelector("#objectSel"); s.value = "tracer"; s.dispatchEvent(new Event("change")); await settle();
+      Object.assign(MF.state.base.tracer, { scaleFrom:"file", smooth:0 }); MF.rebuild(false); await settle();
+      const d = MF.tracer && MF.tracer.dims;
+      out.svg = d ? [d.width, d.height] : null; out.hole = MF.tracer && MF.tracer.holes[0] && MF.tracer.holes[0].measured;
+      MF.state.base.tracer.scaleFrom = "measure";
+      // the measuring tape: two corners of the project box's front wall, 92 mm apart
+      [...document.querySelectorAll("#presetGallery button")].find(b => b.dataset.k === "Project box").click(); await settle();
+      document.querySelector("#vMeasure").click(); await sleep(100);
+      const cv = document.querySelector("#view canvas"), rect = cv.getBoundingClientRect();
+      for (const x of [-45.8, 45.8]){
+        const v = new THREE.Vector3(x, 35.8, 32).project(MF.camera), cx = rect.left + (v.x + 1)/2*rect.width, cy = rect.top + (1 - v.y)/2*rect.height;
+        cv.dispatchEvent(new PointerEvent("pointerdown", { clientX:cx, clientY:cy, bubbles:true })); cv.dispatchEvent(new PointerEvent("pointerup", { clientX:cx, clientY:cy, bubbles:true }));
+        await sleep(100);
+      }
+      const m = MF.measure; out.measure = m.length === 2 ? Math.hypot(m[0][0] - m[1][0], m[0][1] - m[1][1], m[0][2] - m[1][2]) : null;
+      document.querySelector("#vMeasure").click();
+      // the section view clips the model at the slider's height
+      document.querySelector("#vSection").click(); const sr = document.querySelector("#sectionR"); sr.value = 50; sr.dispatchEvent(new Event("input")); await sleep(200);
+      out.section = document.querySelector("#sectionV").textContent;
+      document.querySelector("#vSection").click();
+      // a list of names: one plate each, laid out on the bed; a pasted spreadsheet row keeps its first column
+      [...document.querySelectorAll("#presetGallery button")].find(b => b.dataset.k === "Name keychain").click(); await settle();
+      Object.assign(MF.state.base.nameplate, { batch:true, names:"Emma\nNoah\n\"Olivia\",7B" }); MF.rebuild(false); await settle();
+      const openParts = MF.parts.filter(q => MF.core.checkMesh(q.solid).open).length;
+      out.batch = { parts: MF.parts.length, open: openParts, check: (MF.checks.list.find(l => /name plates/.test(l.t)) || {}).t };
+      MF.state.base.nameplate.batch = false;
+      [...document.querySelectorAll("#presetGallery button")].find(b => b.dataset.k === "Project box").click(); await settle();
+      MF.state.base.enclosure.lid = "slide"; MF.state.base.enclosure.cut[0].label = "USB-C";
+      // a share link opens the same design
+      out.link = await MF.shareLink(); out.sig = JSON.stringify(MF.state.base.enclosure);
+      return out;
+    });
+    const near = (a, b, t) => a != null && Math.abs(a - b) <= t;
+    if (!(r.svg && near(r.svg[0], 40, 0.05) && near(r.svg[1], 20, 0.05) && near(r.hole, 6, 0.05))) findings.push({ where:"SVG import", what:`a 40 × 20 mm SVG plate traced at ${r.svg && r.svg.map(v => v.toFixed(2)).join(" × ")} mm, hole ${r.hole && r.hole.toFixed(2)} mm` });
+    if (!near(r.measure, 92, 0.05)) findings.push({ where:"measuring tape", what:`the project box's front wall measured ${r.measure && r.measure.toFixed(2)} mm instead of 92` });
+    if (!(r.batch && r.batch.open === 0 && /^3 name plates/.test(r.batch.check || ""))) findings.push({ where:"name list", what:`three names gave ${JSON.stringify(r.batch)}` });
+    if (r.section !== "18.0 mm") findings.push({ where:"section view", what:`the cut at 50% of 36 mm reads ${r.section}` });
+    const other = await openPage({ width: 1200, height: 800 }, "share link", r.link.url);
+    await other.waitForTimeout(800);
+    const sig2 = await other.evaluate(() => JSON.stringify(window.MakerForge.state.base.enclosure));
+    if (sig2 !== r.sig) findings.push({ where:"share link", what:"the design opened from the link is not the one that was shared" });
+    notes.push(`browser-only features: SVG ${r.svg && r.svg.map(v => v.toFixed(3)).join(" × ")} mm, measure ${r.measure && r.measure.toFixed(3)} mm, section ${r.section}, share link ${r.link.url.length} characters, name list: ${r.batch && r.batch.check}`);
+    await other.context().close();
   }
   await page.context().close();
 

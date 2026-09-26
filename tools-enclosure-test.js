@@ -149,6 +149,14 @@ async function settle() {
       check(closed(Ps) && Ps.filter(p => /Lid logo/.test(p.name)).length === 2, "and on a sliding lid, in its top face");
       MF.state.items.splice(0); MF.state.active = -1;
     }
+    // put each lid back on its box: every point of its lip stays the fit gap inside the rounded walls
+    const lipGap = over => { const Q = direct(over), Ex = MF.state.base.enclosure, lid = Q[1].solid, ri = Ex.radius - Ex.wall, iw = Ex.w - 2 * Ex.wall, id = Ex.d - 2 * Ex.wall; let g = Infinity;
+      for (let i = 0; i < lid.pos.length; i += 3) { if (lid.pos[i + 1] < Ex.lidThick + 1e-6) continue;
+        const x = lid.pos[i] - (Ex.w + 10), z = -lid.pos[i + 2], qx = Math.abs(x) - (iw / 2 - ri), qz = Math.abs(z) - (id / 2 - ri);
+        g = Math.min(g, qx > 0 && qz > 0 ? ri - Math.hypot(qx, qz) : Math.min(iw / 2 - Math.abs(x), id / 2 - Math.abs(z))); }
+      return g; };
+    const gaps = [{ lid: "press" }, { lid: "press", cut: [op("rect", "right", { u: 0, v: 18, w: 30, h: 10, notch: true })] }, { lid: "screw", cut: [op("rect", "front", { u: 0, v: 18, w: 30, h: 10, notch: true })] }, { lid: "magnet", lidThick: 3 }].map(lipGap);
+    check(gaps.every(g => Math.abs(g - 0.2) < 1e-3), "every lid's lip clears the rounded walls by the fit gap (press, press with a notch, screwed with a notch, magnet)", gaps.map(g => g.toFixed(3)).join(", "));
     const tb = direct({ test: true, cut: MF.defaults.enclosure.cut.concat([op("btn", "front", { u: 30, v: 18, dia: 12.2 })]) });
     const Ti = MF.enclosure;
     check(closed(tb) && !Ti.warn.length && Ti.test && Ti.count === 3 && Ti.size[0] < 100, "fit test: a smaller box with one of each opening", `${Ti.size.map(v => v.toFixed(0)).join(" × ")}, ${Ti.count} openings`);

@@ -1,5 +1,6 @@
 // Tracer extras (Session 11): the back plate (outline / circle / rectangle; raised, flush inlay, engraved;
 // "the size is the whole plate"), the hollow cover, and the finished-size readout.
+// Session 12: holes, a keychain loop and countersunk screws in the plate, thin lines thickened, colours kept.
 //   node tools-tracer-plate-test.js index.html
 const boot = require("./tools-test-env.js");
 const env = boot(process.argv[2] || "index.html");
@@ -59,6 +60,39 @@ async function settle(){ const MF = win.MakerForge, r0 = MF.rev; for (let i=0;i<
   check(closed(P) && Math.abs(vol(P[0]) - want) < want * 0.04, "disc cover: cap plus ring wall, as calculated", `${vol(P[0]).toFixed(0)} vs ${want.toFixed(0)} (solid ${discVol.toFixed(0)}) mm³`);
   P = await run({ extra:"hollow", wall:0.8, thick:12 });
   check(closed(P), "hollow cover with thin walls, 12 mm deep", `${vol(P[0]).toFixed(0)} mm³`);
+  // Session 12: holes in the plate, thin lines thickened, the picture's colours kept
+  P = await run({ size:50, thick:3, extra:"plate", plateShape:"rect", plateMargin:10, plateHole:"none" }); const plain = vol(P.find(p => p.name === "Back plate"));
+  P = await run({ size:50, thick:3, extra:"plate", plateShape:"rect", plateMargin:10, plateHole:"screws4", plateScrew:"M3", plateSink:true });
+  let ph = MF.tracer.plateHoles, bp = vol(P.find(p => p.name === "Back plate"));
+  const cs = Math.PI*1.7*1.7*2 + Math.PI/3*1.3*(3*3 + 3*1.7 + 1.7*1.7) - Math.PI*1.7*1.7*1.3;   // 2 mm plate: bore plus a 90° countersink 1.3 mm deep
+  check(closed(P) && ph && ph.placed === 4 && Math.abs((plain - bp) - 4*cs) < 4*cs*0.15, "four countersunk M3 holes in the plate's corners", `${ph && ph.placed} placed, ${(plain - bp).toFixed(1)} vs ${(4*cs).toFixed(1)} mm³`);
+  P = await run({ size:50, thick:3, extra:"plate", plateShape:"rect", plateMargin:10, plateHole:"hang", plateHoleDia:4 });
+  bp = vol(P.find(p => p.name === "Back plate"));
+  check(closed(P) && MF.tracer.plateHoles.placed === 1 && Math.abs((plain - bp) - Math.PI*4*2) < 1.5, "a hanging hole", `${(plain - bp).toFixed(1)} mm³`);
+  P = await run({ size:50, thick:3, extra:"plate", plateShape:"outline", plateMargin:3, plateHole:"loop", plateHoleDia:4 });
+  const noLoop = (await run({ size:50, thick:3, extra:"plate", plateShape:"outline", plateMargin:3, plateHole:"none" }));
+  const loopP = await run({ size:50, thick:3, extra:"plate", plateShape:"outline", plateMargin:3, plateHole:"loop", plateHoleDia:4 });
+  check(closed(loopP) && MF.tracer.finished[1] > 56 + 3, "a keychain loop on a tab over the top edge", `${f2(MF.tracer.finished)}`);
+  await run({ size:50, thick:3, extra:"plate", plateShape:"outline", plateMargin:2, plateHole:"screws4" });
+  check(MF.tracer.plateHoles.placed === 0 && /Only 0 of 4 fit/.test((() => { MF.render(); return document.body.textContent; })()), "no room for screws: none placed, and the panel says how much margin", `${MF.tracer.plateHoles.placed} placed`);
+  // a 0.3 mm hairline on a 50 mm disc thickened to 0.8 mm
+  const hair = document.createElement("canvas"); hair.width = hair.height = 500; const hx = hair.getContext("2d");
+  hx.fillStyle = "#fff"; hx.beginPath(); hx.arc(250,250,200,0,7); hx.fill(); hx.fillRect(248.5, 30, 3, 30);   // 3 px = 0.3 mm at 10 px/mm, up from the disc
+  st.items = [Object.assign({}, st.items[0], { id:3, name:"hair", src:hair, solids:null })]; for (const k of ["_imgKey","_srcCv","_srcSig"]) delete st.items[0][k];
+  P = await run({ size:40, thick:2, workRes:500, minLine:0, keepMain:false }); const v0 = vol(P[0]);
+  P = await run({ size:40, thick:2, workRes:500, minLine:0.8, keepMain:false });
+  check(closed(P) && MF.tracer.thickened > 0.5 && vol(P[0]) > v0 + 1, "a hairline is widened to the minimum line width", `${MF.tracer.thickened.toFixed(2)} mm² added`);
+  // a red disc with a gold centre: keep the colours
+  const two = document.createElement("canvas"); two.width = two.height = 300; const tx = two.getContext("2d");
+  tx.fillStyle = "#ffffff"; tx.fillRect(0, 0, 300, 300); tx.fillStyle = "#d1495b"; tx.beginPath(); tx.arc(150,150,130,0,7); tx.fill(); tx.fillStyle = "#edae49"; tx.beginPath(); tx.arc(150,150,60,0,7); tx.fill();
+  st.items = [Object.assign({}, st.items[0], { id:4, name:"two", src:two, solids:null })]; for (const k of ["_imgKey","_srcCv","_srcSig"]) delete st.items[0][k];
+  P = await run({ size:50, thick:4, method:"background", minLine:0, colours:"one", keepMain:true }); const one = vol(P[0]);
+  P = await run({ size:50, thick:4, method:"background", minLine:0, colours:"keep", colourH:0.6, keepMain:true });
+  const sum = P.reduce((a, p) => a + vol(p), 0), names = P.map(p => p.name).join(", ");
+  check(closed(P) && MF.tracer.colours === 2 && Math.abs(sum - one) < one*0.005, "keep the colours: a body and two colour faces, same volume", `${names}; ${sum.toFixed(0)} vs ${one.toFixed(0)} mm³`);
+  const gold = P.find(p => /Gold/.test(p.name)), want2 = Math.PI*(60/260*50)**2*0.6;
+  check(gold && Math.abs(vol(gold) - want2) < want2*0.08, "the gold face is the centre disc, 0.6 mm thick", gold && `${vol(gold).toFixed(1)} vs ${want2.toFixed(1)} mm³`);
+
   // the panel: step "＋" shows its controls and the finished size
   MF.setTab && MF.setTab("make"); await sleep(50);
   const txt = document.querySelector("#panel") ? document.querySelector("#panel").textContent : document.body.textContent;

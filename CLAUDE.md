@@ -13,7 +13,8 @@ new work, and read the relevant "Session N" section before touching that feature
 - `src/app.html` – UI, state, generators, export. Contains the placeholder `/*CORE*/`.
 - `build.py` – inlines `src/core.js` into `src/app.html` → `index.html`.
 - `index.html` – the built single-file app. **Generated: edit `src/`, never `index.html` directly.**
-- `tools-*.js` – headless tests (jsdom + a software canvas stub in `tools-test-env.js`).
+- `tools-*.js` – headless tests (jsdom + a software canvas stub in `tools-test-env.js`), plus
+  `tools-browser-check.js`, which runs the app in real Chromium.
 
 ## Setup
 
@@ -36,6 +37,8 @@ Plus, depending on what changed:
 - lithophane work, or `heightSheet` / `ringField` / `checkMesh` → `npm run test:litho`
 - enclosure work → `npm run test:enclosure`
 - after any generator change → `node tools-print-survey.js index.html` (look for new warnings)
+- anything visual, text or fonts, the 3D view or view tools → `npm run check:browser` (Chromium via Playwright;
+  screenshots and `report.html` land in `browser-check/`, which is git-ignored)
 
 Smoke test options: `QUICK=1`, `ONLY=tracer,board`, `PAGES=0-3`, `VERBOSE=1`. Lithophane and jigsaw
 tests accept `CORE=1` for the fast geometry-only part.

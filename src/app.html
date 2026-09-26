@@ -6996,6 +6996,20 @@ function sanitizeProject(data){
   stripDangerous(data.state, 0);
   const st = data.state || {};
   const def = DEFAULTS();
+  // a setting whose default is a number must be a finite number, and a group of settings must be an
+  // object: text, null or a list in their place falls back to the default before it reaches the geometry
+  const plain = v => v && typeof v === "object" && !Array.isArray(v), copy = v => JSON.parse(JSON.stringify(v));
+  const sameShape = (o, d, depth) => {
+    if (!plain(o) || depth > 6) return;
+    for (const k of Object.keys(d)){
+      if (!Object.prototype.hasOwnProperty.call(o, k)) continue;
+      const dv = d[k], v = o[k];
+      if (typeof dv === "number"){ if (typeof v !== "number" || !isFinite(v)) o[k] = dv; }
+      else if (plain(dv)){ if (!plain(v)) o[k] = copy(dv); else sameShape(v, dv, depth + 1); }
+    }
+  };
+  if (plain(st.base)) sameShape(st.base, def.base, 0); else if (st.base !== undefined) st.base = copy(def.base);
+  for (const g of ["model", "view"]) if (st[g] !== undefined){ if (plain(st[g])) sameShape(st[g], def[g], 0); else st[g] = copy(def[g]); }
   st.slots = (Array.isArray(st.slots) ? st.slots : def.slots).slice(0, MAX_SLOTS).map((sl, i) => ({
     hex: HEX_RE.test(sl && sl.hex) ? sl.hex : "#888888",
     name: cleanStr(sl && sl.name, 40, `Filament ${i+1}`),

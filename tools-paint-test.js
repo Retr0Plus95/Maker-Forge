@@ -315,6 +315,14 @@ async function settle() {
   proj3.base.type = "stl"; proj3.base.stl = { name: 5, scale: -50 }; proj3.model = Object.assign({}, proj3.model, { scale: -100 });
   await load(proj3);
   const S3 = st(), errs3 = env.errors.filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
+  // text, null or a list where a number or a group of settings belongs falls back to the default
+  const proj4 = JSON.parse(JSON.stringify(st()));
+  proj4.base.type = "board"; proj4.base.board = Object.assign({}, proj4.base.board, { w: "12abc", h: null, r: [3] }); proj4.base.nameplate.sym = 5; proj4.view = "dark";
+  const e4 = env.errors.length;
+  await load(proj4);
+  const S4 = st(), D4 = MF.defaults, errs4 = env.errors.slice(e4).filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
+  check(S4.base.board.w === D4.board.w && S4.base.board.h === D4.board.h && S4.base.board.r === D4.board.r && typeof S4.base.nameplate.sym === "object" && typeof S4.view === "object" && MF.parts.length && !errs4.length,
+    "text, null or a list in a number's place, or a number in a group's place, falls back to the default", `${JSON.stringify(S4.base.board).slice(0, 80)}, ${errs4.length} errors`);
   check(S3.base.stl.name === "" && S3.base.stl.scale === 5 && S3.model.scale === 20 && !errs3.length, "a model name that is not text and negative scales are cleaned (a negative scale turns a model inside out)",
     `${JSON.stringify(S3.base.stl)}, model ${S3.model.scale}%, ${errs3.length} errors`);
 

@@ -2556,7 +2556,7 @@
     return {
       // bisect the longest edge of every triangle longer than maxEdge, until none is (or maxTris)
       refine(maxEdge, maxTris) {
-        const L2 = maxEdge * maxEdge;
+        const L2 = maxEdge * maxEdge * 1.0404;          // 2% slack: edges already at the limit (say after a 3mf round trip) stay
         for (let pass = 0; pass < 64; pass++) {
           let n = 0; const nT = T.length / 3;
           for (let t = 0; t < nT; t++) {
@@ -2583,6 +2583,38 @@
           const a = todo[i], b = todo[i + 1], ya = P[3 * a + axis], yb = P[3 * b + axis], t = (h - ya) / (yb - ya);
           const q = [0, 1, 2].map(j => P[3 * a + j] + (P[3 * b + j] - P[3 * a + j]) * t); q[axis] = h;
           split(a, b, q[0], q[1], q[2]);
+        }
+      },
+      // cut along many planes coordinate[axis] = hs[k], lowest first. Once every plane below k is cut,
+      // a triangle that crosses plane k has no corner below plane k-1, so the edges a split makes can
+      // only cross planes above k: each edge is filed under the first plane it crosses and looked at
+      // once, instead of scanning every edge for every plane (hundreds of layers for a colour fade).
+      cutMany(axis, hs, eps) {
+        eps = eps ?? 1e-4;
+        const H = [...new Set(hs.filter(isFinite))].sort((x, y) => x - y);
+        if (!H.length) return;
+        const firstAbove = y => { let lo = 0, hi = H.length; while (lo < hi) { const m = (lo + hi) >> 1; if (H[m] <= y) lo = m + 1; else hi = m; } return lo; };
+        for (let i = axis; i < P.length; i += 3) {             // points within eps of a plane move onto it
+          const k = firstAbove(P[i]);
+          if (k < H.length && H[k] - P[i] <= eps) P[i] = H[k]; else if (k > 0 && P[i] - H[k - 1] <= eps) P[i] = H[k - 1];
+        }
+        const bucket = H.map(() => []), file = (u, v) => {
+          const yu = P[3 * u + axis], yv = P[3 * v + axis], lo = Math.min(yu, yv), hi = Math.max(yu, yv), k = firstAbove(lo);
+          if (k < H.length && H[k] < hi) bucket[k].push(u, v);
+        };
+        for (const key of E.keys()) file(Math.floor(key / EB), key % EB);
+        for (let k = 0; k < H.length; k++) {
+          const list = bucket[k]; bucket[k] = null;
+          for (let i = 0; i < list.length; i += 2) {
+            const u = list[i], v = list[i + 1], e = E.get(key(u, v));
+            if (e === undefined || e < 0) continue;
+            const yu = P[3 * u + axis], yv = P[3 * v + axis]; if (!(Math.min(yu, yv) < H[k] && Math.max(yu, yv) > H[k])) continue;
+            const t = (H[k] - yu) / (yv - yu), q = [0, 1, 2].map(j => P[3 * u + j] + (P[3 * v + j] - P[3 * u + j]) * t); q[axis] = H[k];
+            const ts = [e % EB - 1, Math.floor(e / EB) - 1].filter(x => x >= 0), opp = ts.map(x => [T[3 * x], T[3 * x + 1], T[3 * x + 2]].find(w => w !== u && w !== v));
+            const m = split(u, v, q[0], q[1], q[2]); if (m < 0) continue;
+            file(m, yu > yv ? u : v);                          // the upper half may cross the next planes
+            opp.forEach(w => file(m, w));                      // so may the new edges to the opposite corners
+          }
         }
       },
       tris: () => T.length / 3,
@@ -2668,6 +2700,32 @@
       const y = topo.cen[3 * t + 1]; if (y < o.from || y > o.to) continue;
       const ph = (y - o.from) % every; if (ph < w) paint[t] = o.slot; else if (o.gap != null && o.gap !== LEAVE && o.gap >= 0) paint[t] = o.gap;
     }
+  }
+  // A fade between two filaments: every layer in [from, to] is one colour or the other, chosen so the
+  // share of the second grows evenly from 0 to 1 (error diffusion over the layers, so no banding).
+  function gradientCuts(from, to, layer, max) {
+    const cuts = [], n = Math.min(max || 400, Math.round((to - from) / Math.max(0.04, layer)));
+    for (let i = 0; i <= n; i++) cuts.push(from + (to - from) * i / n);
+    return cuts;
+  }
+  function gradientLayers(n) {
+    const out = new Uint8Array(n); let acc = 0;
+    for (let i = 0; i < n; i++) { acc += n > 1 ? i / (n - 1) : 1; if (acc >= 0.5) { out[i] = 1; acc -= 1; } }
+    return out;
+  }
+  function paintGradient(topo, paint, o) {
+    const n = Math.max(1, Math.min(o.max || 400, Math.round((o.to - o.from) / Math.max(0.04, o.layer)))), pick = gradientLayers(n), h = (o.to - o.from) / n;
+    for (let t = 0; t < topo.n; t++) {
+      const y = topo.cen[3 * t + 1];
+      if (y < o.from) { if (o.below) paint[t] = o.a; continue; }
+      if (y > o.to) { if (o.above) paint[t] = o.b; continue; }
+      const i = Math.min(n - 1, Math.max(0, Math.floor((y - o.from) / h)));
+      paint[t] = pick[i] ? o.b : o.a;
+    }
+  }
+  // every triangle of one colour becomes another (base: the colour of unpainted triangles)
+  function paintSwap(paint, from, to, base) {
+    let n = 0; for (let t = 0; t < paint.length; t++) { const c = paint[t] === LEAVE ? base : paint[t]; if (c === from) { paint[t] = to; n++; } } return n;
   }
   // faces pointing up (roofs), sideways (walls) and down (undersides), split at `angle` from level
   function paintDirection(topo, paint, o) {
@@ -2871,7 +2929,7 @@
     affineSolid, mat3Mul, rotationDownTo, analyzePrint, analyzePrintSteps, bestOrientation, bestOrientationSteps, orientationScore, brimSolid, bedContact, sliceMask, gridOver, flattenParts,
     seededRandom, jigsawGrid, jigsawCut, jigsawEdge, jigsawPiece, jigsawSVG, jigsawCutLines, ringField, ringDistance, outlineBand, strokeText,
     gridAround, heightSheet,
-    meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, meshShells, paintShells,
+    meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, gradientCuts, gradientLayers, paintGradient, paintSwap, meshShells, paintShells,
     meshRegions, paintRegions, paintNoise, paintBrush, paintFill, paintPicture, parseOBJ, parse3MFModel
   };
 })(typeof window !== "undefined" ? window : globalThis);

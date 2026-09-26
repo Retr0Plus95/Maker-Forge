@@ -333,6 +333,9 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
   body{overflow:auto}
   .app{grid-template-columns:1fr;grid-template-rows:auto 48vh auto auto}
   .appbar{flex-wrap:wrap;padding:8px 10px;gap:6px}
+  .toptabs{max-width:100%;overflow-x:auto;scrollbar-width:none}
+  .toptabs button{padding:7px 10px}
+  .toptabs .ico{display:none}
   .stage{grid-row:2;grid-column:1}
   .secrail{grid-row:3;grid-column:1;flex-direction:row;overflow-x:auto;border-right:none;border-top:1px solid var(--line);padding:6px}
   .secrail button .tip{display:none}
@@ -357,7 +360,7 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.16.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.17.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -713,7 +716,7 @@ function phoneSpec(key){
 
 /* ---------- 2. state ---------- */
 const DEFAULTS = () => ({
-  v:4,
+  v:5,
   slots:[ { hex:"#f4f1ea", name:"Cream", mat:"PLA", price:22 }, { hex:"#22303c", name:"Charcoal", mat:"PLA", price:22 },
           { hex:"#d1495b", name:"Red", mat:"PLA", price:22 }, { hex:"#edae49", name:"Gold", mat:"PLA", price:22 } ],
   base:{
@@ -756,7 +759,7 @@ const DEFAULTS = () => ({
     box:{ w:90, d:70, h:4 }, cyl:{ dia:70, h:90 }, hex:{ dia:80, h:6 }, sphere:{ dia:70 },
     stl:{ name:"", scale:100 },
     enclosure:{ w:100, d:64, h:36, wall:2, floor:2, radius:4, lid:"screw", lidThick:2.4, lipH:3, lipW:1.2, fit:0.2,
-      fasten:"insert", screw:"M3", head:"sink", teardrop:true, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
+      fasten:"insert", screw:"M3", head:"sink", teardrop:false, grow:true, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
       labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
       board:"none", boardX:0, boardY:0, boardRot:false, standH:5, bw:60, bd:40, bsx:52, bsy:32, bscrew:"M3", boxSlot:1, lidSlot:1,
       cut:[ { face:"front", kind:"usbc", u:-25, v:12, w:9.2, h:3.4, r:1.6, rot:false },
@@ -814,7 +817,7 @@ function undo(){ if (history.past.length < 2) return; history.future.push(histor
 function redo(){ if (!history.future.length) return; const j = history.future.pop(); history.past.push(j); applySnapshot(j); updateHistoryButtons(); }
 function updateHistoryButtons(){ $("#undoBtn").disabled = history.past.length < 2; $("#redoBtn").disabled = !history.future.length; }
 function projectPayload(){
-  return JSON.stringify({ app:"Maker Forge", v:4, saved:new Date().toISOString(),
+  return JSON.stringify({ app:"Maker Forge", v:5, saved:new Date().toISOString(),
     state:JSON.parse(serialize()), assets:Object.fromEntries(Object.entries(assets).map(([k,v])=>[k,v.dataURL])) });
 }
 /* Share link: the project, pictures left out, deflated into the part of the address after "#p=".
@@ -833,7 +836,7 @@ async function squeeze(text, back){
 async function makeShareLink(){
   const st = JSON.parse(serialize()), pics = st.items.filter(it => !it.text).length;
   st.items = st.items.filter(it => it.text); st.active = st.items.length ? 0 : -1;
-  const json = JSON.stringify({ app:"Maker Forge", v:4, state:st }), packed = await squeeze(json);
+  const json = JSON.stringify({ app:"Maker Forge", v:5, state:st }), packed = await squeeze(json);
   const tail = packed ? "#p=" + b64url(packed) : "#j=" + b64url(new TextEncoder().encode(json));
   return { url: location.href.split("#")[0] + tail, pics };
 }
@@ -1718,7 +1721,7 @@ function buildEnclosure(){
       });
     }
   }
-  const lipTop = lidOn && lipH > 0 ? H - lipH - 0.3 : Infinity, lipEdge = lidOn && lipH > 0 ? fit + lipW + 0.8 : 0.8;
+  const lipTop = lidOn && lipH > 0 ? H - lipH - 0.3 : Infinity, lipEdge = lidOn && lipH > 0 ? fit + lipW + 0.8 : 0.8, misfit = [];
   (Array.isArray(E.cut) ? E.cut : []).forEach((c, i) => {
     const face = encHas(holesOn, c.face) ? c.face : "front", wall = ENC_WALLS.has(face), lab = `Opening ${i+1} (${(encHas(CUTOUTS, c.kind) ? CUTOUTS[c.kind] : CUTOUTS.round).label})`;
     if (face === "top" && !lidOn){ left.push(i); warn.push({ t:`${lab} left out`, s:`${lab} is on the lid, but the box has no lid.` }); return; }
@@ -1731,6 +1734,7 @@ function buildEnclosure(){
       : face === "top" ? [-iw/2 + lipEdge, -id/2 + lipEdge, iw/2 - lipEdge, id/2 - lipEdge]
       : [-iw/2 + 0.8, -id/2 + 0.8, iw/2 - 0.8, id/2 - 0.8];
     if (bb[0] < lim[0] || bb[1] < lim[1] || bb[2] > lim[2] || (!notch && bb[3] > lim[3])){
+      misfit.push({ i, face, wall, bb, lim: wall && !notch && isFinite(lipTop) ? [lim[0], lim[1], lim[2], Math.min(lim[3], lipTop)] : lim });
       left.push(i); warn.push({ t:`${lab} left out`, s:`${lab} does not fit on the ${ENC_FACE_NAME[face]}${wall && R ? " (the rounded corners are not flat)" : ""}: move it, or make the box bigger.` }); return;
     }
     const clash = taken[face].find(o => bb[0] < o.bb[2] + 0.8 && o.bb[0] < bb[2] + 0.8 && bb[1] < o.bb[3] + 0.8 && o.bb[1] < bb[3] + 0.8);
@@ -1822,18 +1826,22 @@ function buildEnclosure(){
     if (ph < pocketH - 1e-6) warn.push({ t:"Box too shallow for the magnets", s:`The corner posts are too short for ${mg.d} × ${mg.t} mm magnets. Make the box taller or use thinner magnets.` });
     bosses.forEach(([x, z]) => { solids.push(post(x, -z, bossR, 0, fl, H - ph)); if (ph > 0) solids.push(post(x, -z, bossR, pocketD/2, H - ph, H)); });
   } else bosses.forEach(([x, z]) => solids.push(post(x, -z, bossR, bossHole/2, fl, H)));
-  let board = null;
+  let board = null, boardNeed = null;
   if (boardB && boardB.holes){
     const B = boardB;
     {
       const sh = clamp(+E.standH || 5, 1, Math.max(1, H - fl - 1)), bw = E.boardRot ? B.d : B.w, bd = E.boardRot ? B.w : B.d;
       const ox = +E.boardX || 0, oy = +E.boardY || 0;
       board = { w:bw, d:bd, top: fl + sh + 1.6, label:B.label, screw:B.screw, hole:standoffs.length ? standoffs[0].hole : 0 };
-      standoffs.forEach(so => solids.push(post(so.x, so.y, so.r, so.hole/2, fl, fl + sh)));
       const x0 = ox - bw/2, x1 = ox + bw/2, y0 = oy - bd/2, y1 = oy + bd/2;
-      if (x0 < -iw/2 + 0.5 || x1 > iw/2 - 0.5 || y0 < -id/2 + 0.5 || y1 > id/2 - 0.5)
-        warn.push({ t:`${B.label} does not fit`, s:`The board is ${bw.toFixed(1)} × ${bd.toFixed(1)} mm and the inside is ${iw.toFixed(1)} × ${id.toFixed(1)} mm. Make the box bigger or move the board.` });
-      else if (bosses.some(([x, z]) => x + bossR > x0 && x - bossR < x1 && -z + bossR > y0 && -z - bossR < y1))
+      // how big the box must be for the board where it is (used by "make it fit")
+      boardNeed = { w: bw + 1 + 2*Math.abs(ox) + 2*t, d: bd + 1 + 2*Math.abs(oy) + 2*t, h: board.top + 1 + lipH + 0.5 };
+      if (x0 < -iw/2 + 0.5 || x1 > iw/2 - 0.5 || y0 < -id/2 + 0.5 || y1 > id/2 - 0.5){
+        // its standoffs would stand outside the box: leave them out until it fits
+        warn.push({ t:`${B.label} does not fit`, s:`The board is ${bw.toFixed(1)} × ${bd.toFixed(1)} mm and the inside is ${iw.toFixed(1)} × ${id.toFixed(1)} mm, so its standoffs are left out. Make the box bigger (at least ${Math.ceil(boardNeed.w)} × ${Math.ceil(boardNeed.d)} mm outside) or move the board.` });
+        board.fits = false;
+      } else standoffs.forEach(so => solids.push(post(so.x, so.y, so.r, so.hole/2, fl, fl + sh)));
+      if (board.fits !== false && bosses.some(([x, z]) => x + bossR > x0 && x - bossR < x1 && -z + bossR > y0 && -z - bossR < y1))
         warn.push({ t:`${B.label} sits on a screw post`, s:"A corner screw post is under the board. Move the board, or make the box bigger." });
       if (board.top + 1 > H - lipH) warn.push({ t:"Not enough headroom", s:`The top of the board is ${board.top.toFixed(1)} mm up, too close to the lid. Make the box taller or the standoffs shorter.` });
     }
@@ -1943,8 +1951,57 @@ function buildEnclosure(){
     : !bossesOn ? (E.lid === "press" ? "Press-fit lid, no screws." : "No screws.")
     : E.fasten === "insert" ? `Corner posts for ${E.screw} heat inserts (${screw.insert} mm holes, at least ${screw.insertDepth} mm deep).`
     : `Corner posts for ${E.screw} self-tapping screws (${screw.pilot} mm pilot holes).`;
-  enclosureInfo = { test: !!state.base.enclosure.test, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, board, fastenText, count:(E.cut || []).length - left.length };
+  enclosureInfo = { test: !!state.base.enclosure.test, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boardNeed, fastenText, count:(E.cut || []).length - left.length };
   return parts;
+}
+/* An opening bigger than the face it is on used to be left out with a message that was easy to miss.
+   Now the box grows just enough (the face's width, the box's height, or the floor and lid) and the
+   opening slides into the free space, rebuilt until everything named fits. Box sizes are capped at
+   the sliders' limits; what still does not fit keeps its warning. */
+function encGrowToFit(E, which){
+  const want = new Set(which), before = [E.w, E.d, E.h], moved = new Set();
+  const grow = (k, by, max) => { const v = Math.min(max, (+E[k] || 0) + by); if (v > E[k] + 1e-6){ E[k] = Math.ceil(v); return true; } return false; };
+  for (let it = 0; it < 8; it++){
+    buildEnclosure();
+    const list = (enclosureInfo.misfit || []).filter(m => want.has(m.i));
+    if (!list.length) break;
+    let changed = false;
+    for (const m of list){
+      const c = E.cut[m.i], bw = m.bb[2] - m.bb[0], lw = m.lim[2] - m.lim[0];
+      const bh = m.bb[3] - m.bb[1], lh = m.lim[3] - m.lim[1];
+      if (bw > lw) changed = grow(m.wall ? (m.face === "front" || m.face === "back" ? "w" : "d") : "w", bw - lw + 1, m.wall ? 300 : 300) || changed;
+      else if (m.bb[0] < m.lim[0]){ c.u = +((+c.u || 0) + m.lim[0] - m.bb[0] + 0.01).toFixed(2); moved.add(m.i); changed = true; }
+      else if (m.bb[2] > m.lim[2]){ c.u = +((+c.u || 0) - (m.bb[2] - m.lim[2]) - 0.01).toFixed(2); moved.add(m.i); changed = true; }
+      if (bh > lh) changed = grow(m.wall ? "h" : "d", bh - lh + 1, m.wall ? 250 : 300) || changed;
+      else if (m.bb[1] < m.lim[1]){ c.v = +((+c.v || 0) + m.lim[1] - m.bb[1] + 0.01).toFixed(2); moved.add(m.i); changed = true; }
+      else if (m.bb[3] > m.lim[3]){ c.v = +((+c.v || 0) - (m.bb[3] - m.lim[3]) - 0.01).toFixed(2); moved.add(m.i); changed = true; }
+    }
+    if (!changed) break;
+  }
+  const grew = [E.w, E.d, E.h].some((v, k) => v !== before[k]);
+  return { grew, moved: moved.size > 0, before, after: [E.w, E.d, E.h], fits: !(enclosureInfo.misfit || []).some(m => want.has(m.i)) };
+}
+// after an opening's size, kind or face changed: grow the box for it (unless switched off) and say so
+// a board picked (or turned, or its standoffs raised) that the box cannot hold: grow the box around it
+function encBoardChanged(){
+  const E = state.base.enclosure;
+  if (E.grow !== false){
+    buildEnclosure(); const need = enclosureInfo && enclosureInfo.boardNeed, before = [E.w, E.d, E.h];
+    if (need){ E.w = Math.min(300, Math.max(E.w, Math.ceil(need.w))); E.d = Math.min(300, Math.max(E.d, Math.ceil(need.d))); E.h = Math.min(250, Math.max(E.h, Math.ceil(need.h))); }
+    if ([E.w, E.d, E.h].some((v, k) => v !== before[k])){ notify(`The box grew from ${before.join(" × ")} to ${E.w} × ${E.d} × ${E.h} mm so the board fits. Undo puts it back.`); renderTab(); }
+  }
+  baseChanged();
+}
+function encOpeningChanged(i){
+  const E = state.base.enclosure;
+  if (E.grow !== false && E.cut[i]){
+    const c = E.cut[i], r = encGrowToFit(E, [i]);
+    const lab = c.kind === "fan" ? `${c.size} mm fan` : (CUTOUTS[c.kind] || CUTOUTS.round).label.replace(/[:(,].*$/, "").trim();
+    if (r.grew) notify(`The box grew from ${r.before.join(" × ")} to ${r.after.join(" × ")} mm so the ${lab.toLowerCase()} fits. Undo puts it back.`);
+    else if (r.moved) notify(`The ${lab.toLowerCase()} was moved so it fits on the ${ENC_FACE_NAME[E.cut[i].face]}.`);
+    if (r.grew || r.moved) renderTab();
+  }
+  baseChanged();
 }
 // slide a new opening along its face until it clears the others
 function freeSpot(E, c){
@@ -3473,7 +3530,7 @@ renderer.domElement.addEventListener("pointerup", e => {
    slic3rpe:mmu_segmentation for PrusaSlicer); the OBJ groups faces by colour. */
 const PAINT_MAX_TRIS = 900000, PAINT_LEAVE = 255;
 const PAINT_DETAIL = { coarse:2.5, normal:1.2, fine:0.6 };
-const paintUI = { slot:1, tool:"brush", r:3, facing:true, fill:"smooth", angle:30, method:"height" };
+const paintUI = { slot:1, tool:"brush", r:3, facing:true, fill:"smooth", angle:30, method:"height", mirror:false };
 const paintCache = new WeakMap();                  // original solid -> refined mesh, topology, brush grid
 let paintInfo = { tris:0, painted:0, edge:0, capped:false, area:{} };
 const paintOps = () => (state.paint && state.paint.on !== false && Array.isArray(state.paint.ops)) ? state.paint.ops : [];
@@ -3484,6 +3541,7 @@ function paintCuts(ops){
   for (const o of ops){
     if (o.k === "height") (o.cuts || []).forEach(h => cuts.add(+(+h).toFixed(4)));
     if (o.k === "stripes") C.stripeCuts(o.from, o.to, o.every, o.width, 300).forEach(h => cuts.add(+(+h).toFixed(4)));
+    if (o.k === "gradient") C.gradientCuts(o.from, o.to, o.layer || state.printer.layer || 0.2, 300).forEach(h => cuts.add(+(+h).toFixed(4)));
   }
   return [...cuts].filter(isFinite).sort((a,b)=>a-b).slice(0, 600);
 }
@@ -3539,11 +3597,19 @@ function runPaintOps(p, pc, ops, B){
     if (o.k === "height") C.paintHeights(topo, paint, o.cuts || [], (o.slots||[]).map(S));
     else if (o.k === "stripes") C.paintStripes(topo, paint, { from:+o.from, to:+o.to, every:+o.every, width:+o.width, slot:S(o.slot), gap:S(o.gap) });
     else if (o.k === "dir") C.paintDirection(topo, paint, { up:S(o.up), side:S(o.side), down:S(o.down), angle:o.angle });
+    else if (o.k === "gradient") C.paintGradient(topo, paint, { from:+o.from, to:+o.to, layer:o.layer || state.printer.layer || 0.2, a:S(o.a), b:S(o.b), below:o.ends !== false, above:o.ends !== false, max:300 });
+    else if (o.k === "swap"){ if (paintSlotOk(o.from) && paintSlotOk(o.to)) C.paintSwap(paint, o.from, o.to, p.slot); }
     else if (o.k === "shells") C.paintShells(topo, paint, (o.slots||[]).map(S));
     else if (o.k === "regions") C.paintRegions(topo, paint, { angle:o.angle, slots:(o.slots||[]).map(S), minArea:4 });
     else if (o.k === "noise") C.paintNoise(topo, paint, { slots:(o.slots||[]).map(S), scale:o.scale, seed:o.seed });
     else if (o.k === "picture"){ const pic = paintPicture(o); if (pic) C.paintPicture(topo, paint, pic, o.dir, pictureBox(o, pic, B), o.facing !== false); }
-    else if (o.k === "brush"){ if (!pc.grid) pc.grid = C.triangleGrid(topo, Math.max(1, (o.r||3))); C.paintBrush(topo, pc.grid, paint, o.pts || [], o.r || 3, o.slot === PAINT_LEAVE ? PAINT_LEAVE : S(o.slot), o.facing || null); }
+    else if (o.k === "brush"){
+      if (!pc.grid) pc.grid = C.triangleGrid(topo, Math.max(1, (o.r||3)));
+      const sl = o.slot === PAINT_LEAVE ? PAINT_LEAVE : S(o.slot);
+      C.paintBrush(topo, pc.grid, paint, o.pts || [], o.r || 3, sl, o.facing || null);
+      // a mirrored stroke on the other side of the middle (x = 0), for figures and faces
+      if (o.mirror) C.paintBrush(topo, pc.grid, paint, (o.pts || []).map(q => [-q[0], q[1], q[2]]), o.r || 3, sl, o.facing ? [-o.facing[0], o.facing[1], o.facing[2]] : null);
+    }
     else if (o.k === "fill"){ const t0 = nearestTri(pc, o.p); if (t0 >= 0) C.paintFill(topo, paint, t0, o.slot === PAINT_LEAVE ? PAINT_LEAVE : S(o.slot), o.same ? -1 : (o.angle ?? 30), p.slot); }
   }
   return paint;
@@ -3581,7 +3647,7 @@ function applyPaint(repaintOnly){
     if (!pc || pc.key !== key){
       const ed = C.meshEditor(p.solid0);
       if (isFinite(L)) ed.refine(L, PAINT_MAX_TRIS);
-      if (targets.includes(p)) for (const h of cuts) ed.cut(1, h);
+      if (targets.includes(p) && cuts.length) ed.cutMany(1, cuts);
       const solid = ed.solid();
       pc = { key, solid, topo:C.meshTopology(solid), grid:null, src:ed.source() };
       paintCache.set(p.solid0, pc);
@@ -3675,12 +3741,14 @@ function strokeAt(h){
   if (last && Math.hypot(h.p[0]-last[0], h.p[1]-last[1], h.p[2]-last[2]) < paintUI.r*0.3) return;
   if (stroke.op.pts.length >= 5000) return;
   stroke.op.pts.push(h.p.map(v => +v.toFixed(3)));
+  const F = stroke.op.facing, spots = [[h.p, F]];
+  if (stroke.op.mirror) spots.push([[-h.p[0], h.p[1], h.p[2]], F ? [-F[0], F[1], F[2]] : null]);
   paintTargets().forEach(p => {
     if (!p.pc || !p.paint) return;
     if (!p.pc.grid) p.pc.grid = C.triangleGrid(p.pc.topo, Math.max(1, paintUI.r));
     const changed = [];
-    p.pc.grid.near(h.p[0], h.p[1], h.p[2], paintUI.r, t => {
-      if (stroke.op.facing){ const n = p.pc.topo.nrm; if (n[3*t]*stroke.op.facing[0] + n[3*t+1]*stroke.op.facing[1] + n[3*t+2]*stroke.op.facing[2] > 0.05) return; }
+    for (const [q, f] of spots) p.pc.grid.near(q[0], q[1], q[2], paintUI.r, t => {
+      if (f){ const n = p.pc.topo.nrm; if (n[3*t]*f[0] + n[3*t+1]*f[1] + n[3*t+2]*f[2] > 0.05) return; }
       if (p.paint[t] !== stroke.op.slot){ p.paint[t] = stroke.op.slot; changed.push(t); }
     });
     if (changed.length) recolourTris(p, changed);
@@ -3696,7 +3764,7 @@ renderer.domElement.addEventListener("pointerdown", e => {
     repaint(true); pushHistory(); return;
   }
   const facing = paintUI.facing ? h.dir.map(v => +v.toFixed(4)) : null;
-  const op = { k:"brush", slot:paintUI.tool === "erase" ? PAINT_LEAVE : paintUI.slot, r:paintUI.r, facing, pts:[] };
+  const op = { k:"brush", slot:paintUI.tool === "erase" ? PAINT_LEAVE : paintUI.slot, r:paintUI.r, facing, pts:[], mirror:paintUI.mirror === true };
   state.paint.ops.push(op);
   // the first stroke on a model: split it into triangles small enough to paint, then start
   if (!modelParts.some(p => p.pc) || !isFinite(paintInfo.edge)){ applyPaint(true); refreshScene(); }
@@ -4354,6 +4422,18 @@ const TABS = [["make","Make","◈"],["art","Art","✦"],["colour","Colours","◉
 $("#tabs").innerHTML = TABS.map(([k,l,ico])=>`<button role="tab" data-k="${k}" aria-selected="${k===tab}"><span class="ico">${ico}</span>${l}</button>`).join("");
 const APP_VERSION = (document.getElementById("verBadge")||{}).textContent || "";
 $("#tabs").querySelectorAll("button").forEach(b=>b.onclick = ()=>{ tab = b.dataset.k; renderTab(); });
+// arrow keys walk the tabs and the page icons, like any list of tabs
+function arrowNav(box, sel, vertical){
+  box.addEventListener("keydown", e => {
+    const keys = vertical ? ["ArrowUp","ArrowDown"] : ["ArrowLeft","ArrowRight"];
+    if (!keys.includes(e.key) && e.key !== "Home" && e.key !== "End") return;
+    const list = [...box.querySelectorAll(sel)], i = list.indexOf(document.activeElement); if (i < 0) return;
+    const j = e.key === "Home" ? 0 : e.key === "End" ? list.length - 1 : (i + (e.key === keys[1] ? 1 : -1) + list.length) % list.length;
+    list[j].focus(); list[j].click(); e.preventDefault();
+  });
+}
+arrowNav($("#tabs"), "button", false); arrowNav($("#secrail"), "button[data-title]", true);
+document.querySelectorAll(".viewtools button[title]").forEach(b => { if (!b.getAttribute("aria-label")) b.setAttribute("aria-label", b.title); });
 /* ---- sections: every tab is split into small pages, one per icon in the left rail ----
    A page starts at each h2 heading, each collapsible group and each guided step card. Only the
    active page is shown, so panels stay short, and the active page plus its scroll position are
@@ -4489,7 +4569,7 @@ function renderTab(){
     }
     if (tab === "make" && si === 0 && state.base[state.base.type] && typeof state.base[state.base.type] === "object" && !["stl","none"].includes(state.base.type)){
       const r = document.createElement("div"); r.className = "row";
-      const b1 = document.createElement("button"); b1.className = "btn"; b1.textContent = `↺ Start this ${(SHAPE_LABEL[state.base.type]||"object").toLowerCase()} over`;
+      const b1 = document.createElement("button"); b1.className = "btn"; b1.textContent = "↺ Start this object over";
       b1.title = "Every setting of this object back to its default. Your artwork and colours stay.";
       b1.onclick = () => { if (!confirm("Put every setting of this object back to its default? Your artwork and filament colours stay.")) return;
         state.base[state.base.type] = DEFAULTS().base[state.base.type]; baseChanged(); pushHistory(); renderTab(); };
@@ -4540,7 +4620,12 @@ const OBJECT_GROUPS = [
   ["Basic shapes", [["cylinder","🥫"],["hex","⬢"],["sphere","⚪"]]],
   ["Bring your own", [["stl","📦"],["none","✦"]]]
 ];
+// paint belongs to one model: a new object or an imported file starts unpainted (Undo brings it back)
+function clearPaintForNewModel(){
+  if (state.paint && state.paint.ops && state.paint.ops.length){ state.paint.ops = []; notify("The paint was left on the previous model. Undo brings it back."); }
+}
 function chooseObject(v){
+  if (v !== state.base.type) clearPaintForNewModel();
   state.base.type = v;
   if (v === "stl" && !stlData) $("#stlInput").click();
   state.items.forEach(d=>{ d.place = defaultPlace(); d.solids = null; });
@@ -4698,6 +4783,8 @@ function buildPhoneCase(){
   const cam = S.cam || { x:5, y:5, w:30, h:30, r:8 }, m = clamp(cleanNum(K.camMargin, 0.8), 0, 5);
   const camX = W/2 - (+cam.x || 0) - (+cam.w || 0)/2, camY = H/2 - (+cam.y || 0) - (+cam.h || 0)/2;
   const camHalf = [Math.max(1, (+cam.w || 0)/2 + m), Math.max(1, (+cam.h || 0)/2 + m)], camR = Math.max(0, (+cam.r || 0) + m);
+  if ((+cam.x || 0) + (+cam.w || 0) > W + 0.5 || (+cam.y || 0) + (+cam.h || 0) > H + 0.5)
+    warn.push({ t:"The camera opening runs off the phone", s:`It reaches past the ${(+cam.x || 0) + (+cam.w || 0) > W + 0.5 ? "side" : "bottom"} of the phone (${W} × ${H} mm), so it is cut off there. Check its position and size on the Camera opening page.` });
   let logo = null;
   if (!bumper){
     const s = 0.25, ext = W/2 + fit + 1, eyt = H/2 + fit + 1, gw = Math.ceil(2*ext/s), gh = Math.ceil(2*eyt/s), F = new Float32Array(gw*gh);
@@ -4883,10 +4970,10 @@ function enclosureFields(p){
     } else note(g, "Four shallow round pockets under the floor keep stick-on feet from sliding off, and the box off the desk.");
   }, E.feet === "recess");
   group(p, "Board mounts", g => {
-    selField(g, "Board", Object.entries(BOARDS).map(([k, v]) => [k, v.label]), ()=>E.board, v=>{ E.board = v; renderTab(); baseChanged(); });
+    selField(g, "Board", Object.entries(BOARDS).map(([k, v]) => [k, v.label]), ()=>E.board, v=>{ E.board = v; renderTab(); encBoardChanged(); });
     if (E.board === "custom"){
-      numField(g,{ label:"Board width (mm)", min:5,max:250,step:0.5, get:()=>E.bw, set:v=>E.bw=v, onChange:baseChanged });
-      numField(g,{ label:"Board depth (mm)", min:5,max:250,step:0.5, get:()=>E.bd, set:v=>E.bd=v, onChange:baseChanged });
+      numField(g,{ label:"Board width (mm)", min:5,max:250,step:0.5, get:()=>E.bw, set:v=>E.bw=v, onChange:encBoardChanged });
+      numField(g,{ label:"Board depth (mm)", min:5,max:250,step:0.5, get:()=>E.bd, set:v=>E.bd=v, onChange:encBoardChanged });
       numField(g,{ label:"Holes apart, across (mm)", min:1,max:250,step:0.1, get:()=>E.bsx, set:v=>E.bsx=v, onChange:baseChanged });
       numField(g,{ label:"Holes apart, front to back (mm)", min:1,max:250,step:0.1, get:()=>E.bsy, set:v=>E.bsy=v, onChange:baseChanged });
       selField(g, "Board screws", Object.keys(SCREWS).map(k => [k, k]), ()=>E.bscrew, v=>{ E.bscrew = v; baseChanged(); });
@@ -4894,9 +4981,9 @@ function enclosureFields(p){
     if (E.board !== "none"){
       numField(g,{ label:"Board position, across (mm)", min:-120,max:120,step:0.5, get:()=>E.boardX, set:v=>E.boardX=v, onChange:baseChanged });
       numField(g,{ label:"Board position, front to back (mm)", min:-120,max:120,step:0.5, get:()=>E.boardY, set:v=>E.boardY=v, onChange:baseChanged });
-      numField(g,{ label:"Standoff height (mm)", min:2,max:40,step:0.5, get:()=>E.standH, set:v=>E.standH=v, onChange:baseChanged,
+      numField(g,{ label:"Standoff height (mm)", min:2,max:40,step:0.5, get:()=>E.standH, set:v=>E.standH=v, onChange:encBoardChanged,
         sub:()=>"Leave room under the board for solder joints: 4 to 6 mm." });
-      checkField(g, "Turn the board 90°", ()=>E.boardRot, v=>{ E.boardRot = v; baseChanged(); });
+      checkField(g, "Turn the board 90°", ()=>E.boardRot, v=>{ E.boardRot = v; encBoardChanged(); });
       if (I && I.board) note(g, `The top of the board ends up ${mm(I.board.top)} above the bed. Openings for its ports go from there up.`);
     } else note(g, "Pick a board to get standoffs with holes for its screws, in the right places.");
   });
@@ -4908,30 +4995,38 @@ function enclosureFields(p){
     cuts.forEach((c, i) => {
       const k = encHas(CUTOUTS, c.kind) ? CUTOUTS[c.kind] : CUTOUTS.round, box = document.createElement("div");
       box.className = "opening"; box.style.cssText = "border-top:1px solid rgba(128,128,128,.35);margin-top:10px;padding-top:6px";
-      box.insertAdjacentHTML("beforeend", `<p class="hint" style="margin:0 0 4px"><b>${i+1}. ${esc(k.label)}</b>${I && I.left.includes(i) ? " (left out, see above)" : ""}</p>`);
+      box.insertAdjacentHTML("beforeend", `<p class="hint" style="margin:0 0 4px"><b>${i+1}. ${esc(k.label)}</b></p>`);
       g.appendChild(box);
-      selField(box, "Where", ENC_FACES, ()=>c.face, v=>{ c.face = v; renderTab(); baseChanged(); });
+      if (I && I.left.includes(i)){
+        const why = (I.warn.find(w => w.t.startsWith(`Opening ${i+1} `)) || {}).s || "It does not fit where it is.";
+        box.insertAdjacentHTML("beforeend", `<div class="result warn"><span class="dot"></span><div><b>Not in the box yet</b><span class="s">${esc(why)}</span></div></div>`);
+        if ((I.misfit || []).some(m => m.i === i)) buttonRow(box, [["Make it fit: grow the box or move it", ()=>{
+          const r = encGrowToFit(E, [i]); renderTab(); baseChanged(); pushHistory();
+          notify(r.fits ? (r.grew ? `The box is now ${r.after.join(" × ")} mm.` : "Moved so it fits.") : "It still does not fit: the box would be bigger than 300 mm. Pick a smaller part or another side."); }]]);
+      }
+      selField(box, "Where", ENC_FACES, ()=>c.face, v=>{ c.face = v; renderTab(); encOpeningChanged(i); });
       const wall = ENC_WALLS.has(c.face);
-      numField(box,{ label:"Across (mm from the middle)", min:-150,max:150,step:0.5, get:()=>c.u, set:v=>c.u=v, onChange:baseChanged });
-      numField(box,{ label: wall ? "Height of its centre (mm)" : "Front to back (mm from the middle)", min: wall ? 0 : -150, max: wall ? 250 : 150, step:0.5,
+      numField(box,{ label:"Across (mm from the middle)", min:-150,max:150,step:0.5, noReset:true, get:()=>c.u, set:v=>c.u=v, onChange:baseChanged });
+      numField(box,{ label: wall ? "Height of its centre (mm)" : "Front to back (mm from the middle)", min: wall ? 0 : -150, max: wall ? 250 : 150, step:0.5, noReset:true,
         get:()=>c.v, set:v=>c.v=v, onChange:baseChanged });
-      if (k.kind === "round" || k.kind === "keyhole") numField(box,{ label:"Diameter (mm)", min:1,max:80,step:0.1, get:()=>c.dia, set:v=>c.dia=v, onChange:baseChanged });
+      const sized = () => encOpeningChanged(i);
+      if (k.kind === "round" || k.kind === "keyhole") numField(box,{ label:"Diameter (mm)", min:1,max:80,step:0.1, get:()=>c.dia, set:v=>c.dia=v, onChange:sized });
       if (["rect","display","vent","iec"].includes(k.kind)){
-        numField(box,{ label: k.kind === "display" ? "Window width (mm)" : "Width (mm)", min:1,max:200,step:0.1, get:()=>c.w, set:v=>c.w=v, onChange:baseChanged });
-        numField(box,{ label: k.kind === "display" ? "Window height (mm)" : "Height (mm)", min:1,max:200,step:0.1, get:()=>c.h, set:v=>c.h=v, onChange:baseChanged });
+        numField(box,{ label: k.kind === "display" ? "Window width (mm)" : "Width (mm)", min:1,max:200,step:0.1, get:()=>c.w, set:v=>c.w=v, onChange:sized });
+        numField(box,{ label: k.kind === "display" ? "Window height (mm)" : "Height (mm)", min:1,max:200,step:0.1, get:()=>c.h, set:v=>c.h=v, onChange:sized });
       }
       if (k.kind === "rect") numField(box,{ label:"Corner radius (mm)", min:0,max:10,step:0.1, get:()=>c.r, set:v=>c.r=v, onChange:baseChanged });
       if (k.kind === "display"){
-        numField(box,{ label:"Screw holes apart, across (mm)", min:0,max:200,step:0.1, get:()=>c.hw, set:v=>c.hw=v, onChange:baseChanged });
-        numField(box,{ label:"Screw holes apart, up (mm)", min:0,max:200,step:0.1, get:()=>c.hh, set:v=>c.hh=v, onChange:baseChanged });
+        numField(box,{ label:"Screw holes apart, across (mm)", min:0,max:200,step:0.1, get:()=>c.hw, set:v=>c.hw=v, onChange:sized });
+        numField(box,{ label:"Screw holes apart, up (mm)", min:0,max:200,step:0.1, get:()=>c.hh, set:v=>c.hh=v, onChange:sized });
         numField(box,{ label:"Screw hole diameter (mm)", min:1,max:6,step:0.1, get:()=>c.hd, set:v=>c.hd=v, onChange:baseChanged });
       }
       if (k.kind === "fan"){
-        selField(box, "Fan size", Object.keys(FAN_SPACING).map(s => [s, `${s} mm fan (screws ${FAN_SPACING[s]} mm apart)`]), ()=>String(c.size), v=>{ c.size = +v; baseChanged(); });
+        selField(box, "Fan size", Object.keys(FAN_SPACING).map(s => [s, `${s} mm fan (screws ${FAN_SPACING[s]} mm apart)`]), ()=>String(c.size), v=>{ c.size = +v; encOpeningChanged(i); });
         segField(box, [["rings","Rings"],["honeycomb","Honeycomb"],["open","Open"]], ()=>c.style, v=>{ c.style = v; baseChanged(); });
       }
       if (k.kind === "vent") segField(box, [["slots","Slots"],["honeycomb","Honeycomb"],["holes","Round holes"]], ()=>c.style, v=>{ c.style = v; baseChanged(); });
-      if (k.kind !== "round") checkField(box, "Turn it 90°", ()=>c.rot, v=>{ c.rot = v; renderTab(); baseChanged(); });
+      if (k.kind !== "round") checkField(box, "Turn it 90°", ()=>c.rot, v=>{ c.rot = v; renderTab(); encOpeningChanged(i); });
       if (wall && ENC_POINTABLE.has(c.kind)){
         const b = ringsBounds(placedRings({ ...c, top:"flat" }, E)), span = b[2] - b[0], lim = state.printer.bridge ?? 10;
         if (span > lim && c.top !== "pointed" && !c.notch) note(box, `Its top edge is a ${span.toFixed(1)} mm bridge, longer than your bridge limit (${lim} mm). Most printers bridge 15 to 20 mm; if yours sags, give it a pointed top.`);
@@ -4953,7 +5048,8 @@ function enclosureFields(p){
     buttonRow(add, [["Add opening", ()=>{
       const c = newOpening(encAdd.kind, encAdd.face);
       c.v = ENC_WALLS.has(c.face) ? Math.round(E.h/2) : 0; E.cut.push(c); c.u = freeSpot(E, c);
-      renderTab(); baseChanged(); pushHistory(); }]]);
+      renderTab(); encOpeningChanged(E.cut.length - 1); pushHistory(); }]]);
+    checkField(add, "Make the box bigger when an opening does not fit", ()=>E.grow !== false, v=>{ E.grow = v; });
     note(add, "Sizes are for typical parts, plus the clearance on the next page. Measure yours with calipers: modules differ between makers.");
     if (cuts.some(c => encLabelText(c.label))){
       numField(add,{ label:"Label letter height (mm)", min:2,max:15,step:0.5, get:()=>E.labelH ?? 4, set:v=>E.labelH=v, onChange:baseChanged });
@@ -4964,8 +5060,8 @@ function enclosureFields(p){
     }
   }, true);
   group(p, "Print and colours", g => {
-    checkField(g, "Print-friendly tops on holes in the walls", ()=>E.teardrop !== false, v=>{ E.teardrop = v; baseChanged(); });
-    note(g, "A round hole in a wall has a flat roof that sags: a pointed (teardrop) top prints cleanly and a round part still fits. Rounded port holes get square top corners, so their top is a clean bridge.");
+    checkField(g, "Pointed tops on holes in the walls (prints without support)", ()=>E.teardrop === true, v=>{ E.teardrop = v; baseChanged(); });
+    note(g, "Off: round holes are round. Small ones (LEDs, screws) print fine like that. On: each round hole in a wall gets a pointed 45° top, like a teardrop, so its roof never sags; a round part still fits. Rounded port holes get square top corners.");
     numField(g,{ label:"Extra clearance in openings (mm)", min:-0.3,max:1,step:0.05, get:()=>E.clear, set:v=>E.clear=v, onChange:baseChanged,
       sub:()=>"Printed holes come out a little small. 0.2 mm suits most printers." });
     slotField(g, "Box colour", ()=>String(E.boxSlot), v=>{ E.boxSlot = +v; baseChanged(); });
@@ -6201,6 +6297,14 @@ function removeSlot(i){
     if (d.outline) d.outline.slot = fix(d.outline.slot);
     d.solids = null;
   });
+  // paint that used the removed filament goes back to the part's own colour; later numbers move down
+  const pk = v => v === PAINT_LEAVE ? v : v === i ? PAINT_LEAVE : v > i ? v - 1 : v, p0 = v => Math.min(pk(v) === PAINT_LEAVE ? 0 : pk(v), state.slots.length - 1);
+  (state.paint && state.paint.ops || []).forEach(o => {
+    for (const k of ["slot","gap","up","side","down"]) if (typeof o[k] === "number") o[k] = pk(o[k]);
+    for (const k of ["a","b","from","to"]) if (typeof o[k] === "number" && (o.k === "gradient" || o.k === "swap")) o[k] = p0(o[k]);
+    if (Array.isArray(o.slots)) o.slots = o.k === "height" ? o.slots.map(pk) : o.slots.map(pk).filter(v => v !== PAINT_LEAVE);
+  });
+  if (paintUI.slot >= state.slots.length) paintUI.slot = state.slots.length - 1;
   renderTab(); schedule(); pushHistory();
 }
 
@@ -6208,20 +6312,24 @@ function removeSlot(i){
 /* ---- Paint ---- */
 const PAINT_METHODS = [
   ["height","Height bands","Bands of colour from the bottom up, like layers of a cake. The edges are cut straight into the model."],
+  ["gradient","Colour fade","Two filaments fade into each other up the model, one layer at a time: sunsets, oceans, flames."],
   ["stripes","Stripes","A colour that repeats every few millimetres up the model, like a candy cane."],
   ["dir","Tops and sides","One colour for surfaces that face up, one for walls, one for undersides. Great for buildings, terrain and signs."],
   ["shells","Separate pieces","Every piece that does not touch another gets its own colour. Handy for models with several parts in one file."],
   ["regions","Smooth areas","Areas split by sharp edges get different colours, neighbours never the same where the colours allow."],
   ["picture","From a picture","Shines a picture from the Art tab through the model, like a projector, in your loaded filaments."],
-  ["noise","Random blobs","Soft random patches: camouflage, marble, stone. Shuffle until you like it."]
+  ["noise","Random blobs","Soft random patches: camouflage, marble, stone. Shuffle until you like it."],
+  ["swap","Swap a colour","Every part of the model in one colour changes to another. Quick recolouring after painting."]
 ];
-const PAINT_OP_NAME = { height:"Height bands", stripes:"Stripes", dir:"Tops and sides", shells:"Separate pieces", regions:"Smooth areas",
+const PAINT_OP_NAME = { height:"Height bands", gradient:"Colour fade", swap:"Swap a colour", stripes:"Stripes", dir:"Tops and sides", shells:"Separate pieces", regions:"Smooth areas",
   picture:"Picture", noise:"Random blobs", brush:"Brush stroke", fill:"Fill" };
 function slotChoices(withKeep){ return [...(withKeep ? [["255","Keep as it is"]] : []), ...state.slots.map((s,i)=>[String(i), `${i+1}. ${s.name}`])]; }
 function paintModelHeight(){ const B = modelBoundsOf(modelParts); return isFinite(B.mx[1]) ? Math.max(1, B.mx[1] - Math.min(0, B.mn[1])) : 50; }
 function newPaintOp(k){
   const H = paintModelHeight(), n = Math.min(3, state.slots.length), sl = [...Array(Math.max(2, n)).keys()].map(i => Math.min(i, state.slots.length-1));
   if (k === "height") return { k, slots:sl, cuts:sl.slice(1).map((_,i) => +(H*(i+1)/sl.length).toFixed(1)) };
+  if (k === "gradient") return { k, a:0, b:Math.min(1, state.slots.length-1), from:+(H*0.25).toFixed(1), to:+(H*0.75).toFixed(1), ends:true };
+  if (k === "swap") return { k, from:0, to:Math.min(1, state.slots.length-1) };
   if (k === "stripes") return { k, slot:Math.min(1, state.slots.length-1), gap:PAINT_LEAVE, from:0, to:+H.toFixed(1), every:Math.max(2, +(H/8).toFixed(1)), width:Math.max(1, +(H/16).toFixed(1)) };
   if (k === "dir") return { k, up:Math.min(1, state.slots.length-1), side:0, down:PAINT_LEAVE, angle:30 };
   if (k === "shells") return { k, slots:state.slots.map((_,i)=>i) };
@@ -6234,8 +6342,10 @@ function paintOpText(o){
   const nm = s => s === PAINT_LEAVE ? "keep" : ((state.slots[s]||{}).name || `filament ${s+1}`);
   if (o.k === "height") return `${o.slots.length} bands: ${o.slots.map(nm).join(", ")}`;
   if (o.k === "stripes") return `${nm(o.slot)} every ${o.every} mm`;
+  if (o.k === "gradient") return `${nm(o.a)} to ${nm(o.b)}, ${o.from} to ${o.to} mm`;
+  if (o.k === "swap") return `${nm(o.from)} becomes ${nm(o.to)}`;
   if (o.k === "dir") return `tops ${nm(o.up)}, sides ${nm(o.side)}, undersides ${nm(o.down)}`;
-  if (o.k === "brush") return `${o.slot === PAINT_LEAVE ? "eraser" : nm(o.slot)}, ${o.r} mm, ${o.pts.length} points`;
+  if (o.k === "brush") return `${o.slot === PAINT_LEAVE ? "eraser" : nm(o.slot)}, ${o.r} mm, ${o.pts.length} points${o.mirror ? ", mirrored" : ""}`;
   if (o.k === "fill") return `${o.slot === PAINT_LEAVE ? "eraser" : nm(o.slot)}, ${o.same ? "same colour" : "smooth area"}`;
   if (o.k === "picture") return `${(state.items[o.item]||{}).name || "missing artwork"}, from the ${o.dir}`;
   return (o.slots||[]).map(nm).join(", ");
@@ -6291,6 +6401,16 @@ function paintOpFields(parent, o){
     buttonRow(parent, [["Spread the bands evenly", ()=>{ o.cuts = o.slots.slice(1).map((_,i)=>+(H*(i+1)/o.slots.length).toFixed(1)); renderTab(); ch(); }],
       ["Line up with the layers", ()=>{ const L = state.printer.layer || 0.2; o.cuts = o.cuts.map(h => +(Math.round(h/L)*L).toFixed(3)); renderTab(); ch(); }]]);
     note(parent, `The model is ${H.toFixed(1)} mm tall. Lining up with the layers (${state.printer.layer} mm) puts every colour change exactly on a layer.`);
+  } else if (o.k === "gradient"){
+    slotSel("Bottom colour", () => o.a, v => o.a = v, false);
+    slotSel("Top colour", () => o.b, v => o.b = v, false);
+    numField(parent,{ label:"Fade starts at (mm up)", min:0, max:Math.ceil(H), step:0.2, get:()=>o.from, set:v=>o.from=Math.min(v, o.to - 0.4), onChange:ch });
+    numField(parent,{ label:"Fade ends at (mm up)", min:0, max:Math.ceil(H), step:0.2, get:()=>o.to, set:v=>o.to=Math.max(v, o.from + 0.4), onChange:ch });
+    checkField(parent, "Solid colours below and above the fade", () => o.ends !== false, v => { o.ends = v; ch(); });
+    note(parent, `Each ${state.printer.layer} mm layer in the fade is one filament or the other, so it prints with ${Math.round((o.to - o.from)/(state.printer.layer || 0.2))} colour changes. A 0.12 mm layer height makes the smoothest fade.`);
+  } else if (o.k === "swap"){
+    slotSel("Change this colour", () => o.from, v => o.from = v, false);
+    slotSel("Into", () => o.to, v => o.to = v, false);
   } else if (o.k === "stripes"){
     slotSel("Stripe colour", () => o.slot, v => o.slot = v, false);
     slotSel("Between the stripes", () => o.gap, v => o.gap = v, true);
@@ -6359,6 +6479,7 @@ function tabPaint(p){
   paletteRow(p);
   numField(p,{ label:"Brush size (mm)", min:0.5, max:30, step:0.5, get:()=>paintUI.r, set:v=>paintUI.r=v, onChange:()=>{} });
   checkField(p, "Only paint the side facing me", () => paintUI.facing, v => { paintUI.facing = v; });
+  checkField(p, "Mirror my strokes to the other side (left and right)", () => paintUI.mirror, v => { paintUI.mirror = v; });
   segField(p, [["smooth","Fill a smooth area"],["same","Fill the same colour"]], () => paintUI.fill, v => { paintUI.fill = v; renderTab(); }, "two");
   if (paintUI.fill === "smooth") numField(p,{ label:"Stop at edges sharper than (°)", min:5, max:89, step:1, get:()=>paintUI.angle, set:v=>paintUI.angle=v, onChange:()=>{} });
   buttonRow(p, [["Undo the last stroke", ()=>{ const i = state.paint.ops.map(o=>o.k).lastIndexOf("brush"), j = state.paint.ops.map(o=>o.k).lastIndexOf("fill");
@@ -6616,6 +6737,7 @@ async function importModelFile(file){
   } else raw = C.parseSTL(await file.arrayBuffer());
   const y = new Float32Array(raw.length);
   for (let i=0;i<raw.length;i+=3){ y[i]=raw[i]; y[i+1]=raw[i+2]; y[i+2]=-raw[i+1]; }    // Z up (printers) to Y up (the view)
+  clearPaintForNewModel();
   stlData = y; stlPaint = paint; stlCache = null; state.base.type = "stl";
   state.base.stl = { name:`${file.name} (${(raw.length/9).toLocaleString()} triangles)`, scale:100 };
   if (paint && colours && colours.length){
@@ -6708,13 +6830,15 @@ function cleanPaint(P0){
         return { k:"height", slots:sl, cuts:(Array.isArray(o.cuts) ? o.cuts : []).slice(0, sl.length - 1).map(h => num(h, -1000, 1000, 0)).concat(Array(Math.max(0, sl.length - 1 - (Array.isArray(o.cuts) ? o.cuts.length : 0))).fill(0)) }; }
       case "stripes": return { k:"stripes", slot:slot(o.slot), gap:slotOrKeep(o.gap), from:num(o.from, -1000, 1000, 0), to:num(o.to, -1000, 1000, 10), every:num(o.every, 0.4, 500, 5), width:num(o.width, 0.2, 500, 2) };
       case "dir": return { k:"dir", up:slotOrKeep(o.up), side:slotOrKeep(o.side), down:slotOrKeep(o.down), angle:num(o.angle, 1, 89, 30) };
+      case "gradient": { const from = num(o.from, -1000, 1000, 0); return { k:"gradient", a:slot(o.a), b:slot(o.b), from, to:Math.max(from + 0.4, num(o.to, -1000, 1000, from + 10)), ends:o.ends !== false }; }
+      case "swap": return { k:"swap", from:slot(o.from), to:slot(o.to) };
       case "shells": return { k:"shells", slots:slots(o.slots).filter(v => v !== PAINT_LEAVE) };
       case "regions": return { k:"regions", slots:slots(o.slots).filter(v => v !== PAINT_LEAVE), angle:num(o.angle, 1, 89, 30) };
       case "noise": return { k:"noise", slots:slots(o.slots).filter(v => v !== PAINT_LEAVE), scale:num(o.scale, 0.5, 200, 12), seed:Math.round(num(o.seed, 0, 99999, 1)) };
       case "picture": return { k:"picture", item:Math.round(num(o.item, 0, 59, 0)), dir:one(o.dir, ["front","back","left","right","top"]), scale:num(o.scale, 10, 400, 100),
         dx:num(o.dx, -1000, 1000, 0), dy:num(o.dy, -1000, 1000, 0), facing:o.facing !== false };
       case "brush": { const pts = (Array.isArray(o.pts) ? o.pts : []).slice(0, Math.min(5000, budget)).map(v3).filter(Boolean); budget -= pts.length;
-        return pts.length ? { k:"brush", slot:slotOrKeep(o.slot), r:num(o.r, 0.2, 50, 3), facing:v3(o.facing), pts } : null; }
+        return pts.length ? { k:"brush", slot:slotOrKeep(o.slot), r:num(o.r, 0.2, 50, 3), facing:v3(o.facing), pts, mirror:o.mirror === true } : null; }
       case "fill": { const pt = v3(o.p); return pt ? { k:"fill", p:pt, slot:slotOrKeep(o.slot), same:o.same === true, angle:num(o.angle, 1, 89, 30) } : null; }
       default: return null;
     }
@@ -6802,7 +6926,10 @@ function sanitizeProject(data){
     E.logo = { on: L0.on === true, mode: one(L0.mode, ["inlay","engrave"]), width: Math.min(300, Math.max(5, cleanNum(L0.width, 40))),
       x: Math.min(200, Math.max(-200, cleanNum(L0.x, 0))), y: Math.min(200, Math.max(-200, cleanNum(L0.y, 0))), depth: Math.min(1.6, Math.max(0.2, cleanNum(L0.depth, 0.6))) };
     E.screw = encHas(SCREWS, E.screw) ? E.screw : "M3"; E.bscrew = encHas(SCREWS, E.bscrew) ? E.bscrew : "M3"; E.board = encHas(BOARDS, E.board) ? E.board : "none";
-    E.teardrop = E.teardrop !== false; E.boardRot = E.boardRot === true; E.test = E.test === true;
+    // until v0.17 every round hole in a wall was a teardrop unless switched off; people read them as
+    // misshapen ovals, so older projects open with round holes (the option is still there)
+    E.teardrop = (+data.v || 0) >= 5 ? E.teardrop === true : false; E.grow = E.grow !== false;
+    E.boardRot = E.boardRot === true; E.test = E.test === true;
     E.cut = (Array.isArray(E.cut) ? E.cut : []).slice(0, 80).filter(c => c && typeof c === "object").map(c => {
       const o = newOpening(c.kind, c.face);
       for (const k of ["u","v","w","h","r","dia","hw","hh","hd"]) if (k in o) o[k] = Math.min(400, Math.max(-400, cleanNum(c[k], o[k])));
@@ -6914,7 +7041,9 @@ async function buildZip(parts, title){
     "Bambu Studio: open model-bambu.3mf. It uses Bambu's own layout: one part per filament with the",
     "  extruder numbers set and the spool colours in project_settings. If your version refuses it,",
     "  import model.obj and accept the colour dialog, or import every file in /stl together as one object.",
-    "One colour at a time: print stl/all-parts-merged.stl, or use the swap heights from the Check tab.", "",
+    "One colour at a time: print stl/all-parts-merged.stl, or use the swap heights from the Check tab.",
+    ...(P.some(p => p.paint) ? ["Painted on the Paint tab: both 3mf files carry the paint, so the slicer shows it painted and",
+      "  prints it without painting again. The OBJ groups faces by colour. The STL files have no colour."] : []), "",
     "Flat pieces print face down, no supports. project.json reopens this design in Maker Forge."
   ].join("\r\n"));
   return zip;
@@ -6966,6 +7095,7 @@ async function exportBatch(text){
 /* ---------- presets, theme, keyboard, start ---------- */
 function applyPreset(key){
   const pr = PRESETS[key], b = state.base;
+  clearPaintForNewModel();
   b.type = pr.base.type;
   for (const k of ["board","frame","shell","nameplate","canvas","bobble","cutter","turned","jigsaw","lithophane"]) if (pr.base[k]) Object.assign(b[k], pr.base[k]);
   if (pr.base.type === "jigsaw") Object.assign(b.jigsaw, DEFAULTS().base.jigsaw, pr.base.jigsaw || {});

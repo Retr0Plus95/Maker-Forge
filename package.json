@@ -1,6 +1,6 @@
 {
   "name": "maker-forge",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "private": true,
   "description": "Browser-based multi-colour 3D printing studio. The app needs no build tools; these are the test dependencies.",
   "license": "MIT",

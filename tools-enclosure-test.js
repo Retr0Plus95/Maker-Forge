@@ -210,6 +210,54 @@ async function settle() {
   check(/^[A-Z0-9\-+\/.:% ]*$/.test(c3.label) && c3.labelPos === "below" && c3.top === "flat" && c3.notch === false, "an opening's label keeps only letters it can engrave", JSON.stringify(c3.label));
   check(!document.body.innerHTML.includes("onerror=alert") && !document.body.innerHTML.includes("onload=alert"), "still nothing injected");
 
+  console.log("\nSession 13: round holes, the box grows to fit, boards that do not fit");
+  const $$ = q => [...document.querySelectorAll(q)];
+  await settle(); await sleep(300); await settle();
+  const near = (a, c, tol) => Math.abs(a - c) <= tol;
+  // projects were loaded above, so the state object is a new one: always go through MF.state
+  const freshNow = over => { MF.state.base.type = "enclosure"; MF.state.base.enclosure = Object.assign(JSON.parse(JSON.stringify(MF.defaults.enclosure)), over || {}); };
+  const directNow = over => { freshNow(over); return MF.buildEnclosure(); };
+  const buildNow = async over => { freshNow(over); MF.rebuild(false); await settle(); return MF.parts; };
+  const holeVol = async over => { const v0 = vol(directNow({ cut: [], ...over })[0]); const v1 = vol(directNow({ cut: [{ ...MF.newOpening("round", "front"), dia: 20, v: 18 }], ...over })[0]); return v0 - v1; };
+  const round = await holeVol({}), wantRound = Math.PI * 10.2 * 10.2 * 2, tear = await holeVol({ teardrop: true });
+  check(Math.abs(round - wantRound) / wantRound < 0.03, "a 20 mm hole in a wall is round by default", `${round.toFixed(0)} mm³ removed, a round one ${wantRound.toFixed(0)}`);
+  check(tear > round * 1.05, "pointed tops are still there when asked for", `${tear.toFixed(0)} mm³`);
+  const load = async (v, teardrop) => {
+    const st = JSON.parse(JSON.stringify(Object.assign({}, MF.state, { items: [] }))); st.base.type = "enclosure"; st.base.enclosure.teardrop = teardrop; st.base.enclosure.w = 101 + (v === 5 ? 1 : 0);
+    const f = new win.File([JSON.stringify({ app: "Maker Forge", v, state: st })], "p.json", { type: "application/json" });
+    const inp = document.querySelector("#projInput"); Object.defineProperty(inp, "files", { value: [f], configurable: true }); inp.dispatchEvent(new win.Event("change"));
+    for (let i = 0; i < 100 && MF.state.base.enclosure.w !== st.base.enclosure.w; i++) await sleep(30); await settle();
+    return MF.state.base.enclosure.teardrop;
+  };
+  check(await load(4, true) === false && await load(5, true) === true, "older projects open with round holes; a newer one keeps pointed tops when it asked for them");
+  // the PSU box's 60 mm fan made 120 mm through its own menu
+  $$("#presetGallery button").find(b => b.dataset.k === "PSU box").click(); await settle();
+  MF.state.base.enclosure.teardrop = false;
+  $$("#tabs button").find(b => b.dataset.k === "make").click(); await sleep(40);
+  $$("#secrail button").find(b => b.dataset.title === "Openings").click(); await sleep(40);
+  let fanSel = $$("#panel select").find(x => [...x.options].some(o => /120 mm fan/.test(o.textContent)));
+  fanSel.value = "120"; fanSel.dispatchEvent(new win.Event("change")); await settle();
+  let E4 = MF.state.base.enclosure, fanIdx = E4.cut.findIndex(c => c.kind === "fan");
+  check(!MF.enclosure.left.length && E4.d >= 120 && E4.h >= 115 && /box grew/.test(document.querySelector("#notice").textContent), "a 120 mm fan on a 110 × 75 mm side: the box grows and the fan moves up so it fits",
+    `${E4.w} × ${E4.d} × ${E4.h}, fan at ${E4.cut[fanIdx].v} mm: "${document.querySelector("#notice").textContent.slice(0, 70)}"`);
+  check(closed(MF.parts), "and it is still a closed box");
+  E4.grow = false; fanSel = $$("#panel select").find(x => [...x.options].some(o => /140 mm fan/.test(o.textContent)));
+  fanSel.value = "140"; fanSel.dispatchEvent(new win.Event("change")); await settle(); await sleep(50);
+  check(MF.enclosure.left.includes(fanIdx) && MF.checks.list.some(l => /left out/.test(l.t)) && $$("#panel .result.warn b").some(b => /Not in the box yet/.test(b.textContent)),
+    "with growing switched off, a 140 mm fan is left out, said on its card and in the checks");
+  $$("#panel button").find(b => /Make it fit/.test(b.textContent)).click(); await settle();
+  check(!MF.enclosure.left.length && MF.state.base.enclosure.d >= 140 && MF.state.base.enclosure.h >= 130, "Make it fit grows the box for it", `${E4.w} × ${E4.d} × ${E4.h}`);
+  // a board bigger than the box: no standoffs outside it; picking it grows the box
+  P = await buildNow({ w: 50, d: 40, h: 30, board: "pi", cut: [] });
+  b = bnd(P[0]);
+  check(near(b.size[0], 50, 1e-3) && near(b.size[2], 40, 1e-3) && MF.enclosure.warn.some(w => /does not fit/.test(w.t) && /left out/.test(w.s)), "a Raspberry Pi in a 50 × 40 mm box: warned, and no standoffs outside the box", b.size.map(v => v.toFixed(1)).join(" x "));
+  await buildNow({ w: 50, d: 40, h: 30, board: "none", cut: [] }); MF.render(); await sleep(40);
+  $$("#secrail button").find(x => /board/i.test(x.dataset.title || "")).click(); await sleep(40);
+  const boardSel = $$("#panel select").find(x => [...x.options].some(o => o.value === "pi"));
+  boardSel.value = "pi"; boardSel.dispatchEvent(new win.Event("change")); await settle();
+  const E5 = MF.state.base.enclosure;
+  check(E5.w >= 90 && E5.d >= 60 && !MF.enclosure.warn.some(w => /does not fit/.test(w.t)) && MF.enclosure.board && MF.enclosure.board.fits !== false, "picking the Pi for that box grows it round the board", `${E5.w} × ${E5.d} × ${E5.h}`);
+
   const errs = env.errors.filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
   check(!errs.length, "no page errors", errs.slice(0, 3).map(e => e.split("\n")[0]).join(" / "));
   console.log(fails ? `\n${fails} FAILED` : "\nall passed");

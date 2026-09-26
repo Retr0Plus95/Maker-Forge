@@ -36,6 +36,8 @@ Plus, depending on what changed:
 - jigsaw work, or `traceField` / `fieldToPolys` → `npm run test:jigsaw`
 - lithophane work, or `heightSheet` / `ringField` / `checkMesh` → `npm run test:litho`
 - enclosure work → `npm run test:enclosure`
+- painter work, or `meshEditor` / the paint steps / 3mf or OBJ reading and writing → `npm run test:paint`
+- phone case work, or `PHONES` / `heightSheet` → `npm run test:phonecase`
 - after any generator change → `node tools-print-survey.js index.html` (look for new warnings)
 - anything visual, text or fonts, the 3D view or view tools → `npm run check:browser` (Chromium via Playwright;
   screenshots and `report.html` land in `browser-check/`, which is git-ignored)

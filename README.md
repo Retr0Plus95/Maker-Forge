@@ -17,6 +17,26 @@ Four tabs in the top bar — **Make · Art · Colours · Export**. Down the left
 | **Colours** | Up to 8 slots with colour, name, material and price. Palette presets, colour matching, and a **printer library** (Bambu, Prusa, Creality, Elegoo, Anycubic, Voron) that sets bed size, nozzle, layer height and how many colours the machine can load. |
 | **Export** | Preflight checks (watertightness, bed fit, colour count vs printer, features thinner than the nozzle, thin colour layers, unused filaments), material in g/m/cost, rough print time, **colour swap heights** for single-filament printers, and the files themselves: zip with 3mf, coloured obj, per-filament STLs, a merged STL, notes and the project file. Projects save and reopen as `.json`, plus **batch export**: one keychain per name from a list. |
 
+### New in 0.17
+
+- **Colour painter.** A new **Paint** tab colours any model, made here or imported, in up to eight filaments: **height bands** cut straight into the mesh, a **colour fade** between two filaments layer by layer, **stripes**, **tops and sides**, **separate pieces**, **smooth areas** split at sharp edges, a **picture projected** through the model, **random blobs**, or by hand with a **brush, fill and eraser** (mirror strokes for symmetrical models, keys 1 to 8 for colours). Painting follows the model when a setting changes. The paint goes into the 3mf files as slicer paint (`paint_color` for Bambu Studio and OrcaSlicer, `mmu_segmentation` for PrusaSlicer), so there is nothing to paint again in the slicer.
+- **Import STL, OBJ and 3MF.** 3mf files from Bambu Studio and PrusaSlicer keep their painting and filament colours, so a model painted elsewhere can be repainted here.
+- **Phone cases** for 75 phones, from the iPhone SE to the iPhone 18 Pro Max and Galaxy S26 Ultra (sizes from the makers' spec sheets): a snug TPU case or a bumper, a quick **fit test rim**, holes for the buttons and the port, a camera opening, a lip that prints without support, and a picture inlaid in the back in several colours.
+- **39 printers**, grouped by maker, including the Bambu X2D, H2S, H2C and P2S, Prusa CORE One, Creality K2, Elegoo Centauri Carbon, Snapmaker U1 and more. Your printer is remembered for every new project.
+- **Easy reading.** The **Aa** button makes text and buttons bigger (up to 175%), switches on high contrast, uses a font drawn for low vision (Atkinson Hyperlegible), keeps messages up longer and can read them aloud; 🔊 reads the open page aloud. Every slider has a **↺ default** button and every page a **Reset this page** button.
+- **Project boxes:** round holes are round again (pointed tops are an option), and choosing a fan, display or board bigger than the box makes the box grow to fit instead of quietly leaving it out.
+- Fixed: reopening a saved project quietly changed four settings (charm size, picture size, artwork outline width and the plastic canvas pixel count).
+
+| Colour fade and stripes on the Paint tab | Brush with mirrored strokes |
+| --- | --- |
+| ![A vase fading from navy to orange with white stripes](docs/images/painter-fade.jpg) | ![A sphere in height bands with mirrored brush strokes](docs/images/painter-brush.jpg) |
+| **Phone case** for an iPhone 17 Pro | **A picture inlaid in the case's back** |
+| ![A phone case with button and port openings](docs/images/phone-case.jpg) | ![The case turned over, a star inlaid in two colours](docs/images/phone-case-back.jpg) |
+| **39 printers**, your Bambu X2D remembered | **Easy reading:** bigger text, high contrast, clear letters |
+| ![The printer picker grouped by maker](docs/images/printers.jpg) | ![The app at 130% with high contrast](docs/images/easy-reading.jpg) |
+| **A PSU box with a 120 mm fan**: round grille, the box grew to fit | **Easy reading settings** |
+| ![A PSU box with a round 120 mm fan grille](docs/images/psu-box-fan.jpg) | ![The Easy reading dialog](docs/images/easy-reading-settings.jpg) |
+
 ### New in 0.16
 
 - **Project boxes grew up.** Engraved labels beside any opening ("USB-C", "ON/OFF", "12V"), magnet lids, a sliding lid on 45° rails, stick-on-foot recesses, ports that open to the top edge so the lid closes them, pointed tops for wide ports, your logo inlaid into the lid in its own colours, and a **fit test**: a small box with your walls, lid, screws and one of each opening, to try before the real print. The stock boxes now print without support.
@@ -66,6 +86,8 @@ node tools-audit.js index.html board art         # sweeps the artwork controls
 npm run test:tracer                              # traced parts measured against known sizes
 npm run test:print                               # printability checks on shapes with known answers
 npm run test:enclosure                           # project boxes: sizes, openings, lids, labels, hostile files
+npm run test:paint                               # the colour painter: mesh splitting, paint steps, 3mf paint in and out
+npm run test:phonecase                           # every phone in the list, openings, the lip, hostile files
 npm run test:jigsaw && npm run test:litho        # puzzles and lithophanes
 npm run test:size                                # on-screen size = exported size, in every format
 npm run survey:print                             # what the printability check says about every object
@@ -165,15 +187,18 @@ Everything runs locally; nothing is uploaded. The threats worth defending are a 
 - No boolean CSG. Engraving is available on the name plate (done in mask space); cutting artwork into an arbitrary imported mesh is not.
 - Surface projection covers roughly 120° of a cylinder before the edges fall away. Full wrap-around needs a UV unwrap path.
 - Cost and material figures assume solid parts and ignore infill savings, so treat them as a worst case.
+- The painter colours whole triangles, so it splits the model into small ones (about 1.2 mm by default; height bands are cut exactly). Very fine brush work on big models makes big files.
+- Phone sizes come from the makers' spec sheets, but camera and button positions are careful estimates: check them against your phone, and print the fit test rim first.
 - Text rendering relies on the browser's canvas, so the exact glyph outlines follow whatever the browser does with the font. Letter spacing is applied glyph by glyph rather than through `ctx.letterSpacing`, so it behaves the same in every browser.
 
 ## Printer support
 
-The printer library covers Bambu A1 mini / A1 / P1S / X1C / H2D, Prusa MK4, XL and MINI, Creality K1 and Ender 3, Elegoo Neptune 4, Anycubic Kobra 2, Voron 2.4 and a custom profile. Each sets bed size, nozzle, layer height, how many filaments can be loaded and a flow rate for the time estimate. Pick one and the Check tab tells you whether your design fits the machine, and if the machine takes one filament it lists the heights at which to swap spools by hand.
+The printer library has 39 printers from Bambu Lab (A1 mini, A1, P1P, P1S / X1C, X1E, P2S, X2D, H2S, H2D, H2C), Prusa (MK3S+, MK4, CORE One, CORE One L, XL, MINI), Creality, Elegoo, Anycubic, Qidi, Snapmaker, Flashforge, Sovol and Voron, plus a custom profile. Each sets bed size, nozzle, layer height, how many filaments can be loaded and a flow rate for the time estimate. Pick one and the Check tab tells you whether your design fits the machine, and if the machine takes one filament it lists the heights at which to swap spools by hand.
 
 ## Ideas worth contributing
 
-- Full cylindrical wrap for mugs and bottles.
+- Full cylindrical wrap for mugs and bottles (the painter's picture projection is flat for now).
+- Painting from the colours or textures of AI-generated models (OBJ vertex colours, GLB textures).
 - SVG import as vector paths rather than rasterising (0.16 draws SVGs at 2000 px, which suits most logos).
 - More object generators: cable tags, luggage tags, signs with mounting holes.
 - Real Gerber and KiCad file import for the circuit board generator, instead of working from a picture.

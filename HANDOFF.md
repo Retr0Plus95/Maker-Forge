@@ -491,6 +491,22 @@ New tools
 49. Stencils and cookie stamps from the tracer, with bridges added automatically.
 50. Topographic relief maps from an elevation picture, painted by height.
 
+## Session 14: ready to go public, no Google Fonts (v0.17.1)
+
+v0.17.0 was merged as Retr0Plus95/Maker-Forge#3 (squash). The owner is making the repository public and hosting `index.html` on their own website. Before that:
+
+**Checked, nothing found:** every file on `main` and every commit on every branch for keys, tokens, passwords, private keys and local paths; no email address beyond GitHub's noreply ones (the owner's commits use `…@users.noreply.github.com`); no file ever added and later deleted; the licence (MIT, "Maker Forge contributors"), `package.json` (private) and the lockfile (public npm registry only).
+
+**Changed:**
+- Personal details about the owner were taken out of this file (their eyesight, the lettering of their logo). The old wording is still in the history of `main`; rewriting it was judged not worth it.
+- The PrusaSlicer 3mf and the OBJ named the app "PhotoRelief Studio" (its old name) in their headers; both say "Maker Forge" now.
+- **No Google Fonts.** The 34 lettering fonts and Atkinson Hyperlegible load from the `@fontsource` 5.3.0 packages on jsDelivr, the CDN the libraries already use, so a visitor's browser talks to jsDelivr only. `fontFaceCSS()` (after `FONTS` in `src/app.html`) writes one `@font-face` per font, weight and alphabet (111 rules; `FONT_SUBSETS` lists the alphabets each font has, `FONT_RANGES` the unicode ranges, which are the same across all packages), so a file downloads only when a letter in its range is drawn; the Easy reading font is no longer added by `applyPrefs`. The app grew by 3 KB. Embedding the fonts instead was measured and left: +1 MB (Latin only) to +2.5 MB (every alphabet) for every visitor. To add a font: add it to `FONTS` and `FONT_SUBSETS` (the alphabets are the `/* <id>-<subset>-<weight>-normal */` comments in the package's `<weight>.css`), and `npm i -D --save-exact @fontsource/<id>@5.3.0` for the browser check.
+- The `@fontsource` packages are test dependencies: `tools-browser-check.js` serves their files for the jsDelivr font URLs (as it does the libraries), loads all 36 faces (a missing one is a finding) and reports any request to Google as an error. The Easy reading dialog, the About text, the README (privacy line, dependencies, security: the hostile-file tests are named correctly now, `tools-security-test.js` never existed) and `CLAUDE.md` say where fonts come from.
+
+**Verified:** full smoke test (22 quick starts, 20 objects, 328 clicks), the paint (with the renamed headers), printability and size tests, the name plate audit (no findings), the print survey (identical to v0.17.0), and the real-browser check (`PRINT=1 MOBILE=1`: 150 screenshots, no findings, no page errors, 36 of 36 font faces loaded, the real-font printability of every quick start identical to v0.17.0, so the glyphs are the same).
+
+**For the website:** only `index.html` is needed. It must be served over https (copying a share link uses the clipboard), preferably as its own page; inside an iframe it needs `allow-scripts allow-same-origin allow-downloads`. A Content-Security-Policy, if the site sets one, must allow `cdn.jsdelivr.net` for scripts and fonts, and the page's own inline script and styles.
+
 ## Unfinished (in priority order)
 
 - **P4**: none outstanding beyond polish.

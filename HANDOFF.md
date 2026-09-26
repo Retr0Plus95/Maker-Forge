@@ -4,7 +4,7 @@ Paste this into a new chat along with the repository files to continue.
 
 ## Project overview
 
-**Maker Forge** (v0.17.0) is a browser-based, MIT-licensed studio for multi-colour 3D printing: name keychains, photo-traced parts, jigsaw puzzles, lithophanes, lightboxes, bobble heads, circuit-board art and more. It runs entirely client-side with no build toolchain. Targets: GitHub, a personal website, and later a Linux desktop app (Electron or Tauri wrapper not started).
+**Maker Forge** (v0.17.1) is a browser-based, MIT-licensed studio for multi-colour 3D printing: name keychains, photo-traced parts, jigsaw puzzles, lithophanes, lightboxes, bobble heads, circuit-board art and more. It runs entirely client-side with no build toolchain. Targets: GitHub, a personal website, and later a Linux desktop app (Electron or Tauri wrapper not started).
 
 **Repository layout**
 
@@ -33,7 +33,7 @@ Paste this into a new chat along with the repository files to continue.
 | `package.json` | Test dependencies and script shortcuts (`npm run build`, `test:tracer`, `test:smoke`, `test:audit`, `test:print`, `test:jigsaw`, `test:litho`, `test:enclosure`, `test:paint`, `test:phonecase`, `test:size`, `survey:print`, `check:browser`). |
 | `README.md`, `LICENSE` | Docs, MIT. |
 
-Dependencies load from CDNs at runtime: three.js r128, OrbitControls, earcut 2.2.4, JSZip 3.10.1, Google Fonts. Test deps: `npm i` (or `npm i jsdom three@0.128.0 earcut@2.2.4 jszip@3.10.1`).
+Dependencies load from CDNs at runtime: three.js r128, OrbitControls, earcut 2.2.4, JSZip 3.10.1, and the fonts from the @fontsource 5.3.0 packages, all from jsDelivr (Google Fonts until v0.17.1). Test deps: `npm i` (or `npm i jsdom three@0.128.0 earcut@2.2.4 jszip@3.10.1`).
 
 **Files not in the Session 6 bundle.** Only `HANDOFF.md`, `index.html`, `app.html` and `tools-tracer-paper-test.js` arrived in Session 6. `src/core.js` was extracted from `index.html` (rebuilding reproduced the v0.11.2 `index.html` byte for byte), and `build.py`, `tools-test-env.js`, `tools-smoke-test.js`, `tools-audit.js` and `tools-tracer-test.js` were rewritten from their descriptions here. `README.md`, `LICENSE` and `tools-security-test.js` were not available and are not in the bundle: if you have the originals, keep them, and consider diffing your old test tools against the new ones.
 
@@ -228,7 +228,7 @@ Session 9 started from the Session 8 bundle (`build.py` reproduced the v0.13.0 `
 
 ## Session 10: tracing logos, first real-browser feedback (v0.14.1)
 
-First test in a real browser by the user. Reported: (1) a white logo on a transparent background (a brush-stroke ring, "AY" inside it, small "STUDIO" text) traced only the ring, no letters; (2) raising the tracer's smoothing made half the ring disappear; (3) Bambu Studio still shows a warning on the Bambu 3mf, but colours load.
+First test in a real browser by the user. Reported: (1) a white logo on a transparent background (a brush-stroke ring with two large letters inside and a line of small text) traced only the ring, no letters; (2) raising the tracer's smoothing made half the ring disappear; (3) Bambu Studio still shows a warning on the Bambu 3mf, but colours load.
 
 **Root causes (reproduced with `tools-tracer-logo-test.js` before fixing: 17 failures).**
 1. *Keep only the biggest piece* was on by default, so the ring survived and every letter was dropped.
@@ -245,7 +245,7 @@ First test in a real browser by the user. Reported: (1) a white logo on a transp
 
 **Verified:** `tools-tracer-logo-test.js` (36 checks, all pass), both bracket tracer tests (identical to Session 6), smoke test `ONLY=tracer` with every button, quick smoke of all 17 presets plus tracer and cutter, extremes audit of the tracer (no findings; *Ignore pieces smaller than* listed as expected on the one-piece test picture), `tools-printability-test.js`.
 
-**Still to check in a real browser:** the user's own logo. At 60 mm its "STUDIO" strokes are roughly nozzle width, so expect a thin-wall warning; a bigger size or leaving the text out helps. Letters inside a ring are separate islands: printed alone they are loose pieces (see Unfinished: a backing plate option).
+**Still to check in a real browser:** the reported logo. At 60 mm its small text strokes are roughly nozzle width, so expect a thin-wall warning; a bigger size or leaving the text out helps. Letters inside a ring are separate islands: printed alone they are loose pieces (see Unfinished: a backing plate option).
 
 ## Session 11: Project boxes, tracer back plates and covers, bed rulers (v0.15.0)
 
@@ -314,7 +314,7 @@ Started from the Session 11 files on GitHub (`build.py` reproduced `index.html` 
 
 ## Session 13: colour painter, phone cases, 39 printers, easy reading (v0.17.0)
 
-The user asked for: all bugs seen on the way fixed, performance and stability, many more printers (theirs is a Bambu Lab **X2D**), phone sizes researched for a phone case tool, 50 new ideas, the next big tool (automatic and manual **colour painting** of any model, including imported ones, in up to 8 colours, by height and more), a reset-to-default for sliders, and an app that is easy to read and find things in for someone who cannot see well.
+The user asked for: all bugs seen on the way fixed, performance and stability, many more printers (theirs is a Bambu Lab **X2D**), phone sizes researched for a phone case tool, 50 new ideas, the next big tool (automatic and manual **colour painting** of any model, including imported ones, in up to 8 colours, by height and more), a reset-to-default for sliders, and an app that is easy to read and find things in, with accessibility as a priority.
 
 **Colour painter (Paint tab).** The paint is a list of steps, replayed in order after every build (`applyPaint` in the rebuild, `repaint` when only the steps change), so it follows the model when a setting changes, and it is undoable like everything else. Steps: height bands (2 to 8, edges cut into the mesh, "line up with the layers"), a colour fade (every layer in a range is one of two filaments, the second one's share rising evenly by error diffusion), stripes, tops / walls / undersides by angle, separate pieces (largest first), smooth areas split at sharp edges (neighbours get different colours when the palette allows; tiny areas join their neighbour), a picture from the Art tab projected from the front, back, sides or top (split into the loaded filaments like the decals), random blobs (value noise, a pattern number), swap one colour for another, and by hand: brush (radius, only the side facing you, mirror to the other side), fill (a smooth area up to an edge angle, or the same colour) and eraser. Keys 1 to 8 pick a colour, [ ] the brush size, B F E V the tool. While painting, the left button paints and the right button turns the view; on touch screens one finger paints, two move ("Turn view" switches back). Brush strokes paint live (only the touched triangles are recoloured), then the whole list is replayed.
 - **Mesh:** triangles are painted whole, so `meshEditor` splits the model: longest-edge bisection until no edge is over 1.2 mm (Normal; Coarse 2.5, Fine 0.6; automatic uses none unless a brush, fill, picture or blob step needs it; at most 900,000 triangles, the detail is lowered with a message beyond that), and cuts along every band height. Each split puts one vertex on the shared edge and cuts both triangles, so the mesh stays closed with exactly the same volume (tested on a cube, a revolved ball, and every auto step on the vase). The refined mesh is cached per original solid and key, so strokes and colour changes never redo it; imported models are welded once per file and scale.
@@ -490,6 +490,22 @@ New tools
 48. Colour lithophanes (a CMY layer stack behind white).
 49. Stencils and cookie stamps from the tracer, with bridges added automatically.
 50. Topographic relief maps from an elevation picture, painted by height.
+
+## Session 14: ready to go public, no Google Fonts (v0.17.1)
+
+v0.17.0 was merged as Retr0Plus95/Maker-Forge#3 (squash). The owner is making the repository public and hosting `index.html` on their own website. Before that:
+
+**Checked, nothing found:** every file on `main` and every commit on every branch for keys, tokens, passwords, private keys and local paths; no email address beyond GitHub's noreply ones (the owner's commits use `…@users.noreply.github.com`); no file ever added and later deleted; the licence (MIT, "Maker Forge contributors"), `package.json` (private) and the lockfile (public npm registry only).
+
+**Changed:**
+- Personal details about the owner were taken out of this file (their eyesight, the lettering of their logo). The old wording is still in the history of `main`; rewriting it was judged not worth it.
+- The PrusaSlicer 3mf and the OBJ named the app "PhotoRelief Studio" (its old name) in their headers; both say "Maker Forge" now.
+- **No Google Fonts.** The 34 lettering fonts and Atkinson Hyperlegible load from the `@fontsource` 5.3.0 packages on jsDelivr, the CDN the libraries already use, so a visitor's browser talks to jsDelivr only. `fontFaceCSS()` (after `FONTS` in `src/app.html`) writes one `@font-face` per font, weight and alphabet (111 rules; `FONT_SUBSETS` lists the alphabets each font has, `FONT_RANGES` the unicode ranges, which are the same across all packages), so a file downloads only when a letter in its range is drawn; the Easy reading font is no longer added by `applyPrefs`. The app grew by 3 KB. Embedding the fonts instead was measured and left: +1 MB (Latin only) to +2.5 MB (every alphabet) for every visitor. To add a font: add it to `FONTS` and `FONT_SUBSETS` (the alphabets are the `/* <id>-<subset>-<weight>-normal */` comments in the package's `<weight>.css`), and `npm i -D --save-exact @fontsource/<id>@5.3.0` for the browser check.
+- The `@fontsource` packages are test dependencies: `tools-browser-check.js` serves their files for the jsDelivr font URLs (as it does the libraries), loads all 36 faces (a missing one is a finding) and reports any request to Google as an error. The Easy reading dialog, the About text, the README (privacy line, dependencies, security: the hostile-file tests are named correctly now, `tools-security-test.js` never existed) and `CLAUDE.md` say where fonts come from.
+
+**Verified:** full smoke test (22 quick starts, 20 objects, 328 clicks), the paint (with the renamed headers), printability and size tests, the name plate audit (no findings), the print survey (identical to v0.17.0), and the real-browser check (`PRINT=1 MOBILE=1`: 150 screenshots, no findings, no page errors, 36 of 36 font faces loaded, the real-font printability of every quick start identical to v0.17.0, so the glyphs are the same).
+
+**For the website:** only `index.html` is needed. It must be served over https (copying a share link uses the clipboard), preferably as its own page; inside an iframe it needs `allow-scripts allow-same-origin allow-downloads`. A Content-Security-Policy, if the site sets one, must allow `cdn.jsdelivr.net` for scripts and fonts, and the page's own inline script and styles.
 
 ## Unfinished (in priority order)
 

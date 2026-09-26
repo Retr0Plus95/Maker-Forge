@@ -124,14 +124,18 @@ function pageCoverage() {
     const page = await ctx.newPage();
     await page.route(/cdn\.jsdelivr\.net/, r => {
       const u = r.request().url(), l = LIBS.find(([re]) => re.test(u));
+      // fonts: the same @fontsource files, from the test dependencies (a missing one is a real 404)
+      const font = /\/npm\/@fontsource\/([a-z0-9-]+)@[\d.]+\/(files\/[a-z0-9-]+\.woff2)$/.exec(u);
+      if (font) {
+        const f = path.join(NM, "@fontsource", font[1], font[2]);
+        if (!fs.existsSync(f)) { errors.push(`${label}: font not found ${u}`); return r.fulfill({ status: 404, body: "" }); }
+        return r.fulfill({ status: 200, contentType: "font/woff2", headers: { "access-control-allow-origin": "*" }, body: fs.readFileSync(f) });
+      }
       if (!l) { errors.push(`${label}: unexpected CDN request ${u}`); return r.abort(); }
       return r.fulfill({ status: 200, contentType: "application/javascript", headers: { "access-control-allow-origin": "*" }, body: fs.readFileSync(path.join(NM, l[1])) });
     });
-    // web fonts: fetched by Node (which knows the system's and NODE_EXTRA_CA_CERTS certificates), so a
-    // proxy that re-signs TLS does not break them; offline, the app falls back to system fonts
-    await page.route(/fonts\.(googleapis|gstatic)\.com/, async r => {
-      try { await r.fulfill({ response: await r.fetch() }); } catch (e) { notes.push("web fonts could not be fetched: " + e.message.split("\n")[0]); await r.abort(); }
-    });
+    // the app must not ask Google (or anyone but jsDelivr) for fonts any more
+    await page.route(/fonts\.(googleapis|gstatic)\.com/, r => { errors.push(`${label}: Google Fonts request ${r.request().url()}`); return r.abort(); });
     page.on("pageerror", e => errors.push(`${label}: page error: ${e.message}`));
     page.on("console", m => { if (m.type() === "error") errors.push(`${label}: console: ${m.text()}`); });
     page.on("requestfailed", r => { if (!/fonts\./.test(r.url())) errors.push(`${label}: request failed: ${r.url()} ${r.failure() && r.failure().errorText}`); });
@@ -172,6 +176,17 @@ function pageCoverage() {
   const page = await openPage({ width: 1440, height: 900 }, "desktop");
   if (env.THEME === "dark") await page.evaluate(() => { const MF = window.MakerForge; MF.state.view.theme = "dark"; document.documentElement.setAttribute("data-theme", "dark"); });
   await shot(page, "start", "Start: default name keychain", await modelInfo(page, "start"));
+  // every lettering font and the Easy reading font, from the jsDelivr @fontsource files (served locally here)
+  {
+    const f = await page.evaluate(async () => {
+      const rules = [...document.getElementById("webFonts").sheet.cssRules];
+      const faces = [...new Set(rules.map(r => `${r.style.fontWeight} 40px ${r.style.fontFamily}`))], bad = [];
+      for (const k of faces) { try { if (!(await document.fonts.load(k, "AaZz")).length) bad.push(k); } catch (e) { bad.push(k); } }
+      return { n: faces.length, rules: rules.length, bad };
+    });
+    if (f.bad.length || f.n < 36) findings.push({ where: "fonts", what: `${f.bad.length} of ${f.n} fonts did not load: ${f.bad.slice(0, 5).join(", ")}` });
+    notes.push(`fonts: ${f.n - f.bad.length} of ${f.n} font faces (${f.rules} alphabet rules) loaded from the jsDelivr @fontsource files`);
+  }
   // drop the same two-colour badge the smoke test uses, through the Art tab's drop zone
   {
     const W = 240, H = 180, px = new Uint8ClampedArray(W * H * 4);

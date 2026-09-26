@@ -4,9 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Maker Forge — multi-colour 3D print studio</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Pacifico&family=Great+Vibes&family=Caveat:wght@700&family=Satisfy&family=Sacramento&family=Parisienne&family=Gloria+Hallelujah&family=Shadows+Into+Light&family=Permanent+Marker&family=Rock+Salt&family=Kalam:wght@700&family=Amatic+SC:wght@700&family=Chewy&family=Luckiest+Guy&family=Titan+One&family=Bungee&family=Righteous&family=Baloo+2:wght@800&family=Fredoka:wght@600&family=Comfortaa:wght@700&family=Nunito:wght@800&family=Poppins:wght@800&family=Manrope:wght@800&family=Lobster&family=Alfa+Slab+One&family=Anton&family=Oswald:wght@700&family=Bebas+Neue&family=Secular+One&family=Playfair+Display:wght@700&family=Cinzel:wght@700&family=Orbitron:wght@800&family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <style>
 :root{
   --bg:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --ink:#141b24; --muted:#63707f; --line:#e2e7ee;
@@ -360,7 +358,7 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.17.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.17.1</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -698,7 +696,7 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
     }
     const mats = slots.map((s, i) => '<base name="' + esc(s.name || "Filament " + (i + 1)) + '" displaycolor="' + s.hex.toUpperCase() + 'FF"/>').join("");
     const model = '<?xml version="1.0" encoding="UTF-8"?>\n<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:slic3rpe="http://schemas.slic3r.org/3mf/2017/06">\n' +
-      '<metadata name="slic3rpe:Version3mf">1</metadata><metadata name="Title">' + esc(title) + '</metadata><metadata name="Application">PhotoRelief Studio</metadata>\n' +
+      '<metadata name="slic3rpe:Version3mf">1</metadata><metadata name="Title">' + esc(title) + '</metadata><metadata name="Application">Maker Forge</metadata>\n' +
       '<resources><basematerials id="1">' + mats + '</basematerials>\n<object id="2" name="' + esc(title) + '" type="model" pid="1" pindex="0"><mesh><vertices>\n' +
       V.join("\n") + '\n</vertices><triangles>\n' + Tr.join("\n") + '\n</triangles></mesh></object></resources>\n<build><item objectid="2"/></build>\n</model>';
     const config = '<?xml version="1.0" encoding="utf-8"?>\n<config>\n <object id="2" instances_count="1">\n  <metadata type="object" key="name" value="' + esc(title) + '"/>\n' +
@@ -764,7 +762,7 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
   }
 
   function makeOBJ(parts, slots) {
-    const L = ["# PhotoRelief Studio", "mtllib model.mtl"]; let base = 1;
+    const L = ["# Maker Forge", "mtllib model.mtl"]; let base = 1;
     for (const p of parts) {
       L.push("o " + p.name.replace(/\s+/g, "_"));
       for (let i = 0; i < p.pos.length; i += 3) L.push("v " + f(p.pos[i]) + " " + f(p.pos[i + 1]) + " " + f(p.pos[i + 2]));
@@ -3451,6 +3449,49 @@ const FONTS = [
   { n:"Orbitron", w:800 },
   { n:"Press Start 2P", w:400 }
 ];
+/* Fonts come from the @fontsource packages on jsDelivr, the CDN the libraries already load from (no
+   Google Fonts). One rule per alphabet: the browser downloads a file only when it draws a letter in that
+   range, so a name in Latin letters fetches one small file per font used. */
+const FONT_CDN = "https://cdn.jsdelivr.net/npm/@fontsource/", FONT_VERSION = "5.3.0";
+const FONT_RANGES = {
+  "latin":"U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+  "latin-ext":"U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
+  "vietnamese":"U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+1EA0-1EF9,U+20AB",
+  "cyrillic":"U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116",
+  "cyrillic-ext":"U+0460-052F,U+1C80-1C8A,U+20B4,U+2DE0-2DFF,U+A640-A69F,U+FE2E-FE2F",
+  "greek":"U+0370-0377,U+037A-037F,U+0384-038A,U+038C,U+038E-03A1,U+03A3-03FF",
+  "greek-ext":"U+1F00-1FFF",
+  "hebrew":"U+0307-0308,U+0590-05FF,U+200C-2010,U+20AA,U+25CC,U+FB1D-FB4F",
+  "devanagari":"U+0900-097F,U+1CD0-1CF9,U+200C-200D,U+20A8,U+20B9,U+20F0,U+25CC,U+A830-A839,U+A8E0-A8FF,U+11B00-11B09"
+};
+// the alphabets each font has (a missing one would be a failed download)
+const FONT_SUBSETS = {
+  "Dancing Script":"latin latin-ext vietnamese", "Pacifico":"latin latin-ext vietnamese cyrillic cyrillic-ext",
+  "Great Vibes":"latin latin-ext vietnamese cyrillic cyrillic-ext greek-ext", "Caveat":"latin latin-ext cyrillic cyrillic-ext",
+  "Satisfy":"latin", "Sacramento":"latin latin-ext", "Parisienne":"latin latin-ext", "Gloria Hallelujah":"latin latin-ext",
+  "Shadows Into Light":"latin latin-ext", "Permanent Marker":"latin", "Rock Salt":"latin", "Kalam":"latin latin-ext devanagari",
+  "Amatic SC":"latin latin-ext vietnamese cyrillic hebrew", "Chewy":"latin", "Luckiest Guy":"latin latin-ext", "Titan One":"latin latin-ext",
+  "Bungee":"latin latin-ext vietnamese", "Righteous":"latin latin-ext", "Baloo 2":"latin latin-ext vietnamese devanagari",
+  "Fredoka":"latin latin-ext hebrew", "Comfortaa":"latin latin-ext vietnamese cyrillic cyrillic-ext greek",
+  "Nunito":"latin latin-ext vietnamese cyrillic cyrillic-ext", "Poppins":"latin latin-ext devanagari",
+  "Manrope":"latin latin-ext vietnamese cyrillic cyrillic-ext greek", "Lobster":"latin latin-ext vietnamese cyrillic cyrillic-ext",
+  "Alfa Slab One":"latin latin-ext vietnamese", "Anton":"latin latin-ext vietnamese", "Oswald":"latin latin-ext vietnamese cyrillic cyrillic-ext",
+  "Bebas Neue":"latin latin-ext", "Secular One":"latin latin-ext hebrew", "Playfair Display":"latin latin-ext vietnamese cyrillic",
+  "Cinzel":"latin latin-ext", "Orbitron":"latin", "Press Start 2P":"latin latin-ext cyrillic cyrillic-ext greek",
+  "Atkinson Hyperlegible":"latin latin-ext"
+};
+function fontFaceCSS(){
+  // the lettering fonts at the weight each is used in, and the Easy reading font (regular and bold)
+  const list = FONTS.map(f => [f.n, [f.w]]).concat([["Atkinson Hyperlegible", [400, 700]]]), css = [];
+  for (const [name, weights] of list){
+    const id = name.toLowerCase().replace(/ /g, "-");
+    for (const w of weights) for (const sub of FONT_SUBSETS[name].split(" "))
+      css.push(`@font-face{font-family:"${name}";font-style:normal;font-display:swap;font-weight:${w};` +
+        `src:url(${FONT_CDN}${id}@${FONT_VERSION}/files/${id}-${sub}-${w}-normal.woff2) format("woff2");unicode-range:${FONT_RANGES[sub]}}`);
+  }
+  return css.join("\n");
+}
+document.head.appendChild(Object.assign(document.createElement("style"), { id:"webFonts", textContent:fontFaceCSS() }));
 const MATERIALS = { PLA:{d:1.24,p:22}, "PLA Silk":{d:1.24,p:26}, PETG:{d:1.27,p:24}, ABS:{d:1.04,p:24},
   ASA:{d:1.07,p:30}, TPU:{d:1.21,p:35}, "Wood fill":{d:1.28,p:38} };
 // Build volumes from the makers' spec sheets (checked September 2026). "colors" is what the usual
@@ -9715,7 +9756,7 @@ $("#aboutBtn").onclick = ()=>openModal("About Maker Forge", b => {
   b.insertAdjacentHTML("beforeend", `<p class="hint"><b>Maker Forge ${esc(APP_VERSION)}</b>: a companion for 3D printing, school projects and home repairs.
     Turn names, photos, logos and measurements into multi-colour printable parts.</p>
     <p class="hint">Everything runs in your browser. Nothing is uploaded; your pictures never leave this computer.</p>
-    <p class="hint">Open source under the MIT licence. Built with three.js, earcut and JSZip. Fonts from Google Fonts.</p>
+    <p class="hint">Open source under the MIT licence. Built with three.js, earcut and JSZip. Fonts from Fontsource, served by jsDelivr.</p>
     <p class="hint"><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo · <kbd>Ctrl</kbd>+<kbd>S</kbd> save ·
     <kbd>Delete</kbd> remove artwork · arrow keys nudge it · <kbd>Esc</kbd> closes dialogs</p>`);
 });
@@ -10151,11 +10192,7 @@ function applyPrefs(){
   r.style.setProperty("--ui", String(prefs.ui));
   if (prefs.contrast === "high") r.setAttribute("data-contrast", "high"); else r.removeAttribute("data-contrast");
   if (prefs.font === "clear"){
-    r.setAttribute("data-font", "clear");
-    if (!document.getElementById("clearFont")){          // Atkinson Hyperlegible: drawn for readers with low vision
-      const l = document.createElement("link"); l.id = "clearFont"; l.rel = "stylesheet";
-      l.href = "https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap"; document.head.appendChild(l);
-    }
+    r.setAttribute("data-font", "clear");           // Atkinson Hyperlegible (see fontFaceCSS): fetched on first use
   } else r.removeAttribute("data-font");
   if (prefs.motion === "reduce") r.setAttribute("data-motion", "reduce"); else r.removeAttribute("data-motion");
   // big text needs the room: the start sidebar steps aside on narrower screens
@@ -10194,7 +10231,7 @@ function openEasyReading(){
     segField(b, [["normal","Normal"],["high","High contrast"]], () => prefs.contrast, v => { prefs.contrast = v; savePrefs(); applyPrefs(); makeBed(); openEasyReading(); }, "two");
     b.insertAdjacentHTML("beforeend", `<h2>Letters</h2>`);
     segField(b, [["normal","Normal"],["clear","Extra clear letters"]], () => prefs.font, v => { prefs.font = v; savePrefs(); applyPrefs(); openEasyReading(); }, "two");
-    note(b, "Extra clear letters use Atkinson Hyperlegible, a font drawn for people with low vision (loaded from Google Fonts).");
+    note(b, "Extra clear letters use Atkinson Hyperlegible, a font drawn for people with low vision (downloaded the first time you switch it on).");
     b.insertAdjacentHTML("beforeend", `<h2>Messages</h2>`);
     segField(b, [["1","Normal time"],["2","Twice as long"],["4","Until I click"]], () => String(prefs.notice), v => { prefs.notice = +v; savePrefs(); openEasyReading(); });
     checkField(b, "Read messages aloud", () => prefs.speak, v => { prefs.speak = v; savePrefs(); });

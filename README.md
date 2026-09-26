@@ -2,7 +2,7 @@
 
 A browser-based studio for designing **multi-colour 3D prints** from photos, logos and names, and exporting them ready to slice.
 
-Everything runs locally in the browser. No account, no uploads, no server: your images never leave the machine. One HTML file, no build toolchain, MIT licensed.
+Everything runs locally in the browser. No account, no uploads, no server: your images and models never leave the machine. (The page does load its libraries and fonts from jsDelivr, a public CDN, so that one service sees that it was opened. No Google Fonts, no analytics.) One HTML file, no build toolchain, MIT licensed.
 
 ---
 
@@ -118,7 +118,7 @@ console.log(PRCore.checkMesh(solid));   // { tris, open: 0, volume }
 
 ### Dependencies
 
-Loaded from CDNs at runtime, no package manager: [three.js](https://threejs.org) r128 (preview and primitives), [earcut](https://github.com/mapbox/earcut) (polygon triangulation), [JSZip](https://stuk.github.io/jszip/) (3mf and zip writing), Google Fonts (name plate typefaces).
+Loaded from CDNs at runtime, no package manager: [three.js](https://threejs.org) r128 (preview and primitives), [earcut](https://github.com/mapbox/earcut) (polygon triangulation), [JSZip](https://stuk.github.io/jszip/) (3mf and zip writing), and the name plate typefaces from [Fontsource](https://fontsource.org) 5.3.0, all from jsDelivr. A font file downloads only when it is used, one file per alphabet.
 
 ---
 
@@ -179,9 +179,9 @@ Two 3mf flavours are written: `model-prusa-orca.3mf` uses the PrusaSlicer volume
 
 Everything runs locally; nothing is uploaded. The threats worth defending are a hostile **project file** and a compromised **CDN**.
 
-- Project files pass through `sanitizeProject`: prototype-pollution keys are stripped, every number is finite and clamped, and anything that decides memory or time (trace resolution, grid cells, letter height and so on) has hard limits. Colours must be `#rrggbb` before they reach a style attribute, text is length-capped, fonts and object types are whitelisted, vectors must be three finite numbers, and embedded images must be `data:image/png|jpeg|webp|gif`. `tools-security-test.js` throws a deliberately hostile file at the loader.
+- Project files pass through `sanitizeProject`: prototype-pollution keys are stripped, every number is finite and clamped, and anything that decides memory or time (trace resolution, grid cells, letter height and so on) has hard limits. Colours must be `#rrggbb` before they reach a style attribute, text is length-capped, fonts and object types are whitelisted, vectors must be three finite numbers, and embedded images must be `data:image/png|jpeg|webp|gif`. The box, painter, phone case, jigsaw, lithophane and printability tests each throw a deliberately hostile file at the loader.
 - All user text reaches the page through `textContent` or `esc()`.
-- Every script is pinned by version and Subresource Integrity hash (`integrity="sha384-…"`), computed from the npm package files, so the browser refuses a tampered copy. Google Fonts cannot carry SRI; fonts cannot run code.
+- Every script is pinned by version and Subresource Integrity hash (`integrity="sha384-…"`), computed from the npm package files, so the browser refuses a tampered copy. Font files are pinned by version but cannot carry SRI; fonts cannot run code.
 
 ## Known limitations
 

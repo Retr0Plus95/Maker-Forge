@@ -59,6 +59,24 @@ async function settle() {
     check(done && ms < 8000 && tris < 400000 && !errs.length && Math.abs(kept) < 1000, `${type} ${key} = ${val}: kept as ${kept}, builds normally`, `${ms} ms, ${tris} triangles${errs.length ? ", " + errs[0].split("\n")[0] : ""}`);
   }
 
+  console.log("\na picture's settings that are not numbers");
+  {
+    const s = document.querySelector("#objectSel"); s.value = "cutter"; s.dispatchEvent(new win.Event("change")); await settle();
+    const { encodePNG } = require("./tools-test-env.js"), W = 240, H = 180, px = new Uint8ClampedArray(W * H * 4);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const o = (y * W + x) * 4, r = Math.hypot(x - 120, y - 90), col = r < 60 ? [25, 90, 170] : [255, 255, 255]; px[o] = col[0]; px[o + 1] = col[1]; px[o + 2] = col[2]; px[o + 3] = 255; }
+    $$("#tabs button").find(b => b.dataset.k === "art").click(); await sleep(50);
+    const ev = new win.Event("drop", { bubbles: true, cancelable: true }); ev.dataTransfer = { files: [new win.File([encodePNG(W, H, px)], "disc.png", { type: "image/png" })] };
+    document.querySelector("#drop").dispatchEvent(ev);
+    for (let i = 0; i < 100 && !MF.state.items.some(d => d.name === "disc" && d.src); i++) await sleep(30);
+    await settle();
+    const data = JSON.parse(MF.projectPayload(true)), it = data.state.items.find(d => d.name === "disc");
+    Object.assign(it, { width: "12abc", rotation: null, aspect: "wide", zoom: [2], adjust: 5, outline: { on: false, width: "x", slot: 1 }, pixel: "yes" });
+    const e0 = env.errors.length; await open(JSON.stringify(data));
+    const d = MF.state.items.find(x => x.name === "disc"), errs = env.errors.slice(e0).filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
+    check(MF.parts.length && d.width === 40 && d.rotation === 0 && Math.abs(d.aspect - W / H) < 1e-9 && typeof d.adjust === "object" && typeof d.pixel === "object" && d.outline.width === 0.8 && !errs.length,
+      "text, null or lists in a picture's settings fall back to defaults, and its shape comes from the picture itself", `${MF.parts.length} parts, width ${d.width}, aspect ${d.aspect}`);
+  }
+
   const errs = env.errors.filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
   check(!errs.length, "no page errors", errs.slice(0, 2).join(" / "));
   console.log(fails ? `\n${fails} FAILED` : "\nall passed");

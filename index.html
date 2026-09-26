@@ -10350,6 +10350,11 @@ function sanitizeProject(data){
     }
     for (const k of ["width","rotation","offU","offV","height","step","minH","maxH","embed","res","smooth"])
       if (k in it) it[k] = cleanNum(it[k], undefined);
+    // the same type check as the settings: numbers must be numbers, groups objects (the picture's own
+    // aspect ratio is taken again from the picture when it loads)
+    sameShape(it, { width:40, rotation:0, aspect:1, zoom:1, rot90:0, outline:{ width:0.8, slot:1 }, adjust:{ bright:0, contrast:0, sat:0 }, pixel:{ cells:40 } }, 0);
+    if (it.width === undefined) it.width = 40;
+    if (it.rotation === undefined) it.rotation = 0;
     if (it.asset != null) it.asset = cleanStr(String(it.asset), 40, null);
     it.place = it.place && typeof it.place === "object"
       ? { c: vec3(it.place.c, [0,0,0]), n: vec3(it.place.n, [0,1,0]) } : undefined;
@@ -10472,7 +10477,7 @@ async function loadProject(data){
   uid = Math.max(1, ...state.items.map(i=>i.id||0)) + 1;
   state.items.forEach(it=>{
     normalizeItem(it); it.solids = null; it._imgKey = ""; it._srcSig = "";
-    if (it.asset && assets[it.asset]){ it.src = assets[it.asset].canvas; it.thumb = assets[it.asset].dataURL; }
+    if (it.asset && assets[it.asset]){ it.src = assets[it.asset].canvas; it.thumb = assets[it.asset].dataURL; it.aspect = it.src.width/Math.max(1, it.src.height); }
   });
   applyTheme(); renderTab(); renderStarts(); await rebuildAll(true); renderTab();
   logLine("Project opened");

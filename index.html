@@ -698,7 +698,7 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
     }
     const mats = slots.map((s, i) => '<base name="' + esc(s.name || "Filament " + (i + 1)) + '" displaycolor="' + s.hex.toUpperCase() + 'FF"/>').join("");
     const model = '<?xml version="1.0" encoding="UTF-8"?>\n<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:slic3rpe="http://schemas.slic3r.org/3mf/2017/06">\n' +
-      '<metadata name="slic3rpe:Version3mf">1</metadata><metadata name="Title">' + esc(title) + '</metadata><metadata name="Application">PhotoRelief Studio</metadata>\n' +
+      '<metadata name="slic3rpe:Version3mf">1</metadata><metadata name="Title">' + esc(title) + '</metadata><metadata name="Application">Maker Forge</metadata>\n' +
       '<resources><basematerials id="1">' + mats + '</basematerials>\n<object id="2" name="' + esc(title) + '" type="model" pid="1" pindex="0"><mesh><vertices>\n' +
       V.join("\n") + '\n</vertices><triangles>\n' + Tr.join("\n") + '\n</triangles></mesh></object></resources>\n<build><item objectid="2"/></build>\n</model>';
     const config = '<?xml version="1.0" encoding="utf-8"?>\n<config>\n <object id="2" instances_count="1">\n  <metadata type="object" key="name" value="' + esc(title) + '"/>\n' +
@@ -764,7 +764,7 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
   }
 
   function makeOBJ(parts, slots) {
-    const L = ["# PhotoRelief Studio", "mtllib model.mtl"]; let base = 1;
+    const L = ["# Maker Forge", "mtllib model.mtl"]; let base = 1;
     for (const p of parts) {
       L.push("o " + p.name.replace(/\s+/g, "_"));
       for (let i = 0; i < p.pos.length; i += 3) L.push("v " + f(p.pos[i]) + " " + f(p.pos[i + 1]) + " " + f(p.pos[i + 2]));

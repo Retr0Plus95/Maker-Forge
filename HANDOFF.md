@@ -228,7 +228,7 @@ Session 9 started from the Session 8 bundle (`build.py` reproduced the v0.13.0 `
 
 ## Session 10: tracing logos, first real-browser feedback (v0.14.1)
 
-First test in a real browser by the user. Reported: (1) a white logo on a transparent background (a brush-stroke ring, "AY" inside it, small "STUDIO" text) traced only the ring, no letters; (2) raising the tracer's smoothing made half the ring disappear; (3) Bambu Studio still shows a warning on the Bambu 3mf, but colours load.
+First test in a real browser by the user. Reported: (1) a white logo on a transparent background (a brush-stroke ring with two large letters inside and a line of small text) traced only the ring, no letters; (2) raising the tracer's smoothing made half the ring disappear; (3) Bambu Studio still shows a warning on the Bambu 3mf, but colours load.
 
 **Root causes (reproduced with `tools-tracer-logo-test.js` before fixing: 17 failures).**
 1. *Keep only the biggest piece* was on by default, so the ring survived and every letter was dropped.
@@ -245,7 +245,7 @@ First test in a real browser by the user. Reported: (1) a white logo on a transp
 
 **Verified:** `tools-tracer-logo-test.js` (36 checks, all pass), both bracket tracer tests (identical to Session 6), smoke test `ONLY=tracer` with every button, quick smoke of all 17 presets plus tracer and cutter, extremes audit of the tracer (no findings; *Ignore pieces smaller than* listed as expected on the one-piece test picture), `tools-printability-test.js`.
 
-**Still to check in a real browser:** the user's own logo. At 60 mm its "STUDIO" strokes are roughly nozzle width, so expect a thin-wall warning; a bigger size or leaving the text out helps. Letters inside a ring are separate islands: printed alone they are loose pieces (see Unfinished: a backing plate option).
+**Still to check in a real browser:** the reported logo. At 60 mm its small text strokes are roughly nozzle width, so expect a thin-wall warning; a bigger size or leaving the text out helps. Letters inside a ring are separate islands: printed alone they are loose pieces (see Unfinished: a backing plate option).
 
 ## Session 11: Project boxes, tracer back plates and covers, bed rulers (v0.15.0)
 
@@ -314,7 +314,7 @@ Started from the Session 11 files on GitHub (`build.py` reproduced `index.html` 
 
 ## Session 13: colour painter, phone cases, 39 printers, easy reading (v0.17.0)
 
-The user asked for: all bugs seen on the way fixed, performance and stability, many more printers (theirs is a Bambu Lab **X2D**), phone sizes researched for a phone case tool, 50 new ideas, the next big tool (automatic and manual **colour painting** of any model, including imported ones, in up to 8 colours, by height and more), a reset-to-default for sliders, and an app that is easy to read and find things in for someone who cannot see well.
+The user asked for: all bugs seen on the way fixed, performance and stability, many more printers (theirs is a Bambu Lab **X2D**), phone sizes researched for a phone case tool, 50 new ideas, the next big tool (automatic and manual **colour painting** of any model, including imported ones, in up to 8 colours, by height and more), a reset-to-default for sliders, and an app that is easy to read and find things in, with accessibility as a priority.
 
 **Colour painter (Paint tab).** The paint is a list of steps, replayed in order after every build (`applyPaint` in the rebuild, `repaint` when only the steps change), so it follows the model when a setting changes, and it is undoable like everything else. Steps: height bands (2 to 8, edges cut into the mesh, "line up with the layers"), a colour fade (every layer in a range is one of two filaments, the second one's share rising evenly by error diffusion), stripes, tops / walls / undersides by angle, separate pieces (largest first), smooth areas split at sharp edges (neighbours get different colours when the palette allows; tiny areas join their neighbour), a picture from the Art tab projected from the front, back, sides or top (split into the loaded filaments like the decals), random blobs (value noise, a pattern number), swap one colour for another, and by hand: brush (radius, only the side facing you, mirror to the other side), fill (a smooth area up to an edge angle, or the same colour) and eraser. Keys 1 to 8 pick a colour, [ ] the brush size, B F E V the tool. While painting, the left button paints and the right button turns the view; on touch screens one finger paints, two move ("Turn view" switches back). Brush strokes paint live (only the touched triangles are recoloured), then the whole list is replayed.
 - **Mesh:** triangles are painted whole, so `meshEditor` splits the model: longest-edge bisection until no edge is over 1.2 mm (Normal; Coarse 2.5, Fine 0.6; automatic uses none unless a brush, fill, picture or blob step needs it; at most 900,000 triangles, the detail is lowered with a message beyond that), and cuts along every band height. Each split puts one vertex on the shared edge and cuts both triangles, so the mesh stays closed with exactly the same volume (tested on a cube, a revolved ball, and every auto step on the vase). The refined mesh is cached per original solid and key, so strokes and colour changes never redo it; imported models are welded once per file and scale.

@@ -2,7 +2,7 @@
 
 A browser-based studio for designing **multi-colour 3D prints** from photos, logos and names, and exporting them ready to slice.
 
-Everything runs locally in the browser. No account, no uploads, no server: your images never leave the machine. One HTML file, no build toolchain, MIT licensed.
+Everything runs locally in the browser. No account, no uploads, no server: your images and models never leave the machine. (The page does load its libraries from jsDelivr and its fonts from Google Fonts, so those two services see that it was opened.) One HTML file, no build toolchain, MIT licensed.
 
 ---
 

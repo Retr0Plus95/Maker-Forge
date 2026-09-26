@@ -25,6 +25,8 @@ const EXPECTED_DEAD = [
   [/^(Bed width|Bed depth|Build height|Colours it can load|Nozzle|Layer height)/, "a printer setting: it changes the bed, the checks and the print time, not the model"],
   [/^Show problem areas/, "this model has nothing to mark", () => { const p = win.MakerForge.print; return p && !p.marks.support.length && !p.marks.fine.length && !p.thin.length; }],
   [/^Brush size/, "only sets the size of the next brush stroke"],
+  [/^(Stop at edges sharper than|Only paint the side facing me|Mirror my strokes)/, "sets how the next brush stroke or fill works"],
+  [/^Use the paint/, "there is no paint to switch off", () => !(win.MakerForge.state.paint.ops || []).length],
   // Session 13: the box grows only when an opening is too big for its face
   [/^Make the box bigger when an opening does not fit/, "every opening fits, so there is nothing to grow for", () => !(win.MakerForge.enclosure && (win.MakerForge.enclosure.misfit || []).length)],
   [/^Dot size/, "the test text has no i/j dots, and the test canvas draws glyphs as boxes"],

@@ -213,8 +213,10 @@ async function settle() {
   st().paint.detail = "auto";
   // switching the paint off shows the model plain; removing all paint restores the original mesh
   st().paint.on = false; MF.paint.repaint(); await settle();
-  check(MF.parts.every(p => !p.paint), "Show the paint off: plain model");
+  const offWarn = MF.checks.list.find(r => /paint is switched off/.test(r.t));
+  check(MF.parts.every(p => !p.paint) && offWarn && offWarn.k === "warn", "“Use the paint” off: the plain model, and the checks say the paint is left out", offWarn && offWarn.s);
   st().paint.on = true; st().paint.ops = []; MF.paint.repaint(); await settle();
+  check(!MF.checks.list.some(r => /paint is switched off/.test(r.t)), "no warning once the paint is on (or gone)");
   check(MF.parts.every(p => !p.paint) && C.checkMesh(MF.parts[0].solid).tris === 41216, "no paint: the original mesh again", C.checkMesh(MF.parts[0].solid).tris);
 
   console.log("\nimporting a model");

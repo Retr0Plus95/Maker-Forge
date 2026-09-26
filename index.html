@@ -7522,6 +7522,9 @@ function runChecks(){
     list.push({ k:"bad", t:"Bigger than the print bed", s:`${size.x.toFixed(0)} × ${size.z.toFixed(0)} × ${size.y.toFixed(0)} mm does not fit ${bed.join(" × ")} mm on the ${P.model}.` +
       (state.base.type === "jigsaw" && state.base.jigsaw.holder === "tray" ? " The tray prints beside the puzzle: make the puzzle smaller, or switch the tray off and export it separately." : "") });
   else list.push({ k:"ok", t:"Fits the bed", s:`${P.model}, ${bed[0]} × ${bed[1]} mm` });
+  // the paint switched off on the Paint tab is left out of the files too
+  if (state.paint && state.paint.on === false && Array.isArray(state.paint.ops) && state.paint.ops.length)
+    list.push({ k:"warn", t:"The paint is switched off", s:`${state.paint.ops.length} paint step${state.paint.ops.length === 1 ? " is" : "s are"} left out, so the model prints in its own colours. Tick “Use the paint” on the Paint tab to print them.` });
   // a picture laid on the model that lands off it (in a photo frame's window, past an edge) prints nothing
   const missed = state.items.filter(d => d.enabled !== false && Array.isArray(d.solids) && !d.solids.some(q => q && q.idx && q.idx.length));
   if (missed.length) list.push({ k:"warn", t: missed.length === 1 ? `The picture “${missed[0].name}” misses the model` : `${missed.length} pictures miss the model`,
@@ -9871,7 +9874,7 @@ function tabPaint(p){
   const sum = document.createElement("div"); sum.id = "paintSummary"; sum.className = "card psum"; p.appendChild(sum);
   if (modelParts.length > 1) selField(p, "What to paint", [["-1","The whole model"], ...modelParts.map((q,i)=>[String(i), q.name])],
     () => String(state.paint.part ?? -1), v => { state.paint.part = +v; paintChanged(); });
-  checkField(p, "Show the paint", () => state.paint.on !== false, v => { state.paint.on = v; repaint(true); });
+  checkField(p, "Use the paint (untick to see and print the plain model)", () => state.paint.on !== false, v => { state.paint.on = v; repaint(true); });
   buttonRow(p, [["Remove all paint", ()=>{ if (!paintOps().length) return; state.paint.ops = []; renderTab(); paintChanged(); notify("All the paint is gone. Undo (Ctrl+Z) brings it back."); }]]);
 
   p.insertAdjacentHTML("beforeend", `<h2>Auto colour</h2>`);

@@ -348,7 +348,19 @@ The browser check's round trip had two faults of its own, fixed: it counted only
 
 **Caught by the final survey:** the first version of the lens ran the LED pocket up to 1.2 mm under the lens's top. The dome narrows faster than that, so the 5 mm lens's pocket came out through the side of the dome (the revolved profile crossed itself: still a closed mesh, so `checkMesh` passed, but the printability check saw 22 mm² of "support" inside the lens) and the 3 mm lens kept 0.14 mm of wall there. Fixed as above (the Project box's survey line went from 67 to 45 mm², the pocket's roof now read as a bridge); `tools-enclosure-test.js` now casts horizontal rays from each lens's axis (every 0.05 mm up, 16 directions) and requires them to go in and out of the plastic in turn, end outside, and cross at least 0.75 mm each time (0.86 and 0.87 mm now; the old lens fails with 272 bad rays and 0.03 mm).
 
-**Verified:** see the end of this section once the final run is in.
+**Verified on the final build** (commit 32416b1; the documentation commits after it change no code):
+
+- **Smoke test:** full, with every button (22 quick starts, 20 objects, 5 tabs, 328 clicks, no page errors).
+- **Test suites, all passing:** `tools-paint-test.js` (75 checks), `tools-phonecase-test.js` (25; the first check builds all 75 phones), `tools-enclosure-test.js` (84, including the lens walls, the too-small hole and the hostile lens filament), both printability tests (83), all four tracer tests (59 checks; the bracket measurements are the same as in Session 6), `tools-lithophane-test.js` (59) and `tools-jigsaw-test.js` (82).
+- **Size check:** readout, STL, 3mf and Bambu 3mf agree.
+- **Audits:** phone case (19 controls), turned shapes (8), project box (26), tracer (18), name plate (18) and lithophane (9). No findings beyond the expected list, which now includes the box's grow switch when every opening already fits.
+- **Print survey:** the same as the lens-fix build. Against Session 12: Project box 0 → 45 mm² and Power bank box 27 → 91 (round holes and pilot lights); PSU box 603 → 652 (round fan holes); the new Phone case reads 114 (the tops of the button openings); everything else unchanged.
+- **Real-browser check** (`PRINT=1 MOBILE=1`): 150 screenshots with no findings, no page errors and web fonts loaded. The browser-only features measured as expected: an SVG at 39.994 × 19.981 mm, the tape at 92.000 mm, the section at 18.0 mm, a 3,197-character share link that opens the same box, and three names as three one-piece plates. The painter test drew a 7-point brush stroke with the mouse, and a painted Bambu 3mf read back with every triangle's filament.
+- **Not checked:**
+  - a painted 3mf opened in Bambu Studio, OrcaSlicer or PrusaSlicer;
+  - Firefox or Safari;
+  - a printed phone-case fit-test rim;
+  - a printed pilot-light lens.
 
 ### 50 ideas for next sessions (tools we are working on now)
 

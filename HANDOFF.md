@@ -1,0 +1,387 @@
+# Maker Forge — handoff summary
+
+Paste this into a new chat along with the repository files to continue.
+
+## Project overview
+
+**Maker Forge** (v0.14.1) is a browser-based, MIT-licensed studio for multi-colour 3D printing: name keychains, photo-traced parts, jigsaw puzzles, lithophanes, lightboxes, bobble heads, circuit-board art and more. It runs entirely client-side with no build toolchain. Targets: GitHub, a personal website, and later a Linux desktop app (Electron or Tauri wrapper not started).
+
+**Repository layout**
+
+| File | Role |
+| --- | --- |
+| `src/core.js` | Geometry library, no DOM. Exposed as `window.PRCore`. Runs in Node for tests. |
+| `src/app.html` | UI, state, generators, export. Contains the placeholder `/*CORE*/` where core is inlined. |
+| `build.py` | Inlines core into app, producing `index.html`. |
+| `index.html` | The built single-file app. |
+| `tools-test-env.js` | jsdom environment with a software 2D canvas stub; `boot(file)` returns `{ window, errors }`. |
+| `tools-smoke-test.js` | Clicks every tab, generator, preset, button and export path. |
+| `tools-audit.js` | Drives every slider to both extremes and toggles every checkbox, per generator; flags open edges, NaN, empty output, failed builds and **dead controls** (model unchanged). Usage: `node tools-audit.js index.html nameplate,board` or `... board art`. |
+| `tools-tracer-test.js` | Traces a synthetic 60 mm bracket and prints the measurement table. |
+| `tools-tracer-logo-test.js` | A logo on a transparent background (Session 10): white, black and coloured, both separation methods, smoothing 0.4 to 1.2 mm. The whole ring (thin stretch included), every letter, the small letters kept apart, the background empty. |
+| `tools-tracer-paper-test.js` | The same bracket on A4 photographed at an angle; checks paper scaling, perspective correction, both separation methods and hand-brush edits. `TRACER='{"smooth":0}'` overrides settings. |
+| `tools-printability-test.js` | Core-only printability checks on shapes with known answers (overhangs, bridges, ledges, stacked and sunk parts, thin walls, bed contact, brim, orientation). `node tools-printability-test.js [src/core.js\|index.html]`. |
+| `tools-printability-app-test.js` | The same in the app: sphere, flat box, an STL table imported through the file input and fixed by Optimize, mirror + scale on a turned model, Revert, the Export page, a hostile project file. |
+| `tools-jigsaw-test.js` | Jigsaw puzzles (Session 8): the cut alone (exact tiling, seeds, the gap measured on finished pieces, shaped outlines, labels, SVG, hostile input), then the generator in the app (parts, Shuffle, frame, tray, face down, downloads, a hostile project). `node tools-jigsaw-test.js index.html`; `CORE=1` for the geometry only (~25 s). |
+| `tools-lithophane-test.js` | Lithophanes (Session 9): the sheet builder alone (outline areas, holes, simplified backs, the cylinder seam, a curve), then the generator in the app (thickness follows brightness, mirror, the upright slope limit, every shape and outline closed and support-free, the lamp shade, the hanging hole, Optimize, a hostile project). `node tools-lithophane-test.js index.html` (~85 s); `CORE=1` for the geometry only (~5 s). |
+| `tools-print-survey.js` | Prints what the printability check says about every object and preset: `node tools-print-survey.js index.html [objects\|presets\|all]` (`NOPIC=1` skips the test picture). Use it after any generator change to spot new warnings. |
+| `package.json` | Test dependencies and script shortcuts (`npm run build`, `test:tracer`, `test:smoke`, `test:audit`, `test:print`, `test:jigsaw`, `test:litho`, `survey:print`). |
+| `README.md`, `LICENSE` | Docs, MIT. |
+
+Dependencies load from CDNs at runtime: three.js r128, OrbitControls, earcut 2.2.4, JSZip 3.10.1, Google Fonts. Test deps: `npm i` (or `npm i jsdom three@0.128.0 earcut@2.2.4 jszip@3.10.1`).
+
+**Files not in the Session 6 bundle.** Only `HANDOFF.md`, `index.html`, `app.html` and `tools-tracer-paper-test.js` arrived in Session 6. `src/core.js` was extracted from `index.html` (rebuilding reproduced the v0.11.2 `index.html` byte for byte), and `build.py`, `tools-test-env.js`, `tools-smoke-test.js`, `tools-audit.js` and `tools-tracer-test.js` were rewritten from their descriptions here. `README.md`, `LICENSE` and `tools-security-test.js` were not available and are not in the bundle: if you have the originals, keep them, and consider diffing your old test tools against the new ones.
+
+**Key architecture in `app.html`** (sections are commented 1–9): constants (`FONTS` 34 entries, `PRINTERS`, `PRESETS`, `SHAPES`, `OBJECT_GROUPS`) → state and history (JSON snapshots, `sanitizeProject`) → helpers (`cutoutCanvas` background removal, `sourceCanvas` adjustments) → generators (`buildNamePlate`, `buildTracer`, `buildLightbox`, `buildLithophane`, `buildJigsaw`, `buildPCB`, `buildBobble`, `buildCutter`, `buildCanvasPanel`, `buildTurned`, `buildSimpleObject`) → artwork pipeline (`buildItem`) → scene and `rebuildAll` → checks (`runChecks`) → UI (`renderTab`, `renderStarts`, tab functions, field helpers `numField/selField/segField/checkField/slotField/fontField/symbolField/group`) → export (`buildZip` writes Prusa/Orca 3mf, Bambu 3mf, OBJ+MTL, per-colour STL, merged STL, project.json). `window.MakerForge` exposes state, parts, checks, a build counter (`rev`) and `busy` for tests.
+
+**Key functions in `core.js`**: `traceField`/`fieldToPolys` (sub-pixel marching squares), `blurMask`, `signedDistanceField`, `coverageField`, `maskToPolys` (now smooth by default; `{stepped:true}` for pixel-exact), `edt`/`dilateMask`/`erodeMask`/`closeMask`, `labelMask`, `triangulate`/`refine`, `solidFromTris`, `extrudePolys(At)`, `buildMaskSolid`, `makeProjector`, `revolveLoop`, `sweepTube`, `checkMesh`, `make3MF`, `make3MF_BBL`, `makeOBJ`, `makeSTL`, `prepareParts`. Printability (Session 7): `analyzePrint`/`analyzePrintSteps`, `bestOrientation`/`bestOrientationSteps`, `brimSolid`, `affineSolid`, `rotationDownTo`, `sliceMask`, `flattenParts`, `bedContact`. Jigsaw (Session 8): `jigsawGrid`, `jigsawCut`, `jigsawEdge`, `jigsawPiece` (with `placeLabel`), `jigsawCutLines`, `jigsawSVG`, `ringField` (banded signed distance to rings), `ringDistance`, `outlineBand`, `strokeText` (a 4 × 6 stroke font, digits and A–Z without I/O), `seededRandom`. Lithophane (Session 9): `heightSheet` (a thickness grid as a closed solid, clipped to an outline, mapped flat, curved or round), `flatBack` (internal: a flat back triangulated from the boundary loops), `gridAround` (now exported).
+
+## Completed this session
+
+**Priority 1 (all done)**
+1. Panel keeps its scroll position when a setting re-renders the same tab.
+2. Art thumbnails toggle a picture on/off (with an on/off badge); adding a new picture switches earlier pictures off so they no longer stack. Disabled items are skipped in builds.
+3. Picture beside the name: background removal (flood fill against the median border colour, tolerance slider), colour cleanup, and the chosen picture is no longer also stamped onto the plate as a decal.
+4. Lightbox 💡 and Circuit board 🔌 have their own icons.
+5. New original logo: stacked print layers tapering into a nozzle with a bead of filament.
+6. Security review: project files are sanitised (`sanitizeProject`): hex colours validated before reaching style attributes, strings length-capped, fonts whitelisted, image assets accepted only as `data:image/(png|jpeg|webp|gif);base64`. innerHTML sinks reviewed; user strings go through `esc()`.
+
+**Priority 2 (done)**: `maskToPolys` now blurs the mask into a coverage field and traces the 0.5 level, so every generator gets smooth curves. Measured edge wobble ±0.009 mm vs ±0.053 mm before, dimensions preserved.
+
+**Priority 3 (v1 done)**: Photo to 3D tracer with a six-step guided panel (photo, separate, clean up, one real measurement, shape, check). Background removal or Otsu threshold with auto polarity; smoothing; keep largest piece; hole filling by size; outline offset for fit; circular-hole detection replaced by true circles snapped to a step plus clearance; mirror; preview canvas with the traced outline over the photo or the mask; measurement table. Test: 60.00 × 30.00 mm bracket, holes 7.97/4.96 mm measured (true 8/5) → 8.20/5.20 mm made with 0.2 mm clearance.
+
+**Priority 4 (mostly done)**: tabs moved to the top bar; options docked left; new right sidebar "Start from" with quick-start presets and all objects grouped by category as cards (plus an accessible select `#objectSel`); both sidebars can be hidden; Settings (theme, units, autosave, max preview detail, clear saved work) and About dialogs; version badge; progress bar during builds and picture loading; bottom status line with an expandable activity log; spinner on the drop zone while pictures load.
+
+**Priority 5 (started)**: view buttons for top, bottom, front, back, left, right and angle.
+
+## Session 2 additions (Tracer v2)
+
+- **Scale from the paper**: the sheet under the part (A3, A4, A5, Letter, Legal) is found as the largest bright blob, its corners taken from x+y / x−y extremes (`quadCorners`), and the photo is warped straight with a homography (`homography`, `warpQuad`) at `paperRes` (1500 px on the long side). The paper becomes the ruler, so photos can be taken at an angle.
+- **Background separation rewritten for the tracer**: a colour key against the median background colour, cutting halfway between background and the part's typical colour. The old flood fill leaked through noisy parts and could not reach background showing through holes.
+- **Hand brush**: Add / Erase strokes painted on the step-1 preview, stored in 0..1 image coordinates in `state.base.tracer.strokes` (sanitised on project load), applied after cleanup and before scaling; undo last stroke / clear all.
+- **CAD export**: `outlineSVG` (true-scale mm) and `outlineDXF` (ASCII, closed POLYLINEs, $INSUNITS=4) via a button in step 6, and automatically inside the main zip under `cad/` for traced parts.
+- **Mirroring now happens in pixel space** inside `resample()`, not via canvas transforms (the test canvas ignored them, which had silently hidden that the artwork Mirror control was never really tested).
+- Results: straight-on 60.00 × 30.00 mm exact; angled A4 photo, no measurement: 60.57 × 30.88 mm, holes 7.93/4.92 mm → 8.00/5.00 mm. Both separation methods agree.
+
+## Session 3: layout, bug hunt, security audit (v0.11.0)
+
+- **Icon rail + pop-up pages.** `renderTab()` renders a tab in place, then `splitSections()` cuts it into pages at every `h2`, every `details.group` and every tracer `.card.step`. Each page gets an icon in `#secrail` (`SECTION_ICONS`, regex → glyph) and a line of instructions in `#sechelp` (`SECTION_HELP`). Only the active page is visible. `sectionState[tab:object]` remembers the active page and each page's scroll position, so a setting that re-renders the panel keeps your place. Clicking the active icon closes the pop-up.
+- **Scroll-jump root cause fixed.** The font list used `scrollIntoView`, which scrolls every ancestor, so each re-render on the name plate threw the panel back to the fonts. It now scrolls only the font list.
+- **Cookie cutter was broken.** Its rim never appeared (growing a shape was clipped at the picture's edge) and a logo on white produced a rectangle. New `padMask()` adds room before any growth; new `silhouetteMask()` keys away a plain background when the visible border is one uniform colour; the flange now joins the blade. The artwork outline halo had the same clipping bug and is fixed the same way.
+- **Security.** SRI hashes on all four scripts (jsDelivr npm URLs). `sanitizeProject` now strips `__proto__`/`constructor`/`prototype`, clamps every number (hard `LIMITS` for resource-driving settings), validates vectors, slot indices, theme, units, printer and object type. Verified with `tools-security-test.js`: zero injected handlers or markup, no prototype pollution, all numbers clamped, app still builds.
+- Audit status: every generator passes the extremes audit. Remaining findings are all expected on the synthetic test image (see known issues).
+
+## Session 4: sub-pixel paper corners (v0.11.1)
+
+- New `refineQuad(mask, w, h, roughQuad)` in core: traces the sheet sub-pixel, assigns outline points to the nearest edge (skipping 8% at each corner), fits each edge by total least squares and intersects neighbouring lines. The tracer's paper mode now uses it after `quadCorners`.
+- Measured: corner error on a skewed synthetic sheet fell from 0.500 px to 0.014 px. On the angled-A4 bracket test, hole diameters improved to 7.96 / 4.95 mm (true 8 / 5), which means the scale is now right to well under 1%.
+- **Open issue found:** the traced part's outer outline still reads 60.57 × 30.83 mm (true 60 × 30) while its holes are accurate. That is an additive bias of roughly a third of a millimetre per outer edge (about 1.5 to 2 px at 5 px/mm), not a scale error. The straight-on test hides it because measure mode scales the bounding box to the typed width (and its holes then read slightly small, 7.97 / 4.96). Suspects to check, in order: the jsdom canvas stub's nearest-neighbour `drawImage` used by `resample()` (browsers filter properly, so this may be a test artefact); the close/open smoothing at `sr = round(0.4 mm × px/mm)` around convex corners; the bounding box being set by a few edge pixels rather than the edge line. First step: run `tools-tracer-paper-test.js` with `smooth: 0` and with `paperRes` equal to the photo's own resolution, and see which one removes the bias.
+
+## Session 5: outline-bias investigation closed (v0.11.2)
+
+Ran the experiments planned in Session 4 on the angled-A4 bracket (`tools-tracer-paper-test.js` now accepts overrides: `TRACER='{"smooth":0}' node tools-tracer-paper-test.js index.html`, and prints the traced area against the true area).
+
+| Setting | Outline | Holes (true 8 / 5) |
+| --- | --- | --- |
+| defaults | 60.57 × 30.83 | 7.96 / 4.95 |
+| smooth 0 | 60.57 × 30.82 | 8.00 / 5.01 |
+| workRes 1000 + smooth 0 (no downsampling) | 60.37 × 30.44 | 7.93 / 5.00 |
+| paperRes 800 + smooth 0 | 60.48 × 30.80 | 7.86 / 4.85 |
+
+**Conclusion: the tracer is accurate.** With no downsampling the traced *area* is 1721.8 mm² against a true 1722.4 mm² (−0.03%). The apparent oversize comes from measuring with a bounding box, which catches the outermost staircase steps of the synthetic photo's hard-edged, tilted rendering; about half of it also comes from the jsdom canvas stub's nearest-neighbour downsampling, which real browsers do not use. Real camera photos have soft edges, so the effect should be much smaller. Straightening resolution is not a factor.
+
+One small real effect: smoothing shrinks round holes by about 0.05 mm (below printer tolerance). A blur-and-threshold replacement was tried and measured no better, so it was reverted; the smoothing hint now says so and recommends 0 for precision parts.
+
+Possible follow-up: report Width and Height in the step-6 table from lines fitted to the traced edges rather than the bounding box, so noisy edges cannot inflate the numbers shown to the user.
+
+## Session 6: rebuilt test tools, edge-to-edge sizes, three bug fixes (v0.11.3)
+
+**Test tools rebuilt** (see the note under the repository table).
+- `tools-test-env.js`: software 2D canvas with paths, arcs and curves, nonzero/even-odd fill, strokes, full affine transforms, `source-over`/`destination-out`/`copy`, box glyphs for `fillText`, real PNG encode/decode (so `toDataURL`, `toBlob`, `<img>` from data and blob URLs, and project assets round-trip), no-op WebGL renderer. `ctx._ensure()` and `ctx.data` work as before. **Changed on purpose:** `drawImage` now filters like a browser (box-filtered downscaling, bilinear upscaling, nearest neighbour only with `imageSmoothingEnabled = false`). The old stub's nearest-neighbour downscaling caused about half of the Session 5 bias, so tracer numbers differ from the Session 5 table (see below).
+- `tools-smoke-test.js`: drops a real PNG through the Art tab's drop zone, then runs every preset, every object, every tab, every panel page and every button on the open page, and runs the export writers on each result. An empty build passes only if the app's own message says why. Options: `QUICK=1` (no button clicks), `ONLY=tracer,board` (objects; skips presets unless `PRESETS=1`), `PAGES=0-3`, `VERBOSE=1`.
+- `tools-audit.js`: same usage as before. The model signature now includes the vertex centroid, so a mirror counts as a change. Dead-control reports that are expected are listed separately with the reason (whole-model scale and mirror act on view and export only; brush size; no specks, small marks or i/j dots in the test picture; strong-contrast test picture).
+- `tools-tracer-test.js`: measurement mode, straight, turned 4° and turned −11°, plus a flat-colour regression case.
+- **Time limit in the chat sandbox:** anything over 5 minutes is killed and background jobs do not survive between replies, so run the smoke test in chunks there: `ONLY=nameplate`, then `ONLY=tracer,board,canvas,bobble,cutter`, then `PRESETS=1 ONLY=turned,pcb,lightbox,frame,shell,box,cylinder,hex,sphere,none`. Audits likewise, three or four generators per run.
+
+**Edge-to-edge sizes (the Session 5 follow-up).** New `fitDimensions(ring, { res })` in core: minimum-area rectangle for the outline's own axes (angle kept within ±45° so width stays nearest the photo's horizontal), then per side a weighted total-least-squares line through points sampled evenly by arc length, corners (8%) and cross-running points skipped, refined three times. A side counts as flat only if the fit covers at least 25% of it, is not tilted, and a quadratic fit shows no bow beyond half the photo's pixel size; otherwise that side uses its outermost point. `res` is the coarser of the tracing resolution and the photo's own detail (in paper mode, straightening adds pixels but no detail, so the sawtooth along tilted edges is judged at the photo's scale).
+- Step-6 table: "Width (edge to edge)" / "Height (edge to edge)", or "(widest)" for a side that is not flat; an "Outermost points" row when it differs by 0.05 mm or more; a note with the angle when the part is turned.
+- **Measurement mode now scales from the fitted size** (a px-unit trace of the mask before the main trace). This fixes a real bug: a part turned in the photo was scaled by its axis-aligned bounding box. Turned 4°: height 32.73 mm and holes 7.70 mm before, 30.00 mm and 8.20 mm (correct, with clearance) now.
+- `window.MakerForge.tracer` exposes `tracerInfo` (including `dims`) for tests.
+
+| Test (browser-like filtering) | Edge to edge | Bounding box | Holes measured (true 8 / 5) |
+| --- | --- | --- | --- |
+| Angled A4, threshold | 60.06 × 30.00 | 60.37 × 30.48 | 7.83 / 4.87 |
+| Angled A4, background removal | 60.04 × 29.98 | 60.37 × 30.48 | 7.84 / 4.88 |
+| Angled A4, smooth 0, workRes 1000 | 60.01 × 29.99 | 60.37 × 30.46 | 7.92 / 4.95 |
+| Measurement, straight, 5 px/mm | 60.00 × 30.00 | 60.00 × 30.00 | 8.00 / 4.89 |
+| Measurement, turned 4° | 60.00 × 30.00 | 60.14 × 30.14 | 7.96 / 4.92 |
+| Measurement, turned −11°, 4 px/mm | 60.00 × 30.01 | 60.10 × 30.11 | 7.92 / 4.91 |
+
+Traced area on the angled A4 photo is within ±0.06% of the true area. Holes in paper mode read about 0.15 mm small (the photo has only 2.4 px/mm and hard edges); snapping to 0.5 mm still lands them on 8.0 / 5.0.
+
+**Bugs fixed**
+1. **Threshold off by one** (existed in v0.11.2): Otsu's threshold t splits values ≤ t from values > t, but the dark test was `lum < t`, so a flat-coloured part whose brightness was exactly t vanished ("Nothing was traced"). Clean logos and screenshots hit this; noisy photos hid it. Now `<=` for dark and `>` for light.
+2. **Silent empty trace:** in paper mode with the threshold method and "Part is lighter", the paper's shaved white margin counted as part, and the trace came out empty with no message. The margin is now cleared for both separation methods, and an empty trace always says why (background picked as the part → switch darker/lighter; otherwise try the other method or the Add brush).
+3. **Plastic canvas "Leave the background open" did nothing** unless a colour was switched off on the Art tab. When none is, the colour filling at least half of the picture's border counts as background. A hint under the checkbox says so.
+
+Also: the version badge said v0.9.0; it now reads v0.11.3.
+
+**Verified this session:** audit of all 16 generators (plus the Art tab on the board): no findings beyond the expected list. Full smoke test with button clicks in three chunks: passed, no page errors. Both tracer tests pass.
+
+## Session 7: Printability checker with Optimize and Revert (v0.12.0)
+
+Session 7 started from `HANDOFF.md`, `index.html`, then the real `src/app.html` and `src/core.js` (uploaded files had CRLF line endings; normalised to LF, `build.py` reproduces the v0.11.3 `index.html` exactly). Plan items 1 and 2 need a real browser, slicers and real phone photos, so item 3 was done.
+
+**What the user sees.** After every build, once editing pauses for 450 ms, the app works out in the background (yielding every 25 ms, abandoned if the model changes):
+- *Needs support under about X mm²* (warn, 3 mm² or more) with the lowest height and the part most affected, or *No overhangs need support* (lists bridges that print fine).
+- *N walls are thinner than the nozzle* with the thinnest width, part and height.
+- *Barely touches the bed* (bad, under 1 mm²), *Small contact with the bed* / *Tall for its footprint* / *Large print in a material that warps* (ABS/ASA over 100 mm) suggesting a brim, or *Sits well on the bed*.
+- Export tab → new **Printability** page: summary table, **Optimize for printing**, **Revert** (or *Stand it as designed* once Revert is gone), *Show problem areas in the preview* (red = needs support, blue = bridges and small ledges that print anyway, orange dots = thin walls), *Brim width*, *Steepest overhang without support (°)* (default 45), *Longest bridge (mm)* (default 10).
+- **Optimize** tries the six axis directions, the ten largest flat-face directions and the current one; keeps the one needing least support (ties within 3% or 2 mm² go to a stable footing, then the current orientation, then more bed contact, then lower). If the result stands poorly it adds a 5 mm brim. The turn applies to the view and every export. Optimize runs in steps behind the busy indicator.
+
+**How it works (core).** Everything is in the print frame (Y up, bed at y = 0).
+- *Overhangs:* downward faces steeper than the limit are sampled (up to 16 × 16 per face); from each sample a ray goes straight down through an XZ bucket grid. A point is supported if it is within the first layer (`max(layer, 0.2)`), if an upward face is within half a layer below, or if it is **inside another part**, decided per part (that part's nearest face below points down). The per-part rule matters: the name plate's colour cap sits in the letters, which are sunk into the plate, so "nearest surface below" alone saw the plate top 0.9 mm down and reported 1042 mm² of support.
+- *Small steep overhangs:* red faces are drawn onto an XZ grid; a connected patch no wider than the ledge limit (`max(1, 2.5 × nozzle)` mm) prints without support (a decal on a wall, a chamfered lip).
+- *Flat ceilings* (normal within 10° of down) are rasterised per height level. Cells next to them that have material just below are anchors. Held on two sides (two or more anchor runs, or 90% of the edge held) and span ≤ the bridge limit → **bridge**; held and sticking out no more than the ledge limit (inscribed width) → **ledge**; otherwise support. Regions under 1 mm² are ignored.
+- *Thin walls:* per part, slices at the middle of each level between distinct vertex heights (or 6 evenly spaced for curved parts) plus the first layer; a morphological opening with a nozzle-wide disc on a grid of `max(nozzle/4, extent/1200)`; whatever it cannot reach is thin. Filters: area ≥ 2 × nozzle², length ≥ 2.5 × nozzle (so star tips and corners are not walls), estimated width < 0.95 × nozzle, and the finding must stay thin one layer (≥ 0.25 mm) further up or down (so the rim where a round bottom meets the bed is not a wall).
+- *Bed contact:* first-layer slice area and islands; brim reasons as listed above.
+- *Brim:* one ring, `max(0.2, layer)` thick, from the first-layer outline dilated by the width, kept out of other colours' footprints, overlapping its own part by about 0.15 mm so they fuse; in the colour with the most plastic on the bed.
+
+**App plumbing.** New state: `printer.overhang`, `printer.bridge`, `model.orient` (3×3 rotation, row order, or `null`), `model.brim`. The sanitiser refuses anything that is not a proper rotation (nine finite numbers, orthonormal, det ≈ 1), clamps brim 0–15, overhang 20–80, bridge 0–60, and forces `mirror` to a boolean. `printedParts()` / `printShift()` / `printBounds()` / `brimPart()` build the print frame (cached by a `partsVer` counter plus `state.model`); `exportParts()` uses them, so **without a turn the export is computed exactly as before**. The size readout, swap heights and filament totals (brim included) use the print frame. `window.MakerForge` adds `print`, `printNow`, `optimize` (async), `revertOptimize`, `exportParts`, `overlay`.
+
+**Bug fixed on the way:** clicking the model to place artwork hit an unscaled, unturned copy of the base mesh, so with the whole-model scale at anything but 100% the artwork landed in the wrong place. The click now goes through the model's real transform.
+
+**Audit tool strengthened.** The model signature now also covers the exported parts (scale, mirror, turn, brim) and, with the `export` tab argument, the printability result and overlay. Scale and Mirror are therefore tested for real instead of being listed as expected. Expected-dead entries can carry a condition: Mirror only on a model measured to be left-right symmetric; the overhang and bridge sliders and the overlay switch only when the model has nothing for them to act on.
+
+**What the survey says** (`tools-print-survey.js`, default settings, test picture dropped in). Clean: tracer, board, canvas, cookie cutter, PCB, lightbox, frame, shell, box, cylinder, hex and presets Iron-on patch, Car badge, Ornament, Tea light, Cookie cutter, Trace a part, Lightbox, Circuit board, Photo frame. Reported, and checked by rendering slices:
+- Name keychain and Double-sided tag: one 0.35 mm neck in the plate where the keyring loop meets the body (real; seen with the test canvas's box glyphs, may differ with real fonts).
+- Plastic canvas preset: 11 charcoal slivers 0.2–0.35 mm where the star is clipped by the holes (real).
+- Bobble head ~1030–1130 mm² and sphere ~2180 mm² of support plus a 12 mm² contact (real).
+- Turned vase ~630 mm², all in the bottom 5 mm on the outside: the default profile `0.62 + … sin(π u^0.85)` leaves the bed almost horizontally. Real; see Unfinished.
+
+**Timing** (Node, similar in a browser): a 57k-triangle sphere is analysed in about 0.45 s and orientation search takes about 0.45 s; the 150k-triangle presets take about 2.5 s in the background, longest single step 170 ms; Optimize on the tea light about 6 s in steps of about 0.35 s.
+
+**Verified:** `tools-printability-test.js` (all pass), `tools-printability-app-test.js` (all pass), full smoke test in three chunks with button clicks plus a quick run of all presets and objects (no page errors), audit of all 17 generators plus the Export tab on sphere and box (no findings), both tracer tests (identical to the Session 6 table).
+
+## Session 8: Jigsaw puzzles from a picture, faster and sturdier tracing (v0.13.0)
+
+**What the user gets.** A new object, *Jigsaw puzzle* 🧩 (Start from → From a picture), and two quick starts: *Jigsaw puzzle* (48 pieces) and *Kids' puzzle* 🧸 (12 chunky round-knob pieces, 4 mm thick, with a tray). The active picture becomes the puzzle; without one you get plain pieces. The puzzle prints **assembled, face up**, every piece shrunk by half the gap along its cuts, so the pieces snap apart after printing and the colours line up across the cuts.
+- Make tab, Basics: a live preview of the cut over the picture (shaped outlines dim what is cut away; cut lines stop at the outline), a summary line, **Shuffle the cut**, *Pieces (about)* 4–400 (the grid is chosen to keep pieces near square; the readout says e.g. "8 × 6 grid, each piece about 19 × 17 mm"), *Longest side* 40–400 mm, *Outline* (rectangle, rounded corners, oval, heart, hexagon), *Piece colour*.
+- *Piece shape*: knob style (classic, round, square), knob size 0.7–1.3, *How different each piece is* 0–100 % (knob position, neck, head, lean, wavy edges and grid-corner jitter), *Cut pattern number* (the seed: the same number always gives the same cut).
+- *Thickness and gap*: thickness (default 3 mm), gap (default 0.25 mm; hints below 0.15 and above 0.45), extra first-layer gap (default 0, because slicers already compensate elephant's foot).
+- *Picture on the pieces*: printed in colour (colour layer default 0.6 mm on top of the body) or plain; *Print the picture face down* (the model is turned 180° about X, so the picture is the first layers against the bed).
+- *Frame or tray*: a frame printed round the puzzle in one go, or a tray (floor plus a wall as tall as a piece) printed beside it on whichever side fits the bed better.
+- *Labels on the back*: a grid reference per piece (row letter A–Z without I and O, column number; plain numbers past 24 rows), engraved 0.6 mm into the bottom, mirrored so it reads correctly when the piece is turned over. Each label is placed where its strokes keep at least 0.8 mm of plastic to the piece edge (knob sockets cut deep, so the middle is often wrong), shrinking to 2.2 mm tall before giving up; the checks count pieces left without one.
+- *Cut lines and box picture*: a true-scale SVG of the cuts (red 0.1 mm hairlines, for a laser or craft cutter; also written into the export zip as `cad/puzzle-cut-lines.svg`) and a box-lid PNG of the finished picture with faint cut lines.
+- Checks: piece count and size; *Knob necks are fragile* (warn under 1.5 mm printed, bad under 1 mm); *Pieces may fuse* / *Loose fit*; *Thin pieces*; the colour layer under two layers; the bed check names the tray when it is the reason the plate is too big.
+- Other artwork is never stamped across the pieces (it would glue them together).
+
+**How it works (core).**
+- `jigsawCut`: corners on a jittered grid (border corners only slide along the border). Every edge's random shape is drawn up front in a fixed order, so later fixes never change other edges. An interior edge is a chain of cubic Béziers in edge-local coordinates: wavy lead-in, shoulder fillet, neck, head (upper-left and upper-right quarters; the square style stretches the Bézier handles), and back. Sizes scale with the smaller piece side `u` so elongated pieces do not get oversized knobs. A repair pass shrinks any knob that comes within `0.07u + gap` of another edge in its cell (and drops it below 55 % size). Shaped outlines: a knob must stay 0.1u inside the outline, or it is flipped to the other side, or flattened to a wavy cut; cells are measured against the outline (outline points mark every cell they cross, so slivers are never lost) and cells under 45 % of a full piece are merged into the neighbour they share the most inside edge with; a merged piece's outline is walked from its cells' edges.
+- Two rings per piece: `rings` (the exact cut, used for tiling, preview and labels) and `fieldRings` (border edges pushed out by `max(2, 0.1u)`), so shrinking by half the gap acts on cuts only and `cut.clip` (the outline, or the full rectangle) gives the exact outer edge.
+- `jigsawPiece`: a banded signed distance field of the piece on a grid of `s = clamp(u/180, 0.035, 0.15)` mm (exact distances within the band, sign by scanline, `ringField`), minus half the gap, `min` the outline's field, traced with `fieldToPolys` at 0 (simplification tolerance 0.08 s). The picture's colours are the blurred per-filament masks (`blurMask`) sampled bilinearly and `min`-ed with the piece field, so each colour region ends exactly at its piece's edge and neighbouring colours meet without overlap (tiny gaps only where three colours meet). Colours not present in a piece are skipped; a single-colour piece reuses the body outline.
+- App (`buildJigsaw`): async, yields to the page every 60 ms with a progress line on big puzzles. Parts: *Pieces* (base filament, 0 to thickness − colour layer, plus the engraved first slab when labels are on), one *⟨filament⟩ picture* part per colour (thickness − colour layer to thickness), *Frame* or *Tray*. `window.MakerForge.jigsaw` exposes the cut and sizes for tests.
+
+**Measured** (`tools-jigsaw-test.js`): pieces tile the rectangle exactly (areas sum to 15000.0000 mm² for every style at 0/60/100 % variation, 3000 random points each in exactly one piece); the gap measured across the cuts on finished pieces is within 0.019 mm (0.024 at a 0.5 mm gap) of half the gap on each side; the finished puzzle is exactly 150.000 × 100.000 mm; 960 pieces at extreme settings are each one island; oval, heart and hexagon outlines are covered exactly once with nothing outside and no piece under 30 % of a full piece. Timing (Node, similar in a browser): the default 48-piece colour puzzle builds in about 0.9 s, 300 pieces in about 2.8 s; the printability check then runs 1.5 to 3.7 s in the background. The print survey finds no support, no bridges, full bed contact, and 1 to 3 colour slivers of 0.35 mm where a cut crosses a picture edge at a shallow angle (the same class of finding as the plastic canvas).
+
+**Bugs fixed on the way (existing code).**
+1. **Latent tracing bug.** `traceField` decided whether a loop was an outline or a hole by sampling one grid node next to the contour; when that node sat exactly on the level (a straight clip edge aligned with the grid, value −7×10⁻¹⁵) a whole region was misread as a hole and silently dropped. The original v0.12 code fails the same way on that input. Closed loops are now oriented from the geometry (each crossing lies on a grid edge with a known inside node); open chains that run off the grid keep the old sampling rule, because for them "inside" is undefined and existing output depends on it.
+2. **`traceField` is about 3× faster**: segments are chained by integer grid-edge id instead of formatted coordinate strings. Every object and preset produces byte-identical geometry to v0.12 (29 fingerprints of triangle count and volume per part), `maskToPolys` output is identical on 300 random masks, and both tracer tests print exactly the Session 6 numbers.
+3. **Art tab showed dead controls** for objects that turn the picture into the object itself (tracer, cookie cutter, circuit board, lightbox, jigsaw): width, rotation, nudging, "how it prints", outline, sink and pixel squares did nothing. New `ART_USED_BY` lists what each of them reads; the Art tab shows only those plus a note pointing to the Make tab. 13 dead-control findings gone across the five.
+4. **Test canvas `stroke`** built and scanned a full-canvas mask per line segment (19 s for one preview of 80 cuts); it now rasterises each segment inside its own bounding box, same shape.
+5. **Audit tool**: an empty model counts as expected when the app's notice says why (brightness +80 washes the picture out; the cutter and tracer both explain); *Preview zoom* and the cutter's *Clean up specks* are listed as expected with reasons.
+
+**Verified:** `tools-jigsaw-test.js` (all pass, geometry and app), smoke test in four chunks with every button clicked (`ONLY=jigsaw PRESETS=1`, `ONLY=nameplate`, `ONLY=tracer,board,canvas,bobble,cutter`, `ONLY=turned,pcb,lightbox,frame,shell,box,cylinder,hex,sphere,none`; all passed, no page errors), extremes audit of the jigsaw on the Make, Art and Export tabs, the Art tab of the board, lightbox, circuit board, cutter and tracer, and the Make tab of the tracer and name plate (no findings beyond the expected list), both printability tests, both tracer tests (identical to Session 6), the print survey.
+
+## Session 9: Lithophanes, a faster mesh check (v0.14.0)
+
+Session 9 started from the Session 8 bundle (`build.py` reproduced the v0.13.0 `index.html` byte for byte). Plan items 1 to 3 need a real browser, slicers and phone photos, so item 4 was done.
+
+**What the user gets.** A new object, *Lithophane* 🌅 (Start from → From a picture, and in the object list), and two quick starts: *Lithophane* (flat, standing on a foot) and *Lithophane lamp* 🏮 (a cylinder, 70 mm inside, 80 mm tall). Both set filament 1 to white. The active picture becomes the sheet: thickness goes from *Thickest* (default 3 mm) at black to *Thinnest* (0.8 mm) at white, linearly in the picture's brightness, after the Art tab's brightness, contrast and saturation. Without a picture the build is empty and the app says why.
+- Make tab, Basics: a **backlit preview** (transmission `exp(-1.3 t)` per mm, normalised between the thinnest and thickest, gamma 2.2, warm white), a summary line, *Flat / Curved / Lamp shade*.
+  - Flat: *Width* 30–250 mm (height follows the picture's aspect plus the border), *Standing on a foot / Lying flat*, *Outline* (rectangle, arch window, oval, heart). A standing oval or heart shows a note that it sits in a cradle and that lying flat uses less plastic.
+  - Curved: width along the back, *Curve* 30–240° (hint below 60°: may tip over), outline rectangle or arch.
+  - Lamp shade: *Inside diameter* 30–200 mm (hint below 42 mm: LED tea lights are about 38 mm), *Height* 20–250 mm; the picture keeps its proportions, fills the height inside the borders and repeats as many whole times as fit round (the sub-line says how many), each copy centred in its share of the circumference, the gaps thin (bright).
+- *Thickness*: thinnest 0.4–3, thickest 1–8 (they keep 0.2 mm apart), *Border* 0–15 mm (solid, as thick as the darkest part), *Corner radius* (rectangle; arch unless curved).
+- *Detail*: mm per grid point, 0.15–1 (default 0.3). The grid is capped at 380k points (190k for curved sheets, whose back needs the full grid), which keeps every model under the printability checker's 800k-triangle limit; when the cap applies the sub-line gives the spacing actually used.
+- *Hanging hole* (not on the lamp shade): 2–10 mm, centred under the top of the outline with a solid rim of `max(2.5 mm, border)`. Standing, it is a **teardrop** with a 45° roof; lying flat, a circle.
+- Checks: *Light areas are very thin* (warn under `max(0.5, 3 × layer)`, with layers and nozzle widths), *A faint picture* (under 1.2 mm between light and dark), and an ok row *Print it at 100% infill*.
+- Other artwork is never stamped onto a lithophane (like the jigsaw): an opaque decal would only cast a shadow.
+
+**Printing upright without support.** Standing sheets, curved sheets and lamp shades print on edge, so the relief faces sideways. Where the sheet gets thicker going up (a dark area above a light one, the top border above the picture) the plastic would step out over the layer below. Every grid triangle's upward slope is a pure difference between two nodes in one column, so a per-column pass from the top down, `t[j] = max(t[j], t[j+1] − 0.9 × spacing)`, makes every face at most about 42° from vertical. It thickens the plastic *below* rather than thinning the dark area, so borders keep full strength and the top border gets a chamfered underside. On the photo-like test picture 2.9% of points change; the summary says how much when it is over 0.2%. Lying flat, nothing changes (every face looks up).
+- **The foot** (flat, standing): a base 4 mm tall, as wide as the outline plus 8 mm, `clamp(0.22 H, 16, 40)` deep, and above it a slim cradle (thickest + 4 mm) that fills under the outline up to where its underside first gets steeper than 45° (`lithoCradleTop`: the highest gentle, downward-facing outline segment below the middle). Rectangle and arch: 1.2 mm (the corner radius); oval: 16 mm; heart: 40 mm, half its height, because its lower sides stay gentle almost to the lobes. The sheet dips 0.3 mm into the cradle to fuse. The foot is built from three slabs that only touch along vertical faces (the middle one holds the cradle profile): with overlapping pieces the printability checker's ray from a buried corner met the base's upward top face first and reported the sheet's own corners as unsupported. **Overlapping volumes in one part are not a union for `analyzePrint`**; worth remembering for any generator.
+- Curved sheets have square bottom corners (nothing to stand in), and the arch outline keeps its round top.
+- The survey and the test find **no support** on any of: flat standing (rectangle, oval, heart, arch, with hole), flat lying (with hole), curved (120°, arch at 200°), lamp shade. Optimize leaves a standing lithophane as it is and gives the lamp shade a 5 mm brim (*Tall for its footprint*).
+
+**How it works (core `heightSheet`).** Nodes on a grid (`c` across, `cv` up; j = 0 at the bottom), a thickness per node, an optional signed distance (≤ 0 inside) and `map(u, v, w)`. Each cell is two triangles (diagonals alternate). A triangle is clipped to the inside along the straight line between edge crossings (marching triangles); a crossing is keyed by its grid edge, so both triangles on an edge share it and the sheet is watertight. Boundary walls come straight from the clipping (crossing-to-crossing edges, plus edges on the grid's outer border), so no edge map is needed. `wrap` joins the last column to the first. The app puts the grid half a cell off the outline, so straight edges fall between nodes, and gets exact distances from `ringField` (outline, and the hole as its own field for the rim). Backs: `"grid"` (a copy of the top grid), `"flat"` (for affine maps: the boundary edges chained into loops, grouped into outlines and holes with `groupLoops`, triangulated with earcut; half the triangles), `"columns"` (no outline, straight along v: one tall quad per column, the cylinder). Measured: outline areas within 0.05% (heart −0.04%), a rectangle exactly its size, a wedge's volume within 0.001%, the cylinder and a 120° curve exact to the polygon, flat and grid backs identical in volume. A 150 × 110 mm sheet at 0.3 mm builds in about 0.25 s in Node. In the app, `buildLithophane` took about 0.2 s for the default flat sheet (profiled once, before the flat back halved its triangles); the background printability check then takes about 0.7 s for the default flat lithophane (180k triangles) and 1.2 s for the lamp shade (396k), per the survey.
+
+**`checkMesh` about 4× faster.** It counted directed edges in a `Map` keyed by strings; it now writes each directed edge as one exact number (`a × nv + b`), sorts them and binary-searches the reverse edge. Same counting rule (a removed face still reports 3, a doubled face 6), same volume. 350k triangles: about 1 s → 0.23 s. It runs on every part of every build (`runChecks`), so every generator benefits. All regression tests print the same numbers as before.
+
+**Housekeeping.** Version v0.14.0 (badge and `package.json`); `npm run test:litho`. `package-lock.json` regenerated from `package.json` with `npm install --package-lock-only`: it now says `maker-forge` 0.14.0 with the pinned `devDependencies`; all 53 packages resolve to the same versions as before and `npm ci` installs cleanly.
+
+**Verified on the final build:** `tools-lithophane-test.js` (59 checks, all pass, including the grid cap at 250 mm and 0.15 mm detail: 762k, 758k and 750k triangles for flat, curved and lamp shade), the smoke test in four chunks with every button clicked (`ONLY=lithophane PRESETS=1`, `ONLY=nameplate`, `ONLY=tracer,board,canvas,bobble,cutter,jigsaw`, `ONLY=turned,pcb,lightbox,frame,shell,box,cylinder,hex,sphere,none`; 17 presets, 18 objects, 204 clicks, no page errors), extremes audit of the lithophane's Make tab (no findings). Earlier in the session, after the `checkMesh` change and before two small final edits (hiding one field, skipping decals): the lithophane's Art and Export tabs (no findings), both printability tests, both tracer tests (identical to Session 6), the jigsaw test, the preset survey (the two new presets clean, the rest as in Session 8). A scripted extremes pass over the curved, lamp-shade, hole, oval and heart variants (every size control at both ends) found no open, empty, NaN, off-bed or over-800k builds, and one dead control: *Corner radius* on a curved arch, now hidden.
+
+## Session 10: tracing logos, first real-browser feedback (v0.14.1)
+
+First test in a real browser by the user. Reported: (1) a white logo on a transparent background (a brush-stroke ring, "AY" inside it, small "STUDIO" text) traced only the ring, no letters; (2) raising the tracer's smoothing made half the ring disappear; (3) Bambu Studio still shows a warning on the Bambu 3mf, but colours load.
+
+**Root causes (reproduced with `tools-tracer-logo-test.js` before fixing: 17 failures).**
+1. *Keep only the biggest piece* was on by default, so the ring survived and every letter was dropped.
+2. Smoothing was a close then an open with a disc of radius `smooth × px/mm`. The open deletes every stroke thinner than twice that radius, so the thin stretch of the ring was cut, the ring fell into arcs, and rule 1 kept the biggest arc. At 1.2 mm the whole 8 px ring went. The close likewise fused letters closer than twice the radius.
+3. Transparency was not understood: transparent pixels read as black. A white logo only worked by luck; a black logo on transparency traced to nothing with either method.
+
+**Fixes.**
+- New core `smoothMask(mask, w, h, r)`: close and open as before, then every piece the close added and the open removed is judged by its length (its farthest point from what remains, capped by its bounding-box diagonal, so a lone speck is short). Pieces longer than `r + 1` are features and are put back: thin stretches of a ring, hairlines, the gap between letters, slots. Short bits (nicks, pinholes, specks, whiskers up to about r, corner trimmings) are still smoothed. The tracer uses it; the bracket tests print exactly the Session 6 numbers.
+- *Keep only the main piece and what is inside it*: pieces inside the biggest piece's outline (letters in a ring, an i's dot in a hole) are kept if at least *Ignore pieces smaller than* (now always shown, default 0.5 mm², was 4); pieces outside are dropped and the panel says how many ("untick this to keep them"). `tracerInfo.leftOut` counts them.
+- Transparency (not in paper mode): if at least 1% of the working image is transparent, *Remove background* uses the alpha channel directly (alpha ≥ 128), and *Brightness* sees the picture flattened onto black or white, whichever contrasts with the median of its opaque pixels. The step-2 panel says the picture has a transparent background. The preview still shows the original picture (`tracerInfo.img`), `tracerInfo.transparent` is set.
+- `window.MakerForge.defaults` (the default `state.base`) for tests.
+
+**Bambu Studio warning (investigated in its source, v02.08.04.57 and master; not changed).** Bambu Studio treats a 3mf as its own only when the model's `Application` metadata starts with `BambuStudio-`. For any other file it skips `Metadata/project_settings.config` (`dont_load_config`), keeps geometry plus the per-part `extruder` from `model_settings.config`, and shows the warning *The 3mf is not from Bambu Lab, load geometry data and color data only.* PrusaSlicer and Orca files get the same notice. Claiming to be Bambu Studio would make it apply our three-key config over built-in defaults through `load_config_model`, replacing the user's printer and process presets, so it is not worth removing the notice. Possible improvement, untested: standard 3MF colour groups (`m:colorgroup` with per-triangle `pid`/`p1`) trigger Bambu Studio's colour-mapping dialog for third-party files, which may carry the filament colours across as well; needs checking in Bambu Studio before shipping.
+
+**Verified:** `tools-tracer-logo-test.js` (36 checks, all pass), both bracket tracer tests (identical to Session 6), smoke test `ONLY=tracer` with every button, quick smoke of all 17 presets plus tracer and cutter, extremes audit of the tracer (no findings; *Ignore pieces smaller than* listed as expected on the one-piece test picture), `tools-printability-test.js`.
+
+**Still to check in a real browser:** the user's own logo. At 60 mm its "STUDIO" strokes are roughly nozzle width, so expect a thin-wall warning; a bigger size or leaving the text out helps. Letters inside a ring are separate islands: printed alone they are loose pieces (see Unfinished: a backing plate option).
+
+## Session 11: Project boxes, tracer back plates and covers, bed rulers (v0.15.0)
+
+**User feedback that drove this session:** wants the logo "as is" for their own box designs, a back plate option, hollow covers open on one side, rulers on all axes, a tool for electronics boxes (power bank, PSU) with screw / heat-insert holes and openings for USB, buttons, screens, fans, vents and knobs, and a check that exported sizes are right ("I always have to downsize").
+
+**Size check (done, no bug found).** `node tools-size-check.js index.html`: for the tracer, flat shape, name plate and lithophane, the on-screen size readout, the export parts, the vertices written into the Prusa/Orca 3MF, the Bambu 3MF and the STL all agree to 0.02 mm; the outline SVG declares `width="…mm"`, DXF sets `$INSUNITS=4`. Likely causes of the user's impression: (1) the tracer's typed size is the traced shape only, so anything added around it (a plate margin, their own box) makes the finished object bigger; (2) the lithophane's "Width" is the picture panel, and the stand foot adds 8 mm; (3) the whole-model Scale % in "Size and mirror". Fixes: the tracer now shows **"Finished model: W × D × H"** in step 4 and the new ＋ step, a **"Step 4 size is the whole plate"** option, and bed rulers with the model's dimensions drawn on it.
+
+**Project box / enclosure generator** (object `enclosure`, group "Functional" 🧰; `buildEnclosure`, `enclosureFields`, tables `SCREWS`, `FAN_SPACING`, `BOARDS`, `CUTOUTS`, `ENC_FACES`):
+- Walls are flat panels (2D outline with openings as holes → `extrudePolysAt` → `affineSolid` into place); rounded corners are quarter rings in plan; the floor fills the inside. Pieces touch only along faces: every piece is closed; the square open box is exactly walls + floor by volume (34560 mm³).
+- Lid printed beside the box (behind it if the bed is too narrow), outside face down; lip as four straight segments that stop short of the screw posts, or a full ring for press-fit lids; lid holes countersunk (90° cone as 0.2 mm steps, each a 45° overhang), counterbored or plain, with a warning and the needed thickness when the lid is too thin.
+- Corner posts for M2–M4 heat inserts (4.0 mm hole for M3) or self-tapping pilots, pushed 0.5 mm into the walls so they fuse; board standoffs for Arduino Uno/Mega, Raspberry Pi 5/4/3, Zero, Pico or a custom hole pattern, with fit / post / headroom warnings.
+- 30 opening kinds on any of six faces, each positioned by "across" and "height of its centre" (or front-to-back on lid and floor), duplicate / remove / turn 90°, auto-placed clear of others when added. Round wall holes get teardrop tops by default. Openings that don't fit, overlap, or sit on a missing lid are left out with a message; ones behind the lid's lip are flagged. Messages appear on the Openings page and in the checks list.
+- Presets: Project box, Power bank box, PSU box, Raspberry Pi case (all closed, no warnings; printability support 39 / 81 / 635 / 100 mm²).
+- Sanitizer: enums whitelisted, openings rebuilt through `newOpening` (≤ 80, numbers clamped ±400), table lookups use `encHas` (own keys only: a project with `board:"__proto__"` used to pass `BOARDS[E.board]`).
+- Artwork from the Art tab is not stamped on boxes (skipped like the jigsaw).
+
+**Tracer extras** (step "＋ Back plate or hollow cover", `tracerExtras`): "Just the shape" stays the default. Back plate follows the outline (distance field of the hole-filled silhouette, padded, half-pixel corrected), a circle, or a rounded rectangle; margin, thickness, own colour; logo raised, flush inlay (logo fills its pocket to 0.05 %) or engraved. Hollow cover: closed face on the bed, walls of the chosen thickness following the outline (strokes thinner than two walls stay solid). New tracer defaults: `extra, sizeOf, plateShape, plateMargin, plateThick, plateRadius, plateMode, inlay, plateSlot, wall, cap`.
+
+**Rulers** (`makeRulers`, button 📏 `#vRuler`, `viewOpts.rulers` default on): mm rulers along the bed's X and Y (0 at the front-left like printer coordinates) and a Z ruler at the back-left corner as tall as the model; orange dimension lines and labels for the model's width, depth and height (they follow Scale %, Optimize turns and the units setting). Old bed objects and label textures are disposed on every rebuild.
+
+**Tests:** new `tools-enclosure-test.js` (`npm run test:enclosure`: sizes, volumes, 30 kinds × 4 faces, placement warnings, screws/lids/heads, countersink volume, boards, presets + printability, rulers, hostile project) and `tools-tracer-plate-test.js` (in `test:tracer`). All pass, together with the three older tracer suites (numbers unchanged), smoke (all objects and presets), audit of enclosure and tracer (no findings), printability tests. `window.MakerForge` now also exposes `enclosure`, `cutouts`, `newOpening`, `buildEnclosure`, `bedHelper`.
+
+**Not yet checked in a real browser or slicer:** the ruler labels' look at different zooms, and whether the opening sizes match real modules. They are typical datasheet sizes (OLED, LCD, IEC, KCD1, voltmeter especially vary between makers): verify with calipers and a test print of one panel.
+
+### 50 ideas for next sessions (tools we are working on now)
+
+**Project box**
+1. Logo on the lid: pick an artwork and emboss, engrave or inlay it (reuse the tracer's flush-inlay code) in a second colour.
+2. Text labels next to openings ("USB-C", "ON/OFF", "12V") engraved 0.4 mm into the wall, one field per opening.
+3. Snap-fit lid: flexible cantilever hooks on the lip and matching windows in the walls, no screws.
+4. Sliding lid: grooves in two walls, a lid that slides in, optional finger notch and end stop.
+5. Hinged lid: print-in-place pin hinge along the back edge, printed as one piece with clearance.
+6. Board ghost: draw the chosen board (and its USB, HDMI, header positions) as a see-through preview in the box, and one-click "add openings for this board's ports" that lines them up automatically.
+7. Import a board outline and mounting holes from a KiCad `.kicad_pcb` or a Gerber edge-cuts file.
+8. Battery bays: 18650 / 21700 / AA / 9V holders with spring slots and wire channels, as a floor insert.
+9. Magnet pockets in the corners of the lid and box (6 × 3, 8 × 2 …), sized for press-fit with a glue gap.
+10. Gasket groove for a TPU seal and a separate printable TPU gasket: splash-proof boxes.
+11. Wall-mount tabs and DIN-rail clips on the back; a VESA 75/100 pattern for screens.
+12. Feet: rubber-foot recesses in the floor, or printed feet with a chamfer, and cable exit notches in the wall top edge.
+13. Split tall boxes into rings that stack and screw together when the box is taller than the printer.
+14. Ribs and bosses anywhere: click on a wall to add an M3 boss or a PCB guide rail (card-guide slots for boards that slide in).
+15. Knob generator: printed knobs for 6 mm D-shaft and 18T knurled pots, with a pointer line, in the second colour.
+
+**Tracer**
+16. Hanging hole, keychain loop or bail on the back plate, placed automatically where there's room.
+17. Screw bosses and counterbored mounting holes on the back plate (reuse the enclosure's SCREWS table).
+18. Reference object scaling: a coin or credit card in the photo sets the scale (known sizes built in).
+19. Multi-level tracing: several brightness bands become stacked layers, each its own height and colour.
+20. SVG import: skip the photo and trace a real vector logo exactly.
+21. Stand for the traced shape: a slot base so a logo stands on a desk.
+22. Mirror-pair export: part and its mirror image side by side (left and right brackets).
+23. Stroke-thicken for logos with hairlines: minimum line width so nothing prints thinner than two perimeters.
+24. Cookie-stamp mode: the traced logo as a raised stamp with a handle on the back.
+25. Hollow cover with a lip or snap ring so it clicks onto the thing it covers; "fits over an object of W × D" mode where the inside, not the outside, gets the typed size.
+26. Keep the colours: trace each colour of a multi-colour logo to its own part and filament slot.
+27. Live caliper overlay: show the measured dimensions on the picture as you hover edges.
+
+**Rulers and measuring**
+28. A measuring tape tool: click two points on the model, get the distance (and angle).
+29. Section view: a slider that cuts the model at a height to show wall thickness and internal posts.
+30. Ghost of a reference object on the bed (a credit card, an AA battery, a hand) for instant scale.
+31. Grid snapping in the enclosure: drag openings on a 2D face view with snapping to 0.5 mm and to other openings' centres.
+32. An inch ruler when the units setting is inches.
+
+**Lithophane**
+33. Colour lithophane (CMYK-style layered filament swap) for printers with an AMS.
+34. Heart, circle and hexagon night-light boxes with a built-in LED tea-light holder.
+35. Moon and globe lithophanes (sphere mapping) with a stand.
+36. Frame for a flat lithophane with a slot for an LED strip and a USB-C opening (reuse the enclosure openings).
+
+**Jigsaw, name plates, flat shapes**
+37. Jigsaw puzzle box: a lid with the picture on it and a tray (reuse the enclosure lid).
+38. "Missing piece" gift puzzle: one piece with a personal message on the back in a second colour.
+39. Name plate with a USB-C cable holder or a magnet pocket for the fridge.
+40. Door sign with screw holes and a keyhole on the back.
+41. Coaster set generator: flat shape + artwork + cork recess on the bottom.
+42. Batch name plates from a CSV (a class, a wedding): one plate per name, packed onto the bed.
+
+**Printability and export**
+43. Auto-orient for boxes: choose the face that needs the least bridging for each lid and panel.
+44. Bridge-aware openings: when a wall opening is wider than the bridge limit, offer a pointed or arched top automatically.
+45. Per-part print settings in the 3MF (for example 100 % infill on screw posts, a modifier volume for insert bosses).
+46. Print a test coupon: a small plate with the chosen insert hole, a USB-C cutout and a lid-lip sample, to dial in fits before printing the box.
+47. Export a PDF assembly sheet: dimensions, screw list (4 × M3 × 8 countersunk, 4 inserts), and a picture of each face.
+48. Bambu colour mapping: try `m:colorgroup` in the 3MF so Bambu's filament mapping dialog appears.
+49. Share link: pack the project into a URL so a friend can open the same box.
+50. A community parts library: the CUTOUTS table as a JSON file users can extend (their own modules, with photos), imported and exported from the Project tab.
+
+## Unfinished (in priority order)
+
+- **P4**: none outstanding beyond polish.
+- **P5**: an actual 3D view cube widget; dimension lines drawn along the model; Bambu Lab **X2D** printer (not added: specs unverified, check before adding); bed resize already follows the printer; more layout modes next to Explode (e.g. lay layered parts flat).
+- **P6**: art instructions and example images; picking several pictures for use in other sections (the `enabled` flag is the start of this); traceable pictures on keychains (silhouette mode exists via "Print it in its own colours" off).
+- **P7**: all section improvements (Double-Sided Name rename and mirrored back plate, iron-on patch shapes and military badges and premade patches, Christmas ornaments, caricature bobble head, name/letter lightbox and more box styles, photo frame back panel and clear front and relief panel, tea light egg/round shapes and picture positioning and candle ring and wagon-lantern cover and separate walls, plastic canvas fitting, functional PCB with conductive filament and copper-sheet workflow and Gerber import, car badge shapes and two-sided car keychain).
+- **P8**: Phone case generator. (Printability checker done in Session 7, jigsaw puzzles in Session 8, lithophanes in Session 9.)
+- Lithophane next steps: a calibration strip (a step wedge from 0.6 to 3.2 mm) so people can check their filament, and to calibrate the preview's transmission constant (1.3 per mm is a guess); colour lithophanes (a thin colour layer behind a white sheet, or filament-swap layers); a lithophane puzzle (joins the jigsaw's single-colour idea); for the lamp shade, *stretch once round* as an alternative to repeating copies, a base ring that sits on an LED tea light, and a lid; an engraved name on the border or foot; a separate slotted stand instead of one printed with the sheet; a *keep proportions* option for the heart (it is stretched to the picture's aspect, like the jigsaw's heart); decimating flat areas (border, blank gaps, smooth sky) so big sheets need not be coarsened.
+- Jigsaw next steps: a lithophane or relief puzzle for single-colour printers (the picture as thickness, backlit); whimsy pieces (a heart, a star or the picture's own subject cut out as one piece); knob shapes from a symbol; split a puzzle bigger than the bed into plates of whole pieces; an optional "print spread out" layout with wider spacing; two-sided puzzles (a second picture on the back); drop colour slivers narrower than the nozzle inside each piece; the heart outline is stretched to the picture's aspect ratio (a "keep proportions" option would crop instead).
+- Printability follow-ups: turned vase profile flares out almost flat at the bed (`sin(π u^0.85)` has an infinite slope at u = 0); a gentler start (e.g. `u^1` or a short vertical foot) would remove its ~630 mm² of support. Fillets were in the original idea next to the brim and were not done. Optimize keeps the yaw the rotation gives; it does not yet turn the model on the bed to fit or to line up with the bed axes. A small "print orientation: turned" note on the Make tab's Size and mirror group would help people who never open the Export tab.
+- **P9**: retro emojis, pixel art, themes, more retro fonts, animations, printing instructions, performance work.
+- Tracer next steps: an optional backing plate (the filled outer outline, a set thickness, with the traced shape raised on it, optionally in a second colour), so logos with loose letters print as one piece; credit-card and coin references for parts bigger than a sheet; fillets and chamfers; a second extrusion level (bosses, counterbores); lens-distortion correction for wide phone cameras. (Sub-pixel sheet corners were done in Session 4, fitted-edge sizes in Session 6.)
+
+## Known bugs and issues
+
+- Enclosure opening sizes are typical datasheet values: modules differ between makers, verify with calipers (Session 11).
+- Enclosure: wall openings wider than the bridge limit (default 10 mm, e.g. USB-A, LCD bezels) are reported as needing support by the printability check; most printers bridge 15–20 mm fine. Raise the limit in Printer settings, or see idea 44.
+- Enclosure: artwork is not stamped on boxes; floor openings do not avoid posts or standoffs (not checked).
+- Tracer hollow cover: strokes thinner than two walls stay solid (by design, noted in the panel).
+
+- **Bambu 3mf in Bambu Studio** (tested by the user, Session 10): geometry and colours load, with the standard notice for third-party files (*not from Bambu Lab, load geometry data and color data only*); see Session 10 for why that notice cannot be removed safely. The filament colours themselves come from the user's Bambu Studio setup, not from the file.
+- Everything is tested headlessly in jsdom with a canvas stub, not in a real browser. The stub ignores `ctx.filter` and real glyph shapes (letters are boxes), so text rendering, emoji silhouettes and the 3D view need eyeballing in Chrome/Firefox/Safari.
+- The name plate default mesh grew to about 20k triangles after smoothing (charms and plate). Fine for slicers, but could be decimated further.
+- Emoji charms depend on the system emoji font; results differ between Windows, macOS and Linux.
+- The audit lists expected "unchanged" controls separately with the reason (see Session 6); anything under FINDINGS is new.
+- The icon glyphs in the rail are text symbols chosen by regex on the page title; some pages fall back to their first letter. A proper SVG icon set would look better.
+- Background separation assumes the part does not share its colour with the background; the hand brush is the workaround.
+- Paper mode is accurate (area within 0.06%, edge-to-edge size within 0.06 mm on the angled A4 test, see Session 6).
+- A mask that covers the whole image border (e.g. a part filling the frame edge to edge, or the background chosen as the part) traces to nothing in `maskToPolys`; the tracer now tells the user, but the core could close such outlines along the border instead.
+- `fitDimensions` treats a very gently bowed side (bow under about half a photo pixel) as flat, so its "edge to edge" size is the mean of the bow, not the peak.
+- The tracer test photos are hard-edged renders; real camera photos have soft edges, so real-world numbers still need a check against calipers.
+- The keychain's "picture beside the name" still uses the flood-fill `cutoutCanvas`, which can leak into photos with noisy, low-contrast subjects. The tracer's colour key is a candidate replacement.
+- `jsdom` cannot run JSZip's async zip generation in-realm, so zip contents are verified separately in Node.
+- Printability is a heuristic, not a slicer: the overhang limit is one angle for the whole model, bridges are judged by anchors on two sides (not by bridge direction or cooling), thin walls are found in up to 7 slices per part at a resolution of `max(nozzle/4, extent/1200)` (coarser than nozzle/2.5 on parts over about 130 mm), and support area is the area of the faces, not the support volume. Models over 800k triangles are not checked.
+- The problem-area overlay and the brim preview are hidden while Explode or Layout moves parts away from their print positions.
+- The Optimize turn and the brim have been checked on exported geometry (closed, outward, on the bed, same volume) but not yet in a real slicer.
+- **Jigsaw: not yet printed.** The gap is exact in the geometry (within 0.02 mm), but the right default for real printers (0.25 mm) needs a test print on at least one printer; so does the engraved-label depth and whether the first-layer squish fuses pieces with the slicer's own elephant-foot compensation.
+- Jigsaw: all pieces are one object with one part per filament in the 3mf, so a slicer cannot arrange pieces separately; a puzzle bigger than the bed is flagged but not split.
+- Jigsaw face down ignores the extra first-layer gap (the first layers are the picture there), and the preview then shows the back.
+- **Lithophanes: not yet printed.** The geometry is exact (see Session 9), but the default thicknesses (0.8 / 3 mm), the backlit preview's look and the 0.3 mm default detail need a test print in white PLA at 100% infill, standing and lying flat.
+- The lithophane's upright slope limit changes the picture slightly under dark areas (2.9% of points on the photo-like test picture; a hard black-over-white edge gets a 2.4 mm soft band). Lying flat keeps every edge sharp, at the cost of visible layer steps in the relief.
+- A standing heart lithophane needs a 40 mm cradle (its underside stays gentler than 45° almost to the lobes); the panel suggests lying flat. A standing oval needs 16 mm.
+- The grid cap (380k points, 190k curved) coarsens big lithophanes: 250 mm flat at 0.36 mm, 250 mm curved at 0.50 mm, a 200 × 250 mm lamp shade at 0.65 mm (coarser than a 0.4 mm nozzle). The Detail page says so.
+- Other artwork is not stamped onto a lithophane (by design, as with the jigsaw).
+
+## Suggested plan
+
+1. Open the app in a real browser and fix anything visual; test one export in PrusaSlicer, OrcaSlicer and Bambu Studio. Print a small jigsaw (12 pieces, 0.25 mm gap) and adjust the default gap from the result. Print a small lithophane (60 mm wide, standing) and hold it to a window.
+2. Tracer v3: reference objects (credit card, coin), bosses/counterbores, lens-distortion correction. (Done: paper scaling with perspective correction, sub-pixel corners, hand brush, SVG/DXF, fitted-edge sizes and fitted-edge scaling in measurement mode.) Test with a real phone photo of a part on paper and compare the step-6 table with calipers.
+3. ~~Printability checker~~ (done, Session 7). In a real browser: check the red/blue overlay draws on top of the faces and Optimize's busy indicator; import a turned model and a brim into a slicer.
+4. ~~Lithophane generator~~ (done, Session 9). In a real browser: check the backlit preview and print one flat and one lamp shade; adjust the default thicknesses and the preview constant from the result.
+5. P7 section improvements, one generator at a time, each followed by `tools-audit.js` for that generator.
+6. Phone case generator (needs a device dimensions table; start with parametric rounded-rectangle shells and camera cut-outs).
+7. Linux desktop packaging (Tauri is lighter than Electron; the app is already a single HTML file).
+
+Always run after changes: `python3 build.py && node tools-smoke-test.js index.html && node tools-audit.js index.html <generator>` (plus `npm run test:jigsaw` for jigsaw work or anything touching `traceField`/`fieldToPolys`, `npm run test:litho` for lithophane work or anything touching `heightSheet`, `ringField` or `checkMesh`, `npm run test:tracer` for tracer work, `npm run test:print` for anything touching geometry or export, and `node tools-print-survey.js index.html` after a generator change to see whether it introduced new printability warnings; in the chat sandbox, split the smoke test with `ONLY=` as described in Session 6).

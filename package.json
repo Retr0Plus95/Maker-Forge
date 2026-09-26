@@ -1,0 +1,24 @@
+{
+  "name": "maker-forge",
+  "version": "0.15.0",
+  "private": true,
+  "description": "Browser-based multi-colour 3D printing studio. The app needs no build tools; these are the test dependencies.",
+  "license": "MIT",
+  "scripts": {
+    "build": "python3 build.py",
+    "test:tracer": "node tools-tracer-test.js index.html && node tools-tracer-paper-test.js index.html && node tools-tracer-logo-test.js index.html && node tools-tracer-plate-test.js index.html",
+    "test:smoke": "node tools-smoke-test.js index.html",
+    "test:audit": "node tools-audit.js index.html",
+    "test:print": "node tools-printability-test.js index.html && node tools-printability-app-test.js index.html",
+    "survey:print": "node tools-print-survey.js index.html",
+    "test:jigsaw": "node tools-jigsaw-test.js index.html",
+    "test:litho": "node tools-lithophane-test.js index.html",
+    "test:enclosure": "node tools-enclosure-test.js index.html"
+  },
+  "devDependencies": {
+    "earcut": "2.2.4",
+    "jsdom": "^30.1.1",
+    "jszip": "3.10.1",
+    "three": "0.128.0"
+  }
+}

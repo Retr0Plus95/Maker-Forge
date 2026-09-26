@@ -49,6 +49,12 @@ async function addPicture(MF) {                      // the smoke test's two-col
   check(!MF.checks.list.some(r => /misses the model/.test(r.t)), "no warning while it is on the frame");
   check(/goes on the border/.test(panelText()), "the Art tab says where pictures go on a frame");
 
+  // leaving the frame gives the picture back its size (it used to stay border-sized on every later object)
+  await choose("cylinder"); d.width = 60; const wCyl = d.width; await choose("frame");
+  const wFrame = d.width; await choose("cylinder");
+  check(wFrame < wCyl && d.width === wCyl, "a picture fitted to the frame's border gets its size back on the next object", `${wCyl} → ${wFrame} → ${d.width} mm`);
+  await choose("frame");
+
   console.log("\na picture that misses the model is reported");
   d.place = { c: [0, F.thick, 0], n: [0, 1, 0] }; d.offU = d.offV = 0; d.width = 40; d.solids = null; MF.rebuild(false); await settle();
   const miss = MF.checks.list.find(r => /misses the model/.test(r.t));

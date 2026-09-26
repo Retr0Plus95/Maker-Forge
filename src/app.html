@@ -835,7 +835,7 @@ function newItem(name, canvas, extra){
   }, extra||{});
 }
 const history = { past:[], future:[], timer:0 };
-const runtimeKeys = new Set(["src","thumb","solids","_img","_imgKey","_cm","_raw","_srcCv","_srcSig"]);
+const runtimeKeys = new Set(["src","thumb","solids","_img","_imgKey","_cm","_raw","_srcCv","_srcSig","_frameW"]);
 const serialize = () => JSON.stringify(state, (k,v)=> runtimeKeys.has(k) ? undefined : v);
 function pushHistory(){
   clearTimeout(history.timer);
@@ -4726,11 +4726,14 @@ function clearPaintForNewModel(){
   if (state.paint && state.paint.ops && state.paint.ops.length){ state.paint.ops = []; notify("The paint was left on the previous model. Undo brings it back."); }
 }
 function chooseObject(v){
-  if (v !== state.base.type) clearPaintForNewModel();
+  const prev = state.base.type;
+  if (v !== prev) clearPaintForNewModel();
   state.base.type = v;
   if (v === "stl" && !stlData) $("#stlInput").click();
   state.items.forEach(d=>{ d.place = defaultPlace(); d.solids = null; });
-  if (v === "frame") state.items.forEach(d=>{ d.width = Math.min(d.width, defaultWidth(d.aspect)); d.offU = d.offV = 0; });
+  // a photo frame fits pictures to its border; leaving it gives them back their size unless it was changed there
+  if (v === "frame") state.items.forEach(d=>{ const w = Math.min(d.width, defaultWidth(d.aspect)); if (w < d.width){ d._frameW = [d.width, w]; d.width = w; } d.offU = d.offV = 0; });
+  else if (prev === "frame") state.items.forEach(d=>{ if (d._frameW && d.width === d._frameW[1]) d.width = d._frameW[0]; delete d._frameW; });
   tab = "make"; userMoved = false;
   $("#notice").classList.remove("show");
   renderTab(); renderStarts(); rebuildAll(false); pushHistory();

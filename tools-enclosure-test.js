@@ -197,7 +197,7 @@ async function settle() {
   // Session 12 settings in a hostile file
   const bad3 = { app: "maker-forge", state: JSON.parse(JSON.stringify(MF.state)) };
   bad3.state.base.enclosure = Object.assign(JSON.parse(JSON.stringify(MF.defaults.enclosure)), { lid: "magnet", magnet: "__proto__", feet: "<x>", footSize: "999", test: "yes",
-    logo: { on: "yes", width: 1e9, x: -1e9, mode: "<svg onload=alert(2)>", depth: -5 }, labelH: 1e6, labelDepth: -3,
+    logo: { on: "yes", width: 1e9, x: -1e9, mode: "<svg onload=alert(2)>", depth: -5 }, labelH: 1e6, labelDepth: -3, lensSlot: 1e9, grow: "no",
     cut: [{ face: "front", kind: "usbc", u: 0, v: 14, label: "<img src=x onerror=alert(3)>", labelPos: "sideways", top: "evil", notch: "yes" }] });
   const f3 = new win.File([JSON.stringify(bad3)], "evil2.json", { type: "application/json" });
   Object.defineProperty(inp, "files", { value: [f3], configurable: true }); inp.dispatchEvent(new win.Event("change"));
@@ -207,6 +207,7 @@ async function settle() {
   check(E3.magnet === "6x2" && E3.feet === "none" && E3.footSize === "8" && E3.test === false, "bad magnet, feet and fit-test values fall back", `${E3.magnet}, ${E3.feet}, ${E3.footSize}, ${E3.test}`);
   check(E3.logo.on === false && E3.logo.mode === "inlay" && E3.logo.width === 300 && E3.logo.x === -200 && E3.logo.depth === 0.2, "the lid logo's settings are clamped", JSON.stringify(E3.logo));
   check(E3.labelH === 15 && E3.labelDepth === 0.2, "label size and depth are clamped", `${E3.labelH}, ${E3.labelDepth}`);
+  check(E3.lensSlot === 7 && E3.grow === true, "the pilot-light lens filament is clamped, and a bad grow switch stays on", `${E3.lensSlot}, ${E3.grow}`);
   check(/^[A-Z0-9\-+\/.:% ]*$/.test(c3.label) && c3.labelPos === "below" && c3.top === "flat" && c3.notch === false, "an opening's label keeps only letters it can engrave", JSON.stringify(c3.label));
   check(!document.body.innerHTML.includes("onerror=alert") && !document.body.innerHTML.includes("onload=alert"), "still nothing injected");
 

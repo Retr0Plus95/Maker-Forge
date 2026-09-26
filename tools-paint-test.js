@@ -111,6 +111,18 @@ console.log("\nwriting and reading painted files");
   check((prusa.match(/slic3rpe:mmu_segmentation="8"/g) || []).length === 1 && /p1="3" slic3rpe:mmu_segmentation="1C"/.test(prusa), "PrusaSlicer 3mf: mmu_segmentation, and the base material follows the paint");
   const back = C.parse3MFModel(C.make3MF_BBL(P, slots, "t"), "3D/3dmodel.model");
   check(back.tris.length === 12 * 9 && back.paint[0] === 2 && back.paint[1] === 4 && back.paint[2] === 0, "read back: same triangles, same filaments", Array.from(back.paint.slice(0, 3)).join(","));
+  // a part printed in its own filament (no paint) keeps it when the file is opened again, from the
+  // slicer's settings file: Bambu Studio / OrcaSlicer name it per part, PrusaSlicer per triangle range
+  const b2 = box(10, 0, -5, 20, 10, 5), two = C.prepareParts([{ name: "Cube", slot: 0, pos: b.pos, idx: b.idx, paint }, { name: "Lid", slot: 3, pos: b2.pos, idx: b2.idx }]).parts;
+  const models = f => Object.fromEntries(Object.entries(f).filter(([k]) => /\.model$/.test(k)));
+  const fb = C.make3MF_BBL(two, slots, "t"), fp = C.make3MF(two, slots, "t");
+  const rb = C.parse3MFModel(models(fb), "3D/3dmodel.model", { bambu: fb["Metadata/model_settings.config"] });
+  const rp = C.parse3MFModel(models(fp), "3D/3dmodel.model", { prusa: fp["Metadata/Slic3r_PE_model.config"] });
+  const lidOf = r => { const c = {}; for (let t = 12; t < r.tris.length / 9; t++) { const v = r.paint ? r.paint[t] : 0; c[v] = (c[v] || 0) + 1; } return JSON.stringify(c); };   // the lid is written second
+  check(lidOf(rb) === '{"4":12}' && rb.paint[0] === 2 && rb.paint[1] === 4 && rb.paint[2] === 0, "Bambu 3mf read back with its settings: the unpainted lid keeps filament 4, the paint stays", lidOf(rb));
+  check(lidOf(rp) === '{"4":12}' && rp.paint[0] === 2 && rp.paint[1] === 4, "PrusaSlicer 3mf read back with its settings: the lid keeps filament 4", lidOf(rp));
+  const rn = C.parse3MFModel(models(fb), "3D/3dmodel.model");
+  check(lidOf(rn) === '{"0":12}', "without the settings file the lid takes the first filament, as before", lidOf(rn));
   const obj = C.makeOBJ(P, slots).obj;
   check((obj.match(/^usemtl /gm) || []).join("") === "usemtl usemtl usemtl " && (obj.match(/^f /gm) || []).length === 12, "OBJ: faces grouped under three colours");
   const m = C.mergeSolids([{ pos: b.pos, idx: b.idx, paint }, { pos: b.pos, idx: b.idx }]);

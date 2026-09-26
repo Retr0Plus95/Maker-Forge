@@ -2874,10 +2874,34 @@
   }
   // a 3MF model file (the XML inside the zip): every mesh, placed by its build items and components;
   // returns triangles, and the painted filament per triangle when the file has slicer painting
-  function parse3MFModel(files, main) {
+  // cfg (optional): the slicer's settings files, { bambu: Metadata/model_settings.config, prusa:
+  // Metadata/Slic3r_PE_model.config }. They say which filament each object, part or volume prints in;
+  // a triangle that is not painted takes that filament (0 = the first one, as with no settings at all).
+  function parse3MFModel(files, main, cfg) {
     if (typeof files === "string") { files = { "/3D/3dmodel.model": files }; main = "/3D/3dmodel.model"; }
     const norm = p => "/" + String(p || "").replace(/^\/+/, "");
     const objs = new Map(), attr = (tag, name) => { const m = new RegExp("\\s" + name + "=\"([^\"]*)\"").exec(tag); return m ? m[1] : null; };
+    const extruderIn = xml => { const r = /<metadata\b([^>]*)\/?>/g; let m; while ((m = r.exec(xml))) if (attr(m[1], "key") === "extruder") { const e = Math.round(+attr(m[1], "value")); return e > 0 && e < 256 ? e : 0; } return 0; };
+    const objExt = new Map(), partExt = new Map(), volExt = new Map();
+    if (cfg && typeof cfg.bambu === "string") {
+      const r = /<object\b([^>]*)>([\s\S]*?)<\/object>/g; let m;
+      while ((m = r.exec(cfg.bambu))) {
+        const id = attr(m[1], "id"), e = extruderIn(m[2].replace(/<part\b[\s\S]*?<\/part>/g, ""));
+        if (e) objExt.set(id, e);
+        const pr = /<part\b([^>]*)>([\s\S]*?)<\/part>/g; let q;
+        while ((q = pr.exec(m[2]))) { const pe = extruderIn(q[2]); if (pe) partExt.set(id + "/" + attr(q[1], "id"), pe); }
+      }
+    }
+    if (cfg && typeof cfg.prusa === "string") {
+      const r = /<object\b([^>]*)>([\s\S]*?)<\/object>/g; let m;
+      while ((m = r.exec(cfg.prusa))) {
+        const id = attr(m[1], "id"), e = extruderIn(m[2].replace(/<volume\b[\s\S]*?<\/volume>/g, ""));
+        if (e) objExt.set(id, e);
+        const vr = /<volume\b([^>]*)>([\s\S]*?)<\/volume>/g, vols = []; let q;
+        while ((q = vr.exec(m[2]))) { const ve = extruderIn(q[2]), a = +attr(q[1], "firstid"), b = +attr(q[1], "lastid"); if (ve && isFinite(a) && isFinite(b)) vols.push([a, b, ve]); }
+        if (vols.length) volExt.set(id, vols);
+      }
+    }
     for (const [path0, xml] of Object.entries(files)) {
       const path = norm(path0), objRe = /<object\b([^>]*)>([\s\S]*?)<\/object>/g; let m;
       while ((m = objRe.exec(xml))) {
@@ -2897,10 +2921,12 @@
       for (let j = 0; j < 3; j++) r.push(A[9] * B[j] + A[10] * B[3 + j] + A[11] * B[6 + j] + B[9 + j]);
       return r;
     };
-    const out = [], paint = [];
-    const emit = (key, M, depth) => {
+    const out = [], paint = [], idOf = key => key.slice(key.lastIndexOf("#") + 1);
+    // top: the build item's object id (the settings files name objects by it); ext: the filament so far
+    const emit = (key, M, depth, top, ext) => {
       const o = objs.get(key); if (!o || depth > 8) return;
       const ok = k => Number.isInteger(k) && k >= 0 && 3 * k + 2 < o.V.length;
+      const vols = depth === 0 ? volExt.get(top) : null;
       for (let t = 0; t < o.T.length / 3; t++) {
         const a = o.T[3 * t], b = o.T[3 * t + 1], c = o.T[3 * t + 2];
         if (!ok(a) || !ok(b) || !ok(c)) continue;
@@ -2908,16 +2934,18 @@
           const x = o.V[3 * k], y = o.V[3 * k + 1], z = o.V[3 * k + 2];
           out.push(x * M[0] + y * M[3] + z * M[6] + M[9], x * M[1] + y * M[4] + z * M[7] + M[10], x * M[2] + y * M[5] + z * M[8] + M[11]);
         }
-        paint.push(o.F[t] || 0);
+        let e = ext; if (vols) for (const v of vols) if (t >= v[0] && t <= v[1]) { e = v[2]; break; }
+        paint.push(o.F[t] || (e > 1 ? e : 0));
         if (out.length > 9 * 4e6) throw new Error("That model has more than four million triangles.");
       }
-      for (const c of o.comps) emit(c.key, mul(mat(c.m), M), depth + 1);
+      for (const c of o.comps) emit(c.key, mul(mat(c.m), M), depth + 1, top, partExt.get(top + "/" + idOf(c.key)) || ext);
     };
     const mainPath = norm(main || Object.keys(files)[0]), xml = files[main] || files[Object.keys(files).find(k => norm(k) === mainPath)] || "";
     const items = []; const ir = /<item\b([^>]*)\/?>/g; let it;
     while ((it = ir.exec(xml))) { const pp = attr(it[1], "p:path"); items.push({ key: (pp ? norm(pp) : mainPath) + "#" + attr(it[1], "objectid"), m: attr(it[1], "transform") }); }
-    if (items.length) items.forEach(i => emit(i.key, mat(i.m), 0));
-    else objs.forEach((o, k) => { if (o.T.length) emit(k, mat(null), 0); });
+    const start = key => { const id = idOf(key); return objExt.get(id) || 0; };
+    if (items.length) items.forEach(i => emit(i.key, mat(i.m), 0, idOf(i.key), start(i.key)));
+    else objs.forEach((o, k) => { if (o.T.length) emit(k, mat(null), 0, idOf(k), start(k)); });
     if (!out.length) throw new Error("No triangles found in that 3MF file.");
     return { tris: new Float32Array(out), paint: paint.some(v => v > 0) ? Uint8Array.from(paint) : null };
   }

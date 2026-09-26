@@ -759,7 +759,7 @@ const DEFAULTS = () => ({
     box:{ w:90, d:70, h:4 }, cyl:{ dia:70, h:90 }, hex:{ dia:80, h:6 }, sphere:{ dia:70 },
     stl:{ name:"", scale:100 },
     enclosure:{ w:100, d:64, h:36, wall:2, floor:2, radius:4, lid:"screw", lidThick:2.4, lipH:3, lipW:1.2, fit:0.2,
-      fasten:"insert", screw:"M3", head:"sink", teardrop:false, grow:true, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
+      fasten:"insert", screw:"M3", head:"sink", teardrop:false, grow:true, lensSlot:0, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
       labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
       board:"none", boardX:0, boardY:0, boardRot:false, standH:5, bw:60, bd:40, bsx:52, bsy:32, bscrew:"M3", boxSlot:1, lidSlot:1,
       cut:[ { face:"front", kind:"usbc", u:-25, v:12, w:9.2, h:3.4, r:1.6, rot:false },
@@ -6773,20 +6773,30 @@ async function importModelFile(file){
     for (const n of names) files[n] = await zip.file(n).async("string");
     const rels = zip.file("_rels/.rels") ? await zip.file("_rels/.rels").async("string") : "";
     const main = ((/Target="([^"]+\.model)"/i.exec(rels) || [])[1] || names.find(n => /3dmodel\.model$/i.test(n)) || names[0]).replace(/^\//, "");
-    const r = C.parse3MFModel(files, main);
+    // which filament each part prints in (Bambu Studio / OrcaSlicer, PrusaSlicer), and the filament colours
+    const text = async re => { const n = Object.keys(zip.files).find(k => re.test(k)); return n ? (await zip.file(n).async("string")).slice(0, 20e6) : null; };
+    const r = C.parse3MFModel(files, main, { bambu: await text(/^\/?Metadata\/model_settings\.config$/i), prusa: await text(/^\/?Metadata\/Slic3r_PE_model\.config$/i) });
     raw = r.tris; paint = r.paint;
-    const ps = zip.file("Metadata/project_settings.config");
-    if (ps){ try { const j = JSON.parse(await ps.async("string")); if (Array.isArray(j.filament_colour)) colours = j.filament_colour.filter(c => /^#[0-9a-f]{6}/i.test(c)).map(c => c.slice(0, 7)); } catch(e){} }
+    const hexes = list => list.map(c => String(c).trim()).filter(c => /^#[0-9a-f]{6}/i.test(c)).map(c => c.slice(0, 7));
+    const ps = await text(/^\/?Metadata\/project_settings\.config$/i), pe = !ps && await text(/^\/?Metadata\/Slic3r_PE\.config$/i);
+    if (ps){ try { const j = JSON.parse(ps); if (Array.isArray(j.filament_colour)) colours = hexes(j.filament_colour); } catch(e){} }
+    else if (pe){ const line = k => ((new RegExp("^; " + k + " = (.*)$", "m").exec(pe) || [])[1] || "").split(";"); const ex = hexes(line("extruder_colour")), fi = hexes(line("filament_colour")); colours = ex.length ? ex : fi; }
+    if (!colours || !colours.length){ const m = files[main] || ""; colours = hexes([...m.matchAll(/<base\b[^>]*displaycolor="(#[0-9a-f]{6})/gi)].map(x => x[1])); }
   } else raw = C.parseSTL(await file.arrayBuffer());
   const y = new Float32Array(raw.length);
   for (let i=0;i<raw.length;i+=3){ y[i]=raw[i]; y[i+1]=raw[i+2]; y[i+2]=-raw[i+1]; }    // Z up (printers) to Y up (the view)
   clearPaintForNewModel();
   stlData = y; stlPaint = paint; stlCache = null; state.base.type = "stl";
   state.base.stl = { name:`${file.name} (${(raw.length/9).toLocaleString()} triangles)`, scale:100 };
-  if (paint && colours && colours.length){
+  if (paint){
+    // the file's filament colours; a filament it uses but gives no colour for still gets a filament here
+    const spare = ["#ffffff","#161616","#c12e1f","#0a2989","#f0b429","#12633f","#7b4bd8","#8fb8c9"];
     let top = 0; for (let i=0;i<paint.length;i++) if (paint[i] > top) top = paint[i];
-    const used = Math.min(MAX_SLOTS, top, colours.length);
-    for (let i=0;i<used;i++){ if (!state.slots[i]) state.slots.push({ hex:colours[i], name:`Filament ${i+1}`, mat:"PLA", price:22 }); else state.slots[i].hex = colours[i]; }
+    const cs = colours || [], used = Math.min(MAX_SLOTS, top);
+    for (let i=0;i<used;i++){
+      if (!state.slots[i]) state.slots.push({ hex:cs[i] || spare[i], name:`Filament ${i+1}`, mat:"PLA", price:22 });
+      else if (cs[i]) state.slots[i].hex = cs[i];
+    }
   }
   state.items.forEach(d=>{ d.place = defaultPlace(); d.solids = null; });
   userMoved = false; renderTab(); await rebuildAll(false); pushHistory();

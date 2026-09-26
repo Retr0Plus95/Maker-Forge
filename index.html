@@ -3311,10 +3311,34 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
   }
   // a 3MF model file (the XML inside the zip): every mesh, placed by its build items and components;
   // returns triangles, and the painted filament per triangle when the file has slicer painting
-  function parse3MFModel(files, main) {
+  // cfg (optional): the slicer's settings files, { bambu: Metadata/model_settings.config, prusa:
+  // Metadata/Slic3r_PE_model.config }. They say which filament each object, part or volume prints in;
+  // a triangle that is not painted takes that filament (0 = the first one, as with no settings at all).
+  function parse3MFModel(files, main, cfg) {
     if (typeof files === "string") { files = { "/3D/3dmodel.model": files }; main = "/3D/3dmodel.model"; }
     const norm = p => "/" + String(p || "").replace(/^\/+/, "");
     const objs = new Map(), attr = (tag, name) => { const m = new RegExp("\\s" + name + "=\"([^\"]*)\"").exec(tag); return m ? m[1] : null; };
+    const extruderIn = xml => { const r = /<metadata\b([^>]*)\/?>/g; let m; while ((m = r.exec(xml))) if (attr(m[1], "key") === "extruder") { const e = Math.round(+attr(m[1], "value")); return e > 0 && e < 256 ? e : 0; } return 0; };
+    const objExt = new Map(), partExt = new Map(), volExt = new Map();
+    if (cfg && typeof cfg.bambu === "string") {
+      const r = /<object\b([^>]*)>([\s\S]*?)<\/object>/g; let m;
+      while ((m = r.exec(cfg.bambu))) {
+        const id = attr(m[1], "id"), e = extruderIn(m[2].replace(/<part\b[\s\S]*?<\/part>/g, ""));
+        if (e) objExt.set(id, e);
+        const pr = /<part\b([^>]*)>([\s\S]*?)<\/part>/g; let q;
+        while ((q = pr.exec(m[2]))) { const pe = extruderIn(q[2]); if (pe) partExt.set(id + "/" + attr(q[1], "id"), pe); }
+      }
+    }
+    if (cfg && typeof cfg.prusa === "string") {
+      const r = /<object\b([^>]*)>([\s\S]*?)<\/object>/g; let m;
+      while ((m = r.exec(cfg.prusa))) {
+        const id = attr(m[1], "id"), e = extruderIn(m[2].replace(/<volume\b[\s\S]*?<\/volume>/g, ""));
+        if (e) objExt.set(id, e);
+        const vr = /<volume\b([^>]*)>([\s\S]*?)<\/volume>/g, vols = []; let q;
+        while ((q = vr.exec(m[2]))) { const ve = extruderIn(q[2]), a = +attr(q[1], "firstid"), b = +attr(q[1], "lastid"); if (ve && isFinite(a) && isFinite(b)) vols.push([a, b, ve]); }
+        if (vols.length) volExt.set(id, vols);
+      }
+    }
     for (const [path0, xml] of Object.entries(files)) {
       const path = norm(path0), objRe = /<object\b([^>]*)>([\s\S]*?)<\/object>/g; let m;
       while ((m = objRe.exec(xml))) {
@@ -3334,10 +3358,12 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
       for (let j = 0; j < 3; j++) r.push(A[9] * B[j] + A[10] * B[3 + j] + A[11] * B[6 + j] + B[9 + j]);
       return r;
     };
-    const out = [], paint = [];
-    const emit = (key, M, depth) => {
+    const out = [], paint = [], idOf = key => key.slice(key.lastIndexOf("#") + 1);
+    // top: the build item's object id (the settings files name objects by it); ext: the filament so far
+    const emit = (key, M, depth, top, ext) => {
       const o = objs.get(key); if (!o || depth > 8) return;
       const ok = k => Number.isInteger(k) && k >= 0 && 3 * k + 2 < o.V.length;
+      const vols = depth === 0 ? volExt.get(top) : null;
       for (let t = 0; t < o.T.length / 3; t++) {
         const a = o.T[3 * t], b = o.T[3 * t + 1], c = o.T[3 * t + 2];
         if (!ok(a) || !ok(b) || !ok(c)) continue;
@@ -3345,16 +3371,18 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
           const x = o.V[3 * k], y = o.V[3 * k + 1], z = o.V[3 * k + 2];
           out.push(x * M[0] + y * M[3] + z * M[6] + M[9], x * M[1] + y * M[4] + z * M[7] + M[10], x * M[2] + y * M[5] + z * M[8] + M[11]);
         }
-        paint.push(o.F[t] || 0);
+        let e = ext; if (vols) for (const v of vols) if (t >= v[0] && t <= v[1]) { e = v[2]; break; }
+        paint.push(o.F[t] || (e > 1 ? e : 0));
         if (out.length > 9 * 4e6) throw new Error("That model has more than four million triangles.");
       }
-      for (const c of o.comps) emit(c.key, mul(mat(c.m), M), depth + 1);
+      for (const c of o.comps) emit(c.key, mul(mat(c.m), M), depth + 1, top, partExt.get(top + "/" + idOf(c.key)) || ext);
     };
     const mainPath = norm(main || Object.keys(files)[0]), xml = files[main] || files[Object.keys(files).find(k => norm(k) === mainPath)] || "";
     const items = []; const ir = /<item\b([^>]*)\/?>/g; let it;
     while ((it = ir.exec(xml))) { const pp = attr(it[1], "p:path"); items.push({ key: (pp ? norm(pp) : mainPath) + "#" + attr(it[1], "objectid"), m: attr(it[1], "transform") }); }
-    if (items.length) items.forEach(i => emit(i.key, mat(i.m), 0));
-    else objs.forEach((o, k) => { if (o.T.length) emit(k, mat(null), 0); });
+    const start = key => { const id = idOf(key); return objExt.get(id) || 0; };
+    if (items.length) items.forEach(i => emit(i.key, mat(i.m), 0, idOf(i.key), start(i.key)));
+    else objs.forEach((o, k) => { if (o.T.length) emit(k, mat(null), 0, idOf(k), start(k)); });
     if (!out.length) throw new Error("No triangles found in that 3MF file.");
     return { tris: new Float32Array(out), paint: paint.some(v => v > 0) ? Uint8Array.from(paint) : null };
   }
@@ -3694,7 +3722,7 @@ const DEFAULTS = () => ({
     box:{ w:90, d:70, h:4 }, cyl:{ dia:70, h:90 }, hex:{ dia:80, h:6 }, sphere:{ dia:70 },
     stl:{ name:"", scale:100 },
     enclosure:{ w:100, d:64, h:36, wall:2, floor:2, radius:4, lid:"screw", lidThick:2.4, lipH:3, lipW:1.2, fit:0.2,
-      fasten:"insert", screw:"M3", head:"sink", teardrop:false, grow:true, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
+      fasten:"insert", screw:"M3", head:"sink", teardrop:false, grow:true, lensSlot:0, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
       labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
       board:"none", boardX:0, boardY:0, boardRot:false, standH:5, bw:60, bd:40, bsx:52, bsy:32, bscrew:"M3", boxSlot:1, lidSlot:1,
       cut:[ { face:"front", kind:"usbc", u:-25, v:12, w:9.2, h:3.4, r:1.6, rot:false },
@@ -9708,20 +9736,30 @@ async function importModelFile(file){
     for (const n of names) files[n] = await zip.file(n).async("string");
     const rels = zip.file("_rels/.rels") ? await zip.file("_rels/.rels").async("string") : "";
     const main = ((/Target="([^"]+\.model)"/i.exec(rels) || [])[1] || names.find(n => /3dmodel\.model$/i.test(n)) || names[0]).replace(/^\//, "");
-    const r = C.parse3MFModel(files, main);
+    // which filament each part prints in (Bambu Studio / OrcaSlicer, PrusaSlicer), and the filament colours
+    const text = async re => { const n = Object.keys(zip.files).find(k => re.test(k)); return n ? (await zip.file(n).async("string")).slice(0, 20e6) : null; };
+    const r = C.parse3MFModel(files, main, { bambu: await text(/^\/?Metadata\/model_settings\.config$/i), prusa: await text(/^\/?Metadata\/Slic3r_PE_model\.config$/i) });
     raw = r.tris; paint = r.paint;
-    const ps = zip.file("Metadata/project_settings.config");
-    if (ps){ try { const j = JSON.parse(await ps.async("string")); if (Array.isArray(j.filament_colour)) colours = j.filament_colour.filter(c => /^#[0-9a-f]{6}/i.test(c)).map(c => c.slice(0, 7)); } catch(e){} }
+    const hexes = list => list.map(c => String(c).trim()).filter(c => /^#[0-9a-f]{6}/i.test(c)).map(c => c.slice(0, 7));
+    const ps = await text(/^\/?Metadata\/project_settings\.config$/i), pe = !ps && await text(/^\/?Metadata\/Slic3r_PE\.config$/i);
+    if (ps){ try { const j = JSON.parse(ps); if (Array.isArray(j.filament_colour)) colours = hexes(j.filament_colour); } catch(e){} }
+    else if (pe){ const line = k => ((new RegExp("^; " + k + " = (.*)$", "m").exec(pe) || [])[1] || "").split(";"); const ex = hexes(line("extruder_colour")), fi = hexes(line("filament_colour")); colours = ex.length ? ex : fi; }
+    if (!colours || !colours.length){ const m = files[main] || ""; colours = hexes([...m.matchAll(/<base\b[^>]*displaycolor="(#[0-9a-f]{6})/gi)].map(x => x[1])); }
   } else raw = C.parseSTL(await file.arrayBuffer());
   const y = new Float32Array(raw.length);
   for (let i=0;i<raw.length;i+=3){ y[i]=raw[i]; y[i+1]=raw[i+2]; y[i+2]=-raw[i+1]; }    // Z up (printers) to Y up (the view)
   clearPaintForNewModel();
   stlData = y; stlPaint = paint; stlCache = null; state.base.type = "stl";
   state.base.stl = { name:`${file.name} (${(raw.length/9).toLocaleString()} triangles)`, scale:100 };
-  if (paint && colours && colours.length){
+  if (paint){
+    // the file's filament colours; a filament it uses but gives no colour for still gets a filament here
+    const spare = ["#ffffff","#161616","#c12e1f","#0a2989","#f0b429","#12633f","#7b4bd8","#8fb8c9"];
     let top = 0; for (let i=0;i<paint.length;i++) if (paint[i] > top) top = paint[i];
-    const used = Math.min(MAX_SLOTS, top, colours.length);
-    for (let i=0;i<used;i++){ if (!state.slots[i]) state.slots.push({ hex:colours[i], name:`Filament ${i+1}`, mat:"PLA", price:22 }); else state.slots[i].hex = colours[i]; }
+    const cs = colours || [], used = Math.min(MAX_SLOTS, top);
+    for (let i=0;i<used;i++){
+      if (!state.slots[i]) state.slots.push({ hex:cs[i] || spare[i], name:`Filament ${i+1}`, mat:"PLA", price:22 });
+      else if (cs[i]) state.slots[i].hex = cs[i];
+    }
   }
   state.items.forEach(d=>{ d.place = defaultPlace(); d.solids = null; });
   userMoved = false; renderTab(); await rebuildAll(false); pushHistory();

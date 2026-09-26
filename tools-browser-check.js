@@ -314,17 +314,23 @@ function pageCoverage() {
     await shot(page, "paint-brush", "Paint tab: height bands and a brush stroke made with the mouse");
     if (!(brushed.n === s.ops + 1 && brushed.k === "brush" && brushed.pts >= 3)) findings.push({ where:"paint brush", what:`dragging on the model left ${JSON.stringify(brushed)}` });
     const exp = await page.evaluate(async () => {
-      const MF = window.MakerForge, zip = await MF.paint.buildZip(MF.exportParts(), "vase"), u8 = await zip.file("model-bambu.3mf").async("uint8array");
-      const c = {}; MF.parts.forEach(p => p.paint && p.paint.forEach(v => c[v] = (c[v] || 0) + 1));
+      const MF = window.MakerForge, parts = MF.exportParts(), zip = await MF.paint.buildZip(parts, "vase"), u8 = await zip.file("model-bambu.3mf").async("uint8array");
+      // the filament each triangle in the file prints in: its paint, or its part's own filament (a brim too)
+      const c = {}; parts.forEach(p => { const n = p.idx.length / 3; for (let t = 0; t < n; t++){ const v = p.paint && p.paint[t] !== 255 ? p.paint[t] : p.slot; c[v] = (c[v] || 0) + 1; } });
       let b = ""; for (let i = 0; i < u8.length; i += 0x8000) b += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
-      return { b64: btoa(b), counts: JSON.stringify(c) };
+      return { b64: btoa(b), counts: JSON.stringify(c), parts: parts.map(p => `${p.name} ${p.slot} ${p.idx.length / 3}`).join(", ") };
     });
     const f3 = path.join(OUT, "painted.3mf"); fs.writeFileSync(f3, Buffer.from(exp.b64, "base64"));
     await page.evaluate(() => { const sel = document.querySelector("#objectSel"); sel.value = "stl"; });
-    await page.setInputFiles("#stlInput", f3); await page.waitForTimeout(600); await settle(page);
-    const back = await page.evaluate(() => { const MF = window.MakerForge, c = {}; MF.parts.forEach(p => p.paint && p.paint.forEach(v => c[v] = (c[v] || 0) + 1)); return { type:MF.state.base.type, counts:JSON.stringify(c) }; });
+    await page.setInputFiles("#stlInput", f3);
+    await page.waitForFunction(() => /^painted\.3mf/.test((window.MakerForge.state.base.stl || {}).name || ""), null, { timeout: 180000 }).catch(() => {});
+    await settle(page);
+    // the opened file only: a picture still on the project is laid on the new model as a fresh decal
+    const back = await page.evaluate(() => { const MF = window.MakerForge, c = {};
+      MF.parts.filter(p => "importPaint" in p).forEach(p => { const n = p.solid.idx.length / 3; for (let t = 0; t < n; t++){ const v = p.paint && p.paint[t] !== 255 ? p.paint[t] : p.slot; c[v] = (c[v] || 0) + 1; } });
+      return { type:MF.state.base.type, counts:JSON.stringify(c), parts:MF.parts.map(p => `${p.name} ${p.slot} ${p.solid.idx.length / 3}`).join(", ") }; });
     fs.unlinkSync(f3);
-    if (back.type !== "stl" || back.counts !== exp.counts) findings.push({ where:"painted 3mf", what:`exported ${exp.counts}, read back ${back.counts} (${back.type})` });
+    if (back.type !== "stl" || back.counts !== exp.counts) findings.push({ where:"painted 3mf", what:`exported ${exp.counts} (${exp.parts}), read back ${back.counts} (${back.type}: ${back.parts})` });
     await shot(page, "paint-reimported", "A painted Bambu 3mf opened again: the paint is kept");
     notes.push(`painter: a mouse stroke of ${brushed.pts} points; a painted 3mf read back ${back.counts === exp.counts ? "with every triangle's colour" : "DIFFERENT"}`);
   }

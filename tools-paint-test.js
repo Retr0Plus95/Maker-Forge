@@ -267,6 +267,19 @@ async function settle() {
     await openPayload(JSON.stringify(Object.assign({}, P0, { model: Object.assign({}, P0.model, { paint: "AAAA" }) })));
     check(MF.parts.length === 1 && C.checkMesh(MF.parts[0].solid).open === 0, "paint of the wrong length is dropped, the model kept");
     st().paint.ops = []; MF.paint.repaint(); await settle();
+    // undo after opening another model brings back the first model, not just its settings
+    await MF.paint.importModel(new win.File([objText], "cube.obj")); await settle(); await sleep(500);
+    st().paint.ops = [{ k: "dir", up: 1, side: 2, down: 255, angle: 30 }]; MF.paint.changed(); await settle(); await sleep(500);
+    const cubePaint = JSON.stringify(painted());
+    await MF.paint.importModel(new win.File([objText.replace(/ 20\n/g, " 30\n")], "tall.obj")); await settle(); await sleep(500);
+    const h = () => C.solidBounds(MF.parts[0].solid).size[1];
+    check(near(h(), 30, 1e-6) && !st().paint.ops.length, "the second model opens plain", `${h().toFixed(1)} mm`);
+    document.querySelector("#undoBtn").click(); await settle(); await sleep(100); await settle();
+    check(/cube\.obj/.test(st().base.stl.name) && near(h(), 20, 1e-6) && st().paint.ops.length === 1 && JSON.stringify(painted()) === cubePaint,
+      "Undo brings back the first model with its paint", `${st().base.stl.name}, ${h().toFixed(1)} mm, ${JSON.stringify(painted())}`);
+    document.querySelector("#redoBtn").click(); await settle(); await sleep(100); await settle();
+    check(/tall\.obj/.test(st().base.stl.name) && near(h(), 30, 1e-6) && !st().paint.ops.length, "Redo brings back the second", `${st().base.stl.name}, ${h().toFixed(1)} mm`);
+    st().paint.ops = []; MF.paint.repaint(); await settle();
   }
   let err = ""; try { await MF.paint.importModel(new win.File(["hello"], "bad.obj")); } catch (e) { err = e.message; }
   check(/No triangles/.test(err), "a file with no triangles is refused with a message", err);

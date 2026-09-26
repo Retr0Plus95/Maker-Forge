@@ -4120,6 +4120,15 @@ const DEFAULTS = () => ({
 let state = DEFAULTS();
 const assets = {};
 let stlData = null, stlPaint = null, stlCache = null, uid = 1, tab = "make";
+// the models opened in this tab, by name, so undo and redo bring back the right one (up to ~150 MB);
+// stlName is the name of the one in stlData
+const openedModels = new Map();
+let stlName = null;
+function rememberModel(name, data, paint){
+  openedModels.delete(name); openedModels.set(name, { data, paint });
+  let bytes = 0; for (const m of openedModels.values()) bytes += m.data.byteLength;
+  for (const [k, m] of openedModels){ if (bytes <= 150e6 || k === name) break; bytes -= m.data.byteLength; openedModels.delete(k); }
+}
 let viewOpts = { explode:0, wire:false, layout:false, showPrint:false, rulers:true, measure:false, section:false, cut:50 };
 
 function newItem(name, canvas, extra){
@@ -4149,6 +4158,9 @@ function pushHistory(){
 }
 function applySnapshot(json){
   state = JSON.parse(json);
+  // an imported model is not in the snapshot: take the one it was made with, if this tab still has it
+  const want = state.base.type === "stl" && state.base.stl ? state.base.stl.name : null;
+  if (want && want !== stlName){ const m = openedModels.get(want); stlData = m ? m.data : null; stlPaint = m ? m.paint : null; stlName = m ? want : null; stlCache = null; }
   state.items.forEach(it => { it.solids = null; it._imgKey = ""; it._srcSig = ""; });
   applyTheme(); renderTab(); rebuildAll(true);
 }
@@ -10003,7 +10015,7 @@ function tabExport(p){
       ["Open project", ()=>$("#projInput").click()],
       ["Start over", ()=>{
         if (!confirm("Start over with an empty project?")) return;
-        state = applyPrinterPref(DEFAULTS()); Object.keys(assets).forEach(k=>delete assets[k]); stlData = null; stlPaint = null; stlCache = null;
+        state = applyPrinterPref(DEFAULTS()); Object.keys(assets).forEach(k=>delete assets[k]); stlData = null; stlPaint = null; stlCache = null; stlName = null;
         history.past.length = 0; history.future.length = 0;
         renderTab(); rebuildAll(true); pushHistory();
       }]
@@ -10169,7 +10181,8 @@ async function importModelFile(file){
   // its paint steps, scale and filaments are kept
   const again = state.base.type === "stl" && !stlData && !!state.base.stl && state.base.stl.name === name;
   if (!again) clearPaintForNewModel();
-  stlData = y; stlPaint = paint; stlCache = null; state.base.type = "stl";
+  stlData = y; stlPaint = paint; stlCache = null; stlName = name; state.base.type = "stl";
+  rememberModel(name, y, paint);
   state.base.stl = { name, scale: again ? state.base.stl.scale : 100 };
   if (paint && !again){
     // the file's filament colours; a filament it uses but gives no colour for still gets a filament here
@@ -10419,6 +10432,8 @@ async function loadProject(data){
   state.model = Object.assign(DEFAULTS().model, data.state.model||{});
   state.view = Object.assign(DEFAULTS().view, data.state.view||{});
   stlData = data.model ? data.model.tris : null; stlPaint = data.model ? data.model.paint : null; stlCache = null;
+  stlName = data.model && state.base.stl ? state.base.stl.name : null;
+  if (stlName) rememberModel(stlName, stlData, stlPaint);
   Object.keys(assets).forEach(k=>delete assets[k]);
   for (const [id,url] of Object.entries(data.assets||{})){
     try { assets[id] = { dataURL:url, canvas:await dataURLToCanvas(url) }; } catch(e){}
@@ -10693,7 +10708,7 @@ window.MakerForge = {
   get print(){ return printFresh() ? printInfo : null; },
   printNow: runPrintability, optimize: optimizePrint, revertOptimize, exportParts,
   // the painter, for the tests: its tool settings, a repaint now, the last result, a model import and the zip
-  paint: { ui: paintUI, repaint: () => repaint(true), get info(){ return paintInfo; }, importModel: importModelFile, buildZip,
+  paint: { ui: paintUI, repaint: () => repaint(true), changed: paintChanged, get info(){ return paintInfo; }, importModel: importModelFile, buildZip,
     hit: paintHit, get prefs(){ return prefs; }, applyPrefs, findDefault, cleanPaint },
   phone: { spec: phoneSpec, get info(){ return phoneInfo; }, list: PHONES },
   get overlay(){ return overlay.children.length; },

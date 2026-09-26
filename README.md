@@ -17,6 +17,12 @@ Four tabs in the top bar — **Make · Art · Colours · Export**. Down the left
 | **Colours** | Up to 8 slots with colour, name, material and price. Palette presets, colour matching, and a **printer library** (Bambu, Prusa, Creality, Elegoo, Anycubic, Voron) that sets bed size, nozzle, layer height and how many colours the machine can load. |
 | **Export** | Preflight checks (watertightness, bed fit, colour count vs printer, features thinner than the nozzle, thin colour layers, unused filaments), material in g/m/cost, rough print time, **colour swap heights** for single-filament printers, and the files themselves: zip with 3mf, coloured obj, per-filament STLs, a merged STL, notes and the project file. Projects save and reopen as `.json`, plus **batch export**: one keychain per name from a list. |
 
+### New in 0.17.2
+
+- **Every font is built in.** The 34 lettering fonts and the Easy reading font are inside `index.html`, so the page never downloads a font (and never talks to Google).
+- **Saved projects keep imported models.** A project file now holds the model you imported and its paint. The autosave and share links still leave the model out and tell you which file to open again; opening the same file brings the paint back. Undo after opening a second model brings back the first.
+- Fixed: a picture on a photo frame landed in the window and printed nothing (it now goes on the border); the arrow keys on the tab bar also moved your artwork; unticking "Show the paint" also left the paint out of the exported files without a word (it is now "Use the paint", with a warning); the phone case's Art tab showed placement controls that did nothing; damaged project files could crash a build.
+
 ### New in 0.17
 
 - **Colour painter.** A new **Paint** tab colours any model, made here or imported, in up to eight filaments: **height bands** cut straight into the mesh, a **colour fade** between two filaments layer by layer, **stripes**, **tops and sides**, **separate pieces**, **smooth areas** split at sharp edges, a **picture projected** through the model, **random blobs**, or by hand with a **brush, fill and eraser** (mirror strokes for symmetrical models, keys 1 to 8 for colours). Painting follows the model when a setting changes. The paint goes into the 3mf files as slicer paint (`paint_color` for Bambu Studio and OrcaSlicer, `mmu_segmentation` for PrusaSlicer), so there is nothing to paint again in the slicer.

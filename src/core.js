@@ -196,8 +196,8 @@
   }
 
   // ---------- mesh utilities ----------
-  function weldSoup(pos, index) {
-    const map = new Map(), P = [], I = [];
+  function weldSoup(pos, index, track) {
+    const map = new Map(), P = [], I = [], src = track ? [] : null;
     const get = k3 => {
       const x = pos[k3], y = pos[k3 + 1], z = pos[k3 + 2];
       const key = Math.round(x * 1e4) + "," + Math.round(y * 1e4) + "," + Math.round(z * 1e4);
@@ -206,9 +206,9 @@
     const tcount = index ? index.length / 3 : pos.length / 9;
     for (let t = 0; t < tcount; t++) {
       const a = get((index ? index[t * 3] : t * 3) * 3), b = get((index ? index[t * 3 + 1] : t * 3 + 1) * 3), c = get((index ? index[t * 3 + 2] : t * 3 + 2) * 3);
-      if (a !== b && b !== c && a !== c) I.push(a, b, c);
+      if (a !== b && b !== c && a !== c) { I.push(a, b, c); if (src) src.push(t); }
     }
-    return { pos: new Float32Array(P), idx: new Uint32Array(I) };
+    return src ? { pos: new Float32Array(P), idx: new Uint32Array(I), src: Int32Array.from(src) } : { pos: new Float32Array(P), idx: new Uint32Array(I) };
   }
 
   function parseSTL(buf) {
@@ -236,7 +236,7 @@
         q[i] = p.pos[i]; q[i + 1] = -p.pos[i + 2]; q[i + 2] = p.pos[i + 1];
         for (let k = 0; k < 3; k++) { if (q[i + k] < mn[k]) mn[k] = q[i + k]; if (q[i + k] > mx[k]) mx[k] = q[i + k]; }
       }
-      return { name: p.name, slot: p.slot, pos: q, idx: p.idx };
+      return { name: p.name, slot: p.slot, pos: q, idx: p.idx, paint: p.paint || null };
     });
     const off = [-(mn[0] + mx[0]) / 2, -(mn[1] + mx[1]) / 2, -mn[2]];
     for (const p of conv) for (let i = 0; i < p.pos.length; i += 3) { p.pos[i] += off[0]; p.pos[i + 1] += off[1]; p.pos[i + 2] += off[2]; }
@@ -250,7 +250,11 @@
     const V = [], Tr = [], vols = []; let vbase = 0, tbase = 0;
     for (const p of parts) {
       for (let i = 0; i < p.pos.length; i += 3) V.push('<vertex x="' + f(p.pos[i]) + '" y="' + f(p.pos[i + 1]) + '" z="' + f(p.pos[i + 2]) + '"/>');
-      for (let i = 0; i < p.idx.length; i += 3) Tr.push('<triangle v1="' + (p.idx[i] + vbase) + '" v2="' + (p.idx[i + 1] + vbase) + '" v3="' + (p.idx[i + 2] + vbase) + '" pid="1" p1="' + p.slot + '"/>');
+      for (let i = 0; i < p.idx.length; i += 3) {
+        const s = p.paint ? p.paint[i / 3] : 255, painted = s !== 255 && s !== p.slot && s < slots.length;
+        Tr.push('<triangle v1="' + (p.idx[i] + vbase) + '" v2="' + (p.idx[i + 1] + vbase) + '" v3="' + (p.idx[i + 2] + vbase) + '" pid="1" p1="' + (painted ? s : p.slot) + '"' +
+          (painted ? ' slic3rpe:mmu_segmentation="' + paintCode(s + 1) + '"' : '') + '/>');
+      }
       const tc = p.idx.length / 3;
       vols.push({ name: p.name, slot: p.slot, first: tbase, last: tbase + tc - 1 });
       vbase += p.pos.length / 3; tbase += tc;
@@ -280,7 +284,10 @@
     for (const p of parts) {
       const V = [], T = [];
       for (let i = 0; i < p.pos.length; i += 3) V.push('<vertex x="' + f(p.pos[i]) + '" y="' + f(p.pos[i + 1]) + '" z="' + f(p.pos[i + 2]) + '"/>');
-      for (let i = 0; i < p.idx.length; i += 3) T.push('<triangle v1="' + p.idx[i] + '" v2="' + p.idx[i + 1] + '" v3="' + p.idx[i + 2] + '"/>');
+      for (let i = 0; i < p.idx.length; i += 3) {
+        const s = p.paint ? p.paint[i / 3] : 255, painted = s !== 255 && s !== p.slot && s < slots.length;
+        T.push('<triangle v1="' + p.idx[i] + '" v2="' + p.idx[i + 1] + '" v3="' + p.idx[i + 2] + '"' + (painted ? ' paint_color="' + paintCode(s + 1) + '"' : '') + '/>');
+      }
       objs.push('<object id="' + id + '" type="model"><mesh><vertices>\n' + V.join("\n") + '\n</vertices><triangles>\n' + T.join("\n") + '\n</triangles></mesh></object>');
       cfg.push('  <part id="' + id + '" subtype="normal_part">\n   <metadata key="name" value="' + esc(p.name) + '"/>\n   <metadata key="extruder" value="' + (p.slot + 1) + '"/>\n  </part>');
       ids.push(id); id++;
@@ -322,9 +329,14 @@
   function makeOBJ(parts, slots) {
     const L = ["# PhotoRelief Studio", "mtllib model.mtl"]; let base = 1;
     for (const p of parts) {
-      L.push("o " + p.name.replace(/\s+/g, "_"), "usemtl filament_" + (p.slot + 1));
+      L.push("o " + p.name.replace(/\s+/g, "_"));
       for (let i = 0; i < p.pos.length; i += 3) L.push("v " + f(p.pos[i]) + " " + f(p.pos[i + 1]) + " " + f(p.pos[i + 2]));
-      for (let i = 0; i < p.idx.length; i += 3) L.push("f " + (p.idx[i] + base) + " " + (p.idx[i + 1] + base) + " " + (p.idx[i + 2] + base));
+      const of = t => { const s = p.paint ? p.paint[t] : 255; return s !== 255 && s < slots.length ? s : p.slot; };
+      const used = [...new Set(Array.from({ length: p.idx.length / 3 }, (_, t) => of(t)))].sort((a, b) => a - b);
+      for (const s of used) {                              // painted faces are grouped by their colour
+        L.push("usemtl filament_" + (s + 1));
+        for (let i = 0; i < p.idx.length; i += 3) if (of(i / 3) === s) L.push("f " + (p.idx[i] + base) + " " + (p.idx[i + 1] + base) + " " + (p.idx[i + 2] + base));
+      }
       base += p.pos.length / 3;
     }
     const mtl = slots.map((s, i) => { const c = hexToRgb(s.hex).map(x => (x / 255).toFixed(4)); return "newmtl filament_" + (i + 1) + "\nKd " + c.join(" ") + "\nKa 0 0 0\nd 1"; }).join("\n\n");
@@ -1304,7 +1316,10 @@
     let vc = 0, ic = 0; list.forEach(m => { vc += m.pos.length; ic += m.idx.length; });
     const pos = new Float32Array(vc), idx = new Uint32Array(ic); let vo = 0, io = 0;
     list.forEach(m => { pos.set(m.pos, vo); for (let i = 0; i < m.idx.length; i++) idx[io + i] = m.idx[i] + vo / 3; vo += m.pos.length; io += m.idx.length; });
-    return { pos, idx };
+    if (!list.some(m => m.paint)) return { pos, idx };
+    const paint = new Uint8Array(ic / 3).fill(255); let to = 0;          // painted triangles keep their colour
+    list.forEach(m => { if (m.paint) paint.set(m.paint, to); to += m.idx.length / 3; });
+    return { pos, idx, paint };
   }
 
   // dilate then erode: joins letters that nearly touch
@@ -2492,12 +2507,457 @@
     return out.length ? out : null;
   }
 
+  // ---------- colour painting (Session 13) ----------
+  // A mesh that can be split without cracks: splitting an edge puts one new vertex on it and cuts
+  // both triangles that share it, so the surface stays closed and keeps exactly its shape. Used to
+  // make triangles small enough to paint, and to cut the surface along the heights where a colour
+  // band starts, so the band edges are straight in the slicer.
+  const EB = 67108864;                                  // 2^26: vertex ids and triangle ids stay below it
+  function meshEditor(solid) {
+    const P = Array.from(solid.pos), T = Array.from(solid.idx), E = new Map();
+    const S = Array.from({ length: T.length / 3 }, (_, t) => t);    // the original triangle each one came from
+    const key = (a, b) => a < b ? a * EB + b : b * EB + a;
+    const pack = (t0, t1) => (t0 + 1) + (t1 >= 0 ? (t1 + 1) * EB : 0);
+    const note = (k, t) => {                             // one or two triangles per edge; more is non-manifold (-1)
+      const e = E.get(k);
+      if (e === undefined) E.set(k, t + 1); else if (e > 0 && e < EB) E.set(k, e + (t + 1) * EB); else E.set(k, -1);
+    };
+    for (let t = 0; t < T.length / 3; t++) { const a = T[3 * t], b = T[3 * t + 1], c = T[3 * t + 2]; note(key(a, b), t); note(key(b, c), t); note(key(c, a), t); }
+    const swap = (k, from, to) => {
+      const e = E.get(k); if (e === undefined || e < 0) return;
+      let t0 = e % EB - 1, t1 = Math.floor(e / EB) - 1;
+      if (t0 === from) t0 = to; else if (t1 === from) t1 = to;
+      E.set(k, pack(t0, t1));
+    };
+    // split edge a-b at (x, y, z); returns the new vertex, or -1 when the edge is not a clean one
+    function split(a, b, x, y, z) {
+      const k = key(a, b), e = E.get(k);
+      if (e === undefined || e < 0) return -1;
+      const ts = [e % EB - 1, Math.floor(e / EB) - 1];
+      if (ts[0] === ts[1]) return -1;
+      const m = P.length / 3; P.push(x, y, z); E.delete(k);
+      const am = [], mb = [];
+      for (const t of ts) {
+        if (t < 0) continue;
+        let u = T[3 * t], v = T[3 * t + 1], w = T[3 * t + 2];
+        for (let r = 0; r < 3 && !((u === a && v === b) || (u === b && v === a)); r++) { const q = u; u = v; v = w; w = q; }
+        const t2 = T.length / 3;
+        T[3 * t] = u; T[3 * t + 1] = m; T[3 * t + 2] = w;
+        T.push(m, v, w); S.push(S[t]);
+        swap(key(v, w), t, t2);
+        E.set(key(m, w), pack(t, t2));
+        (u === a ? am : mb).push(t); (v === a ? am : mb).push(t2);
+      }
+      E.set(key(a, m), pack(am[0], am.length > 1 ? am[1] : -1));
+      E.set(key(m, b), pack(mb[0], mb.length > 1 ? mb[1] : -1));
+      return m;
+    }
+    const d2 = (a, b) => { const dx = P[3 * a] - P[3 * b], dy = P[3 * a + 1] - P[3 * b + 1], dz = P[3 * a + 2] - P[3 * b + 2]; return dx * dx + dy * dy + dz * dz; };
+    return {
+      // bisect the longest edge of every triangle longer than maxEdge, until none is (or maxTris)
+      refine(maxEdge, maxTris) {
+        const L2 = maxEdge * maxEdge * 1.0404;          // 2% slack: edges already at the limit (say after a 3mf round trip) stay
+        for (let pass = 0; pass < 64; pass++) {
+          let n = 0; const nT = T.length / 3;
+          for (let t = 0; t < nT; t++) {
+            const a = T[3 * t], b = T[3 * t + 1], c = T[3 * t + 2], ab = d2(a, b), bc = d2(b, c), ca = d2(c, a);
+            let u = a, v = b, l = ab; if (bc > l) { u = b; v = c; l = bc; } if (ca > l) { u = c; v = a; l = ca; }
+            if (l <= L2) continue;
+            if (split(u, v, (P[3 * u] + P[3 * v]) / 2, (P[3 * u + 1] + P[3 * v + 1]) / 2, (P[3 * u + 2] + P[3 * v + 2]) / 2) >= 0) n++;
+            if (T.length / 3 >= maxTris) return false;
+          }
+          if (!n) break;
+        }
+        return true;
+      },
+      // cut the surface along the plane coordinate[axis] = h; points within eps of it are moved onto it
+      cut(axis, h, eps) {
+        eps = eps ?? 1e-4;
+        for (let i = axis; i < P.length; i += 3) if (Math.abs(P[i] - h) <= eps) P[i] = h;
+        const todo = [];
+        for (const k of E.keys()) {
+          const a = Math.floor(k / EB), b = k % EB, ya = P[3 * a + axis], yb = P[3 * b + axis];
+          if ((ya < h && yb > h) || (ya > h && yb < h)) todo.push(a, b);
+        }
+        for (let i = 0; i < todo.length; i += 2) {
+          const a = todo[i], b = todo[i + 1], ya = P[3 * a + axis], yb = P[3 * b + axis], t = (h - ya) / (yb - ya);
+          const q = [0, 1, 2].map(j => P[3 * a + j] + (P[3 * b + j] - P[3 * a + j]) * t); q[axis] = h;
+          split(a, b, q[0], q[1], q[2]);
+        }
+      },
+      // cut along many planes coordinate[axis] = hs[k], lowest first. Once every plane below k is cut,
+      // a triangle that crosses plane k has no corner below plane k-1, so the edges a split makes can
+      // only cross planes above k: each edge is filed under the first plane it crosses and looked at
+      // once, instead of scanning every edge for every plane (hundreds of layers for a colour fade).
+      cutMany(axis, hs, eps) {
+        eps = eps ?? 1e-4;
+        const H = [...new Set(hs.filter(isFinite))].sort((x, y) => x - y);
+        if (!H.length) return;
+        const firstAbove = y => { let lo = 0, hi = H.length; while (lo < hi) { const m = (lo + hi) >> 1; if (H[m] <= y) lo = m + 1; else hi = m; } return lo; };
+        for (let i = axis; i < P.length; i += 3) {             // points within eps of a plane move onto it
+          const k = firstAbove(P[i]);
+          if (k < H.length && H[k] - P[i] <= eps) P[i] = H[k]; else if (k > 0 && P[i] - H[k - 1] <= eps) P[i] = H[k - 1];
+        }
+        const bucket = H.map(() => []), file = (u, v) => {
+          const yu = P[3 * u + axis], yv = P[3 * v + axis], lo = Math.min(yu, yv), hi = Math.max(yu, yv), k = firstAbove(lo);
+          if (k < H.length && H[k] < hi) bucket[k].push(u, v);
+        };
+        for (const key of E.keys()) file(Math.floor(key / EB), key % EB);
+        for (let k = 0; k < H.length; k++) {
+          const list = bucket[k]; bucket[k] = null;
+          for (let i = 0; i < list.length; i += 2) {
+            const u = list[i], v = list[i + 1], e = E.get(key(u, v));
+            if (e === undefined || e < 0) continue;
+            const yu = P[3 * u + axis], yv = P[3 * v + axis]; if (!(Math.min(yu, yv) < H[k] && Math.max(yu, yv) > H[k])) continue;
+            const t = (H[k] - yu) / (yv - yu), q = [0, 1, 2].map(j => P[3 * u + j] + (P[3 * v + j] - P[3 * u + j]) * t); q[axis] = H[k];
+            const ts = [e % EB - 1, Math.floor(e / EB) - 1].filter(x => x >= 0), opp = ts.map(x => [T[3 * x], T[3 * x + 1], T[3 * x + 2]].find(w => w !== u && w !== v));
+            const m = split(u, v, q[0], q[1], q[2]); if (m < 0) continue;
+            file(m, yu > yv ? u : v);                          // the upper half may cross the next planes
+            opp.forEach(w => file(m, w));                      // so may the new edges to the opposite corners
+          }
+        }
+      },
+      tris: () => T.length / 3,
+      solid: () => ({ pos: new Float32Array(P), idx: new Uint32Array(T) }),
+      source: () => Int32Array.from(S)
+    };
+  }
+  // per triangle: centre, unit normal, area, and the neighbour across each edge (-1: none or non-manifold)
+  function meshTopology(solid) {
+    const P = solid.pos, I = solid.idx, n = I.length / 3;
+    const cen = new Float32Array(n * 3), nrm = new Float32Array(n * 3), area = new Float32Array(n), nbr = new Int32Array(n * 3).fill(-1);
+    const E = new Map(), key = (a, b) => a < b ? a * EB + b : b * EB + a;
+    let total = 0;
+    for (let t = 0; t < n; t++) {
+      const a = I[3 * t] * 3, b = I[3 * t + 1] * 3, c = I[3 * t + 2] * 3;
+      const ux = P[b] - P[a], uy = P[b + 1] - P[a + 1], uz = P[b + 2] - P[a + 2], vx = P[c] - P[a], vy = P[c + 1] - P[a + 1], vz = P[c + 2] - P[a + 2];
+      const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx, l = Math.hypot(nx, ny, nz);
+      area[t] = l / 2; total += l / 2;
+      if (l > 0) { nrm[3 * t] = nx / l; nrm[3 * t + 1] = ny / l; nrm[3 * t + 2] = nz / l; }
+      for (let k = 0; k < 3; k++) cen[3 * t + k] = (P[a + k] + P[b + k] + P[c + k]) / 3;
+      for (let e = 0; e < 3; e++) {
+        const k = key(I[3 * t + e], I[3 * t + (e + 1) % 3]), o = E.get(k);
+        if (o === undefined) E.set(k, t * 3 + e);
+        else if (o >= 0) { const t2 = Math.floor(o / 3); nbr[3 * t + e] = t2; nbr[o] = t; E.set(k, -1); }
+        // a third triangle on one edge (non-manifold): it stays unlinked there
+      }
+    }
+    return { n, cen, nrm, area, nbr, total };
+  }
+  // Slicer paint codes (PrusaSlicer's TriangleSelector bit stream, written as hex in reverse): a whole
+  // triangle in filament 1 is "4", 2 is "8", 3 to 18 are "0C" to "FC". Bambu Studio and Orca store the
+  // same code as paint_color, PrusaSlicer as slic3rpe:mmu_segmentation.
+  function paintCode(filament) {
+    const n = Math.round(filament);
+    if (n === 1) return "4";
+    if (n === 2) return "8";
+    if (n >= 3 && n <= 18) return (n - 3).toString(16).toUpperCase() + "C";
+    return "";
+  }
+  function paintDecode(code) {
+    const s = String(code || "").toUpperCase();
+    if (s === "4") return 1; if (s === "8") return 2;
+    if (/^[0-9A-F]C$/.test(s)) return parseInt(s[0], 16) + 3;
+    return 0;                                          // unpainted, or split finer than one triangle
+  }
+  // a grid of triangle centres for fast "everything within r of this point" questions
+  function triangleGrid(topo, cell) {
+    const inv = 1 / cell, cells = new Map(), key = (i, j, k) => ((i + 32768) * 65536 + (j + 32768)) * 65536 + (k + 32768);
+    for (let t = 0; t < topo.n; t++) {
+      const s = key(Math.floor(topo.cen[3 * t] * inv), Math.floor(topo.cen[3 * t + 1] * inv), Math.floor(topo.cen[3 * t + 2] * inv));
+      let a = cells.get(s); if (!a) cells.set(s, a = []); a.push(t);
+    }
+    return {
+      cell,
+      near(x, y, z, r, fn) {
+        const i0 = Math.floor((x - r) * inv), i1 = Math.floor((x + r) * inv), j0 = Math.floor((y - r) * inv), j1 = Math.floor((y + r) * inv), k0 = Math.floor((z - r) * inv), k1 = Math.floor((z + r) * inv), r2 = r * r;
+        for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) for (let k = k0; k <= k1; k++) {
+          const a = cells.get(key(i, j, k)); if (!a) continue;
+          for (const t of a) { const dx = topo.cen[3 * t] - x, dy = topo.cen[3 * t + 1] - y, dz = topo.cen[3 * t + 2] - z; if (dx * dx + dy * dy + dz * dz <= r2) fn(t); }
+        }
+      }
+    };
+  }
+  // ---- the paint operations: each sets paint[t] to a filament index (255 = leave as it is) ----
+  const LEAVE = 255;
+  function paintHeights(topo, paint, cuts, slots, axis) {
+    axis = axis ?? 1; const c = cuts.slice().sort((a, b) => a - b);
+    for (let t = 0; t < topo.n; t++) {
+      const y = topo.cen[3 * t + axis]; let band = 0; while (band < c.length && y > c[band]) band++;
+      const s = slots[Math.min(band, slots.length - 1)]; if (s != null && s !== LEAVE && s >= 0) paint[t] = s;
+    }
+  }
+  // repeating stripes: every `every` mm a band `width` mm tall, between from and to
+  function stripeCuts(from, to, every, width, max) {
+    const cuts = []; if (!(every > 0) || !(width > 0)) return cuts;
+    for (let y = from; y < to && cuts.length < (max || 400); y += every) { cuts.push(y); if (y + width < to) cuts.push(Math.min(to, y + width)); }
+    if (to > from) cuts.push(to);
+    return cuts;
+  }
+  function paintStripes(topo, paint, o) {
+    const every = Math.max(0.1, o.every), w = Math.max(0.05, Math.min(o.width, every));
+    for (let t = 0; t < topo.n; t++) {
+      const y = topo.cen[3 * t + 1]; if (y < o.from || y > o.to) continue;
+      const ph = (y - o.from) % every; if (ph < w) paint[t] = o.slot; else if (o.gap != null && o.gap !== LEAVE && o.gap >= 0) paint[t] = o.gap;
+    }
+  }
+  // A fade between two filaments: every layer in [from, to] is one colour or the other, chosen so the
+  // share of the second grows evenly from 0 to 1 (error diffusion over the layers, so no banding).
+  function gradientCuts(from, to, layer, max) {
+    const cuts = [], n = Math.min(max || 400, Math.round((to - from) / Math.max(0.04, layer)));
+    for (let i = 0; i <= n; i++) cuts.push(from + (to - from) * i / n);
+    return cuts;
+  }
+  function gradientLayers(n) {
+    const out = new Uint8Array(n); let acc = 0;
+    for (let i = 0; i < n; i++) { acc += n > 1 ? i / (n - 1) : 1; if (acc >= 0.5) { out[i] = 1; acc -= 1; } }
+    return out;
+  }
+  function paintGradient(topo, paint, o) {
+    const n = Math.max(1, Math.min(o.max || 400, Math.round((o.to - o.from) / Math.max(0.04, o.layer)))), pick = gradientLayers(n), h = (o.to - o.from) / n;
+    for (let t = 0; t < topo.n; t++) {
+      const y = topo.cen[3 * t + 1];
+      if (y < o.from) { if (o.below) paint[t] = o.a; continue; }
+      if (y > o.to) { if (o.above) paint[t] = o.b; continue; }
+      const i = Math.min(n - 1, Math.max(0, Math.floor((y - o.from) / h)));
+      paint[t] = pick[i] ? o.b : o.a;
+    }
+  }
+  // every triangle of one colour becomes another (base: the colour of unpainted triangles)
+  function paintSwap(paint, from, to, base) {
+    let n = 0; for (let t = 0; t < paint.length; t++) { const c = paint[t] === LEAVE ? base : paint[t]; if (c === from) { paint[t] = to; n++; } } return n;
+  }
+  // faces pointing up (roofs), sideways (walls) and down (undersides), split at `angle` from level
+  function paintDirection(topo, paint, o) {
+    const lim = Math.sin((o.angle ?? 30) * Math.PI / 180);
+    for (let t = 0; t < topo.n; t++) {
+      const ny = topo.nrm[3 * t + 1], s = ny > lim ? o.up : ny < -lim ? o.down : o.side;
+      if (s != null && s !== LEAVE && s >= 0) paint[t] = s;
+    }
+  }
+  // pieces that do not touch (separate shells), largest first, one colour each in turn
+  function meshShells(topo) {
+    const id = new Int32Array(topo.n).fill(-1), shells = [];
+    for (let s = 0; s < topo.n; s++) {
+      if (id[s] >= 0) continue;
+      const k = shells.length, stack = [s]; id[s] = k; let area = 0;
+      while (stack.length) { const t = stack.pop(); area += topo.area[t]; for (let e = 0; e < 3; e++) { const u = topo.nbr[3 * t + e]; if (u >= 0 && id[u] < 0) { id[u] = k; stack.push(u); } } }
+      shells.push(area);
+    }
+    const order = shells.map((a, i) => i).sort((a, b) => shells[b] - shells[a]), rank = new Int32Array(shells.length);
+    order.forEach((k, r) => rank[k] = r);
+    for (let t = 0; t < topo.n; t++) id[t] = rank[id[t]];
+    return { id, count: shells.length };
+  }
+  function paintShells(topo, paint, slots) {
+    const sh = meshShells(topo);
+    for (let t = 0; t < topo.n; t++) { const s = slots[sh.id[t] % slots.length]; if (s != null && s !== LEAVE && s >= 0) paint[t] = s; }
+    return sh.count;
+  }
+  // smooth areas: neighbours whose faces turn by less than `angle` belong together
+  function meshRegions(topo, angle) {
+    const lim = Math.cos(angle * Math.PI / 180), id = new Int32Array(topo.n).fill(-1), area = [];
+    for (let s = 0; s < topo.n; s++) {
+      if (id[s] >= 0) continue;
+      const k = area.length, stack = [s]; id[s] = k; let a = 0;
+      while (stack.length) {
+        const t = stack.pop(); a += topo.area[t];
+        for (let e = 0; e < 3; e++) {
+          const u = topo.nbr[3 * t + e];
+          if (u < 0 || id[u] >= 0) continue;
+          const d = topo.nrm[3 * t] * topo.nrm[3 * u] + topo.nrm[3 * t + 1] * topo.nrm[3 * u + 1] + topo.nrm[3 * t + 2] * topo.nrm[3 * u + 2];
+          if (d >= lim) { id[u] = k; stack.push(u); }
+        }
+      }
+      area.push(a);
+    }
+    return { id, area, count: area.length };
+  }
+  // every smooth area its own colour, neighbours different where the palette allows; tiny ones
+  // (under minArea mm²) take the colour of the neighbour they share most edge with
+  function paintRegions(topo, paint, o) {
+    const R = meshRegions(topo, o.angle ?? 30), slots = o.slots.filter(s => s != null && s !== LEAVE && s >= 0);
+    if (!slots.length) return 0;
+    const adj = new Map(), link = (a, b) => { if (a === b) return; let m = adj.get(a); if (!m) adj.set(a, m = new Map()); m.set(b, (m.get(b) || 0) + 1); };
+    for (let t = 0; t < topo.n; t++) for (let e = 0; e < 3; e++) { const u = topo.nbr[3 * t + e]; if (u >= 0) link(R.id[t], R.id[u]); }
+    const order = R.area.map((a, i) => i).sort((a, b) => R.area[b] - R.area[a]), col = new Int32Array(R.count).fill(-1), minA = o.minArea ?? 4;
+    order.forEach((r, rank) => {
+      if (R.area[r] < minA) return;
+      const used = new Set(); (adj.get(r) || new Map()).forEach((n, q) => { if (col[q] >= 0) used.add(col[q]); });
+      let pick = slots.find(s => !used.has(s)); if (pick === undefined) pick = slots[rank % slots.length];
+      col[r] = pick;
+    });
+    for (const r of order) if (col[r] < 0) {                // small bits join their biggest neighbour
+      let best = -1, bn = -1; (adj.get(r) || new Map()).forEach((n, q) => { if (col[q] >= 0 && n > bn) { bn = n; best = col[q]; } });
+      col[r] = best >= 0 ? best : slots[0];
+    }
+    for (let t = 0; t < topo.n; t++) paint[t] = col[R.id[t]];
+    return R.count;
+  }
+  // soft random blobs (value noise), split into the given colours by thresholds
+  function paintNoise(topo, paint, o) {
+    const slots = o.slots.filter(s => s != null && s >= 0 && s !== LEAVE); if (!slots.length) return;
+    const sc = 1 / Math.max(0.5, o.scale || 10), seed = (o.seed | 0) * 7919;
+    const h = (i, j, k) => { let n = (i * 374761393 + j * 668265263 + k * 2147483647 + seed) | 0; n = (n ^ (n >>> 13)) * 1274126177 | 0; return ((n ^ (n >>> 16)) >>> 0) / 4294967296; };
+    const sm = x => x * x * (3 - 2 * x);
+    const noise = (x, y, z) => {
+      const i = Math.floor(x), j = Math.floor(y), k = Math.floor(z), fx = sm(x - i), fy = sm(y - j), fz = sm(z - k);
+      const L = (a, b, t) => a + (b - a) * t;
+      return L(L(L(h(i, j, k), h(i + 1, j, k), fx), L(h(i, j + 1, k), h(i + 1, j + 1, k), fx), fy),
+               L(L(h(i, j, k + 1), h(i + 1, j, k + 1), fx), L(h(i, j + 1, k + 1), h(i + 1, j + 1, k + 1), fx), fy), fz);
+    };
+    for (let t = 0; t < topo.n; t++) {
+      const x = topo.cen[3 * t] * sc, y = topo.cen[3 * t + 1] * sc, z = topo.cen[3 * t + 2] * sc;
+      const v = 0.65 * noise(x, y, z) + 0.35 * noise(x * 2.3 + 17, y * 2.3 + 5, z * 2.3 + 11);
+      paint[t] = slots[Math.min(slots.length - 1, Math.floor(Math.max(0, Math.min(0.9999, (v - 0.15) / 0.7)) * slots.length))];
+    }
+  }
+  // brush: every triangle whose centre is within r of a point; `facing` skips faces turned away
+  // from the viewer (so a thin wall's far side is not painted through)
+  function paintBrush(topo, grid, paint, pts, r, slot, facing) {
+    let n = 0;
+    for (const p of pts) grid.near(p[0], p[1], p[2], r, t => {
+      if (facing && topo.nrm[3 * t] * facing[0] + topo.nrm[3 * t + 1] * facing[1] + topo.nrm[3 * t + 2] * facing[2] > 0.05) return;
+      if (paint[t] !== slot) { paint[t] = slot; n++; }
+    });
+    return n;
+  }
+  // fill: from triangle t0 across edges that bend less than `angle` ("smooth") or, with angle < 0,
+  // across neighbours that have the same colour as t0 ("same colour")
+  function paintFill(topo, paint, t0, slot, angle, base) {
+    if (t0 < 0 || t0 >= topo.n) return 0;
+    const same = angle < 0, lim = Math.cos(Math.max(0, angle) * Math.PI / 180), col = t => paint[t] === LEAVE ? base : paint[t], c0 = col(t0);
+    const seen = new Uint8Array(topo.n), stack = [t0], hit = []; seen[t0] = 1;
+    while (stack.length) {
+      const t = stack.pop(); hit.push(t);
+      for (let e = 0; e < 3; e++) {
+        const u = topo.nbr[3 * t + e]; if (u < 0 || seen[u]) continue;
+        const ok = same ? col(u) === c0 : topo.nrm[3 * t] * topo.nrm[3 * u] + topo.nrm[3 * t + 1] * topo.nrm[3 * u + 1] + topo.nrm[3 * t + 2] * topo.nrm[3 * u + 2] >= lim;
+        if (ok) { seen[u] = 1; stack.push(u); }
+      }
+    }
+    for (const t of hit) paint[t] = slot;
+    return hit.length;
+  }
+  // a picture projected straight through the model (like a slide projector): pix[j*w+i] is a
+  // filament index or -1; box = [u0, v0, u1, v1] is where the picture lands, in the axes of `dir`
+  function paintPicture(topo, paint, pic, dir, box, onlyFacing) {
+    const ax = { front: [0, 1, 2, 1], back: [0, 1, 2, -1], left: [2, 1, 0, -1], right: [2, 1, 0, 1], top: [0, 2, 1, 1] }[dir] || [0, 1, 2, 1];
+    const [iu, iv, iw, sgn] = ax;
+    for (let t = 0; t < topo.n; t++) {
+      if (onlyFacing && topo.nrm[3 * t + iw] * sgn < 0.05) continue;
+      let u = topo.cen[3 * t + iu], v = topo.cen[3 * t + iv];
+      if (dir === "back" || dir === "left") u = -u;
+      if (dir === "top") v = -v;
+      const fu = (u - box[0]) / (box[2] - box[0]), fv = (box[3] - v) / (box[3] - box[1]);
+      if (fu < 0 || fu >= 1 || fv < 0 || fv >= 1) continue;
+      const s = pic.pix[Math.floor(fv * pic.h) * pic.w + Math.floor(fu * pic.w)];
+      if (s >= 0 && s !== LEAVE) paint[t] = s;
+    }
+  }
+  // ---- reading other people's models ----
+  function parseOBJ(text) {
+    const V = [], out = [];
+    for (const line of String(text).split(/\r?\n/)) {
+      const s = line.trim(); if (!s || s[0] === "#") continue;
+      const p = s.split(/\s+/);
+      if (p[0] === "v" && p.length >= 4) V.push([+p[1], +p[2], +p[3]]);
+      else if (p[0] === "f" && p.length >= 4) {
+        const ids = p.slice(1).map(q => { let i = parseInt(q, 10); return i < 0 ? V.length + i : i - 1; });
+        if (ids.some(i => !(i >= 0 && i < V.length))) continue;
+        for (let k = 1; k + 1 < ids.length; k++) for (const i of [ids[0], ids[k], ids[k + 1]]) out.push(V[i][0], V[i][1], V[i][2]);
+      }
+      if (out.length > 9 * 4e6) throw new Error("That model has more than four million triangles.");
+    }
+    if (!out.length) throw new Error("No triangles found in that OBJ file.");
+    return new Float32Array(out);
+  }
+  // a 3MF model file (the XML inside the zip): every mesh, placed by its build items and components;
+  // returns triangles, and the painted filament per triangle when the file has slicer painting
+  // cfg (optional): the slicer's settings files, { bambu: Metadata/model_settings.config, prusa:
+  // Metadata/Slic3r_PE_model.config }. They say which filament each object, part or volume prints in;
+  // a triangle that is not painted takes that filament (0 = the first one, as with no settings at all).
+  function parse3MFModel(files, main, cfg) {
+    if (typeof files === "string") { files = { "/3D/3dmodel.model": files }; main = "/3D/3dmodel.model"; }
+    const norm = p => "/" + String(p || "").replace(/^\/+/, "");
+    const objs = new Map(), attr = (tag, name) => { const m = new RegExp("\\s" + name + "=\"([^\"]*)\"").exec(tag); return m ? m[1] : null; };
+    const extruderIn = xml => { const r = /<metadata\b([^>]*)\/?>/g; let m; while ((m = r.exec(xml))) if (attr(m[1], "key") === "extruder") { const e = Math.round(+attr(m[1], "value")); return e > 0 && e < 256 ? e : 0; } return 0; };
+    const objExt = new Map(), partExt = new Map(), volExt = new Map();
+    if (cfg && typeof cfg.bambu === "string") {
+      const r = /<object\b([^>]*)>([\s\S]*?)<\/object>/g; let m;
+      while ((m = r.exec(cfg.bambu))) {
+        const id = attr(m[1], "id"), e = extruderIn(m[2].replace(/<part\b[\s\S]*?<\/part>/g, ""));
+        if (e) objExt.set(id, e);
+        const pr = /<part\b([^>]*)>([\s\S]*?)<\/part>/g; let q;
+        while ((q = pr.exec(m[2]))) { const pe = extruderIn(q[2]); if (pe) partExt.set(id + "/" + attr(q[1], "id"), pe); }
+      }
+    }
+    if (cfg && typeof cfg.prusa === "string") {
+      const r = /<object\b([^>]*)>([\s\S]*?)<\/object>/g; let m;
+      while ((m = r.exec(cfg.prusa))) {
+        const id = attr(m[1], "id"), e = extruderIn(m[2].replace(/<volume\b[\s\S]*?<\/volume>/g, ""));
+        if (e) objExt.set(id, e);
+        const vr = /<volume\b([^>]*)>([\s\S]*?)<\/volume>/g, vols = []; let q;
+        while ((q = vr.exec(m[2]))) { const ve = extruderIn(q[2]), a = +attr(q[1], "firstid"), b = +attr(q[1], "lastid"); if (ve && isFinite(a) && isFinite(b)) vols.push([a, b, ve]); }
+        if (vols.length) volExt.set(id, vols);
+      }
+    }
+    for (const [path0, xml] of Object.entries(files)) {
+      const path = norm(path0), objRe = /<object\b([^>]*)>([\s\S]*?)<\/object>/g; let m;
+      while ((m = objRe.exec(xml))) {
+        const id = attr(m[1], "id"), body = m[2], V = [], T = [], F = [], comps = [];
+        const vr = /<vertex\b([^>]*)\/?>/g; let v; while ((v = vr.exec(body))) V.push(+attr(v[1], "x"), +attr(v[1], "y"), +attr(v[1], "z"));
+        const tr = /<triangle\b([^>]*)\/?>/g; let t;
+        while ((t = tr.exec(body))) { T.push(+attr(t[1], "v1"), +attr(t[1], "v2"), +attr(t[1], "v3")); F.push(paintDecode(attr(t[1], "paint_color") || attr(t[1], "slic3rpe:mmu_segmentation"))); }
+        const cr = /<component\b([^>]*)\/?>/g; let c;
+        while ((c = cr.exec(body))) { const pp = attr(c[1], "p:path"); comps.push({ key: (pp ? norm(pp) : path) + "#" + attr(c[1], "objectid"), m: attr(c[1], "transform") }); }
+        objs.set(path + "#" + id, { V, T, F, comps });
+        if (objs.size > 20000) break;
+      }
+    }
+    const mat = s => { const a = (s || "").trim().split(/\s+/).map(Number); return a.length === 12 && a.every(isFinite) ? a : [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]; };
+    const mul = (A, B) => {                               // 3MF matrices act on row vectors: p' = p·M
+      const r = []; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) r.push(A[3 * i] * B[j] + A[3 * i + 1] * B[3 + j] + A[3 * i + 2] * B[6 + j]);
+      for (let j = 0; j < 3; j++) r.push(A[9] * B[j] + A[10] * B[3 + j] + A[11] * B[6 + j] + B[9 + j]);
+      return r;
+    };
+    const out = [], paint = [], idOf = key => key.slice(key.lastIndexOf("#") + 1);
+    // top: the build item's object id (the settings files name objects by it); ext: the filament so far
+    const emit = (key, M, depth, top, ext) => {
+      const o = objs.get(key); if (!o || depth > 8) return;
+      const ok = k => Number.isInteger(k) && k >= 0 && 3 * k + 2 < o.V.length;
+      const vols = depth === 0 ? volExt.get(top) : null;
+      for (let t = 0; t < o.T.length / 3; t++) {
+        const a = o.T[3 * t], b = o.T[3 * t + 1], c = o.T[3 * t + 2];
+        if (!ok(a) || !ok(b) || !ok(c)) continue;
+        for (const k of [a, b, c]) {
+          const x = o.V[3 * k], y = o.V[3 * k + 1], z = o.V[3 * k + 2];
+          out.push(x * M[0] + y * M[3] + z * M[6] + M[9], x * M[1] + y * M[4] + z * M[7] + M[10], x * M[2] + y * M[5] + z * M[8] + M[11]);
+        }
+        let e = ext; if (vols) for (const v of vols) if (t >= v[0] && t <= v[1]) { e = v[2]; break; }
+        paint.push(o.F[t] || (e > 1 ? e : 0));
+        if (out.length > 9 * 4e6) throw new Error("That model has more than four million triangles.");
+      }
+      for (const c of o.comps) emit(c.key, mul(mat(c.m), M), depth + 1, top, partExt.get(top + "/" + idOf(c.key)) || ext);
+    };
+    const mainPath = norm(main || Object.keys(files)[0]), xml = files[main] || files[Object.keys(files).find(k => norm(k) === mainPath)] || "";
+    const items = []; const ir = /<item\b([^>]*)\/?>/g; let it;
+    while ((it = ir.exec(xml))) { const pp = attr(it[1], "p:path"); items.push({ key: (pp ? norm(pp) : mainPath) + "#" + attr(it[1], "objectid"), m: attr(it[1], "transform") }); }
+    const start = key => { const id = idOf(key); return objExt.get(id) || 0; };
+    if (items.length) items.forEach(i => emit(i.key, mat(i.m), 0, idOf(i.key), start(i.key)));
+    else objs.forEach((o, k) => { if (o.T.length) emit(k, mat(null), 0, idOf(k), start(k)); });
+    if (!out.length) throw new Error("No triangles found in that 3MF file.");
+    return { tris: new Float32Array(out), paint: paint.some(v => v > 0) ? Uint8Array.from(paint) : null };
+  }
+
   global.PRCore = {
     hexToRgb, rgbToHex, colorDist, luma, kmeans, buildCellMap, makeProjector, buildDecalSolids, weldSoup, parseSTL,
     prepareParts, make3MF, make3MF_BBL, makeSTL, makeOBJ, traceMask, groupLoops, triangulate, solidFromTris, buildVectorSolid,
     extrudePolys, extrudePolysAt, closeMask, smoothMask, revolve, revolveLoop, sweepTube, traceField, fieldToPolys, strokePolys, signedDistanceField, coverageField, blurMask, homography, applyH, warpQuad, quadCorners, refineQuad, fitDimensions, convexHull, outlineSVG, outlineDXF, transformSolid, mirrorSolid, solidBounds, mirrorMaskX, perforate, insideRing, snapToGrid, signedVolume, buildMaskSolid, maskOfSlot, checkMesh, edt, dilateMask, erodeMask, labelMask, maskToPolys, ringCircle, ringRect, ringStar, ringPoly, ringHeart, mergeSolids, area2,
     affineSolid, mat3Mul, rotationDownTo, analyzePrint, analyzePrintSteps, bestOrientation, bestOrientationSteps, orientationScore, brimSolid, bedContact, sliceMask, gridOver, flattenParts,
     seededRandom, jigsawGrid, jigsawCut, jigsawEdge, jigsawPiece, jigsawSVG, jigsawCutLines, ringField, ringDistance, outlineBand, strokeText,
-    gridAround, heightSheet
+    gridAround, heightSheet,
+    meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, gradientCuts, gradientLayers, paintGradient, paintSwap, meshShells, paintShells,
+    meshRegions, paintRegions, paintNoise, paintBrush, paintFill, paintPicture, parseOBJ, parse3MFModel
   };
 })(typeof window !== "undefined" ? window : globalThis);

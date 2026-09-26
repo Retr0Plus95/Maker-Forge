@@ -22,6 +22,8 @@ const EXPECTED_DEAD = [
   [/^Longest bridge/, "this model has no flat ceilings", () => { const p = win.MakerForge.print; return p && !p.flats.length; }],
   [/^Show problem areas/, "this model has nothing to mark", () => { const p = win.MakerForge.print; return p && !p.marks.support.length && !p.marks.fine.length && !p.thin.length; }],
   [/^Brush size/, "only sets the size of the next brush stroke"],
+  // Session 13: the box grows only when an opening is too big for its face
+  [/^Make the box bigger when an opening does not fit/, "every opening fits, so there is nothing to grow for", () => !(win.MakerForge.enclosure && (win.MakerForge.enclosure.misfit || []).length)],
   [/^Dot size/, "the test text has no i/j dots, and the test canvas draws glyphs as boxes"],
   [/^Minimum difference from the background/, "the test picture has only strong contrast"],
   [/^Keep only the (biggest|main) piece/, "the test picture is one piece"],
@@ -54,7 +56,8 @@ function signature(extra) {
   let ex = "";
   // x·(y + z) summed over the exported vertices tells a mirror image apart even when the bounds are
   // symmetric about the middle (a standing lithophane)
-  const hand = q => { let s = 0; const P = q.pos; for (let i = 0; i < P.length; i += 3) s += P[i] * (P[i + 1] + P[i + 2]); return (s / Math.max(1, P.length / 3)).toFixed(3); };
+  const hand = q => { let s = 0, sx = 0, sz = 0; const P = q.pos; for (let i = 0; i < P.length; i += 3){ s += P[i] * (P[i + 1] + P[i + 2]); sx += P[i] * P[i]; sz += P[i + 2] * P[i + 2]; }
+    const n = Math.max(1, P.length / 3); return (s / n).toFixed(3) + "/" + ((sx - sz) / n).toFixed(3); };   // (sx - sz): a hole turned 90° spreads the other way
   try { const e = MF.exportParts(); ex = e.map(q => { const r = C.checkMesh(q), b = C.solidBounds(q); return `${r.tris}:${r.volume.toFixed(2)}:${b.mn.map(v => v.toFixed(2))}:${hand(q)}`; }).join(";"); } catch (err) { ex = "export failed: " + err.message; }
   let tris = 0, vol = 0, bad = [], mx = 0, mz = 0, nv = 0;
   MF.parts.forEach(p => {

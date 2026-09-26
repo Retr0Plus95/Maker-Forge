@@ -7,7 +7,7 @@
 //     view buttons, text cut off in buttons and labels;
 //   - web fonts loaded, and the checks list with real glyph shapes (the jsdom stub draws boxes);
 //   - what only a browser does: an SVG drawn at its own size, the measuring tape, the section view and
-//     a share link opened in a second page.
+//     a share link opened in a second page, a brush stroke made with the mouse and a painted 3mf opened again.
 //
 //   node tools-browser-check.js index.html [out-dir]        (default out-dir: browser-check/)
 //   ONLY=nameplate,enclosure   objects to open (skips quick starts unless PRESETS=1)
@@ -293,6 +293,46 @@ function pageCoverage() {
     if (sig2 !== r.sig) findings.push({ where:"share link", what:"the design opened from the link is not the one that was shared" });
     notes.push(`browser-only features: SVG ${r.svg && r.svg.map(v => v.toFixed(3)).join(" × ")} mm, measure ${r.measure && r.measure.toFixed(3)} mm, section ${r.section}, share link ${r.link.url.length} characters, name list: ${r.batch && r.batch.check}`);
     await other.context().close();
+  }
+  // ---------- the colour painter with a real mouse, and a painted 3mf opened again (Session 13) ----------
+  {
+    const s = await page.evaluate(async () => {
+      const MF = window.MakerForge, sleep = ms => new Promise(q => setTimeout(q, ms));
+      const settle = async () => { const r0 = MF.rev; for (let i = 0; i < 40 && MF.rev === r0 && !MF.busy; i++) await sleep(30); for (let i = 0; i < 1200; i++){ if (!MF.busy){ await sleep(60); if (!MF.busy) break; } await sleep(25); } };
+      const sel = document.querySelector("#objectSel"); sel.value = "turned"; sel.dispatchEvent(new Event("change")); await settle();
+      MF.state.paint.ops = [{ k:"height", slots:[0, 1], cuts:[45] }]; MF.paint.repaint(); await settle();
+      [...document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "paint").click(); await sleep(100);
+      [...document.querySelectorAll("#secrail button")].find(b => b.dataset.title === "Brush and fill").click(); await sleep(100);
+      MF.paint.ui.tool = "brush"; MF.paint.ui.slot = Math.min(2, MF.state.slots.length - 1); MF.paint.ui.r = 5;
+      const r = document.querySelector("#view canvas").getBoundingClientRect();
+      return { x: r.left + r.width/2, y: r.top + r.height/2, ops: MF.state.paint.ops.length };
+    });
+    await page.mouse.move(s.x - 30, s.y); await page.mouse.down();
+    for (let i = 0; i <= 12; i++) await page.mouse.move(s.x - 30 + i*5, s.y + Math.sin(i/2)*6);
+    await page.mouse.up(); await settle(page);
+    const brushed = await page.evaluate(() => { const o = window.MakerForge.state.paint.ops; return { n:o.length, k:o[o.length - 1].k, pts:(o[o.length - 1].pts || []).length }; });
+    await shot(page, "paint-brush", "Paint tab: height bands and a brush stroke made with the mouse");
+    if (!(brushed.n === s.ops + 1 && brushed.k === "brush" && brushed.pts >= 3)) findings.push({ where:"paint brush", what:`dragging on the model left ${JSON.stringify(brushed)}` });
+    const exp = await page.evaluate(async () => {
+      const MF = window.MakerForge, parts = MF.exportParts(), zip = await MF.paint.buildZip(parts, "vase"), u8 = await zip.file("model-bambu.3mf").async("uint8array");
+      // the filament each triangle in the file prints in: its paint, or its part's own filament (a brim too)
+      const c = {}; parts.forEach(p => { const n = p.idx.length / 3; for (let t = 0; t < n; t++){ const v = p.paint && p.paint[t] !== 255 ? p.paint[t] : p.slot; c[v] = (c[v] || 0) + 1; } });
+      let b = ""; for (let i = 0; i < u8.length; i += 0x8000) b += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+      return { b64: btoa(b), counts: JSON.stringify(c), parts: parts.map(p => `${p.name} ${p.slot} ${p.idx.length / 3}`).join(", ") };
+    });
+    const f3 = path.join(OUT, "painted.3mf"); fs.writeFileSync(f3, Buffer.from(exp.b64, "base64"));
+    await page.evaluate(() => { const sel = document.querySelector("#objectSel"); sel.value = "stl"; });
+    await page.setInputFiles("#stlInput", f3);
+    await page.waitForFunction(() => /^painted\.3mf/.test((window.MakerForge.state.base.stl || {}).name || ""), null, { timeout: 180000 }).catch(() => {});
+    await settle(page);
+    // the opened file only: a picture still on the project is laid on the new model as a fresh decal
+    const back = await page.evaluate(() => { const MF = window.MakerForge, c = {};
+      MF.parts.filter(p => "importPaint" in p).forEach(p => { const n = p.solid.idx.length / 3; for (let t = 0; t < n; t++){ const v = p.paint && p.paint[t] !== 255 ? p.paint[t] : p.slot; c[v] = (c[v] || 0) + 1; } });
+      return { type:MF.state.base.type, counts:JSON.stringify(c), parts:MF.parts.map(p => `${p.name} ${p.slot} ${p.solid.idx.length / 3}`).join(", ") }; });
+    fs.unlinkSync(f3);
+    if (back.type !== "stl" || back.counts !== exp.counts) findings.push({ where:"painted 3mf", what:`exported ${exp.counts} (${exp.parts}), read back ${back.counts} (${back.type}: ${back.parts})` });
+    await shot(page, "paint-reimported", "A painted Bambu 3mf opened again: the paint is kept");
+    notes.push(`painter: a mouse stroke of ${brushed.pts} points; a painted 3mf read back ${back.counts === exp.counts ? "with every triangle's colour" : "DIFFERENT"}`);
   }
   await page.context().close();
 

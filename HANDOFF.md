@@ -4,7 +4,7 @@ Paste this into a new chat along with the repository files to continue.
 
 ## Project overview
 
-**Maker Forge** (v0.16.0) is a browser-based, MIT-licensed studio for multi-colour 3D printing: name keychains, photo-traced parts, jigsaw puzzles, lithophanes, lightboxes, bobble heads, circuit-board art and more. It runs entirely client-side with no build toolchain. Targets: GitHub, a personal website, and later a Linux desktop app (Electron or Tauri wrapper not started).
+**Maker Forge** (v0.17.0) is a browser-based, MIT-licensed studio for multi-colour 3D printing: name keychains, photo-traced parts, jigsaw puzzles, lithophanes, lightboxes, bobble heads, circuit-board art and more. It runs entirely client-side with no build toolchain. Targets: GitHub, a personal website, and later a Linux desktop app (Electron or Tauri wrapper not started).
 
 **Repository layout**
 
@@ -26,9 +26,11 @@ Paste this into a new chat along with the repository files to continue.
 | `tools-lithophane-test.js` | Lithophanes (Session 9): the sheet builder alone (outline areas, holes, simplified backs, the cylinder seam, a curve), then the generator in the app (thickness follows brightness, mirror, the upright slope limit, every shape and outline closed and support-free, the lamp shade, the hanging hole, Optimize, a hostile project). `node tools-lithophane-test.js index.html` (~85 s); `CORE=1` for the geometry only (~5 s). |
 | `tools-print-survey.js` | Prints what the printability check says about every object and preset: `node tools-print-survey.js index.html [objects\|presets\|all]` (`NOPIC=1` skips the test picture). Use it after any generator change to spot new warnings. |
 | `tools-enclosure-test.js` | Project boxes (Sessions 11 and 12): sizes and volumes, 30 opening kinds on 4 faces, placement messages, screws, lids and heads, boards, labels, magnets, feet, pointed tops, notches, the sliding lid, the lid logo, the fit test, the presets, the rulers, hostile project files. |
+| `tools-paint-test.js` | Colour painter (Session 13): crack-free mesh splitting (refine, height cuts), every paint step on a cube with known areas, the slicer paint codes, painted 3mf / OBJ out and 3mf / OBJ in, then the Paint tab in the app (every auto method, the paint list, a live band slider, brush, mirror, fill, detail, export, the colour check), OBJ import, a hostile project (paint, printer, same-name settings), the printer list and easy reading. `CORE=1` for the geometry part. |
+| `tools-phonecase-test.js` | Phone cases (Session 13): all 75 phones build a closed case of exactly the phone plus gap and wall, openings take plastic away where they should, the lip prints as a ledge over a slope, fit test rim, bumper, every setting changes the case, a picture inlaid in the back (mirrored for reading from the back), a hostile project file. |
 | `tools-size-check.js` | The on-screen size readout against the export parts, the 3MF vertices (both flavours) and the STL, for four objects (Session 11). |
 | `tools-browser-check.js` | **Real browser** (Session 12): opens `index.html` in Chromium via Playwright, answers the CDN requests from `node_modules` (same files, SRI still matches), walks every quick start, object, tab and panel page, saves screenshots and `report.html` to `browser-check/`, and flags page errors, an empty 3D view and layout problems (sideways scroll, content wider than the panel, HUD pills under the view buttons, cut-off text). Then checks what only a browser does: an SVG traced at its own size, the measuring tape, the section view, a share link opened in a second page, a list of name plates. `PRINT=1` reports printability with real fonts, `MOBILE=1` adds a phone-sized pass, `ONLY=`, `PAGES=0`, `THEME=dark`. Needs Playwright with Chromium (`npm i --no-save playwright && npx playwright install chromium`; a global install is found too). |
-| `package.json` | Test dependencies and script shortcuts (`npm run build`, `test:tracer`, `test:smoke`, `test:audit`, `test:print`, `test:jigsaw`, `test:litho`, `test:enclosure`, `test:size`, `survey:print`, `check:browser`). |
+| `package.json` | Test dependencies and script shortcuts (`npm run build`, `test:tracer`, `test:smoke`, `test:audit`, `test:print`, `test:jigsaw`, `test:litho`, `test:enclosure`, `test:paint`, `test:phonecase`, `test:size`, `survey:print`, `check:browser`). |
 | `README.md`, `LICENSE` | Docs, MIT. |
 
 Dependencies load from CDNs at runtime: three.js r128, OrbitControls, earcut 2.2.4, JSZip 3.10.1, Google Fonts. Test deps: `npm i` (or `npm i jsdom three@0.128.0 earcut@2.2.4 jszip@3.10.1`).
@@ -37,7 +39,7 @@ Dependencies load from CDNs at runtime: three.js r128, OrbitControls, earcut 2.2
 
 **Key architecture in `app.html`** (sections are commented 1–9): constants (`FONTS` 34 entries, `PRINTERS`, `PRESETS`, `SHAPES`, `OBJECT_GROUPS`) → state and history (JSON snapshots, `sanitizeProject`) → helpers (`cutoutCanvas` background removal, `sourceCanvas` adjustments) → generators (`buildNamePlate`, `buildTracer`, `buildLightbox`, `buildLithophane`, `buildJigsaw`, `buildPCB`, `buildBobble`, `buildCutter`, `buildCanvasPanel`, `buildTurned`, `buildSimpleObject`) → artwork pipeline (`buildItem`) → scene and `rebuildAll` → checks (`runChecks`) → UI (`renderTab`, `renderStarts`, tab functions, field helpers `numField/selField/segField/checkField/slotField/fontField/symbolField/group`) → export (`buildZip` writes Prusa/Orca 3mf, Bambu 3mf, OBJ+MTL, per-colour STL, merged STL, project.json). `window.MakerForge` exposes state, parts, checks, a build counter (`rev`) and `busy` for tests.
 
-**Key functions in `core.js`**: `traceField`/`fieldToPolys` (sub-pixel marching squares), `blurMask`, `signedDistanceField`, `coverageField`, `maskToPolys` (now smooth by default; `{stepped:true}` for pixel-exact), `edt`/`dilateMask`/`erodeMask`/`closeMask`, `labelMask`, `triangulate`/`refine`, `solidFromTris`, `extrudePolys(At)`, `buildMaskSolid`, `makeProjector`, `revolveLoop`, `sweepTube`, `checkMesh`, `make3MF`, `make3MF_BBL`, `makeOBJ`, `makeSTL`, `prepareParts`. Printability (Session 7): `analyzePrint`/`analyzePrintSteps`, `bestOrientation`/`bestOrientationSteps`, `brimSolid`, `affineSolid`, `rotationDownTo`, `sliceMask`, `flattenParts`, `bedContact`. Jigsaw (Session 8): `jigsawGrid`, `jigsawCut`, `jigsawEdge`, `jigsawPiece` (with `placeLabel`), `jigsawCutLines`, `jigsawSVG`, `ringField` (banded signed distance to rings), `ringDistance`, `outlineBand`, `strokeText` (a 4 × 6 stroke font; Session 12 added I, O and `- + / . : %` and space for box labels, the jigsaw still never uses I or O), `strokePolys` (stroke text as filled outlines, Session 12), `seededRandom`. Lithophane (Session 9): `heightSheet` (a thickness grid as a closed solid, clipped to an outline, mapped flat, curved or round), `flatBack` (internal: a flat back triangulated from the boundary loops), `gridAround` (now exported).
+**Key functions in `core.js`**: `traceField`/`fieldToPolys` (sub-pixel marching squares), `blurMask`, `signedDistanceField`, `coverageField`, `maskToPolys` (now smooth by default; `{stepped:true}` for pixel-exact), `edt`/`dilateMask`/`erodeMask`/`closeMask`, `labelMask`, `triangulate`/`refine`, `solidFromTris`, `extrudePolys(At)`, `buildMaskSolid`, `makeProjector`, `revolveLoop`, `sweepTube`, `checkMesh`, `make3MF`, `make3MF_BBL`, `makeOBJ`, `makeSTL`, `prepareParts`. Printability (Session 7): `analyzePrint`/`analyzePrintSteps`, `bestOrientation`/`bestOrientationSteps`, `brimSolid`, `affineSolid`, `rotationDownTo`, `sliceMask`, `flattenParts`, `bedContact`. Jigsaw (Session 8): `jigsawGrid`, `jigsawCut`, `jigsawEdge`, `jigsawPiece` (with `placeLabel`), `jigsawCutLines`, `jigsawSVG`, `ringField` (banded signed distance to rings), `ringDistance`, `outlineBand`, `strokeText` (a 4 × 6 stroke font; Session 12 added I, O and `- + / . : %` and space for box labels, the jigsaw still never uses I or O), `strokePolys` (stroke text as filled outlines, Session 12), `seededRandom`. Painter (Session 13): `meshEditor` (split edges without cracks: `refine(maxEdge, maxTris)`, `cut(axis, h)`, `source()` maps each new triangle to the one it came from), `meshTopology` (centres, normals, areas, neighbours), `triangleGrid`, the paint steps `paintHeights`, `paintGradient`/`gradientCuts`, `paintStripes`/`stripeCuts`, `paintDirection`, `paintShells`, `paintRegions`, `paintNoise`, `paintPicture`, `paintBrush`, `paintFill`, `paintSwap`, the slicer codes `paintCode`/`paintDecode`, and the readers `parseOBJ`, `parse3MFModel` (several model files, components, build transforms, paint). `mergeSolids` and `prepareParts` carry a per-triangle `paint`; `make3MF`/`make3MF_BBL`/`makeOBJ` write it. Lithophane (Session 9): `heightSheet` (a thickness grid as a closed solid, clipped to an outline, mapped flat, curved or round), `flatBack` (internal: a flat back triangulated from the boundary loops), `gridAround` (now exported).
 
 ## Completed this session
 
@@ -310,6 +312,56 @@ Started from the Session 11 files on GitHub (`build.py` reproduced `index.html` 
 
 **Still needs a real check:** Firefox and Safari (only Chromium was run); a slicer and real prints of the sliding lid (rail fit), the magnet pockets (press fit), labels at the default 0.6 mm line width, the fit-test box, the lithophane test strip and the smoothed vase; share links from a hosted copy (tested only from the local file in Chromium).
 
+## Session 13: colour painter, phone cases, 39 printers, easy reading (v0.17.0)
+
+The user asked for: all bugs seen on the way fixed, performance and stability, many more printers (theirs is a Bambu Lab **X2D**), phone sizes researched for a phone case tool, 50 new ideas, the next big tool (automatic and manual **colour painting** of any model, including imported ones, in up to 8 colours, by height and more), a reset-to-default for sliders, and an app that is easy to read and find things in for someone who cannot see well.
+
+**Colour painter (Paint tab).** The paint is a list of steps, replayed in order after every build (`applyPaint` in the rebuild, `repaint` when only the steps change), so it follows the model when a setting changes, and it is undoable like everything else. Steps: height bands (2 to 8, edges cut into the mesh, "line up with the layers"), a colour fade (every layer in a range is one of two filaments, the second one's share rising evenly by error diffusion), stripes, tops / walls / undersides by angle, separate pieces (largest first), smooth areas split at sharp edges (neighbours get different colours when the palette allows; tiny areas join their neighbour), a picture from the Art tab projected from the front, back, sides or top (split into the loaded filaments like the decals), random blobs (value noise, a pattern number), swap one colour for another, and by hand: brush (radius, only the side facing you, mirror to the other side), fill (a smooth area up to an edge angle, or the same colour) and eraser. Keys 1 to 8 pick a colour, [ ] the brush size, B F E V the tool. While painting, the left button paints and the right button turns the view; on touch screens one finger paints, two move ("Turn view" switches back). Brush strokes paint live (only the touched triangles are recoloured), then the whole list is replayed.
+- **Mesh:** triangles are painted whole, so `meshEditor` splits the model: longest-edge bisection until no edge is over 1.2 mm (Normal; Coarse 2.5, Fine 0.6; automatic uses none unless a brush, fill, picture or blob step needs it; at most 900,000 triangles, the detail is lowered with a message beyond that), and cuts along every band height. Each split puts one vertex on the shared edge and cuts both triangles, so the mesh stays closed with exactly the same volume (tested on a cube, a revolved ball, and every auto step on the vase). The refined mesh is cached per original solid and key, so strokes and colour changes never redo it; imported models are welded once per file and scale.
+- **Files:** painted triangles get `paint_color` (Bambu Studio, OrcaSlicer) or `slic3rpe:mmu_segmentation` (PrusaSlicer, whose 3mf also sets the triangle's base material) with PrusaSlicer's TriangleSelector code for a whole triangle: filament 1 "4", 2 "8", 3 to 18 "0C" to "FC". The OBJ groups faces by colour under `usemtl`. STL has no colour. The export README says so. Checked in Node (round trip, codes) and in Chromium (a painted vase exported as a Bambu 3mf and opened again: every triangle kept its filament). **Not yet opened in a real slicer.**
+- **Import:** STL, OBJ (polygons fanned, negative indices) and 3MF (every .model file in the zip, components with `p:path` as Bambu keeps them, build transforms, triangle paint; the filament colours from `Metadata/project_settings.config` go into the slots). The painting of a 3mf is kept as "imported paint" under the steps. JSZip does not run in jsdom's realm, so 3mf import is only tested in the browser check.
+- The colour count check counts painted colours; the Paint page shows each colour's share of the surface.
+
+**Phone cases** (`buildPhoneCase`, 75 phones in `PHONES`, `phoneSpec`). Heights, widths and thicknesses are from the makers' spec sheets (searched in September 2026: iPhone SE to iPhone 18 Pro Max and iPhone Air, 17e; Galaxy S23 to S26 incl. Ultra, Edge and FE, A16 to A57; Pixel 8 to 11 incl. a-models; OnePlus 13 and 15, Xiaomi 15 and 17, Nothing Phone (3)). The corner radius, camera opening (seen from the back), camera bump and button positions are estimates by family, shown and editable on the pages with a note to check them with a ruler. Pixel 11 Pro and Pro XL are left out: the sizes found were inch conversions. The case prints back down: the back is a flat plate (a field traced with `fieldToPolys`, camera opening subtracted), the wall is one `heightSheet` wrapped round the outline over (arc length, height), with its rows placed exactly where the profile turns, so button and port openings are exact rounded slots, the bottom edge is a 50° chamfer, and under the lip a 45° slope carries all but the last 0.8 mm (a ledge that narrow prints; the checker agrees). Options: gap, wall, back, lip and its thickness, rounding, full case or bumper, a **fit test rim** (the wall alone), one hole per button or one long slot a side, charging port / port and speakers / closed, the camera opening and its margin, and a picture inlaid in the back (reuses the project box's `encLogo`, mirrored so it reads from the back). What remains flagged: the tops of the button openings (short bridges, 114 mm² on the iPhone 17 Pro).
+
+**Printers.** 39 printers grouped by maker (`brand`, a `note` shown under the picker), the build height is editable, and your printer is remembered in this browser (`makerforge.printer`) and used for new projects and Start over. Bambu X2D: 256 × 256 × 260 mm single nozzle (about 235.5 mm wide with both nozzles), 5 filaments in the usual combo (4 in the AMS 2 Pro plus a spool on the second nozzle). The table's comment gives the sources' date; "colors" follows the usual combo and is editable.
+
+**Easy reading and finding things.** The **Aa** button: text and buttons 100 to 175% (CSS `zoom` on the panels, the app bar and the view's overlays, not on the 3D canvas; the start sidebar steps aside at 130% and over on narrower screens), high contrast (stronger text, lines and focus rings in light and dark), extra clear letters (Atkinson Hyperlegible, loaded only when chosen), messages for longer or until clicked, messages read aloud, less movement. 🔊 in the panel header reads the open page aloud (title, help, every label with its value, notes). Arrow keys move along the tabs and the page icons. Every slider gets **↺ default** when it is off its default: `findDefault` finds which number a field shows by swapping candidate numbers for a marker for a moment (this object's settings, the model, the printer's spec, the selected artwork, box openings) and reads the same place in a fresh project; fields with computed getters get none. Each page with two or more such sliders has **Reset this page**, and the Make tab's first page **Start this … over**.
+
+**Bugs fixed on the way.**
+1. **Reopening a project changed settings.** `sanitizeProject` clamps numbers by key name (`LIMITS`), and four keys meant something else elsewhere: charm size and picture size (0.4 to 3) were raised to 1, the artwork outline width (0.2 to 6 mm) to 5 mm, and the plastic canvas's 120 pixels across cut to 90. Every reload of an autosaved project did it. `LIMITS_AT` now holds limits by parent and key; paint steps are cleaned by `cleanPaint` instead.
+2. A project key such as `toString` looked up `LIMITS[k]` on the prototype and turned its number into NaN (now `hasOwnProperty`). A printer model `"__proto__"` passed the model check (now `encHas`).
+3. Printer nozzle, layer height and flow in project files were not clamped (now `cleanPrinter`).
+4. Removing a filament left paint steps pointing at the wrong colour (now remapped; the removed one goes back to the part's own colour).
+5. **Project box holes looked oval** (reported by the user with a screenshot of a 382 mm box with a 120 mm fan): every round hole in a wall was a teardrop by default ("print-friendly tops"), which reads as a misshapen oval, most of all on a big fan opening. Round holes are round now; the pointed tops are an option ("Pointed tops on holes in the walls", off). Projects saved before v0.17 (file format below 5) open with round holes, since that option was on for everyone. The cost: the tops of round holes show as a little support in the check (Project box 0 → 41 mm², Power bank box 27 → 74, PSU box 603 → 652); printers bridge holes this size without trouble.
+6. **An opening bigger than its face disappeared** (the user picked a 120 mm fan for a 75 mm tall side): it was left out with a message only on the Export tab. Now changing an opening's size, kind, face or turn grows the box just enough and slides the opening into place (`encGrowToFit`, notice "The box grew from … to … mm, Undo puts it back"; "Make the box bigger when an opening does not fit" turns it off). An opening that still does not fit gets a "Not in the box yet" card with a **Make it fit** button, and stays in the checks.
+7. **A board bigger than the box left its standoffs standing outside the box** (a Raspberry Pi in a 50 × 40 mm box came out 67 mm wide). The standoffs are left out until the board fits, the warning gives the smallest box, and picking a board (or turning it, or changing its size or standoffs) grows the box round it.
+8. The phone case's camera opening running off the phone is now said, not silently cut.
+9. "↺ default" on a box opening could show another opening's value: `findDefault` matched the openings list by position against the default box's. Lists (`cut`, the phone's `btn`) are no longer probed; openings are matched through `newOpening` only, and their positions have no reset.
+10. "Start this object over" and "Remove all paint" act at once with a message that Undo brings things back, instead of a pop-up (easier with big text or a screen reader; jsdom has no `confirm()`, which the smoke test caught).
+11. **Opening a 3mf lost each part's filament** (found by the browser check's painted-3mf round trip). Only the per-triangle paint was read, so a file whose parts print in different filaments (a picture decal, a lid, any multi-part Bambu Studio project) opened with every unpainted part in filament 1. `parse3MFModel(files, main, cfg)` now reads the slicer's settings: Bambu Studio / OrcaSlicer `Metadata/model_settings.config` (an extruder per object and per part, the part id being the component's object id) and PrusaSlicer `Metadata/Slic3r_PE_model.config` (per object and per volume, a volume being a triangle range); an unpainted triangle takes its part's filament. Filament colours come from Bambu's `project_settings.config`, else PrusaSlicer's `Slic3r_PE.config` (`extruder_colour`, then `filament_colour`), else the file's `<basematerials>` colours. A filament the file uses beyond the project's list is added (with a stock colour when the file gives none), up to 8.
+12. **A share link of a project box opened a slightly different box**: the lens filament (`lensSlot`) was missing from the box defaults, so loading the link added it. It is in `DEFAULTS.enclosure` now. The browser check caught it (it compares the whole box state).
+
+The browser check's round trip had two faults of its own, fixed: it counted only painted parts (an unpainted part's triangles print in the part's filament, which the file stores per part, not per triangle), and it read the model back 0.6 s after choosing the file. Opening that 217,000-triangle file takes about 1.4 s of script in Chromium; in this container the whole import took 5 to 23 s, nearly all of it software rendering (SwiftShader, no GPU). It now waits for the import, counts the filament every triangle prints in, and leaves out the fresh decal that a picture still on the project puts on the opened model.
+
+**Pilot lights (the user asked for traditional dashboard pilot lights wherever an LED goes).** New opening kinds, first in the list: **Pilot light, printed jewel lens** for a 5 mm or 3 mm LED (holes 8 and 6 mm plus the clearance), chrome-bezel LED holders for 5 and 3 mm LEDs (holes 8 and 6 mm), metal pilot lights 8, 10, 12, 16 and 19 mm and the 22 mm AD16-22 dashboard lamp. The bare LED holes are still there ("bare hole"). For every printed pilot light that made it into the box, one jewel lens is built (`buildEnclosure`, after the lid): an octagonal flange that stops it inside the wall, a shank as long as the wall is thick whose corners stay inside the hole, a faceted dome narrowing to a small flat, and a pocket for the LED from the back that stops where the narrowing dome would leave less than 0.9 mm of wall round it; all eight-sided, printed flange down in a row in front of the box, in "Filament for the pilot light lenses" (`lensSlot`). No lenses in the fit test. The Project box and Power bank box presets use printed pilot lights now (the power bank's four charge lights are 10 mm apart instead of 6). With pilot lights the survey reads Project box 45 mm² of support and Power bank box 91 (41 and 74 with the bare LED holes): the tops of the bigger round holes; each lens only has a small bridge over its LED pocket. A printed pilot light's hole is never smaller than its lens (`lensMinHole`: 7.8 mm for a 5 mm LED, 5.6 mm for a 3 mm one, before the clearance), and its Diameter slider starts there.
+
+**Caught by the final survey:** the first version of the lens ran the LED pocket up to 1.2 mm under the lens's top. The dome narrows faster than that, so the 5 mm lens's pocket came out through the side of the dome (the revolved profile crossed itself: still a closed mesh, so `checkMesh` passed, but the printability check saw 22 mm² of "support" inside the lens) and the 3 mm lens kept 0.14 mm of wall there. Fixed as above (the Project box's survey line went from 67 to 45 mm², the pocket's roof now read as a bridge); `tools-enclosure-test.js` now casts horizontal rays from each lens's axis (every 0.05 mm up, 16 directions) and requires them to go in and out of the plastic in turn, end outside, and cross at least 0.75 mm each time (0.86 and 0.87 mm now; the old lens fails with 272 bad rays and 0.03 mm).
+
+**Verified on the final build** (commit 32416b1; the documentation commits after it change no code):
+
+- **Smoke test:** full, with every button (22 quick starts, 20 objects, 5 tabs, 328 clicks, no page errors).
+- **Test suites, all passing:** `tools-paint-test.js` (75 checks), `tools-phonecase-test.js` (25; the first check builds all 75 phones), `tools-enclosure-test.js` (84, including the lens walls, the too-small hole and the hostile lens filament), both printability tests (83), all four tracer tests (59 checks; the bracket measurements are the same as in Session 6), `tools-lithophane-test.js` (59) and `tools-jigsaw-test.js` (82).
+- **Size check:** readout, STL, 3mf and Bambu 3mf agree.
+- **Audits:** phone case (19 controls), turned shapes (8), project box (26), tracer (18), name plate (18) and lithophane (9). No findings beyond the expected list, which now includes the box's grow switch when every opening already fits.
+- **Print survey:** the same as the lens-fix build. Against Session 12: Project box 0 → 45 mm² and Power bank box 27 → 91 (round holes and pilot lights); PSU box 603 → 652 (round fan holes); the new Phone case reads 114 (the tops of the button openings); everything else unchanged.
+- **Real-browser check** (`PRINT=1 MOBILE=1`): 150 screenshots with no findings, no page errors and web fonts loaded. The browser-only features measured as expected: an SVG at 39.994 × 19.981 mm, the tape at 92.000 mm, the section at 18.0 mm, a 3,197-character share link that opens the same box, and three names as three one-piece plates. The painter test drew a 7-point brush stroke with the mouse, and a painted Bambu 3mf read back with every triangle's filament.
+- **Not checked:**
+  - a painted 3mf opened in Bambu Studio, OrcaSlicer or PrusaSlicer;
+  - Firefox or Safari;
+  - a printed phone-case fit-test rim;
+  - a printed pilot-light lens.
+
 ### 50 ideas for next sessions (tools we are working on now)
 
 **Project box**
@@ -374,13 +426,79 @@ Started from the Session 11 files on GitHub (`build.py` reproduced `index.html` 
 49. Share link: pack the project into a URL so a friend can open the same box. (done, Session 12: pictures left out)
 50. A community parts library: the CUTOUTS table as a JSON file users can extend (their own modules, with photos), imported and exported from the Project tab.
 
+
+### 50 more ideas (Session 13)
+
+Painter
+1. Colour AI-generated models: read OBJ vertex colours and GLB/glTF textures, then quantise to the loaded filaments.
+2. Wrap a picture round a model (cylindrical and spherical projection), not only straight through it.
+3. Export sub-triangle paint (TriangleSelector split trees) so edges are exact without refining the mesh: smaller files.
+4. A layer preview: slide through the heights and see each layer's colours, with the number of colour changes.
+5. A purge and waste estimate per printer type (AMS, CFS, tool changer), and a "fewer changes" option that merges thin bands.
+6. Height bands as colour-change pauses (M600) for single-nozzle printers without an AMS, exported per slicer.
+7. A box select: drag a rectangle on the view to paint everything inside it (front faces or all the way through).
+8. Radial symmetry (4, 6, 8 ways) for mandalas and vases, and front / back mirroring.
+9. A brush that stops at sharp edges ("magnetic"), and a soft brush that paints only faces within an angle of the first.
+10. Colour by curvature (edges and hollows darker) for weathered, stone and wood looks.
+11. Named paint layers that can be hidden and shown, and strokes grouped per layer.
+12. A BVH for raycasting, so brushing a million-triangle model stays smooth.
+13. Keep paint when the imported model is scaled or mirrored (paint in model space: it already follows scale; check mirror).
+14. Paint by picking a colour on the model (eyedropper) and "select all of this colour".
+15. Save the imported model inside the project file (compressed), so a painted import reopens without the original file.
+
+Phone cases
+16. Flexible button covers (raised TPU bumps) instead of holes.
+17. A raised camera guard ring printed with a 45° inside chamfer.
+18. A MagSafe ring recess in the back, and a strap loop or lanyard holes at the bottom corners.
+19. A card pocket on the back, and a print-in-place kickstand.
+20. Measure a phone that is not in the list from a photo on paper (the tracer's paper scaling), camera included.
+21. Exact camera and button positions from Apple's and Samsung's accessory design guidelines, checked with real phones.
+22. Tablets (iPad, Galaxy Tab), e-readers and game controllers.
+23. Grip textures on the sides and a name engraved or painted on the back.
+
+Printers and slicing
+24. Dual-nozzle beds: narrow the bed automatically when both nozzles are used (X2D, H2D, H2C), and show exclusion zones (the A1's purge area).
+25. Put the printer and plate settings into the 3mf, so Bambu Studio and PrusaSlicer open with the right printer.
+26. A "my spools" library: brand, colour code, material and price, used for the palette and cost.
+27. Material presets that set fit clearances (TPU cases, PETG boxes, PLA snap fits).
+28. Test one painted export in each slicer from the command line (PrusaSlicer and OrcaSlicer both have a CLI) in the test suite.
+
+Easy to use
+29. A guided mode: a few big questions (what, for whom, which colours) that set everything up.
+30. Describe the model in words for screen readers (size, parts, colours, warnings) and announce each finished build.
+31. Keyboard control of the 3D view (arrows turn, + and − zoom) with a visible focus ring on the view.
+32. A search box for settings.
+33. Colour-blind friendly palettes and a pattern overlay in the view to tell filaments apart.
+34. A tablet layout with bottom sheets and bigger touch targets.
+35. An undo list with named steps.
+36. Every warning with a small picture of the problem and the fix.
+37. Translations, with right-to-left layout for Arabic and Hebrew.
+38. Remember the last page per object between visits, and a "recently made" row.
+
+Speed and reliability
+39. Move tracing, refining, painting and the printability check into a Web Worker, so the page never freezes.
+40. Save to IndexedDB with the last five versions, instead of one localStorage entry with a size limit.
+41. Work offline as an installable app (service worker, fonts and libraries cached).
+42. A memory guard: warn before an import or a paint detail would use more than the browser can give.
+43. Run the real-browser check in CI on every push, with screenshots attached to the pull request.
+
+New tools
+44. Gridfinity bins with labels in a second colour.
+45. Cable clips, cable tags and wall hooks from a diameter and a screw size.
+46. Plant pots with saucers and drainage, painted with the fade or stripes.
+47. Knobs and keycaps with inlaid text or symbols.
+48. Colour lithophanes (a CMY layer stack behind white).
+49. Stencils and cookie stamps from the tracer, with bridges added automatically.
+50. Topographic relief maps from an elevation picture, painted by height.
+
 ## Unfinished (in priority order)
 
 - **P4**: none outstanding beyond polish.
-- **P5**: an actual 3D view cube widget; dimension lines drawn along the model; Bambu Lab **X2D** printer (not added: specs unverified, check before adding); bed resize already follows the printer; more layout modes next to Explode (e.g. lay layered parts flat).
+- **P5**: an actual 3D view cube widget; dimension lines drawn along the model; bed resize already follows the printer; more layout modes next to Explode (e.g. lay layered parts flat).
 - **P6**: art instructions and example images; picking several pictures for use in other sections (the `enabled` flag is the start of this); traceable pictures on keychains (silhouette mode exists via "Print it in its own colours" off).
 - **P7**: all section improvements (Double-Sided Name rename and mirrored back plate, iron-on patch shapes and military badges and premade patches, Christmas ornaments, caricature bobble head, name/letter lightbox and more box styles, photo frame back panel and clear front and relief panel, tea light egg/round shapes and picture positioning and candle ring and wagon-lantern cover and separate walls, plastic canvas fitting, functional PCB with conductive filament and copper-sheet workflow and Gerber import, car badge shapes and two-sided car keychain).
-- **P8**: Phone case generator. (Printability checker done in Session 7, jigsaw puzzles in Session 8, lithophanes in Session 9.)
+- **P8**: done in Session 13 (phone cases). Next: button covers, camera guard ring, MagSafe recess, exact positions from the makers' design guidelines (ideas 16 to 23 above).
+- Painter next steps: ideas 1 to 15 above; opening painted exports in Bambu Studio, OrcaSlicer and PrusaSlicer is still to be done by hand.
 - Lithophane next steps: the test strip exists (Session 12); use a printed one to calibrate the preview's transmission constant (1.3 per mm is a guess); colour lithophanes (a thin colour layer behind a white sheet, or filament-swap layers); a lithophane puzzle (joins the jigsaw's single-colour idea); for the lamp shade, *stretch once round* as an alternative to repeating copies, a base ring that sits on an LED tea light, and a lid; an engraved name on the border or foot; a separate slotted stand instead of one printed with the sheet; a *keep proportions* option for the heart (it is stretched to the picture's aspect, like the jigsaw's heart); decimating flat areas (border, blank gaps, smooth sky) so big sheets need not be coarsened.
 - Jigsaw next steps: a lithophane or relief puzzle for single-colour printers (the picture as thickness, backlit); whimsy pieces (a heart, a star or the picture's own subject cut out as one piece); knob shapes from a symbol; split a puzzle bigger than the bed into plates of whole pieces; an optional "print spread out" layout with wider spacing; two-sided puzzles (a second picture on the back); drop colour slivers narrower than the nozzle inside each piece; the heart outline is stretched to the picture's aspect ratio (a "keep proportions" option would crop instead).
 - Printability follow-ups: fillets were in the original idea next to the brim and were not done. Optimize keeps the yaw the rotation gives; it does not yet turn the model on the bed to fit or to line up with the bed axes. (Session 12 fixed the vase profile and added the "Turned for printing" note.) A flat ceiling whose ends meet small rounded corners is not seen as anchored (the rounded corner has no material right beside the ceiling), so it reads as support; the box generator avoids it with square-top port holes, but the checker could count small steep corners as anchors.
@@ -395,6 +513,7 @@ Started from the Session 11 files on GitHub (`build.py` reproduced `index.html` 
 - Enclosure: wall openings wider than the bridge limit (default 10 mm, e.g. USB-A, LCD bezels) are reported as needing support; the Openings page offers a pointed top or a notch for ports and rectangles (Session 12), but snap-in parts keep their flat tops. The PSU box preset still reads about 600 mm² (fan rings, IEC inlet, rocker, voltmeter). Honeycomb fan grilles are worse (their pointy-top hexagons have 30° roofs).
 - Enclosure: artwork goes on the lid only (inlay or engraved), not on the walls.
 - Enclosure, Session 12 fits not yet printed: magnet pockets (+0.2 mm on diameter and depth), the sliding lid's 0.2 mm gap and 45° rails, foot recesses, 0.4 mm label depth and 0.6 mm label lines, the lid logo in its first layers. Print the fit test first.
+- Enclosure, Session 13 not yet printed: the pilot-light jewel lens (the shank's corners have 0.15 mm of play a side plus the clearance, the LED pocket 0.1 mm a side, so a 5 mm LED's 5.8 mm base rim stays outside it). Print one lens and a scrap of wall with its hole before a whole box.
 - Tracer hollow cover: strokes thinner than two walls stay solid (by design, noted in the panel).
 
 - **Bambu 3mf in Bambu Studio** (tested by the user, Session 10): geometry and colours load, with the standard notice for third-party files (*not from Bambu Lab, load geometry data and color data only*); see Session 10 for why that notice cannot be removed safely. The filament colours themselves come from the user's Bambu Studio setup, not from the file.
@@ -429,7 +548,8 @@ Started from the Session 11 files on GitHub (`build.py` reproduced `index.html` 
 3. ~~Printability checker~~ (done, Session 7). In a real browser: check the red/blue overlay draws on top of the faces and Optimize's busy indicator; import a turned model and a brim into a slicer.
 4. ~~Lithophane generator~~ (done, Session 9). In a real browser: check the backlit preview and print one flat and one lamp shade; adjust the default thicknesses and the preview constant from the result.
 5. P7 section improvements, one generator at a time, each followed by `tools-audit.js` for that generator.
-6. Phone case generator (needs a device dimensions table; start with parametric rounded-rectangle shells and camera cut-outs).
-7. Linux desktop packaging (Tauri is lighter than Electron; the app is already a single HTML file).
+6. ~~Phone case generator~~ (done, Session 13). Print the fit test rim for a phone you have and check the button and camera positions; correct `PHONES`/`PHONE_FAMILY` from the result.
+7. Open a painted 3mf (the vase with height bands, and a brushed import) in Bambu Studio, OrcaSlicer and PrusaSlicer and check that the colours show as painted.
+8. Linux desktop packaging (Tauri is lighter than Electron; the app is already a single HTML file).
 
 Always run after changes: `python3 build.py && node tools-smoke-test.js index.html && node tools-audit.js index.html <generator>`, and `npm run check:browser` for anything visual or text-related (plus `npm run test:jigsaw` for jigsaw work or anything touching `traceField`/`fieldToPolys`, `npm run test:litho` for lithophane work or anything touching `heightSheet`, `ringField` or `checkMesh`, `npm run test:tracer` for tracer work, `npm run test:print` for anything touching geometry or export, and `node tools-print-survey.js index.html` after a generator change to see whether it introduced new printability warnings; in the chat sandbox, split the smoke test with `ONLY=` as described in Session 6).

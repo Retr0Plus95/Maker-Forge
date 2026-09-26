@@ -26,7 +26,7 @@ async function settle() {
 
   console.log("default box 100 × 64 × 36");
   let P = await build();
-  check(P.length === 2 && closed(P), "box and lid, both closed and outward", P.map(p => `${p.name} ${C.checkMesh(p.solid).tris}`).join(", "));
+  check(P.length === 3 && closed(P) && /Pilot light lenses/.test(P[2].name), "box, lid and the pilot light's lens, all closed and outward", P.map(p => `${p.name} ${C.checkMesh(p.solid).tris}`).join(", "));
   let b = bnd(P[0]);
   check(Math.abs(b.size[0] - 100) < 1e-3 && Math.abs(b.size[2] - 64) < 1e-3 && Math.abs(b.size[1] - 36) < 1e-3 && Math.abs(b.mn[1]) < 1e-6, "box is exactly 100 × 64 × 36 on the bed", b.size.map(v => v.toFixed(3)).join(" × "));
   const L = bnd(P[1]);
@@ -197,7 +197,7 @@ async function settle() {
   // Session 12 settings in a hostile file
   const bad3 = { app: "maker-forge", state: JSON.parse(JSON.stringify(MF.state)) };
   bad3.state.base.enclosure = Object.assign(JSON.parse(JSON.stringify(MF.defaults.enclosure)), { lid: "magnet", magnet: "__proto__", feet: "<x>", footSize: "999", test: "yes",
-    logo: { on: "yes", width: 1e9, x: -1e9, mode: "<svg onload=alert(2)>", depth: -5 }, labelH: 1e6, labelDepth: -3,
+    logo: { on: "yes", width: 1e9, x: -1e9, mode: "<svg onload=alert(2)>", depth: -5 }, labelH: 1e6, labelDepth: -3, lensSlot: 1e9, grow: "no",
     cut: [{ face: "front", kind: "usbc", u: 0, v: 14, label: "<img src=x onerror=alert(3)>", labelPos: "sideways", top: "evil", notch: "yes" }] });
   const f3 = new win.File([JSON.stringify(bad3)], "evil2.json", { type: "application/json" });
   Object.defineProperty(inp, "files", { value: [f3], configurable: true }); inp.dispatchEvent(new win.Event("change"));
@@ -207,8 +207,122 @@ async function settle() {
   check(E3.magnet === "6x2" && E3.feet === "none" && E3.footSize === "8" && E3.test === false, "bad magnet, feet and fit-test values fall back", `${E3.magnet}, ${E3.feet}, ${E3.footSize}, ${E3.test}`);
   check(E3.logo.on === false && E3.logo.mode === "inlay" && E3.logo.width === 300 && E3.logo.x === -200 && E3.logo.depth === 0.2, "the lid logo's settings are clamped", JSON.stringify(E3.logo));
   check(E3.labelH === 15 && E3.labelDepth === 0.2, "label size and depth are clamped", `${E3.labelH}, ${E3.labelDepth}`);
+  check(E3.lensSlot === 7 && E3.grow === true, "the pilot-light lens filament is clamped, and a bad grow switch stays on", `${E3.lensSlot}, ${E3.grow}`);
   check(/^[A-Z0-9\-+\/.:% ]*$/.test(c3.label) && c3.labelPos === "below" && c3.top === "flat" && c3.notch === false, "an opening's label keeps only letters it can engrave", JSON.stringify(c3.label));
   check(!document.body.innerHTML.includes("onerror=alert") && !document.body.innerHTML.includes("onload=alert"), "still nothing injected");
+
+  console.log("\nSession 13: round holes, the box grows to fit, boards that do not fit");
+  const $$ = q => [...document.querySelectorAll(q)];
+  await settle(); await sleep(300); await settle();
+  const near = (a, c, tol) => Math.abs(a - c) <= tol;
+  // projects were loaded above, so the state object is a new one: always go through MF.state
+  const freshNow = over => { MF.state.base.type = "enclosure"; MF.state.base.enclosure = Object.assign(JSON.parse(JSON.stringify(MF.defaults.enclosure)), over || {}); };
+  const directNow = over => { freshNow(over); return MF.buildEnclosure(); };
+  const buildNow = async over => { freshNow(over); MF.rebuild(false); await settle(); return MF.parts; };
+  const holeVol = async over => { const v0 = vol(directNow({ cut: [], ...over })[0]); const v1 = vol(directNow({ cut: [{ ...MF.newOpening("round", "front"), dia: 20, v: 18 }], ...over })[0]); return v0 - v1; };
+  const round = await holeVol({}), wantRound = Math.PI * 10.2 * 10.2 * 2, tear = await holeVol({ teardrop: true });
+  check(Math.abs(round - wantRound) / wantRound < 0.03, "a 20 mm hole in a wall is round by default", `${round.toFixed(0)} mm³ removed, a round one ${wantRound.toFixed(0)}`);
+  check(tear > round * 1.05, "pointed tops are still there when asked for", `${tear.toFixed(0)} mm³`);
+  const load = async (v, teardrop) => {
+    const st = JSON.parse(JSON.stringify(Object.assign({}, MF.state, { items: [] }))); st.base.type = "enclosure"; st.base.enclosure.teardrop = teardrop; st.base.enclosure.w = 101 + (v === 5 ? 1 : 0);
+    const f = new win.File([JSON.stringify({ app: "Maker Forge", v, state: st })], "p.json", { type: "application/json" });
+    const inp = document.querySelector("#projInput"); Object.defineProperty(inp, "files", { value: [f], configurable: true }); inp.dispatchEvent(new win.Event("change"));
+    for (let i = 0; i < 100 && MF.state.base.enclosure.w !== st.base.enclosure.w; i++) await sleep(30); await settle();
+    return MF.state.base.enclosure.teardrop;
+  };
+  check(await load(4, true) === false && await load(5, true) === true, "older projects open with round holes; a newer one keeps pointed tops when it asked for them");
+  // the PSU box's 60 mm fan made 120 mm through its own menu
+  $$("#presetGallery button").find(b => b.dataset.k === "PSU box").click(); await settle();
+  MF.state.base.enclosure.teardrop = false;
+  $$("#tabs button").find(b => b.dataset.k === "make").click(); await sleep(40);
+  $$("#secrail button").find(b => b.dataset.title === "Openings").click(); await sleep(40);
+  let fanSel = $$("#panel select").find(x => [...x.options].some(o => /120 mm fan/.test(o.textContent)));
+  fanSel.value = "120"; fanSel.dispatchEvent(new win.Event("change")); await settle();
+  let E4 = MF.state.base.enclosure, fanIdx = E4.cut.findIndex(c => c.kind === "fan");
+  check(!MF.enclosure.left.length && E4.d >= 120 && E4.h >= 115 && /box grew/.test(document.querySelector("#notice").textContent), "a 120 mm fan on a 110 × 75 mm side: the box grows and the fan moves up so it fits",
+    `${E4.w} × ${E4.d} × ${E4.h}, fan at ${E4.cut[fanIdx].v} mm: "${document.querySelector("#notice").textContent.slice(0, 70)}"`);
+  check(closed(MF.parts), "and it is still a closed box");
+  E4.grow = false; fanSel = $$("#panel select").find(x => [...x.options].some(o => /140 mm fan/.test(o.textContent)));
+  fanSel.value = "140"; fanSel.dispatchEvent(new win.Event("change")); await settle(); await sleep(50);
+  check(MF.enclosure.left.includes(fanIdx) && MF.checks.list.some(l => /left out/.test(l.t)) && $$("#panel .result.warn b").some(b => /Not in the box yet/.test(b.textContent)),
+    "with growing switched off, a 140 mm fan is left out, said on its card and in the checks");
+  $$("#panel button").find(b => /Make it fit/.test(b.textContent)).click(); await settle();
+  check(!MF.enclosure.left.length && MF.state.base.enclosure.d >= 140 && MF.state.base.enclosure.h >= 130, "Make it fit grows the box for it", `${E4.w} × ${E4.d} × ${E4.h}`);
+  // a board bigger than the box: no standoffs outside it; picking it grows the box
+  P = await buildNow({ w: 50, d: 40, h: 30, board: "pi", cut: [] });
+  b = bnd(P[0]);
+  check(near(b.size[0], 50, 1e-3) && near(b.size[2], 40, 1e-3) && MF.enclosure.warn.some(w => /does not fit/.test(w.t) && /left out/.test(w.s)), "a Raspberry Pi in a 50 × 40 mm box: warned, and no standoffs outside the box", b.size.map(v => v.toFixed(1)).join(" x "));
+  await buildNow({ w: 50, d: 40, h: 30, board: "none", cut: [] }); MF.render(); await sleep(40);
+  $$("#secrail button").find(x => /board/i.test(x.dataset.title || "")).click(); await sleep(40);
+  const boardSel = $$("#panel select").find(x => [...x.options].some(o => o.value === "pi"));
+  boardSel.value = "pi"; boardSel.dispatchEvent(new win.Event("change")); await settle();
+  const E5 = MF.state.base.enclosure;
+  check(E5.w >= 90 && E5.d >= 60 && !MF.enclosure.warn.some(w => /does not fit/.test(w.t)) && MF.enclosure.board && MF.enclosure.board.fits !== false, "picking the Pi for that box grows it round the board", `${E5.w} × ${E5.d} × ${E5.h}`);
+
+  console.log("\npilot lights (Session 13)");
+  P = await buildNow({ cut: [{ ...MF.newOpening("pilotp5", "front"), u: -20, v: 18 }, { ...MF.newOpening("pilotp3", "front"), u: 10, v: 18 }, { ...MF.newOpening("pilot22", "back"), u: 0, v: 18 }], lensSlot: 2 });
+  const lensPart = P.find(p => /Pilot light lenses/.test(p.name));
+  check(lensPart && /\(2\)/.test(lensPart.name) && lensPart.slot === 2 && closed([lensPart]), "two printed jewel lenses (none for the bought 22 mm lamp), in the lens filament", lensPart && lensPart.name);
+  const lb = lensPart && C.solidBounds(lensPart.solid);
+  check(lb && near(lb.mn[1], 0, 1e-6) && lb.mn[2] > 32, "printed flat side down, in front of the box", lb && `from z ${lb.mn[2].toFixed(1)}`);
+  // each lens: the shank passes the hole (8 mm + 0.2 clearance), the flange does not
+  const first = []; for (let i = 0; i < lensPart.solid.pos.length; i += 3) if (lensPart.solid.pos[i] < -36) first.push([lensPart.solid.pos[i], lensPart.solid.pos[i + 1], lensPart.solid.pos[i + 2]]);
+  const cx = (Math.min(...first.map(q => q[0])) + Math.max(...first.map(q => q[0]))) / 2, zc = (Math.min(...first.map(q => q[2])) + Math.max(...first.map(q => q[2]))) / 2;
+  const rad = q => Math.hypot(q[0] - cx, q[2] - zc);
+  const shank = Math.max(...first.filter(q => q[1] > 1.2 + 1e-6).map(rad)), flange = Math.max(...first.filter(q => q[1] <= 1.2 + 1e-6).map(rad));
+  check(shank * 2 < 8.2 && flange * 2 > 8.2 + 3, "the 5 mm lens's shank passes the 8.2 mm hole and its flange stops it", `shank ${(shank * 2).toFixed(2)} mm, flange ${(flange * 2).toFixed(2)} mm`);
+  check(MF.enclosure.lenses === 2 && !MF.enclosure.left.length, "all three pilot lights fit", `${MF.enclosure.lenses} lenses`);
+  // the LED pocket must stay inside every lens with real wall round it (it once broke out through the side
+  // of the narrowing dome): horizontal rays from each lens's axis must enter and leave the plastic in turn,
+  // end outside, and cross at least 0.75 mm of plastic each time they enter
+  const lensPieces = S => {                                // the separate lenses: triangles joined by shared corners
+    const I = S.idx, Q = S.pos, up = new Int32Array(Q.length / 3).map((_, i) => i), find = i => { while (up[i] !== i) i = up[i] = up[up[i]]; return i; };
+    for (let t = 0; t < I.length; t += 3) { up[find(I[t + 1])] = find(I[t]); up[find(I[t + 2])] = find(I[t]); }
+    const by = new Map();
+    for (let t = 0; t < I.length; t += 3) { const r = find(I[t]); if (!by.has(r)) by.set(r, []); by.get(r).push([I[t], I[t + 1], I[t + 2]].map(k => [Q[k * 3], Q[k * 3 + 1], Q[k * 3 + 2]])); }
+    return [...by.values()].sort((m, n) => m[0][0][0] - n[0][0][0]);
+  };
+  const lensWalls = tri => {
+    const xs = tri.flat().map(q => q[0]), zs = tri.flat().map(q => q[2]), ys = tri.flat().map(q => q[1]);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cz = (Math.min(...zs) + Math.max(...zs)) / 2, top = Math.max(...ys);
+    let thin = Infinity, bad = 0, rays = 0;
+    for (let y = 0.013; y < top - 0.02; y += 0.05) for (let a = 7; a < 360; a += 22.5) {
+      const d = [Math.cos(a * Math.PI / 180), 0, Math.sin(a * Math.PI / 180)], o = [cx, y, cz], hits = [];
+      for (const [A, B, Cc] of tri) {
+        const e1 = [B[0] - A[0], B[1] - A[1], B[2] - A[2]], e2 = [Cc[0] - A[0], Cc[1] - A[1], Cc[2] - A[2]];
+        const p = [d[1] * e2[2] - d[2] * e2[1], d[2] * e2[0] - d[0] * e2[2], d[0] * e2[1] - d[1] * e2[0]], det = e1[0] * p[0] + e1[1] * p[1] + e1[2] * p[2];
+        if (Math.abs(det) < 1e-12) continue;
+        const s = [o[0] - A[0], o[1] - A[1], o[2] - A[2]], u = (s[0] * p[0] + s[1] * p[1] + s[2] * p[2]) / det; if (u < 0 || u > 1) continue;
+        const q = [s[1] * e1[2] - s[2] * e1[1], s[2] * e1[0] - s[0] * e1[2], s[0] * e1[1] - s[1] * e1[0]], v = (d[0] * q[0] + d[1] * q[1] + d[2] * q[2]) / det; if (v < 0 || u + v > 1) continue;
+        const tt = (e2[0] * q[0] + e2[1] * q[1] + e2[2] * q[2]) / det; if (tt <= 0) continue;
+        const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+        hits.push([tt, Math.sign(n[0] * d[0] + n[2] * d[2])]);
+      }
+      hits.sort((m, n) => m[0] - n[0]); rays++;
+      if (!hits.length || hits[hits.length - 1][1] < 0 || hits.some((h, i) => i && h[1] === hits[i - 1][1])) { bad++; continue; }
+      for (let i = 0; i < hits.length - 1; i++) if (hits[i][1] < 0) thin = Math.min(thin, hits[i + 1][0] - hits[i][0]);
+    }
+    return { thin, bad, rays };
+  };
+  const pieces = lensPieces(lensPart.solid), walls = pieces.map(lensWalls);
+  check(pieces.length === 2 && walls.every(w => w.rays > 1000 && !w.bad && w.thin >= 0.75), "the LED pockets stay inside both lenses with at least 0.75 mm of wall",
+    walls.map((w, i) => `${i ? "3" : "5"} mm lens: ${w.rays} rays, ${w.bad} bad, thinnest ${w.thin.toFixed(2)} mm`).join("; "));
+  // a hole set smaller than the lens grows to the lens, so the lens still goes through
+  P = await buildNow({ cut: [{ ...MF.newOpening("pilotp5", "front"), u: 0, v: 18, dia: 5.5 }] });
+  const small = P.find(p => /Pilot light lenses/.test(p.name)), sb = small && C.solidBounds(small.solid);
+  const ring = MF.openingRings({ ...MF.newOpening("pilotp5", "front"), dia: 5.5 }, true, MF.state.base.enclosure)[0], ringW = Math.max(...ring.map(q => q[0])) - Math.min(...ring.map(q => q[0]));
+  const shank5 = Math.max(...small.solid.pos.filter((_, i) => i % 3 === 1).map((y, i) => y > 1.2 + 1e-6 ? 1 : 0)) && (() => {
+    const Q = small.solid.pos, pts = []; for (let i = 0; i < Q.length; i += 3) pts.push([Q[i], Q[i + 1], Q[i + 2]]);
+    const cx = (Math.min(...pts.map(q => q[0])) + Math.max(...pts.map(q => q[0]))) / 2, cz = (Math.min(...pts.map(q => q[2])) + Math.max(...pts.map(q => q[2]))) / 2;
+    return 2 * Math.max(...pts.filter(q => q[1] > 1.2 + 1e-6).map(q => Math.hypot(q[0] - cx, q[2] - cz)));
+  })();
+  check(small && sb && closed([small]) && ringW >= MF.lensMinHole(5) - 1e-6 && shank5 < ringW, "a hole set to 5.5 mm for a 5 mm pilot light grows to fit its lens",
+    `hole ${ringW.toFixed(2)} mm (the lens needs ${MF.lensMinHole(5)}), shank ${shank5.toFixed(2)} mm`);
+  P = await buildNow({ test: true, cut: [{ ...MF.newOpening("pilotp5", "front"), u: 0, v: 18 }] });
+  check(!P.some(p => /lenses/.test(p.name)), "the fit test prints no lenses");
+  const PB = MF.defaults ? null : null;
+  $$("#presetGallery button").find(b => b.dataset.k === "Power bank box").click(); await settle();
+  check(MF.parts.some(p => /Pilot light lenses \(4\)/.test(p.name)) && !MF.enclosure.left.length, "the Power bank box's four charge lights are pilot lights with lenses", MF.parts.map(p => p.name).join(", "));
 
   const errs = env.errors.filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
   check(!errs.length, "no page errors", errs.slice(0, 3).map(e => e.split("\n")[0]).join(" / "));

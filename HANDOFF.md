@@ -518,7 +518,7 @@ The owner merged v0.17.1 (Retr0Plus95/Maker-Forge#4), asked for the fonts to be 
 
 **The bug hunt.** Extremes audit of every object on the Make, Art, Colour, Paint and Export tabs (the Colour and Paint tabs for the first time), a hostile-project fuzz (every number of an object's settings, the picture's and the model's set to 1e9, -1e9, 0, text and 1e-9, loaded as a project file), the full browser check, and reading the Session 13 code. Found and fixed:
 
-1. **A picture on a photo frame landed in the window and printed nothing** (the Art tab audit: rotation, moves, thickness and seven more "dead"). New pictures on a frame start on the bottom border, sized to fit it (`defaultPlace`, `defaultWidth`; switching to the frame also fits them), and the Art tab says so.
+1. **A picture on a photo frame landed in the window and printed nothing** (the Art tab audit: rotation, moves, thickness and seven more "dead"). New pictures on a frame start on the bottom border, sized to fit it (`defaultPlace`, `defaultWidth`; switching to the frame also fits them, and switching away gives them their size back unless it was changed on the frame: the first version left them border-sized on every later object, which the print survey showed), and the Art tab says so.
 2. **A picture that lands off the model printed nothing without a word.** The checks now say "The picture … misses the model" (a frame's window gets its own wording).
 3. **The phone case's Art tab showed eleven placement controls that did nothing** (a case takes its picture only as the inlay in the back). Like the project box: a note and a "Put it in the back" button, the inlay's own settings once it is on, and a note that a bumper has no back.
 4. **The arrow keys on the tab bar also moved the artwork**, and Delete or Backspace removed the selected picture from any tab. The page-wide handler did not look at `defaultPrevented` or the focus. Nudging and deleting now happen only on the Art tab, with no button, tab or field focused, and not when a control used the key.
@@ -533,7 +533,16 @@ Not bugs, recorded in `tools-audit.js`: the printer settings on the Colour tab c
 
 New test file `tools-art-test.js` (`npm run test:art`; 11 of its checks fail on v0.17.1); `tools-paint-test.js` gained the project-model, undo, paint-switch and hostile-value checks.
 
-**Verified:** VERIFIED
+**Verified** on the final build (the last change, giving pictures their size back after the frame, was then checked with `tools-art-test.js`, a quick smoke test and the print survey):
+- **Smoke test:** full, with every button (22 quick starts, 20 objects, 328 clicks, no page errors).
+- **Test suites, all passing:** paint (91 checks), phone case (25), project box (84), printability (83), all four tracer tests (59), lithophane (59), jigsaw (82), the new `tools-art-test.js` (18) and `tools-project-test.js` (11), and the size check.
+- **Audits:** every object's Make tab (tracer, name plate, lithophane, phone case, turned shapes, project box, and the fourteen others), no findings beyond the expected list.
+- **Print survey:** identical to v0.17.1 except the photo frame, whose picture now prints (352 → 1,336 triangles; the survey's badge picture used to land in the window).
+- **Real-browser check** (`PRINT=1 MOBILE=1`): 150 screenshots, no findings, no page errors, 36 of 36 font faces loaded and all built in (no font downloads), share link, painted 3mf read back with every triangle's filament, the real-font printability of every quick start unchanged.
+- **Not checked:**
+  - a real browser other than Chromium;
+  - the page served from the owner's website (https, compression, any Content-Security-Policy);
+  - the Session 13 items still waiting on a slicer or a real print.
 
 ## Unfinished (in priority order)
 

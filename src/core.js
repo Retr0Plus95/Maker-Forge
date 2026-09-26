@@ -784,6 +784,27 @@
   // Marching squares over a scalar field with linear interpolation along cell edges, so the
   // outline follows the real curve instead of stepping around whole pixels.
   function traceField(f, w, h, iso) {
+    // A region that reaches the edge of the grid would give chains that run off it, and closing
+    // such a chain with a straight line cuts across the shape when it leaves and re-enters the
+    // grid more than once (a name plate clipped by its canvas became three crossed fragments).
+    // So when any border node is inside, trace a copy with a ring of outside nodes around it:
+    // every region is then closed along the grid's edge, half a node outside the last inside
+    // node (a pixel's outer edge). Nothing touches the border in the usual case, which keeps
+    // exactly the old path.
+    let edge = false;
+    for (let i = 0; i < w && !edge; i++) edge = f[i] >= iso || f[(h - 1) * w + i] >= iso;
+    for (let j = 0; j < h && !edge; j++) edge = f[j * w] >= iso || f[j * w + w - 1] >= iso;
+    if (edge && w > 1 && h > 1) {
+      const W = w + 2, H = h + 2, g = new (f.constructor === Array ? Float64Array : f.constructor)(W * H);
+      const out = v => v >= iso ? iso - Math.max(v - iso, 1e-4) : v;   // mirrored about the level
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+        const si = Math.min(w - 1, Math.max(0, i - 1)), sj = Math.min(h - 1, Math.max(0, j - 1)), v = f[sj * w + si];
+        g[j * W + i] = i === 0 || j === 0 || i === W - 1 || j === H - 1 ? out(v) : v;
+      }
+      const loops = traceField(g, W, H, iso);
+      for (const L of loops) for (const p of L) { p[0] -= 1; p[1] -= 1; }
+      return loops;
+    }
     // every crossing lies on one grid edge: id 2k for the edge from node k to its right-hand
     // neighbour, 2k + 1 for the edge down to the node below. Chaining by edge id is exact and much
     // faster than matching rounded coordinates.
@@ -1430,7 +1451,8 @@
   }
   // downward faces steeper than the limit, sampled on a small grid across each face
   function overhangScan(F, G, o) {
-    const lim = -Math.sin((o.angle ?? 45) * Math.PI / 180), flat = -0.985, tol = o.tol, step = o.sample || 0.5, kMax = o.kMax || 16;
+    // a face exactly at the limit (a 45° teardrop roof) prints fine: allow for rounding in its normal
+    const lim = -Math.sin((o.angle ?? 45) * Math.PI / 180) - 1e-4, flat = -0.985, tol = o.tol, step = o.sample || 0.5, kMax = o.kMax || 16;
     const flag = new Uint8Array(F.T), ua = new Float32Array(F.T), V = F.V;
     let area = 0, flatArea = 0, contact = 0;
     const flatTris = [];
@@ -1521,14 +1543,19 @@
         const t = Y.list[k]; if (t < F.start[p]) continue; if (t >= F.start[p + 1]) break;
         const o = t * 9, pts = [];
         for (let e = 0; e < 3; e++) {
-          const a = o + e * 3, b = o + ((e + 1) % 3) * 3, ya = V[a + 1], yb = V[b + 1];
-          if ((ya >= y) === (yb >= y)) continue;
-          const s = (y - ya) / (yb - ya);
+          let a = o + e * 3, b = o + ((e + 1) % 3) * 3;
+          if ((V[a + 1] >= y) === (V[b + 1] >= y)) continue;
+          // always from the lower end: the two triangles sharing this edge then get exactly the same
+          // point, so a grid row through it is counted by both or neither (not one: a stray streak)
+          if (V[a + 1] > V[b + 1]) { const q = a; a = b; b = q; }
+          const s = (y - V[a + 1]) / (V[b + 1] - V[a + 1]);
           pts.push(V[a] + (V[b] - V[a]) * s, V[a + 2] + (V[b + 2] - V[a + 2]) * s);
         }
         if (pts.length < 4) continue;
         const [xa, za, xb, zb] = pts;
-        const j0 = Math.max(0, Math.ceil((Math.min(za, zb) - g.z0) / g.c - 0.5)), j1 = Math.min(g.h - 1, Math.floor((Math.max(za, zb) - g.z0) / g.c - 0.5));
+        // one row either side more than needed: whether a row whose centre is (nearly) exactly on an
+        // end point counts is decided by the half-open test below, not by rounding in this range
+        const j0 = Math.max(0, Math.ceil((Math.min(za, zb) - g.z0) / g.c - 0.5) - 1), j1 = Math.min(g.h - 1, Math.floor((Math.max(za, zb) - g.z0) / g.c - 0.5) + 1);
         for (let j = j0; j <= j1; j++) {
           const zj = g.z0 + (j + 0.5) * g.c;
           if (!((za <= zj && zj < zb) || (zb <= zj && zj < za))) continue;
@@ -2170,7 +2197,11 @@
     N: [[0, 0, 0, 6, 4, 0, 4, 6]], P: [[0, 0, 0, 6, 4, 6, 4, 3, 0, 3]], Q: [[0, 0, 0, 6, 4, 6, 4, 0, 0, 0], [2, 2, 4, 0]],
     R: [[0, 0, 0, 6, 4, 6, 4, 3, 0, 3], [2, 3, 4, 0]], S: [[4, 6, 0, 6, 0, 3, 4, 3, 4, 0, 0, 0]], T: [[0, 6, 4, 6], [2, 6, 2, 0]],
     U: [[0, 6, 0, 0, 4, 0, 4, 6]], V: [[0, 6, 2, 0, 4, 6]], W: [[0, 6, 1, 0, 2, 3, 3, 0, 4, 6]], X: [[0, 6, 4, 0], [4, 6, 0, 0]],
-    Y: [[0, 6, 2, 3, 4, 6], [2, 3, 2, 0]], Z: [[0, 6, 4, 6, 0, 0, 4, 0]]
+    Y: [[0, 6, 2, 3, 4, 6], [2, 3, 2, 0]], Z: [[0, 6, 4, 6, 0, 0, 4, 0]],
+    // for labels on boxes and strips (jigsaw rows skip I and O so they cannot be misread as 1 and 0)
+    I: [[1, 6, 3, 6], [2, 6, 2, 0], [1, 0, 3, 0]], O: [[0, 0, 4, 0, 4, 6, 0, 6, 0, 0]],
+    "-": [[0.5, 3, 3.5, 3]], "+": [[0.5, 3, 3.5, 3], [2, 1.5, 2, 4.5]], "/": [[0, 0, 4, 6]], ".": [[1.8, 0, 2.2, 0]],
+    ":": [[1.8, 1, 2.2, 1], [1.8, 4.5, 2.2, 4.5]], "%": [[0, 0, 4, 6], [0.5, 5, 1, 5.5], [3, 0.5, 3.5, 1]], " ": []
   };
   // text -> line segments in millimetres, centred on (cx, cy); mirror for reading from the back
   function strokeText(text, cx, cy, height, mirror) {
@@ -2184,6 +2215,27 @@
       }
     }));
     return { segs, width: width * u, height };
+  }
+  // stroke text as filled outlines: everything within `half` of a stroke (a pen 2 × half wide),
+  // traced from a distance field on a grid of s millimetres
+  function strokePolys(segs, half, s) {
+    if (!segs || !segs.length || !(half > 0)) return [];
+    let mnx = Infinity, mxx = -Infinity, mny = Infinity, mxy = -Infinity;
+    for (const q of segs) { mnx = Math.min(mnx, q[0], q[2]); mxx = Math.max(mxx, q[0], q[2]); mny = Math.min(mny, q[1], q[3]); mxy = Math.max(mxy, q[1], q[3]); }
+    s = s > 0 ? s : Math.max(0.02, half / 5);
+    const pad = half + 3 * s, x0 = mnx - pad, y1 = mxy + pad;
+    const w = Math.ceil((mxx - mnx + 2 * pad) / s) + 1, h = Math.ceil((mxy - mny + 2 * pad) / s) + 1;
+    const F = new Float32Array(w * h);
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+      const x = x0 + i * s, y = y1 - j * s; let d = Infinity;
+      for (const q of segs) {
+        const dx = q[2] - q[0], dy = q[3] - q[1], L2 = dx * dx + dy * dy || 1e-12;
+        let t = ((x - q[0]) * dx + (y - q[1]) * dy) / L2; t = t < 0 ? 0 : t > 1 ? 1 : t;
+        const ex = q[0] + t * dx - x, ey = q[1] + t * dy - y, dd = ex * ex + ey * ey; if (dd < d) d = dd;
+      }
+      F[j * w + i] = half - Math.sqrt(d);
+    }
+    return gridPolys(F, { x0, y1, s, w, h }, 0, s * s * 2);
   }
 
   // Where a label fits on a piece: the spot whose strokes keep the most plastic between them and
@@ -2441,7 +2493,7 @@
   global.PRCore = {
     hexToRgb, rgbToHex, colorDist, luma, kmeans, buildCellMap, makeProjector, buildDecalSolids, weldSoup, parseSTL,
     prepareParts, make3MF, make3MF_BBL, makeSTL, makeOBJ, traceMask, groupLoops, triangulate, solidFromTris, buildVectorSolid,
-    extrudePolys, extrudePolysAt, closeMask, smoothMask, revolve, revolveLoop, sweepTube, traceField, fieldToPolys, signedDistanceField, coverageField, blurMask, homography, applyH, warpQuad, quadCorners, refineQuad, fitDimensions, convexHull, outlineSVG, outlineDXF, transformSolid, mirrorSolid, solidBounds, mirrorMaskX, perforate, insideRing, snapToGrid, signedVolume, buildMaskSolid, maskOfSlot, checkMesh, edt, dilateMask, erodeMask, labelMask, maskToPolys, ringCircle, ringRect, ringStar, ringPoly, ringHeart, mergeSolids, area2,
+    extrudePolys, extrudePolysAt, closeMask, smoothMask, revolve, revolveLoop, sweepTube, traceField, fieldToPolys, strokePolys, signedDistanceField, coverageField, blurMask, homography, applyH, warpQuad, quadCorners, refineQuad, fitDimensions, convexHull, outlineSVG, outlineDXF, transformSolid, mirrorSolid, solidBounds, mirrorMaskX, perforate, insideRing, snapToGrid, signedVolume, buildMaskSolid, maskOfSlot, checkMesh, edt, dilateMask, erodeMask, labelMask, maskToPolys, ringCircle, ringRect, ringStar, ringPoly, ringHeart, mergeSolids, area2,
     affineSolid, mat3Mul, rotationDownTo, analyzePrint, analyzePrintSteps, bestOrientation, bestOrientationSteps, orientationScore, brimSolid, bedContact, sliceMask, gridOver, flattenParts,
     seededRandom, jigsawGrid, jigsawCut, jigsawEdge, jigsawPiece, jigsawSVG, jigsawCutLines, ringField, ringDistance, outlineBand, strokeText,
     gridAround, heightSheet

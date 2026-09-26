@@ -19,7 +19,7 @@ new work, and read the relevant "Session N" section before touching that feature
 ## Setup
 
 ```
-npm install          # test deps only: jsdom, three@0.128.0, earcut@2.2.4, jszip@3.10.1
+npm install          # test deps only: jsdom, three@0.128.0, earcut@2.2.4, jszip@3.10.1, the @fontsource fonts
 python3 build.py
 ```
 
@@ -48,7 +48,8 @@ tests accept `CORE=1` for the fast geometry-only part.
 ## Conventions
 
 - Keep the app a single self-contained file with no build toolchain beyond `build.py`.
-  Runtime libraries load from CDNs (three.js r128, OrbitControls, earcut 2.2.4, JSZip 3.10.1).
+  Runtime libraries load from CDNs (three.js r128, OrbitControls, earcut 2.2.4, JSZip 3.10.1), and the fonts
+  from the @fontsource 5.3.0 packages on jsDelivr (`fontFaceCSS` in `src/app.html`; no Google Fonts).
 - Every new generator control must actually change the model (the audit flags "dead controls").
 - Every loaded project goes through `sanitizeProject`: clamp numbers, never inject markup.
   New settings need clamping and a hostile-project test like the existing ones.

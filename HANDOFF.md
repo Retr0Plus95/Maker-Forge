@@ -4,7 +4,7 @@ Paste this into a new chat along with the repository files to continue.
 
 ## Project overview
 
-**Maker Forge** (v0.17.0) is a browser-based, MIT-licensed studio for multi-colour 3D printing: name keychains, photo-traced parts, jigsaw puzzles, lithophanes, lightboxes, bobble heads, circuit-board art and more. It runs entirely client-side with no build toolchain. Targets: GitHub, a personal website, and later a Linux desktop app (Electron or Tauri wrapper not started).
+**Maker Forge** (v0.17.1) is a browser-based, MIT-licensed studio for multi-colour 3D printing: name keychains, photo-traced parts, jigsaw puzzles, lithophanes, lightboxes, bobble heads, circuit-board art and more. It runs entirely client-side with no build toolchain. Targets: GitHub, a personal website, and later a Linux desktop app (Electron or Tauri wrapper not started).
 
 **Repository layout**
 
@@ -33,7 +33,7 @@ Paste this into a new chat along with the repository files to continue.
 | `package.json` | Test dependencies and script shortcuts (`npm run build`, `test:tracer`, `test:smoke`, `test:audit`, `test:print`, `test:jigsaw`, `test:litho`, `test:enclosure`, `test:paint`, `test:phonecase`, `test:size`, `survey:print`, `check:browser`). |
 | `README.md`, `LICENSE` | Docs, MIT. |
 
-Dependencies load from CDNs at runtime: three.js r128, OrbitControls, earcut 2.2.4, JSZip 3.10.1, Google Fonts. Test deps: `npm i` (or `npm i jsdom three@0.128.0 earcut@2.2.4 jszip@3.10.1`).
+Dependencies load from CDNs at runtime: three.js r128, OrbitControls, earcut 2.2.4, JSZip 3.10.1, and the fonts from the @fontsource 5.3.0 packages, all from jsDelivr (Google Fonts until v0.17.1). Test deps: `npm i` (or `npm i jsdom three@0.128.0 earcut@2.2.4 jszip@3.10.1`).
 
 **Files not in the Session 6 bundle.** Only `HANDOFF.md`, `index.html`, `app.html` and `tools-tracer-paper-test.js` arrived in Session 6. `src/core.js` was extracted from `index.html` (rebuilding reproduced the v0.11.2 `index.html` byte for byte), and `build.py`, `tools-test-env.js`, `tools-smoke-test.js`, `tools-audit.js` and `tools-tracer-test.js` were rewritten from their descriptions here. `README.md`, `LICENSE` and `tools-security-test.js` were not available and are not in the bundle: if you have the originals, keep them, and consider diffing your old test tools against the new ones.
 

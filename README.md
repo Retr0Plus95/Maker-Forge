@@ -17,6 +17,16 @@ Four tabs in the top bar — **Make · Art · Colours · Export**. Down the left
 | **Colours** | Up to 8 slots with colour, name, material and price. Palette presets, colour matching, and a **printer library** (Bambu, Prusa, Creality, Elegoo, Anycubic, Voron) that sets bed size, nozzle, layer height and how many colours the machine can load. |
 | **Export** | Preflight checks (watertightness, bed fit, colour count vs printer, features thinner than the nozzle, thin colour layers, unused filaments), material in g/m/cost, rough print time, **colour swap heights** for single-filament printers, and the files themselves: zip with 3mf, coloured obj, per-filament STLs, a merged STL, notes and the project file. Projects save and reopen as `.json`, plus **batch export**: one keychain per name from a list. |
 
+### New in 0.16
+
+- **Project boxes grew up.** Engraved labels beside any opening ("USB-C", "ON/OFF", "12V"), magnet lids, a sliding lid on 45° rails, stick-on-foot recesses, ports that open to the top edge so the lid closes them, pointed tops for wide ports, your logo inlaid into the lid in its own colours, and a **fit test**: a small box with your walls, lid, screws and one of each opening, to try before the real print. The stock boxes now print without support.
+- **Tracer:** SVG logos are drawn sharp and keep the size stated in the file; hairlines can be thickened to a printable width; multi-colour logos keep their colours on a body in your main filament; back plates get a hanging hole, a keychain loop or countersunk screw holes placed clear of the shape.
+- **Name plates from a list:** paste names (or a spreadsheet column) and each gets its own plate, packed onto the bed.
+- **Measure and look inside:** a measuring tape that snaps to corners, a section view that cuts the model at any height, and rulers in inches when you work in inches.
+- **Share a link** that opens the same design for someone else (pictures stay on your machine).
+- **Lithophane test strip:** steps from 0.6 to 3.2 mm, numbered, to choose thicknesses for your filament.
+- **Checked in a real browser:** `npm run check:browser` opens the app in Chromium and walks every object and page. It found and fixed a name plate bug that only real fonts showed: plates with charms were clipped and printed with holes under the letters.
+
 ### Highlights
 
 - **Photo to 3D tracer.** Photograph a flat part on paper, give one real measurement, and get a printable replacement. Background removal or an automatic (Otsu) threshold separates the part; cleanup closes nicks and drops specks; round-ish holes are detected by circularity and replaced with true circles snapped to a sensible diameter plus a clearance for bolts. Scale either from one ruler measurement, or from **the sheet of paper under the part**: the sheet is detected, straightened with a perspective correction, and used as the ruler, so the photo can be taken at an angle. A hand brush adds or erases bits of the trace, and the outline exports as **SVG and DXF** at true scale for Inkscape, laser cutters, Fusion, FreeCAD or LibreCAD. On a synthetic 60 × 30 mm bracket photographed straight on it recovered exactly 60.00 × 30.00 mm; photographed at an angle on A4 with no measurement typed, 60.57 × 30.88 mm, with 8 mm and 5 mm holes measured at 7.93 and 4.92 mm.
@@ -46,18 +56,25 @@ cd maker-forge
 python3 build.py      # inlines src/core.js into src/app.html -> index.html
 ```
 
-Two test rigs run the real app headlessly in jsdom with a software canvas:
+The test rigs run the real app headlessly in jsdom with a software canvas:
 
 ```bash
-npm i jsdom three earcut jszip
+npm install                                      # test dependencies only: jsdom, three, earcut, jszip
 node tools-smoke-test.js index.html              # clicks every tab, button and export path
 node tools-audit.js index.html nameplate,board   # sweeps controls to their extremes
 node tools-audit.js index.html board art         # sweeps the artwork controls
-node tools-tracer-test.js index.html             # traces a known bracket and checks its dimensions
-node tools-tracer-paper-test.js index.html       # the same bracket on A4 shot at an angle, scaled from the paper
-node tools-security-test.js index.html           # loads a hostile project file and checks nothing gets through
-node tools-sections-test.js index.html           # the icon rail pages, and that a re-render keeps your place
-node tools-cutter-test.js index.html             # cookie cutter follows the shape and its rim responds
+npm run test:tracer                              # traced parts measured against known sizes
+npm run test:print                               # printability checks on shapes with known answers
+npm run test:enclosure                           # project boxes: sizes, openings, lids, labels, hostile files
+npm run test:jigsaw && npm run test:litho        # puzzles and lithophanes
+npm run test:size                                # on-screen size = exported size, in every format
+npm run survey:print                             # what the printability check says about every object
+```
+
+And one in a real browser (needs Playwright with Chromium: `npm i --no-save playwright && npx playwright install chromium`):
+
+```bash
+npm run check:browser                            # screenshots of every page in browser-check/, layout and error checks
 ```
 
 The audit drives every slider to both ends and toggles every checkbox, waiting for each rebuild to finish, then checks the resulting meshes for open edges, NaN coordinates, empty output and zero volume. It also flags **dead controls**: if moving a control leaves the model byte-identical at both extremes, something is not wired up. That check found two real bugs that every other test missed.
@@ -157,7 +174,7 @@ The printer library covers Bambu A1 mini / A1 / P1S / X1C / H2D, Prusa MK4, XL a
 ## Ideas worth contributing
 
 - Full cylindrical wrap for mugs and bottles.
-- SVG import as vector paths rather than rasterising.
+- SVG import as vector paths rather than rasterising (0.16 draws SVGs at 2000 px, which suits most logos).
 - More object generators: cable tags, luggage tags, signs with mounting holes.
 - Real Gerber and KiCad file import for the circuit board generator, instead of working from a picture.
 - A filament library with real vendor colour codes.

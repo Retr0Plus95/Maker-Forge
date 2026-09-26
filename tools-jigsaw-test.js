@@ -138,6 +138,17 @@ console.log("\nhostile or odd input");
   const c2 = C.jigsawCut({ w: 60, h: 40, nx: 3, ny: 2, seed: 1, style: "constructor" });
   check(c2.pieces.every(p => p.rings[0].every(q => isFinite(q[0]))), "style 'constructor' falls back to classic", c2.style); }
 
+console.log("\ntracing a shape that reaches the edge of the grid");
+{ const mk = (w, h, fn) => { const m = new Uint8Array(w * h); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) m[y * w + x] = fn(x, y) ? 1 : 0; return m; };
+  // a C that leaves the left edge and comes back (a clipped name plate), and a frame round the whole edge
+  const U = mk(60, 40, (x, y) => y >= 5 && y < 35 && x <= 40 && !(y >= 15 && y < 25 && x <= 20)), F = mk(40, 40, (x, y) => !(x >= 10 && x < 30 && y >= 10 && y < 30));
+  const u = C.maskToPolys(U, 60, 40, { mmPerPx: 1, closeEdges: true }), a = polyArea(u);
+  check(u.length === 1 && !u[0].holes.length && near(a, 1020, 10), "closeEdges: the C is one outline, closed along the edge", `${u.length} outline, ${u[0] && u[0].holes.length} holes, ${a.toFixed(1)} of 1020 mm²`);
+  check(!inPolys(u, 5 - 30, 20 - 20) && inPolys(u, 5 - 30, 20 - 8), "and the gap in the C stays open");
+  const f = C.maskToPolys(F, 40, 40, { mmPerPx: 1, closeEdges: true }), f0 = C.maskToPolys(F, 40, 40, { mmPerPx: 1 });
+  check(f.length === 1 && f[0].holes.length === 1 && near(polyArea(f), 1200, 12), "closeEdges: a frame round the whole edge keeps its outline", `${polyArea(f).toFixed(1)} of 1200 mm²`);
+  check(f0.length === 0, "without it, a region covering the whole edge has no outline (a picture's background is dropped)", `${f0.length} outlines`); }
+
 console.log("\ntiming");
 { const t0 = Date.now(), cut = make({ w: 200, h: 150, count: 100, seed: 5 }), t1 = Date.now(), s = Math.min(0.15, cut.u / 180);
   cut.pieces.forEach(p => C.jigsawPiece(p, { gap: 0.25, s, outline: cut.clip }));

@@ -1,6 +1,7 @@
 // Project box / enclosure (Session 11): the box and lid are closed meshes of the right size, every
 // kind of opening cuts a hole on every face it may go on, overlaps and misfits are left out with a
 // message, screws, lids and board standoffs, the presets, the rulers, and a hostile project file.
+// Session 12: engraved labels, magnet lids, foot recesses, notches, the sliding lid and the fit test.
 //   node tools-enclosure-test.js index.html
 const boot = require("./tools-test-env.js");
 const env = boot(process.argv[2] || "index.html");
@@ -86,6 +87,81 @@ async function settle() {
   await build({ board: "mega", cut: [] });
   check(/does not fit/.test(MF.enclosure.warn.map(w => w.t).join()), "a Mega in the 100 mm box: does not fit", MF.enclosure.warn.map(w => w.s).join(" | "));
 
+  console.log("\nSession 12: labels, magnets, feet, pointed tops, notches, sliding lid, logo, fit test");
+  {
+    const op = (kind, face, over) => Object.assign(MF.newOpening(kind, face), over);   // with the part's real size
+    const none = vol(direct({ cut: [op("usbc", "front", { u: 0, v: 14 })] })[0]);
+    const Q = direct({ cut: [op("usbc", "front", { u: 0, v: 14, label: "USB-C" })] });
+    check(closed(Q) && !MF.enclosure.warn.length && none - vol(Q[0]) > 2, "a label is engraved into the wall", `${(none - vol(Q[0])).toFixed(1)} mm³ cut`);
+    direct({ cut: [op("usbc", "front", { u: 0, v: 3, label: "USB-C" })] });
+    check(/does not fit below/.test(MF.enclosure.warn.map(w => w.s).join()), "a label with no room below is left out and said so", MF.enclosure.warn.map(w => w.s).join(" | "));
+    const Q2 = direct({ cut: [op("btn", "top", { u: 0, v: 5, label: "RESET" }), op("round", "bottom", { u: 0, v: 0, dia: 6, label: "SERIAL 01" })] });
+    check(closed(Q2) && !MF.enclosure.warn.length, "labels on the lid and the floor", `${Q2.map(p => C.checkMesh(p.solid).tris).join("+")} tris`);
+    const mag = direct({ cut: [], lid: "magnet", magnet: "6x2", lidThick: 3, lipH: 0 });
+    const pocket = Math.PI * 3.1 * 3.1 * 2.2;
+    check(closed(mag) && !MF.enclosure.warn.length && mag.length === 2, "magnet lid: posts and lid closed", MF.enclosure.fastenText);
+    const flatLid = vol(direct({ cut: [], lid: "press", lidThick: 3, lipH: 0 })[1]);
+    check(Math.abs((flatLid - vol(mag[1])) - 4 * pocket) < 4 * pocket * 0.05, "four magnet pockets in the lid", `${(flatLid - vol(mag[1])).toFixed(1)} vs ${(4 * pocket).toFixed(1)} mm³`);
+    direct({ cut: [], lid: "magnet", magnet: "8x3", lidThick: 2.4 });
+    check(/too thin for the magnets/.test(MF.enclosure.warn.map(w => w.t).join()), "a lid too thin for the magnets says so", MF.enclosure.warn.map(w => w.s).join(" | "));
+    const v0 = vol(direct({ cut: [] })[0]), feet = direct({ cut: [], feet: "recess", footSize: "8", footDepth: 1 });
+    const recess = Math.PI * 4.15 * 4.15 * 1;
+    check(closed(feet) && Math.abs((v0 - vol(feet[0])) - 4 * recess) < 4 * recess * 0.03, "four foot recesses under the floor", `${(v0 - vol(feet[0])).toFixed(1)} vs ${(4 * recess).toFixed(1)} mm³`);
+    direct({ cut: [op("round", "bottom", { u: 44, v: 26, dia: 6 })] });
+    check(/corner post/.test(MF.enclosure.warn.map(w => w.s).join()), "a floor opening over a corner post is left out", MF.enclosure.warn.map(w => w.s).join(" | "));
+    const sl = direct({ lid: "slide", cut: [op("usbc", "front", { u: 0, v: 12 }), op("vent", "top", { u: 0, v: 0, w: 30, h: 12, label: "AIR" })] });
+    const Es = MF.state.base.enclosure, gr = Math.min(Math.max(Es.wall * 0.5, 0.6), Math.max(0.6, Es.wall - 0.6));
+    let gap = Infinity; const lp = sl[1].solid.pos, off = -(Es.w + 10);
+    for (let i = 0; i < lp.length; i += 3) gap = Math.min(gap, (Es.w / 2 - Es.wall + gr - lp[i + 1]) - Math.abs(lp[i] + off));
+    check(closed(sl) && !MF.enclosure.warn.length && Math.abs(gap - Es.fit) < 1e-4, "sliding lid: closed, and it clears the 45° rails by the fit gap", `${gap.toFixed(4)} mm`);
+    const pi0 = direct({ lipH: 3, cut: [op("rect", "right", { u: 0, v: 18, w: 40, h: 10, r: 1 })] }), pin = direct({ lipH: 3, cut: [op("rect", "right", { u: 0, v: 18, w: 40, h: 10, r: 1, notch: true })] });
+    check(closed(pin) && !MF.enclosure.warn.length && vol(pin[0]) < vol(pi0[0]) - 100 && vol(pin[1]) < vol(pi0[1]) - 20, "a notch runs to the top edge, and the lid's lip has a gap there",
+      `box −${(vol(pi0[0]) - vol(pin[0])).toFixed(0)} mm³, lid −${(vol(pi0[1]) - vol(pin[1])).toFixed(0)} mm³`);
+    // a wide port prints its top as a bridge; a pointed top needs none
+    const waitPrint = async () => { let q = null; for (let i = 0; i < 400 && !(q = MF.print); i++) await sleep(25); return q; };
+    const usba = top => Object.assign(MF.newOpening("usba", "front"), { u: 0, v: 14, top });
+    await build({ cut: [usba("flat")] }); const flatSup = (await waitPrint()).overhang.area;
+    await build({ cut: [usba("pointed")] }); const ptSup = (await waitPrint()).overhang.area;
+    check(closed(MF.parts) && flatSup > 5 && ptSup < 0.5, "a pointed top on a wide port removes its support", `${flatSup.toFixed(1)} -> ${ptSup.toFixed(1)} mm²`);
+    // the logo on the lid: a picture dropped on the Art tab, inlaid in its own colours
+    {
+      const { encodePNG } = require("./tools-test-env.js"), W = 240, H = 180, px = new Uint8ClampedArray(W * H * 4);
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const o = (y * W + x) * 4, dx = x - 120, dy = y - 90, r = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
+        const col = r < 40 * (0.62 + 0.38 * Math.cos(5 * a)) ? [240, 190, 30] : r < 75 ? [209, 73, 91] : [255, 255, 255];
+        px[o] = col[0]; px[o + 1] = col[1]; px[o + 2] = col[2]; px[o + 3] = 255;
+      }
+      [...document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "art").click(); await sleep(50);
+      const ev = new win.Event("drop", { bubbles: true, cancelable: true }); ev.dataTransfer = { files: [new win.File([encodePNG(W, H, px)], "badge.png", { type: "image/png" })] };
+      document.querySelector("#drop").dispatchEvent(ev);
+      for (let i = 0; i < 100 && !MF.state.items.some(d => d.name === "badge" && d.src); i++) await sleep(30);
+      [...document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "make").click(); await sleep(50);
+      const lid0 = vol((await build({ cut: [] }))[1]);
+      const Pl = await build({ cut: [], logo: { on: true, mode: "inlay", width: 40, x: 0, y: 0, depth: 0.6 } });
+      const logos = Pl.filter(p => /Lid logo/.test(p.name)), lv = logos.reduce((a, p) => a + vol(p), 0);
+      check(closed(Pl) && logos.length === 2 && Math.abs((lid0 - vol(Pl[1])) - lv) < lv * 0.01, "a logo inlaid into the lid in two colours, filling exactly what the lid lost",
+        `${logos.map(p => p.name).join(", ")}: ${lv.toFixed(1)} mm³ vs ${(lid0 - vol(Pl[1])).toFixed(1)}`);
+      const Pe = await build({ cut: [], logo: { on: true, mode: "engrave", width: 40, x: 0, y: 0, depth: 0.6 } });
+      check(closed(Pe) && Pe.length === 2 && Math.abs((lid0 - vol(Pe[1])) - lv) < lv * 0.01, "or engraved into it", `${(lid0 - vol(Pe[1])).toFixed(1)} mm³ cut`);
+      await build({ cut: [op("vent", "top", { u: 0, v: 0, w: 30, h: 12 })], logo: { on: true, mode: "inlay", width: 40, x: 0, y: 0, depth: 0.6 } });
+      check(/overlaps opening 1/.test(MF.enclosure.warn.map(w => w.s).join()), "a logo over a lid opening is left off and said so", MF.enclosure.warn.map(w => w.s).join(" | "));
+      const Ps = await build({ lid: "slide", cut: [], logo: { on: true, mode: "inlay", width: 30, x: 0, y: 0, depth: 0.6 } });
+      check(closed(Ps) && Ps.filter(p => /Lid logo/.test(p.name)).length === 2, "and on a sliding lid, in its top face");
+      MF.state.items.splice(0); MF.state.active = -1;
+    }
+    // put each lid back on its box: every point of its lip stays the fit gap inside the rounded walls
+    const lipGap = over => { const Q = direct(over), Ex = MF.state.base.enclosure, lid = Q[1].solid, ri = Ex.radius - Ex.wall, iw = Ex.w - 2 * Ex.wall, id = Ex.d - 2 * Ex.wall; let g = Infinity;
+      for (let i = 0; i < lid.pos.length; i += 3) { if (lid.pos[i + 1] < Ex.lidThick + 1e-6) continue;
+        const x = lid.pos[i] - (Ex.w + 10), z = -lid.pos[i + 2], qx = Math.abs(x) - (iw / 2 - ri), qz = Math.abs(z) - (id / 2 - ri);
+        g = Math.min(g, qx > 0 && qz > 0 ? ri - Math.hypot(qx, qz) : Math.min(iw / 2 - Math.abs(x), id / 2 - Math.abs(z))); }
+      return g; };
+    const gaps = [{ lid: "press" }, { lid: "press", cut: [op("rect", "right", { u: 0, v: 18, w: 30, h: 10, notch: true })] }, { lid: "screw", cut: [op("rect", "front", { u: 0, v: 18, w: 30, h: 10, notch: true })] }, { lid: "magnet", lidThick: 3 }].map(lipGap);
+    check(gaps.every(g => Math.abs(g - 0.2) < 1e-3), "every lid's lip clears the rounded walls by the fit gap (press, press with a notch, screwed with a notch, magnet)", gaps.map(g => g.toFixed(3)).join(", "));
+    const tb = direct({ test: true, cut: MF.defaults.enclosure.cut.concat([op("btn", "front", { u: 30, v: 18, dia: 12.2 })]) });
+    const Ti = MF.enclosure;
+    check(closed(tb) && !Ti.warn.length && Ti.test && Ti.count === 3 && Ti.size[0] < 100, "fit test: a smaller box with one of each opening", `${Ti.size.map(v => v.toFixed(0)).join(" × ")}, ${Ti.count} openings`);
+  }
+
   console.log("\npresets");
   for (const k of ["Project box", "Power bank box", "PSU box", "Raspberry Pi case"]) {
     [...document.querySelectorAll("#presetGallery button")].find(b => b.dataset.k === k).click(); await settle(); await sleep(150); await settle();
@@ -118,6 +194,21 @@ async function settle() {
   check(E.cut.length === 2 && E.cut[0].kind === "round" && E.cut[0].face === "front" && E.cut[0].u === 400 && E.cut[0].v === -400, "bad openings are cleaned or dropped", JSON.stringify(E.cut[0]));
   check(E.cut[1].size === 40 && E.cut[1].style === "rings", "a fan with an unknown size gets the default", JSON.stringify(E.cut[1]));
   check(!document.querySelector("#panel img[src=x]") && !document.body.innerHTML.includes("onerror=alert"), "nothing injected into the page");
+  // Session 12 settings in a hostile file
+  const bad3 = { app: "maker-forge", state: JSON.parse(JSON.stringify(MF.state)) };
+  bad3.state.base.enclosure = Object.assign(JSON.parse(JSON.stringify(MF.defaults.enclosure)), { lid: "magnet", magnet: "__proto__", feet: "<x>", footSize: "999", test: "yes",
+    logo: { on: "yes", width: 1e9, x: -1e9, mode: "<svg onload=alert(2)>", depth: -5 }, labelH: 1e6, labelDepth: -3,
+    cut: [{ face: "front", kind: "usbc", u: 0, v: 14, label: "<img src=x onerror=alert(3)>", labelPos: "sideways", top: "evil", notch: "yes" }] });
+  const f3 = new win.File([JSON.stringify(bad3)], "evil2.json", { type: "application/json" });
+  Object.defineProperty(inp, "files", { value: [f3], configurable: true }); inp.dispatchEvent(new win.Event("change"));
+  for (let i = 0; i < 100 && MF.state.base.enclosure.lid !== "magnet"; i++) await sleep(30);
+  await settle();
+  const E3 = MF.state.base.enclosure, c3 = E3.cut[0];
+  check(E3.magnet === "6x2" && E3.feet === "none" && E3.footSize === "8" && E3.test === false, "bad magnet, feet and fit-test values fall back", `${E3.magnet}, ${E3.feet}, ${E3.footSize}, ${E3.test}`);
+  check(E3.logo.on === false && E3.logo.mode === "inlay" && E3.logo.width === 300 && E3.logo.x === -200 && E3.logo.depth === 0.2, "the lid logo's settings are clamped", JSON.stringify(E3.logo));
+  check(E3.labelH === 15 && E3.labelDepth === 0.2, "label size and depth are clamped", `${E3.labelH}, ${E3.labelDepth}`);
+  check(/^[A-Z0-9\-+\/.:% ]*$/.test(c3.label) && c3.labelPos === "below" && c3.top === "flat" && c3.notch === false, "an opening's label keeps only letters it can engrave", JSON.stringify(c3.label));
+  check(!document.body.innerHTML.includes("onerror=alert") && !document.body.innerHTML.includes("onload=alert"), "still nothing injected");
 
   const errs = env.errors.filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
   check(!errs.length, "no page errors", errs.slice(0, 3).map(e => e.split("\n")[0]).join(" / "));

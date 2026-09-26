@@ -4433,12 +4433,16 @@ function encHoneycomb(w, h, cell, bar, inside){
   }
   return out;
 }
+// a printed pilot light's hole is never smaller than its lens: the LED pocket, 0.9 mm of wall round it
+// and 0.15 mm of play a side (the lens's shank is octagonal, sized by its corners)
+const lensOct = r => r/Math.cos(Math.PI/8);
+function lensMinHole(led){ return Math.ceil((2*(lensOct((led + 0.2)/2) + 0.9) + 0.3)*10)/10; }
 // the holes of one opening, in its face's coordinates, centred on 0 (before turning and moving it)
 function openingRings(c, wall, E){
   const k = encHas(CUTOUTS, c.kind) ? CUTOUTS[c.kind] : CUTOUTS.round, cl = +E.clear || 0, tear = E.teardrop !== false, out = [];
   const pos = n => Math.max(0.5, +n || 0);
   switch (k.kind){
-    case "round": out.push(encRound(pos(c.dia) + cl, wall, tear)); break;
+    case "round": out.push(encRound(Math.max(pos(c.dia), k.lensFor ? lensMinHole(k.lensFor) : 0) + cl, wall, tear)); break;
     case "rect": out.push(wall && tear ? encPortRect(pos(c.w) + cl, pos(c.h) + cl, Math.max(0, +c.r || 0), 6, !!c.rot)
       : C.ringRect(pos(c.w) + cl, pos(c.h) + cl, Math.max(0, +c.r || 0), 6)); break;
     case "iec": { const w = pos(c.w) + cl, h = pos(c.h) + cl, ch = Math.min(3, h/3);
@@ -4906,11 +4910,13 @@ function buildEnclosure(){
     const list = [];
     let x = -W/2;
     lensOpen.forEach(({ c, k }) => {
-      const led = k.lensFor, hole = Math.max(led + 1.2, (+c.dia || k.dia)), sh = hole - 0.3, fl = sh + 4, f1 = 1.2, z2 = f1 + t, dome = Math.max(1.6, sh*0.45);
-      const oct = r => r/Math.cos(Math.PI/8);                // 8 facets: size by the flat, so round parts still fit
+      const led = k.lensFor, hole = Math.max(lensMinHole(led), +c.dia || k.dia), sh = hole - 0.3, fl = sh + 4, f1 = 1.2, z2 = f1 + t, dome = Math.max(1.6, sh*0.45);
+      const oct = lensOct;                                   // 8 facets: size by the flat, so round parts still fit
       const pocket = oct((led + 0.2)/2), top = z2 + dome;
+      // the pocket stops where the dome, narrowing, would leave less than 0.9 mm of wall round it
+      const pz = Math.min(top - 1.2, z2 + Math.max(0, sh/2 - pocket - 0.9)*dome/(sh/2 - sh*0.18));
       // the shank's corners stay inside the hole; the dome narrows to a small flat, like a faceted jewel
-      const prof = [[pocket, 0], [oct(fl/2), 0], [oct(fl/2), f1], [sh/2, f1], [sh/2, z2], [sh*0.18, top], [0, top], [0, top - 1.2], [pocket, top - 1.2]];
+      const prof = [[pocket, 0], [oct(fl/2), 0], [oct(fl/2), f1], [sh/2, f1], [sh/2, z2], [sh*0.18, top], [0, top], [0, pz], [pocket, pz]];
       let s0 = C.revolveLoop(prof, 8);
       if (C.signedVolume(s0) < 0) s0 = C.revolveLoop(prof.slice().reverse(), 8);
       x += fl/2; list.push(C.transformSolid(s0, 1, x, 0, D/2 + 6 + fl/2)); x += fl/2 + 3;
@@ -7978,7 +7984,7 @@ function enclosureFields(p){
       numField(box,{ label: wall ? "Height of its centre (mm)" : "Front to back (mm from the middle)", min: wall ? 0 : -150, max: wall ? 250 : 150, step:0.5, noReset:true,
         get:()=>c.v, set:v=>c.v=v, onChange:baseChanged });
       const sized = () => encOpeningChanged(i);
-      if (k.kind === "round" || k.kind === "keyhole") numField(box,{ label:"Diameter (mm)", min:1,max:80,step:0.1, get:()=>c.dia, set:v=>c.dia=v, onChange:sized });
+      if (k.kind === "round" || k.kind === "keyhole") numField(box,{ label:"Diameter (mm)", min: k.lensFor ? lensMinHole(k.lensFor) : 1, max:80, step:0.1, get:()=>c.dia, set:v=>c.dia=v, onChange:sized });
       if (["rect","display","vent","iec"].includes(k.kind)){
         numField(box,{ label: k.kind === "display" ? "Window width (mm)" : "Width (mm)", min:1,max:200,step:0.1, get:()=>c.w, set:v=>c.w=v, onChange:sized });
         numField(box,{ label: k.kind === "display" ? "Window height (mm)" : "Height (mm)", min:1,max:200,step:0.1, get:()=>c.h, set:v=>c.h=v, onChange:sized });
@@ -10203,7 +10209,7 @@ window.MakerForge = {
   get busy(){ return busy || queued; },
   get tracer(){ return tracerInfo; },
   get enclosure(){ return enclosureInfo; },
-  get cutouts(){ return CUTOUTS; }, newOpening, buildEnclosure, get bedHelper(){ return bedHelper; },
+  get cutouts(){ return CUTOUTS; }, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
   get jigsaw(){ return jigsawInfo; },
   get lithophane(){ return lithoInfo; },
   get print(){ return printFresh() ? printInfo : null; },

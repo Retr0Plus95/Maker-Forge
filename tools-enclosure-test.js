@@ -271,6 +271,52 @@ async function settle() {
   const shank = Math.max(...first.filter(q => q[1] > 1.2 + 1e-6).map(rad)), flange = Math.max(...first.filter(q => q[1] <= 1.2 + 1e-6).map(rad));
   check(shank * 2 < 8.2 && flange * 2 > 8.2 + 3, "the 5 mm lens's shank passes the 8.2 mm hole and its flange stops it", `shank ${(shank * 2).toFixed(2)} mm, flange ${(flange * 2).toFixed(2)} mm`);
   check(MF.enclosure.lenses === 2 && !MF.enclosure.left.length, "all three pilot lights fit", `${MF.enclosure.lenses} lenses`);
+  // the LED pocket must stay inside every lens with real wall round it (it once broke out through the side
+  // of the narrowing dome): horizontal rays from each lens's axis must enter and leave the plastic in turn,
+  // end outside, and cross at least 0.75 mm of plastic each time they enter
+  const lensPieces = S => {                                // the separate lenses: triangles joined by shared corners
+    const I = S.idx, Q = S.pos, up = new Int32Array(Q.length / 3).map((_, i) => i), find = i => { while (up[i] !== i) i = up[i] = up[up[i]]; return i; };
+    for (let t = 0; t < I.length; t += 3) { up[find(I[t + 1])] = find(I[t]); up[find(I[t + 2])] = find(I[t]); }
+    const by = new Map();
+    for (let t = 0; t < I.length; t += 3) { const r = find(I[t]); if (!by.has(r)) by.set(r, []); by.get(r).push([I[t], I[t + 1], I[t + 2]].map(k => [Q[k * 3], Q[k * 3 + 1], Q[k * 3 + 2]])); }
+    return [...by.values()].sort((m, n) => m[0][0][0] - n[0][0][0]);
+  };
+  const lensWalls = tri => {
+    const xs = tri.flat().map(q => q[0]), zs = tri.flat().map(q => q[2]), ys = tri.flat().map(q => q[1]);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cz = (Math.min(...zs) + Math.max(...zs)) / 2, top = Math.max(...ys);
+    let thin = Infinity, bad = 0, rays = 0;
+    for (let y = 0.013; y < top - 0.02; y += 0.05) for (let a = 7; a < 360; a += 22.5) {
+      const d = [Math.cos(a * Math.PI / 180), 0, Math.sin(a * Math.PI / 180)], o = [cx, y, cz], hits = [];
+      for (const [A, B, Cc] of tri) {
+        const e1 = [B[0] - A[0], B[1] - A[1], B[2] - A[2]], e2 = [Cc[0] - A[0], Cc[1] - A[1], Cc[2] - A[2]];
+        const p = [d[1] * e2[2] - d[2] * e2[1], d[2] * e2[0] - d[0] * e2[2], d[0] * e2[1] - d[1] * e2[0]], det = e1[0] * p[0] + e1[1] * p[1] + e1[2] * p[2];
+        if (Math.abs(det) < 1e-12) continue;
+        const s = [o[0] - A[0], o[1] - A[1], o[2] - A[2]], u = (s[0] * p[0] + s[1] * p[1] + s[2] * p[2]) / det; if (u < 0 || u > 1) continue;
+        const q = [s[1] * e1[2] - s[2] * e1[1], s[2] * e1[0] - s[0] * e1[2], s[0] * e1[1] - s[1] * e1[0]], v = (d[0] * q[0] + d[1] * q[1] + d[2] * q[2]) / det; if (v < 0 || u + v > 1) continue;
+        const tt = (e2[0] * q[0] + e2[1] * q[1] + e2[2] * q[2]) / det; if (tt <= 0) continue;
+        const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+        hits.push([tt, Math.sign(n[0] * d[0] + n[2] * d[2])]);
+      }
+      hits.sort((m, n) => m[0] - n[0]); rays++;
+      if (!hits.length || hits[hits.length - 1][1] < 0 || hits.some((h, i) => i && h[1] === hits[i - 1][1])) { bad++; continue; }
+      for (let i = 0; i < hits.length - 1; i++) if (hits[i][1] < 0) thin = Math.min(thin, hits[i + 1][0] - hits[i][0]);
+    }
+    return { thin, bad, rays };
+  };
+  const pieces = lensPieces(lensPart.solid), walls = pieces.map(lensWalls);
+  check(pieces.length === 2 && walls.every(w => w.rays > 1000 && !w.bad && w.thin >= 0.75), "the LED pockets stay inside both lenses with at least 0.75 mm of wall",
+    walls.map((w, i) => `${i ? "3" : "5"} mm lens: ${w.rays} rays, ${w.bad} bad, thinnest ${w.thin.toFixed(2)} mm`).join("; "));
+  // a hole set smaller than the lens grows to the lens, so the lens still goes through
+  P = await buildNow({ cut: [{ ...MF.newOpening("pilotp5", "front"), u: 0, v: 18, dia: 5.5 }] });
+  const small = P.find(p => /Pilot light lenses/.test(p.name)), sb = small && C.solidBounds(small.solid);
+  const ring = MF.openingRings({ ...MF.newOpening("pilotp5", "front"), dia: 5.5 }, true, MF.state.base.enclosure)[0], ringW = Math.max(...ring.map(q => q[0])) - Math.min(...ring.map(q => q[0]));
+  const shank5 = Math.max(...small.solid.pos.filter((_, i) => i % 3 === 1).map((y, i) => y > 1.2 + 1e-6 ? 1 : 0)) && (() => {
+    const Q = small.solid.pos, pts = []; for (let i = 0; i < Q.length; i += 3) pts.push([Q[i], Q[i + 1], Q[i + 2]]);
+    const cx = (Math.min(...pts.map(q => q[0])) + Math.max(...pts.map(q => q[0]))) / 2, cz = (Math.min(...pts.map(q => q[2])) + Math.max(...pts.map(q => q[2]))) / 2;
+    return 2 * Math.max(...pts.filter(q => q[1] > 1.2 + 1e-6).map(q => Math.hypot(q[0] - cx, q[2] - cz)));
+  })();
+  check(small && sb && closed([small]) && ringW >= MF.lensMinHole(5) - 1e-6 && shank5 < ringW, "a hole set to 5.5 mm for a 5 mm pilot light grows to fit its lens",
+    `hole ${ringW.toFixed(2)} mm (the lens needs ${MF.lensMinHole(5)}), shank ${shank5.toFixed(2)} mm`);
   P = await buildNow({ test: true, cut: [{ ...MF.newOpening("pilotp5", "front"), u: 0, v: 18 }] });
   check(!P.some(p => /lenses/.test(p.name)), "the fit test prints no lenses");
   const PB = MF.defaults ? null : null;

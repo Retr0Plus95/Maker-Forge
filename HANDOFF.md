@@ -4,7 +4,7 @@ Paste this into a new chat along with the repository files to continue.
 
 ## Project overview
 
-**Maker Forge** (v0.17.1) is a browser-based, MIT-licensed studio for multi-colour 3D printing: name keychains, photo-traced parts, jigsaw puzzles, lithophanes, lightboxes, bobble heads, circuit-board art and more. It runs entirely client-side with no build toolchain. Targets: GitHub, a personal website, and later a Linux desktop app (Electron or Tauri wrapper not started).
+**Maker Forge** (v0.17.2) is a browser-based, MIT-licensed studio for multi-colour 3D printing: name keychains, photo-traced parts, jigsaw puzzles, lithophanes, lightboxes, bobble heads, circuit-board art and more. It runs entirely client-side with no build toolchain. Targets: GitHub, a personal website, and later a Linux desktop app (Electron or Tauri wrapper not started).
 
 **Repository layout**
 
@@ -13,7 +13,7 @@ Paste this into a new chat along with the repository files to continue.
 | `src/core.js` | Geometry library, no DOM. Exposed as `window.PRCore`. Runs in Node for tests. |
 | `src/app.html` | UI, state, generators, export. Contains the placeholders `/*CORE*/` where core is inlined and `/*FONTS*/{}` where the fonts go. |
 | `build.py` | Inlines core and the fonts (base64, with `fonts/LICENSES.md` as a comment) into app, producing `index.html`. |
-| `fonts/`, `tools-fonts.js` | The built-in fonts (Session 14): 111 WOFF2 files, one per font, weight and alphabet, and `LICENSES.md`. `npm run fonts` copies them from the `@fontsource` dev dependencies after a font is added to `FONTS`. |
+| `fonts/`, `tools-fonts.js` | The built-in fonts (Session 15): 111 WOFF2 files, one per font, weight and alphabet, and `LICENSES.md`. `npm run fonts` copies them from the `@fontsource` dev dependencies after a font is added to `FONTS`. |
 | `index.html` | The built single-file app. |
 | `tools-test-env.js` | jsdom environment with a software 2D canvas stub; `boot(file)` returns `{ window, errors }`. |
 | `tools-smoke-test.js` | Clicks every tab, generator, preset, button and export path. |
@@ -27,14 +27,15 @@ Paste this into a new chat along with the repository files to continue.
 | `tools-lithophane-test.js` | Lithophanes (Session 9): the sheet builder alone (outline areas, holes, simplified backs, the cylinder seam, a curve), then the generator in the app (thickness follows brightness, mirror, the upright slope limit, every shape and outline closed and support-free, the lamp shade, the hanging hole, Optimize, a hostile project). `node tools-lithophane-test.js index.html` (~85 s); `CORE=1` for the geometry only (~5 s). |
 | `tools-print-survey.js` | Prints what the printability check says about every object and preset: `node tools-print-survey.js index.html [objects\|presets\|all]` (`NOPIC=1` skips the test picture). Use it after any generator change to spot new warnings. |
 | `tools-enclosure-test.js` | Project boxes (Sessions 11 and 12): sizes and volumes, 30 opening kinds on 4 faces, placement messages, screws, lids and heads, boards, labels, magnets, feet, pointed tops, notches, the sliding lid, the lid logo, the fit test, the presets, the rulers, hostile project files. |
-| `tools-paint-test.js` | Colour painter (Session 13): crack-free mesh splitting (refine, height cuts), every paint step on a cube with known areas, the slicer paint codes, painted 3mf / OBJ out and 3mf / OBJ in, then the Paint tab in the app (every auto method, the paint list, a live band slider, brush, mirror, fill, detail, export, the colour check), OBJ import, a hostile project (paint, printer, same-name settings), the printer list and easy reading. `CORE=1` for the geometry part. |
+| `tools-paint-test.js` | Colour painter (Session 13): crack-free mesh splitting (refine, height cuts), every paint step on a cube with known areas, the slicer paint codes, painted 3mf / OBJ out and 3mf / OBJ in, then the Paint tab in the app (every auto method, the paint list, a live band slider, brush, mirror, fill, detail, export, the colour check), OBJ import, a hostile project (paint, printer, same-name settings), the printer list and easy reading. Session 15: an imported model kept in a project file and brought back by opening the same file, Undo across two imported models, hostile models and scales, the paint switch warning. `CORE=1` for the geometry part. |
+| `tools-art-test.js` | Pictures on objects (Session 15): a picture on a photo frame goes on the border, a picture that misses the model is reported, the phone case's Art tab, and the keys that move or delete artwork act only on the Art tab. |
 | `tools-phonecase-test.js` | Phone cases (Session 13): all 75 phones build a closed case of exactly the phone plus gap and wall, openings take plastic away where they should, the lip prints as a ledge over a slope, fit test rim, bumper, every setting changes the case, a picture inlaid in the back (mirrored for reading from the back), a hostile project file. |
 | `tools-size-check.js` | The on-screen size readout against the export parts, the 3MF vertices (both flavours) and the STL, for four objects (Session 11). |
 | `tools-browser-check.js` | **Real browser** (Session 12): opens `index.html` in Chromium via Playwright, answers the CDN requests from `node_modules` (same files, SRI still matches), walks every quick start, object, tab and panel page, saves screenshots and `report.html` to `browser-check/`, and flags page errors, an empty 3D view and layout problems (sideways scroll, content wider than the panel, HUD pills under the view buttons, cut-off text). Then checks what only a browser does: an SVG traced at its own size, the measuring tape, the section view, a share link opened in a second page, a list of name plates. `PRINT=1` reports printability with real fonts, `MOBILE=1` adds a phone-sized pass, `ONLY=`, `PAGES=0`, `THEME=dark`. Needs Playwright with Chromium (`npm i --no-save playwright && npx playwright install chromium`; a global install is found too). |
 | `package.json` | Test dependencies and script shortcuts (`npm run build`, `test:tracer`, `test:smoke`, `test:audit`, `test:print`, `test:jigsaw`, `test:litho`, `test:enclosure`, `test:paint`, `test:phonecase`, `test:size`, `survey:print`, `check:browser`). |
 | `README.md`, `LICENSE` | Docs, MIT. |
 
-Dependencies load from CDNs at runtime: three.js r128, OrbitControls, earcut 2.2.4, JSZip 3.10.1, all from jsDelivr. The fonts are built in (Session 14; Google Fonts until v0.17.0). Dev deps: `npm i` (jsdom, three@0.128.0, earcut@2.2.4 and jszip@3.10.1 for the tests, `@fontsource/*` for `npm run fonts`).
+Dependencies load from CDNs at runtime: three.js r128, OrbitControls, earcut 2.2.4, JSZip 3.10.1, all from jsDelivr. The fonts are built in (Session 15; from jsDelivr in v0.17.1, Google Fonts before). Dev deps: `npm i` (jsdom, three@0.128.0, earcut@2.2.4 and jszip@3.10.1 for the tests, `@fontsource/*` for `npm run fonts`).
 
 **Files not in the Session 6 bundle.** Only `HANDOFF.md`, `index.html`, `app.html` and `tools-tracer-paper-test.js` arrived in Session 6. `src/core.js` was extracted from `index.html` (rebuilding reproduced the v0.11.2 `index.html` byte for byte), and `build.py`, `tools-test-env.js`, `tools-smoke-test.js`, `tools-audit.js` and `tools-tracer-test.js` were rewritten from their descriptions here. `README.md`, `LICENSE` and `tools-security-test.js` were not available and are not in the bundle: if you have the originals, keep them, and consider diffing your old test tools against the new ones.
 
@@ -492,7 +493,7 @@ New tools
 49. Stencils and cookie stamps from the tracer, with bridges added automatically.
 50. Topographic relief maps from an elevation picture, painted by height.
 
-## Session 14: ready to go public, fonts built in (v0.17.1)
+## Session 14: ready to go public, no Google Fonts (v0.17.1)
 
 v0.17.0 was merged as Retr0Plus95/Maker-Forge#3 (squash). The owner is making the repository public and hosting `index.html` on their own website. Before that:
 
@@ -501,12 +502,16 @@ v0.17.0 was merged as Retr0Plus95/Maker-Forge#3 (squash). The owner is making th
 **Changed:**
 - Personal details about the owner were taken out of this file (their eyesight, the lettering of their logo). The old wording is still in the history of `main`; rewriting it was judged not worth it.
 - The PrusaSlicer 3mf and the OBJ named the app "PhotoRelief Studio" (its old name) in their headers; both say "Maker Forge" now.
-- **No Google Fonts; the fonts are built in.** The 34 lettering fonts and Atkinson Hyperlegible are in `fonts/` as WOFF2 files from the `@fontsource` 5.3.0 packages (one per font, weight and alphabet: 111 files, 1.9 MB, every alphabet each font has) with `fonts/LICENSES.md` (35 fonts: 30 under the SIL Open Font License 1.1, 5 under Apache 2.0, with each copyright line and both licence texts). `build.py` packs them into `index.html` as base64 (`FONT_FILES`, keyed `<font>-<alphabet>-<weight>`) and puts `LICENSES.md` in front of them as a comment, so every copy of the page carries the licences. `fontFaceCSS()` writes one `@font-face` per file with a `data:` URL and the alphabet's `unicode-range` (`FONT_RANGES`), so the browser decodes a file only when it draws a letter in that range. The page never downloads a font; it is 3.3 MB (about 2.1 MB over the wire with compression). A first step in this session loaded them from jsDelivr instead (+3 KB); the owner asked for them built in. To add a font: add it to `FONTS`, `npm i -D --save-exact @fontsource/<id>@5.3.0`, `npm run fonts`, `python3 build.py`.
-- `tools-browser-check.js` loads all 36 faces, checks that every rule is built in, and reports any font download or Google request as an error.
+- **No Google Fonts.** The 34 lettering fonts and Atkinson Hyperlegible load from the `@fontsource` 5.3.0 packages on jsDelivr, the CDN the libraries already use, so a visitor's browser talks to jsDelivr only. `fontFaceCSS()` (after `FONTS` in `src/app.html`) writes one `@font-face` per font, weight and alphabet (111 rules; `FONT_SUBSETS` lists the alphabets each font has, `FONT_RANGES` the unicode ranges, which are the same across all packages), so a file downloads only when a letter in its range is drawn; the Easy reading font is no longer added by `applyPrefs`. The app grew by 3 KB. Embedding the fonts instead was measured and left: +1 MB (Latin only) to +2.5 MB (every alphabet) for every visitor. To add a font: add it to `FONTS` and `FONT_SUBSETS` (the alphabets are the `/* <id>-<subset>-<weight>-normal */` comments in the package's `<weight>.css`), and `npm i -D --save-exact @fontsource/<id>@5.3.0` for the browser check.
+- The `@fontsource` packages are test dependencies: `tools-browser-check.js` serves their files for the jsDelivr font URLs (as it does the libraries), loads all 36 faces (a missing one is a finding) and reports any request to Google as an error. The Easy reading dialog, the About text, the README (privacy line, dependencies, security: the hostile-file tests are named correctly now, `tools-security-test.js` never existed) and `CLAUDE.md` say where fonts come from.
 
 **Verified:** full smoke test (22 quick starts, 20 objects, 328 clicks), the paint (with the renamed headers), printability and size tests, the name plate audit (no findings), the print survey (identical to v0.17.0), and the real-browser check (`PRINT=1 MOBILE=1`: 150 screenshots, no findings, no page errors, 36 of 36 font faces loaded, the real-font printability of every quick start identical to v0.17.0, so the glyphs are the same).
 
-**For the website:** only `index.html` is needed. It must be served over https (copying a share link uses the clipboard), preferably as its own page; inside an iframe it needs `allow-scripts allow-same-origin allow-downloads`. A Content-Security-Policy, if the site sets one, must allow `cdn.jsdelivr.net` for scripts, `data:` for fonts (`font-src data:`), and the page's own inline script and styles.
+**For the website:** only `index.html` is needed. It must be served over https (copying a share link uses the clipboard), preferably as its own page; inside an iframe it needs `allow-scripts allow-same-origin allow-downloads`. A Content-Security-Policy, if the site sets one, must allow `cdn.jsdelivr.net` for scripts and fonts, and the page's own inline script and styles.
+
+## Session 15: fonts built in, a bug hunt (v0.17.2)
+
+SESSION15
 
 ## Unfinished (in priority order)
 

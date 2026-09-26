@@ -52,7 +52,10 @@ async function printResult() {
 function signature(extra) {
   const MF = win.MakerForge, C = MF.core;
   let ex = "";
-  try { const e = MF.exportParts(); ex = e.map(q => { const r = C.checkMesh(q), b = C.solidBounds(q); return `${r.tris}:${r.volume.toFixed(2)}:${b.mn.map(v => v.toFixed(2))}`; }).join(";"); } catch (err) { ex = "export failed: " + err.message; }
+  // x·(y + z) summed over the exported vertices tells a mirror image apart even when the bounds are
+  // symmetric about the middle (a standing lithophane)
+  const hand = q => { let s = 0; const P = q.pos; for (let i = 0; i < P.length; i += 3) s += P[i] * (P[i + 1] + P[i + 2]); return (s / Math.max(1, P.length / 3)).toFixed(3); };
+  try { const e = MF.exportParts(); ex = e.map(q => { const r = C.checkMesh(q), b = C.solidBounds(q); return `${r.tris}:${r.volume.toFixed(2)}:${b.mn.map(v => v.toFixed(2))}:${hand(q)}`; }).join(";"); } catch (err) { ex = "export failed: " + err.message; }
   let tris = 0, vol = 0, bad = [], mx = 0, mz = 0, nv = 0;
   MF.parts.forEach(p => {
     const r = C.checkMesh(p.solid); tris += r.tris; vol += r.volume;

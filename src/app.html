@@ -955,7 +955,10 @@ function buildTurned(){
       case "cone": return R*(1-u);
       case "egg": return R*Math.sqrt(Math.max(0, 1-Math.pow(2*u-1,2)))*(1+0.18*(1-u));
       case "dome": return R*Math.sqrt(Math.max(0, 1-u*u));
-      default: return R*(0.62 + (t.belly-0.62)*Math.sin(Math.PI*u)) * (u > 0.8 ? (1-(u-0.8)/0.2*(1-t.neck)) : 1);
+      // the belly leaves the bed at about 35°, and the neck eases in over the top half so the
+      // inside of the default vase never leans over more than about 37°
+      default: { const e = Math.max(0, 2*u - 1);
+        return R*(0.62 + (t.belly-0.62)*Math.sin(Math.PI*u)) * (1 - (1-t.neck)*e*e*(3 - 2*e)); }
     }
   };
   if (t.shape === "torus"){
@@ -1764,7 +1767,7 @@ let plateHoles = null;
 function tracerExtras(T, mask, w, h, mmPerPx, polys, solid){
   plateHoles = null;
   const slot = clamp(state.base.slot, 0, state.slots.length - 1), pxPerMm = 1/mmPerPx, offPx = (+T.offset || 0)*pxPerMm;
-  const opt = { mmPerPx, iso:0, eps:mmPerPx*0.3, minSeg:mmPerPx*0.4 };
+  const opt = { mmPerPx, iso:0, eps:mmPerPx*0.3, minSeg:mmPerPx*0.4, closeEdges:true };
   let parts = [{ name:"Traced part", slot, solid }];
   if (T.extra === "hollow"){
     const cap = clamp(+T.cap || 1.2, 0.3, Math.max(0.3, T.thick - 0.3)), wallPx = Math.max(0.2, +T.wall || 1.6)*pxPerMm;
@@ -2117,8 +2120,8 @@ function buildTracer(){
   }
   // 4. trace smoothly (with an optional fit offset), then true up round holes
   const polys = T.offset
-    ? C.fieldToPolys(C.signedDistanceField(mask, w, h), w, h, { mmPerPx, iso: -T.offset*pxPerMm, eps: mmPerPx*0.3, minSeg: mmPerPx*0.4 })
-    : C.maskToPolys(mask, w, h, { mmPerPx, eps: mmPerPx*0.3 });
+    ? C.fieldToPolys(C.signedDistanceField(mask, w, h), w, h, { mmPerPx, iso: -T.offset*pxPerMm, eps: mmPerPx*0.3, minSeg: mmPerPx*0.4, closeEdges:true })
+    : C.maskToPolys(mask, w, h, { mmPerPx, eps: mmPerPx*0.3, closeEdges:true });
   const holeReport = [];
   const perim = L => L.reduce((a,p,i)=>a+Math.hypot(p[0]-L[(i+1)%L.length][0], p[1]-L[(i+1)%L.length][1]), 0);
   polys.forEach(poly => {
@@ -2159,7 +2162,7 @@ function buildTracer(){
     const sdf = C.signedDistanceField(mask, w, h), offPx = (+T.offset || 0)*pxPerMm, F = new Float32Array(N);
     for (let i=0;i<N;i++) F[i] = sdf[i] + offPx;
     const rOpen = Math.max(0, Math.round((state.printer.nozzle || 0.4)*0.5*pxPerMm)), anyCol = new Float32Array(N).fill(-1e9), cols = [];
-    const fopt = { mmPerPx, iso:0, eps:mmPerPx*0.3, minSeg:mmPerPx*0.4 };
+    const fopt = { mmPerPx, iso:0, eps:mmPerPx*0.3, minSeg:mmPerPx*0.4, closeEdges:true };
     state.slots.forEach((_, k) => {
       if (k === bodySlot) return;
       let m = new Uint8Array(N), n = 0;
@@ -2932,8 +2935,9 @@ async function buildNamePlate(){
   plateMask = maskFromCtx(p2,W,H);
 
   const mmPerPx = 1/PLATE_PX;
-  const fopt = { mmPerPx, iso:0.5, eps:0.02, minSeg:0.06 };          // letters: true curves
-  const sopt = { mmPerPx, iso:0, eps:0.03, minSeg:0.08 };            // distance fields: smooth offsets
+  // closeEdges: anything that still reaches the canvas edge is closed along it, not cut across
+  const fopt = { mmPerPx, iso:0.5, eps:0.02, minSeg:0.06, closeEdges:true };   // letters: true curves
+  const sopt = { mmPerPx, iso:0, eps:0.03, minSeg:0.08, closeEdges:true };     // distance fields: smooth offsets
   const opt = { mmPerPx, smooth:2, eps:0.045 };
   const platePolys = C.fieldToPolys(C.signedDistanceField(plateMask, W, H), W, H, sopt);
   const namePolys = C.fieldToPolys(coverage, W, H, fopt);

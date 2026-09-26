@@ -648,7 +648,7 @@
       eps: o.eps != null ? Math.min(o.eps, s * 0.6) : s * 0.3,
       minSeg: s * 0.4,
       minArea: o.minArea ?? s * s * 4,
-      smooth: 0
+      smooth: 0, closeEdges: o.closeEdges
     });
   }
   function maskToPolysStepped(mask, w, h, o) {
@@ -783,17 +783,19 @@
   // ---------- sub-pixel contours ----------
   // Marching squares over a scalar field with linear interpolation along cell edges, so the
   // outline follows the real curve instead of stepping around whole pixels.
-  function traceField(f, w, h, iso) {
-    // A region that reaches the edge of the grid would give chains that run off it, and closing
-    // such a chain with a straight line cuts across the shape when it leaves and re-enters the
-    // grid more than once (a name plate clipped by its canvas became three crossed fragments).
-    // So when any border node is inside, trace a copy with a ring of outside nodes around it:
-    // every region is then closed along the grid's edge, half a node outside the last inside
-    // node (a pixel's outer edge). Nothing touches the border in the usual case, which keeps
-    // exactly the old path.
+  function traceField(f, w, h, iso, closeEdges) {
+    // A region that reaches the edge of the grid gives chains that run off it, and closing such
+    // a chain with a straight line cuts across the shape when it leaves and re-enters the grid
+    // more than once (a name plate clipped by its canvas became three crossed fragments).
+    // With closeEdges, when any border node is inside, trace a copy with a ring of outside nodes
+    // around it: every region is then closed along the grid's edge, half a node outside the last
+    // inside node (a pixel's outer edge). It is opt-in: a picture's background covers its border,
+    // and the decals rely on such a region having no outline of its own (so it is dropped).
     let edge = false;
-    for (let i = 0; i < w && !edge; i++) edge = f[i] >= iso || f[(h - 1) * w + i] >= iso;
-    for (let j = 0; j < h && !edge; j++) edge = f[j * w] >= iso || f[j * w + w - 1] >= iso;
+    if (closeEdges) {
+      for (let i = 0; i < w && !edge; i++) edge = f[i] >= iso || f[(h - 1) * w + i] >= iso;
+      for (let j = 0; j < h && !edge; j++) edge = f[j * w] >= iso || f[j * w + w - 1] >= iso;
+    }
     if (edge && w > 1 && h > 1) {
       const W = w + 2, H = h + 2, g = new (f.constructor === Array ? Float64Array : f.constructor)(W * H);
       const out = v => v >= iso ? iso - Math.max(v - iso, 1e-4) : v;   // mirrored about the level
@@ -907,7 +909,7 @@
   function fieldToPolys(f, w, h, o) {
     const s = o.mmPerPx, iso = o.iso ?? 0.5;
     const eps = o.eps ?? s * 0.25, minArea = o.minArea ?? s * s * 4, minSeg = o.minSeg ?? s * 0.35;
-    let loops = traceField(f, w, h, iso).map(L => {
+    let loops = traceField(f, w, h, iso, o.closeEdges).map(L => {
       let M = L.map(p => [(p[0] - w / 2) * s, (h / 2 - p[1]) * s]).reverse();
       if (o.smooth) M = chaikin(M, o.smooth);
       M = decimate(M, eps);

@@ -4101,9 +4101,10 @@ const DEFAULTS = () => ({
       fasten:"insert", screw:"M3", head:"sink", teardrop:false, grow:true, lensSlot:0, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
       labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
       board:"none", boardX:0, boardY:0, boardRot:false, standH:5, bw:60, bd:40, bsx:52, bsy:32, bscrew:"M3", boxSlot:1, lidSlot:1,
-      cut:[ { face:"front", kind:"usbc", u:-25, v:12, w:9.2, h:3.4, r:1.6, rot:false },
-            { face:"front", kind:"btn", u:0, v:18, dia:12.2, rot:false },
-            { face:"front", kind:"pilotp5", u:20, v:18, dia:8, rot:false } ] },
+      // every key newOpening gives, so a saved box opens exactly as it was
+      cut:[ { face:"front", kind:"usbc", u:-25, v:12, w:9.2, h:3.4, r:1.6, rot:false, label:"", labelPos:"below", top:"flat", notch:false },
+            { face:"front", kind:"btn", u:0, v:18, dia:12.2, rot:false, label:"", labelPos:"below", top:"flat", notch:false },
+            { face:"front", kind:"pilotp5", u:20, v:18, dia:8, rot:false, label:"", labelPos:"below", top:"flat", notch:false } ] },
     lithophane:{ shape:"flat", outline:"rect", radius:4, width:100, minT:0.8, maxT:3, border:3, cell:0.3, print:"stand",
       curve:120, dia:70, h:80, hole:false, holeDia:4, stripFrom:0.6, stripTo:3.2, stripStep:0.2 },
     phonecase:{ phone:"iPhone 17 Pro", spec:phoneSpec("iPhone 17 Pro"), style:"full", test:false, fit:0.25, wall:1.6, back:1.6, lip:1.0, lipT:1.2, edge:0.8,
@@ -10227,7 +10228,18 @@ const LIMITS = {
   stripFrom:[0.2,3], stripTo:[0.6,8], stripStep:[0.05,1], labelH:[2,15], labelLine:[0.3,2], labelDepth:[0.2,5], footDepth:[0.4,3], minLine:[0,3]
 };
 // the same name means something else in these places (parent key . key): checked first
-const LIMITS_AT = { "sym.size":[0.4,3], "pic.size":[0.4,3], "outline.width":[0.2,6] };
+const LIMITS_AT = { "sym.size":[0.4,3], "pic.size":[0.4,3], "outline.width":[0.2,6],
+  // Session 15, found by fuzzing project files: out of range, these made builds run away (a negative
+  // vase wall looped for minutes, a negative plinth made 22 million triangles) or crawl. Each range is
+  // its slider's, and every quick start and default fits inside (tools-project-test.js checks).
+  "turned.dia":[15,220], "turned.h":[15,250], "turned.belly":[0.7,1.6], "turned.neck":[0.3,1.2], "turned.wall":[0.8,6],
+  "bobble.headDia":[20,90], "bobble.bodyH":[25,140], "bobble.springTurns":[2,12], "bobble.springWire":[0.5,2.5], "bobble.springCoil":[1.5,14],
+  "bobble.postH":[8,60], "bobble.bore":[3,14], "bobble.boreDepth":[4,30], "bobble.fit":[0,0.6], "bobble.gap":[0,20], "bobble.flatBottom":[0,12],
+  "bobble.hatH":[3,30], "bobble.hatBrim":[0,12], "bobble.baseR":[10,60], "bobble.waist":[6,50], "bobble.shoulder":[8,60], "bobble.neck":[4,25],
+  "bobble.plinthH":[1,15], "bobble.weightDia":[5,50], "bobble.weightDepth":[2,40], "bobble.magnetDia":[4,30], "bobble.magnetDepth":[1,10],
+  "canvas.pitch":[2,12], "canvas.tileH":[0.3,4], "canvas.thick":[0.8,6], "canvas.margin":[0,20], "canvas.radius":[0,20], "canvas.gap":[0.2,3],
+  "canvas.holeSize":[0.6,4], "canvas.hangDia":[2,8],
+  "nameplate.spacing":[-1,6], "nameplate.arc":[-120,120], "nameplate.rim":[1.2,8], "nameplate.border":[0,12] };
 // a print orientation must be a real rotation: nine numbers, orthonormal, no mirror
 function cleanRotation(m){
   if (!Array.isArray(m) || m.length !== 9 || !m.every(v => typeof v === "number" && isFinite(v))) return null;

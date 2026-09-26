@@ -19,7 +19,8 @@
     "check:browser": "node tools-browser-check.js index.html",
     "test:paint": "node tools-paint-test.js index.html",
     "test:phonecase": "node tools-phonecase-test.js index.html",
-    "test:art": "node tools-art-test.js index.html"
+    "test:art": "node tools-art-test.js index.html",
+    "test:project": "node tools-project-test.js index.html"
   },
   "devDependencies": {
     "@fontsource/alfa-slab-one": "5.3.0",

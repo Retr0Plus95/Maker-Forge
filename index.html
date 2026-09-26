@@ -3523,12 +3523,12 @@ const PRESETS = {
   "Lithophane lamp":{ base:{ type:"lithophane", lithophane:{ shape:"cylinder", dia:70, h:80, border:3 } }, slots:[{ hex:"#f7f5ef", name:"White" }],
     tip:"Slide it over an LED tea light, never a candle. Print in white PLA at 100% infill." },
   "Project box":{ base:{ type:"enclosure" },
-    tip:"A box with a screwed lid on heat-insert posts, a USB-C port, a button and an LED. Add, move or remove openings on the Openings page." },
+    tip:"A box with a screwed lid on heat-insert posts, a USB-C port, a button and a pilot light with a printed jewel lens. Add, move or remove openings on the Openings page." },
   "Power bank box":{ base:{ type:"enclosure", enclosure:{ w:110, d:72, h:30, radius:6, screw:"M2.5",
-    cut:[ { face:"front", kind:"usbc", u:-28, v:13, label:"IN" }, { face:"front", kind:"usba", u:-6, v:13, label:"OUT" }, { face:"front", kind:"led3", u:14, v:13 },
-          { face:"front", kind:"led3", u:20, v:13, label:"CHARGE" }, { face:"front", kind:"led3", u:26, v:13 }, { face:"front", kind:"led3", u:32, v:13 },
+    cut:[ { face:"front", kind:"usbc", u:-28, v:13, label:"IN" }, { face:"front", kind:"usba", u:-6, v:13, label:"OUT" }, { face:"front", kind:"pilotp3", u:14, v:13 },
+          { face:"front", kind:"pilotp3", u:24, v:13, label:"CHARGE" }, { face:"front", kind:"pilotp3", u:34, v:13 }, { face:"front", kind:"pilotp3", u:44, v:13 },
           { face:"right", kind:"btn", u:0, v:15, label:"POWER" } ] } },
-    tip:"Room for 18650 cells and a charger board: USB-C in, USB-A out, four charge LEDs and a button, each labelled. Check the sizes against your board." },
+    tip:"Room for 18650 cells and a charger board: USB-C in, USB-A out, four charge pilot lights (print their jewel lenses in a clear filament) and a button, each labelled. Check the sizes against your board." },
   "PSU box":{ base:{ type:"enclosure", enclosure:{ w:160, d:110, h:75, wall:2.4, floor:2.4, radius:5, lidThick:3,
     cut:[ { face:"back", kind:"iec", u:-40, v:35 }, { face:"back", kind:"rocker", u:0, v:35 }, { face:"left", kind:"fan", u:0, v:38, size:60 },
           { face:"right", kind:"vent", u:0, v:36, w:70, h:40 }, { face:"front", kind:"banana", u:-35, v:30 }, { face:"front", kind:"banana", u:-20, v:30 },
@@ -3699,7 +3699,7 @@ const DEFAULTS = () => ({
       board:"none", boardX:0, boardY:0, boardRot:false, standH:5, bw:60, bd:40, bsx:52, bsy:32, bscrew:"M3", boxSlot:1, lidSlot:1,
       cut:[ { face:"front", kind:"usbc", u:-25, v:12, w:9.2, h:3.4, r:1.6, rot:false },
             { face:"front", kind:"btn", u:0, v:18, dia:12.2, rot:false },
-            { face:"front", kind:"led5", u:20, v:18, dia:5.1, rot:false } ] },
+            { face:"front", kind:"pilotp5", u:20, v:18, dia:8, rot:false } ] },
     lithophane:{ shape:"flat", outline:"rect", radius:4, width:100, minT:0.8, maxT:3, border:3, cell:0.3, print:"stand",
       curve:120, dia:70, h:80, hole:false, holeDia:4, stripFrom:0.6, stripTo:3.2, stripStep:0.2 },
     phonecase:{ phone:"iPhone 17 Pro", spec:phoneSpec("iPhone 17 Pro"), style:"full", test:false, fit:0.25, wall:1.6, back:1.6, lip:1.0, lipT:1.2, edge:0.8,
@@ -4355,8 +4355,19 @@ const CUTOUTS = {
   btn:{ label:"Push button, 12 mm", kind:"round", dia:12.2 },
   btn16:{ label:"Push button, 16 mm", kind:"round", dia:16.2 },
   btn22:{ label:"Arcade / e-stop button, 22 mm", kind:"round", dia:22.3 },
-  led3:{ label:"LED, 3 mm", kind:"round", dia:3.1 },
-  led5:{ label:"LED, 5 mm", kind:"round", dia:5.1 },
+  // pilot lights: a printed jewel lens (in a clear filament) for a plain LED, or a bought panel-mount one
+  pilotp5:{ label:"Pilot light, printed jewel lens, 5 mm LED", kind:"round", dia:8, lensFor:5 },
+  pilotp3:{ label:"Pilot light, printed jewel lens, 3 mm LED", kind:"round", dia:6, lensFor:3 },
+  ledbezel5:{ label:"Pilot light, 5 mm LED in a chrome bezel (hole 8 mm)", kind:"round", dia:7.9 },
+  ledbezel3:{ label:"Pilot light, 3 mm LED in a chrome bezel (hole 6 mm)", kind:"round", dia:6.0 },
+  pilot8:{ label:"Metal pilot light, 8 mm", kind:"round", dia:8 },
+  pilot10:{ label:"Metal pilot light, 10 mm", kind:"round", dia:10 },
+  pilot12:{ label:"Metal pilot light, 12 mm", kind:"round", dia:12 },
+  pilot16:{ label:"Metal pilot light, 16 mm", kind:"round", dia:16 },
+  pilot19:{ label:"Metal pilot light, 19 mm", kind:"round", dia:19 },
+  pilot22:{ label:"Panel indicator lamp, 22 mm (AD16-22 dashboard style)", kind:"round", dia:22 },
+  led3:{ label:"LED, 3 mm, bare hole", kind:"round", dia:3.1 },
+  led5:{ label:"LED, 5 mm, bare hole", kind:"round", dia:5.1 },
   toggle:{ label:"Mini toggle switch (M6)", kind:"round", dia:6.3 },
   pot:{ label:"Potentiometer / knob shaft (M7)", kind:"round", dia:7.3 },
   gland:{ label:"Cable gland PG7", kind:"round", dia:12.6 },
@@ -4886,7 +4897,28 @@ function buildEnclosure(){
     : !bossesOn ? (E.lid === "press" ? "Press-fit lid, no screws." : "No screws.")
     : E.fasten === "insert" ? `Corner posts for ${E.screw} heat inserts (${screw.insert} mm holes, at least ${screw.insertDepth} mm deep).`
     : `Corner posts for ${E.screw} self-tapping screws (${screw.pilot} mm pilot holes).`;
-  enclosureInfo = { test: !!state.base.enclosure.test, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boardNeed, fastenText, count:(E.cut || []).length - left.length };
+  // printed pilot lights: a faceted jewel lens per opening, printed flange down in front of the box. It
+  // goes through its hole from inside (the flange stops it), and the LED pushes into its back.
+  const lensOpen = state.base.enclosure.test ? [] : (Array.isArray(E.cut) ? E.cut : []).map((c, i) => ({ c, i, k:CUTOUTS[encHas(CUTOUTS, c.kind) ? c.kind : "round"] }))
+    .filter(o => o.k.lensFor && !left.includes(o.i) && ENC_WALLS.has(o.c.face));
+  let lenses = null;
+  if (lensOpen.length){
+    const list = [];
+    let x = -W/2;
+    lensOpen.forEach(({ c, k }) => {
+      const led = k.lensFor, hole = Math.max(led + 1.2, (+c.dia || k.dia)), sh = hole - 0.3, fl = sh + 4, f1 = 1.2, z2 = f1 + t, dome = Math.max(1.6, sh*0.45);
+      const oct = r => r/Math.cos(Math.PI/8);                // 8 facets: size by the flat, so round parts still fit
+      const pocket = oct((led + 0.2)/2), top = z2 + dome;
+      // the shank's corners stay inside the hole; the dome narrows to a small flat, like a faceted jewel
+      const prof = [[pocket, 0], [oct(fl/2), 0], [oct(fl/2), f1], [sh/2, f1], [sh/2, z2], [sh*0.18, top], [0, top], [0, top - 1.2], [pocket, top - 1.2]];
+      let s0 = C.revolveLoop(prof, 8);
+      if (C.signedVolume(s0) < 0) s0 = C.revolveLoop(prof.slice().reverse(), 8);
+      x += fl/2; list.push(C.transformSolid(s0, 1, x, 0, D/2 + 6 + fl/2)); x += fl/2 + 3;
+    });
+    lenses = C.mergeSolids(list);
+    parts.push({ name:`Pilot light lenses (${lensOpen.length})`, slot:clamp(+E.lensSlot || 0, 0, state.slots.length - 1), solid:lenses });
+  }
+  enclosureInfo = { test: !!state.base.enclosure.test, lenses: lensOpen.length, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boardNeed, fastenText, count:(E.cut || []).length - left.length };
   return parts;
 }
 /* An opening bigger than the face it is on used to be left out with a message that was easy to miss.
@@ -7191,7 +7223,7 @@ function findDefault(get){
       if (typeof v === "number"){
         live[k] = MARK; let got; try { got = get(); } catch(e){} live[k] = v;
         if (got === MARK){ found = def && typeof def[k] === "number" ? { v:def[k] } : { v:undefined }; return true; }
-      } else if (v && typeof v === "object" && !(v instanceof HTMLElement) && !ArrayBuffer.isView(v) && k !== "solids" && k !== "src" && k !== "strokes" && k !== "ops"){
+      } else if (v && typeof v === "object" && !(v instanceof HTMLElement) && !ArrayBuffer.isView(v) && k !== "solids" && k !== "src" && k !== "strokes" && k !== "ops" && k !== "cut" && k !== "btn"){
         if (probe(v, def && typeof def === "object" ? def[k] : undefined, depth + 1)) return true;
       }
     }
@@ -7986,6 +8018,10 @@ function enclosureFields(p){
       c.v = ENC_WALLS.has(c.face) ? Math.round(E.h/2) : 0; E.cut.push(c); c.u = freeSpot(E, c);
       renderTab(); encOpeningChanged(E.cut.length - 1); pushHistory(); }]]);
     checkField(add, "Make the box bigger when an opening does not fit", ()=>E.grow !== false, v=>{ E.grow = v; });
+    if (cuts.some(c => (CUTOUTS[c.kind] || {}).lensFor)){
+      slotField(add, "Filament for the pilot light lenses", ()=>String(E.lensSlot || 0), v=>{ E.lensSlot = +v; baseChanged(); });
+      note(add, "The jewel lenses print in front of the box, flat side down. Use a clear or see-through filament (clear PETG, transparent PLA, or red and green ones for classic warning lights). Push each lens through its hole from inside, then the LED into its back.");
+    }
     note(add, "Sizes are for typical parts, plus the clearance on the next page. Measure yours with calipers: modules differ between makers.");
     if (cuts.some(c => encLabelText(c.label))){
       numField(add,{ label:"Label letter height (mm)", min:2,max:15,step:0.5, get:()=>E.labelH ?? 4, set:v=>E.labelH=v, onChange:baseChanged });
@@ -9865,6 +9901,7 @@ function sanitizeProject(data){
     // until v0.17 every round hole in a wall was a teardrop unless switched off; people read them as
     // misshapen ovals, so older projects open with round holes (the option is still there)
     E.teardrop = (+data.v || 0) >= 5 ? E.teardrop === true : false; E.grow = E.grow !== false;
+    E.lensSlot = Math.round(Math.min(MAX_SLOTS - 1, Math.max(0, cleanNum(E.lensSlot, 0))));
     E.boardRot = E.boardRot === true; E.test = E.test === true;
     E.cut = (Array.isArray(E.cut) ? E.cut : []).slice(0, 80).filter(c => c && typeof c === "object").map(c => {
       const o = newOpening(c.kind, c.face);

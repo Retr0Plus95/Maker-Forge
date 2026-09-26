@@ -25,6 +25,7 @@ Four tabs in the top bar — **Make · Art · Colours · Export**. Down the left
 - **39 printers**, grouped by maker, including the Bambu X2D, H2S, H2C and P2S, Prusa CORE One, Creality K2, Elegoo Centauri Carbon, Snapmaker U1 and more. Your printer is remembered for every new project.
 - **Easy reading.** The **Aa** button makes text and buttons bigger (up to 175%), switches on high contrast, uses a font drawn for low vision (Atkinson Hyperlegible), keeps messages up longer and can read them aloud; 🔊 reads the open page aloud. Every slider has a **↺ default** button and every page a **Reset this page** button.
 - **Project boxes:** round holes are round again (pointed tops are an option), and choosing a fan, display or board bigger than the box makes the box grow to fit instead of quietly leaving it out.
+- **Pilot lights** wherever an LED goes: a printed **jewel lens** for a plain 3 or 5 mm LED (print it in a clear or coloured see-through filament), or holes sized for bought chrome-bezel LED holders and metal pilot lights from 8 to 22 mm.
 - Fixed: reopening a saved project quietly changed four settings (charm size, picture size, artwork outline width and the plastic canvas pixel count).
 
 | Colour fade and stripes on the Paint tab | Brush with mirrored strokes |
@@ -34,8 +35,8 @@ Four tabs in the top bar — **Make · Art · Colours · Export**. Down the left
 | ![A phone case with button and port openings](docs/images/phone-case.jpg) | ![The case turned over, a star inlaid in two colours](docs/images/phone-case-back.jpg) |
 | **39 printers**, your Bambu X2D remembered | **Easy reading:** bigger text, high contrast, clear letters |
 | ![The printer picker grouped by maker](docs/images/printers.jpg) | ![The app at 130% with high contrast](docs/images/easy-reading.jpg) |
-| **A PSU box with a 120 mm fan**: round grille, the box grew to fit | **Easy reading settings** |
-| ![A PSU box with a round 120 mm fan grille](docs/images/psu-box-fan.jpg) | ![The Easy reading dialog](docs/images/easy-reading-settings.jpg) |
+| **A PSU box with a 120 mm fan**: round grille, the box grew to fit | **Pilot lights** with printed jewel lenses |
+| ![A PSU box with a round 120 mm fan grille](docs/images/psu-box-fan.jpg) | ![Four red jewel lenses in front of the power bank box](docs/images/pilot-lights.jpg) |
 
 ### New in 0.16
 

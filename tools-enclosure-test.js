@@ -26,7 +26,7 @@ async function settle() {
 
   console.log("default box 100 × 64 × 36");
   let P = await build();
-  check(P.length === 2 && closed(P), "box and lid, both closed and outward", P.map(p => `${p.name} ${C.checkMesh(p.solid).tris}`).join(", "));
+  check(P.length === 3 && closed(P) && /Pilot light lenses/.test(P[2].name), "box, lid and the pilot light's lens, all closed and outward", P.map(p => `${p.name} ${C.checkMesh(p.solid).tris}`).join(", "));
   let b = bnd(P[0]);
   check(Math.abs(b.size[0] - 100) < 1e-3 && Math.abs(b.size[2] - 64) < 1e-3 && Math.abs(b.size[1] - 36) < 1e-3 && Math.abs(b.mn[1]) < 1e-6, "box is exactly 100 × 64 × 36 on the bed", b.size.map(v => v.toFixed(3)).join(" × "));
   const L = bnd(P[1]);
@@ -257,6 +257,25 @@ async function settle() {
   boardSel.value = "pi"; boardSel.dispatchEvent(new win.Event("change")); await settle();
   const E5 = MF.state.base.enclosure;
   check(E5.w >= 90 && E5.d >= 60 && !MF.enclosure.warn.some(w => /does not fit/.test(w.t)) && MF.enclosure.board && MF.enclosure.board.fits !== false, "picking the Pi for that box grows it round the board", `${E5.w} × ${E5.d} × ${E5.h}`);
+
+  console.log("\npilot lights (Session 13)");
+  P = await buildNow({ cut: [{ ...MF.newOpening("pilotp5", "front"), u: -20, v: 18 }, { ...MF.newOpening("pilotp3", "front"), u: 10, v: 18 }, { ...MF.newOpening("pilot22", "back"), u: 0, v: 18 }], lensSlot: 2 });
+  const lensPart = P.find(p => /Pilot light lenses/.test(p.name));
+  check(lensPart && /\(2\)/.test(lensPart.name) && lensPart.slot === 2 && closed([lensPart]), "two printed jewel lenses (none for the bought 22 mm lamp), in the lens filament", lensPart && lensPart.name);
+  const lb = lensPart && C.solidBounds(lensPart.solid);
+  check(lb && near(lb.mn[1], 0, 1e-6) && lb.mn[2] > 32, "printed flat side down, in front of the box", lb && `from z ${lb.mn[2].toFixed(1)}`);
+  // each lens: the shank passes the hole (8 mm + 0.2 clearance), the flange does not
+  const first = []; for (let i = 0; i < lensPart.solid.pos.length; i += 3) if (lensPart.solid.pos[i] < -36) first.push([lensPart.solid.pos[i], lensPart.solid.pos[i + 1], lensPart.solid.pos[i + 2]]);
+  const cx = (Math.min(...first.map(q => q[0])) + Math.max(...first.map(q => q[0]))) / 2, zc = (Math.min(...first.map(q => q[2])) + Math.max(...first.map(q => q[2]))) / 2;
+  const rad = q => Math.hypot(q[0] - cx, q[2] - zc);
+  const shank = Math.max(...first.filter(q => q[1] > 1.2 + 1e-6).map(rad)), flange = Math.max(...first.filter(q => q[1] <= 1.2 + 1e-6).map(rad));
+  check(shank * 2 < 8.2 && flange * 2 > 8.2 + 3, "the 5 mm lens's shank passes the 8.2 mm hole and its flange stops it", `shank ${(shank * 2).toFixed(2)} mm, flange ${(flange * 2).toFixed(2)} mm`);
+  check(MF.enclosure.lenses === 2 && !MF.enclosure.left.length, "all three pilot lights fit", `${MF.enclosure.lenses} lenses`);
+  P = await buildNow({ test: true, cut: [{ ...MF.newOpening("pilotp5", "front"), u: 0, v: 18 }] });
+  check(!P.some(p => /lenses/.test(p.name)), "the fit test prints no lenses");
+  const PB = MF.defaults ? null : null;
+  $$("#presetGallery button").find(b => b.dataset.k === "Power bank box").click(); await settle();
+  check(MF.parts.some(p => /Pilot light lenses \(4\)/.test(p.name)) && !MF.enclosure.left.length, "the Power bank box's four charge lights are pilot lights with lenses", MF.parts.map(p => p.name).join(", "));
 
   const errs = env.errors.filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
   check(!errs.length, "no page errors", errs.slice(0, 3).map(e => e.split("\n")[0]).join(" / "));

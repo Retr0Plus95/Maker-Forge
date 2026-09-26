@@ -7506,8 +7506,9 @@ function renderTab(){
       const r = document.createElement("div"); r.className = "row";
       const b1 = document.createElement("button"); b1.className = "btn"; b1.textContent = "↺ Start this object over";
       b1.title = "Every setting of this object back to its default. Your artwork and colours stay.";
-      b1.onclick = () => { if (!confirm("Put every setting of this object back to its default? Your artwork and filament colours stay.")) return;
-        state.base[state.base.type] = DEFAULTS().base[state.base.type]; baseChanged(); pushHistory(); renderTab(); };
+      // no pop-up: it happens at once and Undo brings the settings back (easier with big text or a screen reader)
+      b1.onclick = () => { state.base[state.base.type] = DEFAULTS().base[state.base.type]; baseChanged(); pushHistory(); renderTab();
+        notify("Every setting of this object is back to its default. Undo (Ctrl+Z) brings yours back."); };
       r.appendChild(b1); d.appendChild(r);
     }
     p.appendChild(d);
@@ -9389,7 +9390,7 @@ function tabPaint(p){
   if (modelParts.length > 1) selField(p, "What to paint", [["-1","The whole model"], ...modelParts.map((q,i)=>[String(i), q.name])],
     () => String(state.paint.part ?? -1), v => { state.paint.part = +v; paintChanged(); });
   checkField(p, "Show the paint", () => state.paint.on !== false, v => { state.paint.on = v; repaint(true); });
-  buttonRow(p, [["Remove all paint", ()=>{ if (!paintOps().length || confirm("Remove all the paint from this model?")){ state.paint.ops = []; renderTab(); paintChanged(); } }]]);
+  buttonRow(p, [["Remove all paint", ()=>{ if (!paintOps().length) return; state.paint.ops = []; renderTab(); paintChanged(); notify("All the paint is gone. Undo (Ctrl+Z) brings it back."); }]]);
 
   p.insertAdjacentHTML("beforeend", `<h2>Auto colour</h2>`);
   note(p, "Pick a way to colour the model automatically. You can combine several: later steps paint over earlier ones.");

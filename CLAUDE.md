@@ -40,6 +40,7 @@ Plus, depending on what changed:
 - enclosure work → `npm run test:enclosure`
 - painter work, or `meshEditor` / the paint steps / 3mf or OBJ reading and writing → `npm run test:paint`
 - phone case work, or `PHONES` / `heightSheet` → `npm run test:phonecase`
+- pictures on objects (placement, the Art tab), or the keys that move artwork → `npm run test:art`
 - after any generator change → `node tools-print-survey.js index.html` (look for new warnings)
 - anything visual, text or fonts, the 3D view or view tools → `npm run check:browser` (Chromium via Playwright;
   screenshots and `report.html` land in `browser-check/`, which is git-ignored)

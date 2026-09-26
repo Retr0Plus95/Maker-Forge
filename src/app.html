@@ -7304,13 +7304,17 @@ $("#themeBtn").onclick = ()=>{
   applyTheme(); notify("Theme: "+state.view.theme); pushHistory();
 };
 document.addEventListener("keydown", e => {
-  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
   const k = e.key.toLowerCase();
+  // Delete and the arrow keys act on the artwork only on the Art tab, and only when no button, tab or
+  // field has the focus (arrow keys move between tabs and pages, and a control may have used the key)
+  const onArt = tab === "art" && !typing && !e.defaultPrevented && !e.ctrlKey && !e.metaKey && !e.altKey &&
+    (e.target === document.body || e.target === document.documentElement || !!e.target.closest("#view"));
   if ((e.ctrlKey||e.metaKey) && k === "z"){ if (typing) return; e.preventDefault(); e.shiftKey ? redo() : undo(); }
   else if ((e.ctrlKey||e.metaKey) && k === "y"){ if (typing) return; e.preventDefault(); redo(); }
   else if ((e.ctrlKey||e.metaKey) && k === "s"){ e.preventDefault(); saveProjectFile(); }
-  else if (!typing && (k === "delete" || k === "backspace")){ if (state.items[state.active]){ e.preventDefault(); removeItem(); } }
-  else if (!typing && ["arrowleft","arrowright","arrowup","arrowdown"].includes(k)){
+  else if (onArt && (k === "delete" || k === "backspace")){ if (state.items[state.active]){ e.preventDefault(); removeItem(); } }
+  else if (onArt && ["arrowleft","arrowright","arrowup","arrowdown"].includes(k)){
     const d = state.items[state.active]; if (!d) return;
     e.preventDefault();
     const step = e.shiftKey ? 2 : 0.5;

@@ -7028,6 +7028,7 @@ function sanitizeProject(data){
   if (st.model && typeof st.model === "object"){
     st.model.orient = cleanRotation(st.model.orient);
     st.model.brim = Math.min(15, Math.max(0, cleanNum(st.model.brim, 0)));
+    st.model.scale = Math.min(400, Math.max(20, cleanNum(st.model.scale, 100)));   // a negative scale would turn the model inside out
     st.model.mirror = st.model.mirror === true;
   }
   if (st.base && typeof st.base.type === "string" && !SHAPES.some(([k]) => k === st.base.type)) st.base.type = "nameplate";
@@ -7043,6 +7044,10 @@ function sanitizeProject(data){
     T.plateShape = one(T.plateShape, ["outline","circle","rect"]); T.plateMode = one(T.plateMode, ["raised","flush","engraved"]);
     T.colours = one(T.colours, ["one","keep"]); T.scaleFrom = one(T.scaleFrom, ["measure","paper","file"]);
     T.plateHole = one(T.plateHole, ["none","hang","loop","screws2","screws4"]); T.plateScrew = encHas(SCREWS, T.plateScrew) ? T.plateScrew : "M3"; T.plateSink = T.plateSink !== false;
+  }
+  if (st.base && "stl" in st.base){                 // the imported model's name and scale (the model itself is data.model)
+    const L = st.base.stl && typeof st.base.stl === "object" ? st.base.stl : {};
+    st.base.stl = { name: cleanStr(L.name, 300, ""), scale: Math.min(400, Math.max(5, cleanNum(L.scale, 100))) };
   }
   if (st.base && st.base.phonecase && typeof st.base.phonecase === "object"){
     const K = st.base.phonecase, one = (v, list) => list.includes(v) ? v : list[0], num = (v, lo, hi, fb) => Math.min(hi, Math.max(lo, cleanNum(v, fb)));

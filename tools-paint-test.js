@@ -310,6 +310,13 @@ async function settle() {
   check(S2.paint.ops[0].width === 1, "a paint stripe's 1 mm width is not taken for an object's width (5 mm minimum)", S2.paint.ops[0].width);
   check(S2.printer.model === "Custom" && S2.printer.bed.join(",") === "1000,50,256" && S2.printer.nozzle === 0.1 && S2.printer.layer === 0.6 && S2.printer.colors === 16 && S2.printer.flow === 1,
     "a hostile printer is clamped", JSON.stringify(S2.printer));
+  // Session 15: the imported model's name and scale, and the whole model's scale
+  const proj3 = JSON.parse(JSON.stringify(st()));
+  proj3.base.type = "stl"; proj3.base.stl = { name: 5, scale: -50 }; proj3.model = Object.assign({}, proj3.model, { scale: -100 });
+  await load(proj3);
+  const S3 = st(), errs3 = env.errors.filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
+  check(S3.base.stl.name === "" && S3.base.stl.scale === 5 && S3.model.scale === 20 && !errs3.length, "a model name that is not text and negative scales are cleaned (a negative scale turns a model inside out)",
+    `${JSON.stringify(S3.base.stl)}, model ${S3.model.scale}%, ${errs3.length} errors`);
 
   console.log("\nprinters and easy reading");
   toTab("colour"); await sleep(40); toPage("Printer"); await sleep(40);

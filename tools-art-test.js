@@ -67,7 +67,7 @@ async function addPicture(MF) {                      // the smoke test's two-col
   check(/inlaid into the back of the case/.test(panelText()) && labels().includes("Mirror") && !labels().some(l => /^Rotation|^Move across/.test(l)), "with the inlay on, the Art tab shows only what the inlay reads", labels().join(", ").slice(0, 160));
   MF.state.base.phonecase.style = "bumper"; MF.rebuild(false); await settle(); tabBtn("art").click(); await sleep(80);
   check(/A bumper has no back/.test(panelText()), "a bumper says it cannot carry a picture");
-  MF.state.base.phonecase.style = "case"; MF.state.base.phonecase.logo.on = false;
+  MF.state.base.phonecase.style = "full"; MF.state.base.phonecase.logo.on = false;
 
   console.log("\nkeys that move or delete artwork act only on the Art tab");
   await choose("board"); await settle();

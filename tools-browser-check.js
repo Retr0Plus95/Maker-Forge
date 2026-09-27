@@ -345,6 +345,61 @@ function pageCoverage() {
     await shot(page, "paint-reimported", "A painted Bambu 3mf opened again: the paint is kept");
     notes.push(`painter: a mouse stroke of ${brushed.pts} points; a painted 3mf read back ${back.counts === exp.counts ? "with every triangle's colour" : "DIFFERENT"}`);
   }
+  // ---------- colour from a photo: a plain figure, then a photo of its front and one of its back (Session 16) ----------
+  {
+    require(path.join(__dirname, "src", "core.js"));
+    const PC = globalThis.PRCore, F = require("./tools-photo-figure.js")(PC);
+    const fig = F.figure(), topo = PC.meshTopology(fig.solid), cls = F.truth(topo, fig.partOf), W = 600, H = 800;
+    const photo = (cam, fit, seed, name) => { const r = F.render(fig.solid, topo, cls, cam, fit, W, H, seed), f = path.join(OUT, name); fs.writeFileSync(f, encodePNG(W, H, r.rgba)); return f; };
+    const fFront = photo("front", { a: 6.3 / H, tx: 310 / H, ty: 760 / H, rot: 0.04, mirror: false }, 1, "photo-front.png");
+    const fBack = photo("back", { a: 5.8 / H, tx: 290 / H, ty: 745 / H, rot: -0.03, mirror: false }, 2, "photo-back.png");
+    const raw = fig.raw, lines = [];
+    for (let i = 0; i < raw.pos.length; i += 3) lines.push(`v ${raw.pos[i]} ${-raw.pos[i + 2]} ${raw.pos[i + 1]}`);     // Z up, as printers have it
+    for (let i = 0; i < raw.idx.length; i += 3) lines.push(`f ${raw.idx[i] + 1} ${raw.idx[i + 1] + 1} ${raw.idx[i + 2] + 1}`);
+    const fObj = path.join(OUT, "footballer.obj"); fs.writeFileSync(fObj, lines.join("\n"));
+    // the badge from the Art tab would be laid on the figure as a decal: leave it out of this one
+    await page.evaluate(() => { const MF = window.MakerForge; MF.state.items.length = 0; MF.state.active = -1; MF.state.printer.colors = 6; const sel = document.querySelector("#objectSel"); sel.value = "stl"; });
+    await page.setInputFiles("#stlInput", fObj);
+    await page.waitForFunction(() => /^footballer\.obj/.test((window.MakerForge.state.base.stl || {}).name || ""), null, { timeout: 180000 }).catch(() => {});
+    await settle(page);
+    await page.evaluate(async () => {
+      [...document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "paint").click(); await new Promise(r => setTimeout(r, 100));
+      const b = [...document.querySelectorAll("#secrail button")].find(b => b.dataset.title === "Auto colour"); if (b) b.click();
+    });
+    const t0 = Date.now();
+    await page.setInputFiles("#photoInput", [fFront, fBack]);
+    await page.waitForFunction(() => { const MF = window.MakerForge, o = MF.paint.photo.op; return o && o.views.length === 2 && MF.paint.photo.info(o) && !MF.busy; }, null, { timeout: 240000 }).catch(() => {});
+    await settle(page);
+    const ms = Date.now() - t0;
+    const r = await page.evaluate(() => {
+      const MF = window.MakerForge, o = MF.paint.photo.op, p = MF.parts[0], cv = document.querySelector("canvas.photoPrev");
+      let yellow = 0; if (cv){ const d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data; for (let i = 0; i < d.length; i += 4) if (d[i] === 255 && d[i + 1] === 214 && d[i + 2] === 0) yellow++; }
+      const b = cv && cv.getBoundingClientRect();
+      return { views: o ? o.views.map(v => ({ yaw: v.cam.yaw, match: v.match })) : [], colours: o ? o.pal.length : 0, slots: MF.state.slots.map(s => s.name).join(", "),
+        painted: p && p.paint ? p.paint.filter(s => s !== 255).length / p.paint.length : 0, yellow, box: b && { x: b.left + b.width / 2, y: b.top + b.height / 2, h: b.height }, tx: o && o.views[MF.paint.ui.photo].fit.tx };
+    });
+    await page.evaluate(() => document.querySelector("canvas.photoPrev") && document.querySelector("canvas.photoPrev").scrollIntoView({ block: "center" }));
+    await shot(page, "paint-photo", "Paint tab: a plain figure coloured from a photo of its front and one of its back", await modelInfo(page, "paint from a photo"));
+    const ok = r.views.length === 2 && r.views.every(v => v.match > 0.8) && Math.abs(r.views[0].yaw) <= 10 && Math.abs(Math.abs(r.views[1].yaw) - 180) <= 10 && r.colours === 6 && r.painted > 0.999 && r.yellow > 200;
+    if (!ok) findings.push({ where: "paint from a photo", what: `after two photos: ${JSON.stringify(r)}` });
+    // drag the photo with the mouse, then look at the colours it reads
+    let dragged = null;
+    if (r.box){
+      const b = await page.evaluate(() => { const b = document.querySelector("canvas.photoPrev").getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2, h: b.height }; });
+      const tx0 = await page.evaluate(() => { const MF = window.MakerForge, o = MF.paint.photo.op; return o.views[MF.paint.ui.photo].fit.tx; });
+      await page.mouse.move(b.x, b.y); await page.mouse.down(); for (let i = 1; i <= 6; i++) await page.mouse.move(b.x + i * 5, b.y); await page.mouse.up();
+      const tx1 = await page.evaluate(() => { const MF = window.MakerForge, o = MF.paint.photo.op; return o.views[MF.paint.ui.photo].fit.tx; });
+      dragged = (tx1 - tx0) * b.h;
+      if (Math.abs(dragged - 30) > 3) findings.push({ where: "paint from a photo", what: `dragging the preview 30 px moved the photo ${dragged.toFixed(1)} px` });
+      await page.evaluate(tx => { const MF = window.MakerForge, o = MF.paint.photo.op; o.views[MF.paint.ui.photo].fit.tx = tx; }, tx0);
+      await page.evaluate(() => { const b = [...document.querySelectorAll("#panel .seg.show button")].find(b => b.dataset.k === "colours"); if (b) b.click(); });
+      await settle(page);
+      await shot(page, "paint-photo-colours", "Paint tab: the colours read from the photo, each in the filament it prints in");
+      await page.evaluate(() => { const b = [...document.querySelectorAll("#panel .seg.show button")].find(b => b.dataset.k === "photo"); if (b) b.click(); });
+    }
+    [fFront, fBack, fObj].forEach(f => fs.unlinkSync(f));
+    notes.push(`colour from a photo: ${r.views.map(v => `${v.yaw}° (outline ${Math.round(v.match * 100)}%)`).join(" and ")}, ${r.colours} colours (${r.slots}), ${(r.painted * 100).toFixed(1)}% painted, ${ms} ms; a 30 px drag moved it ${dragged == null ? "–" : dragged.toFixed(1)} px`);
+  }
   await page.context().close();
 
   // ---------- phone ----------

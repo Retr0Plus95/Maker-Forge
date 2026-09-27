@@ -302,6 +302,13 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
 .oprow .grow{flex:1;min-width:0}
 .oprow small{color:var(--muted)}
 .seg.five{grid-template-columns:repeat(5,1fr)}
+/* colour from a photo: the photo with the model's outline on it, and the buttons that move it */
+.photoPrev{display:block;width:100%;height:auto;max-height:420px;object-fit:contain;margin:10px 0 4px;border-radius:10px;border:1px solid var(--line);background:var(--field);cursor:grab;touch-action:none}
+.photoPrev:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.nudges{flex-wrap:wrap;gap:4px}
+.nudges .btn{min-width:40px;min-height:36px;font-size:16px;padding:4px 8px}
+.card h3{font-size:13.5px;margin:14px 0 4px}
+button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--accent-soft)}
 /* reset a setting to its default */
 .field .reset{grid-column:2;grid-row:1;justify-self:end;border:none;background:none;color:var(--accent);cursor:pointer;font-size:12px;font-weight:700;padding:2px 4px;border-radius:6px}
 .field .reset:hover{background:var(--accent-soft)}
@@ -358,7 +365,7 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.17.2</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.18.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -4547,7 +4554,12 @@ function projectPayload(withModel){
   const model = withModel && state.base.type === "stl" && stlData ? { name:state.base.stl.name,
     tris:b64url(new Uint8Array(stlData.buffer, stlData.byteOffset, stlData.byteLength)), paint:stlPaint ? b64url(stlPaint) : null } : undefined;
   return JSON.stringify({ app:"Maker Forge", v:5, saved:new Date().toISOString(),
-    state:JSON.parse(serialize()), assets:Object.fromEntries(Object.entries(assets).map(([k,v])=>[k,v.dataURL])), model });
+    state:JSON.parse(serialize()), assets:Object.fromEntries(Object.entries(assets).filter(([k]) => usedAssets().has(k)).map(([k,v])=>[k,v.dataURL])), model });
+}
+function usedAssets(){
+  const used = new Set(state.items.map(it => it.asset).filter(Boolean));
+  ((state.paint && state.paint.ops) || []).forEach(o => { if (o.k === "photo") o.views.forEach(v => used.add(v.asset)); });
+  return used;
 }
 /* Share link: the project, pictures left out, deflated into the part of the address after "#p=".
    That part never reaches a server. Opening one goes through sanitizeProject like any project file. */
@@ -7304,7 +7316,7 @@ renderer.domElement.addEventListener("pointerup", e => {
    slic3rpe:mmu_segmentation for PrusaSlicer); the OBJ groups faces by colour. */
 const PAINT_MAX_TRIS = 900000, PAINT_LEAVE = 255;
 const PAINT_DETAIL = { coarse:2.5, normal:1.2, fine:0.6 };
-const paintUI = { slot:1, tool:"brush", r:3, facing:true, fill:"smooth", angle:30, method:"height", mirror:false };
+const paintUI = { slot:1, tool:"brush", r:3, facing:true, fill:"smooth", angle:30, method:"height", mirror:false, photo:0, photoShow:"photo" };
 const paintCache = new WeakMap();                  // original solid -> refined mesh, topology, brush grid
 let paintInfo = { tris:0, painted:0, edge:0, capped:false, area:{} };
 const paintOps = () => (state.paint && state.paint.on !== false && Array.isArray(state.paint.ops)) ? state.paint.ops : [];
@@ -7319,7 +7331,7 @@ function paintCuts(ops){
   }
   return [...cuts].filter(isFinite).sort((a,b)=>a-b).slice(0, 600);
 }
-const paintNeedsFine = ops => ops.some(o => ["brush","picture","noise","fill"].includes(o.k));
+const paintNeedsFine = ops => ops.some(o => ["brush","picture","noise","fill","photo"].includes(o.k));
 function paintEdgeFor(parts, ops){
   const d = state.paint.detail || "auto";
   if (d === "auto" && !paintNeedsFine(ops)) return Infinity;
@@ -7346,6 +7358,194 @@ function paintPicture(o){
   const pix = new Int16Array(w*h); for (let i=0;i<pix.length;i++) pix[i] = cm.idx[i] < 0 ? -1 : cm.idx[i];
   paintPicCache.key = key; paintPicCache.pic = { w, h, pix, aspect:w/h };
   return paintPicCache.pic;
+}
+/* ---- colour from a photo (Session 16) ----
+   A "photo" step holds up to six photos of the model (each kept in the project as a picture, like the
+   Art tab's), where each one was taken from (yaw round the model, pitch up), how it lines up with the
+   model (core photoFit) and the photo's colours (core photoPalette), each printed in a filament. The
+   colours land on the model through a depth test (core paintFromPhotos); what no photo shows takes the
+   nearest colour. The result per part is cached, so brush strokes after it stay quick. */
+const PHOTO_MAX = 6, PHOTO_RES = 900, PHOTO_SIDES = { front:[0,0], right:[90,0], back:[180,0], left:[-90,0], top:[0,89] };
+const photoPixCache = new WeakMap();                 // a photo's canvas -> its pixels at a size
+function photoPixels(asset, long){
+  const a = assets[asset]; if (!a || !a.canvas) return null;
+  const cv = a.canvas, s = Math.min(1, long / Math.max(cv.width, cv.height));
+  const w = Math.max(8, Math.round(cv.width*s)), h = Math.max(8, Math.round(cv.height*s)), key = w + "x" + h;
+  let m = photoPixCache.get(cv); if (!m){ m = new Map(); photoPixCache.set(cv, m); }
+  if (!m.has(key)){ const img = resample(cv, w, h, false); m.set(key, { w, h, rgba:img.data }); }
+  return m.get(key);
+}
+// the parts being painted as one solid (their own shape, before the painter splits them), for lining up
+let photoModelCache = { list:[], solid:null };
+function photoModel(){
+  // artwork laid on the model is not in a photo of it
+  const all = paintTargets(), own = all.filter(p => !p.decal), list = (own.length ? own : all).map(p => p.solid0 || p.solid);
+  if (!list.length) return null;
+  if (list.length === photoModelCache.list.length && list.every((s,i) => s === photoModelCache.list[i])) return photoModelCache.solid;
+  photoModelCache = { list, solid: list.length === 1 ? list[0] : C.mergeSolids(list) };
+  return photoModelCache.solid;
+}
+const photoCamOf = v => ({ yaw:v.cam.yaw, pitch:v.cam.pitch });
+// the model's middle and height as a camera sees it; a view keeps this from when it was lined up, so
+// the photo follows the model when its size changes afterwards (the imported model's size on the Make tab)
+const photoBoxCache = new WeakMap();
+function photoBox(model, cam){
+  let m = photoBoxCache.get(model); if (!m){ m = new Map(); photoBoxCache.set(model, m); }
+  const key = cam.yaw + "," + cam.pitch; if (m.has(key)) return m.get(key);
+  const C0 = C.photoCam(cam), P = model.pos; let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+  for (let k=0;k<P.length;k+=3){ const u = P[k]*C0.r[0] + P[k+1]*C0.r[1] + P[k+2]*C0.r[2], w = P[k]*C0.up[0] + P[k+1]*C0.up[1] + P[k+2]*C0.up[2];
+    if (u < u0) u0 = u; if (u > u1) u1 = u; if (w < v0) v0 = w; if (w > v1) v1 = w; }
+  const b = [(u0 + u1)/2, (v0 + v1)/2, Math.max(1e-6, v1 - v0)]; m.set(key, b);
+  return b;
+}
+function photoFitNowFor(v){
+  const f = v.fit, model = f && v.box && photoModel(); if (!model) return f;
+  const b = photoBox(model, photoCamOf(v)), [cu0, cv0, h0] = v.box, s = b[2] / h0;
+  if (!(s > 0.01 && s < 100) || (Math.abs(s - 1) < 1e-9 && Math.abs(b[0] - cu0) < 1e-9 && Math.abs(b[1] - cv0) < 1e-9)) return f;
+  // photoXY: (x, y) = (tx, ty) + a·R(u, v); keep the old middle where it was and scale by the height
+  const c = Math.cos(f.rot), sn = Math.sin(f.rot), R = (u, w) => { const uu = f.mirror ? -u : u; return [uu*c - w*sn, -(uu*sn + w*c)]; };
+  const a2 = f.a / s, r0 = R(cu0, cv0), r1 = R(b[0], b[1]);
+  return { a:a2, tx:f.tx + f.a*r0[0] - a2*r1[0], ty:f.ty + f.a*r0[1] - a2*r1[1], rot:f.rot, mirror:f.mirror };
+}
+// before the fit is changed by hand: take the model as it is now as the reference
+function photoBake(v){ const model = photoModel(); if (!v.fit || !model) return; v.fit = photoFitNowFor(v); v.box = photoBox(model, photoCamOf(v)).map(x => +x.toFixed(5)); }
+const wrapYaw = y => { y = ((y + 180) % 360 + 360) % 360 - 180; return y === -180 ? 180 : Math.round(y); };
+// line a photo up with the model; search: also look for the angle it was taken from (±45° round, ±20° up)
+function photoFitView(v, search){
+  const model = photoModel(), px = photoPixels(v.asset, 480);
+  if (!model || !px) return false;
+  const mask = C.photoMask(px.rgba, px.w, px.h, v.tol);
+  const r = C.photoFit(model, photoCamOf(v), mask, px.w, px.h, !!(v.fit && v.fit.mirror), search ? { yaw:45, pitch:20 } : null);
+  if (!r) return false;
+  v.fit = { a:r.fit.a, tx:r.fit.tx, ty:r.fit.ty, rot:r.fit.rot, mirror:r.fit.mirror };
+  v.match = +r.iou.toFixed(3);
+  if (r.cam) v.cam = { yaw:wrapYaw(r.cam.yaw), pitch:clamp(Math.round(r.cam.pitch), -89, 89) };
+  v.box = photoBox(model, photoCamOf(v)).map(x => +x.toFixed(5));
+  return true;
+}
+async function photoFitNow(o, v, search){
+  setBusy(true, "Lining the photo up with the model…"); await new Promise(r => setTimeout(r, 30));
+  let ok = false; try { ok = photoFitView(v, search); } catch (err){ console.error(err); }
+  setBusy(false); if (ok) logLine(`Lined ${v.name} up with the model (outline ${Math.round(100 * v.match)}%)`);
+  if (!ok) notify("The photo could not be lined up: no figure was found in it. Try a photo on a plain background, or change the background setting.");
+  return ok;
+}
+// the photos' colours: pixels inside the lined-up model (the photo's own figure until it is lined up)
+function photoPickColours(o){
+  const model = photoModel(), parts = [];
+  for (const v of o.views){
+    const px = photoPixels(v.asset, 400); if (!px) continue;
+    const m = v.fit && model ? C.photoModelMask(model, photoCamOf(v), photoFitNowFor(v), px.w, px.h, 2) : C.photoMask(px.rgba, px.w, px.h, v.tol);
+    parts.push([px.rgba, m]);
+  }
+  const n = parts.reduce((s, q) => s + q[1].length, 0);
+  if (!n){ o.pal = []; o.slots = []; return; }
+  const rgba = new Uint8ClampedArray(n*4), mask = new Uint8Array(n); let at = 0;
+  for (const [px, m] of parts){ rgba.set(px, at*4); mask.set(m, at); at += m.length; }
+  o.pal = C.photoPalette(rgba, mask, n, 1, o.colours).map(c => ({ rgb:c.rgb, keys:c.keys.map(k => k.map(x => +x.toFixed(2))) }));
+  if (o.use === "photo") photoSetFilaments(o); else photoNearestFilaments(o);
+}
+// a plain name for a colour, so a filament reads "Red" rather than "Filament 3"
+function colourWord(rgb){
+  const [r, g, b] = rgb.map(v => v/255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn)/2, d = mx - mn;
+  const s = d ? d / (1 - Math.abs(2*l - 1)) : 0;
+  if (l < 0.12) return "Black";
+  if (s < 0.15 || d < 0.08) return l > 0.85 ? "White" : l > 0.62 ? "Light grey" : l > 0.3 ? "Grey" : "Dark grey";
+  const h = 60 * (mx === r ? ((g - b)/d + 6) % 6 : mx === g ? (b - r)/d + 2 : (r - g)/d + 4);
+  if (h < 15 || h >= 340) return l > 0.72 ? "Pink" : l < 0.28 ? "Dark red" : "Red";
+  if (h < 45) return l < 0.38 || (s < 0.45 && l < 0.5) ? "Brown" : l > 0.68 ? "Beige" : "Orange";
+  if (h < 70) return l < 0.3 ? "Olive" : "Yellow";
+  if (h < 165) return l < 0.25 ? "Dark green" : l > 0.7 ? "Light green" : "Green";
+  if (h < 200) return "Teal";
+  if (h < 255) return l < 0.25 ? "Navy" : l > 0.7 ? "Light blue" : "Blue";
+  if (h < 290) return "Purple";
+  return l > 0.7 ? "Pink" : "Magenta";
+}
+// the photo's colours become the loaded filaments (the first ones, adding filaments where needed)
+function photoSetFilaments(o){
+  const used = new Map();
+  o.pal.slice(0, MAX_SLOTS).forEach((c, i) => {
+    const w = colourWord(c.rgb), k = (used.get(w) || 0) + 1; used.set(w, k);
+    const hex = C.rgbToHex(...c.rgb), name = k > 1 ? `${w} ${k}` : w;
+    if (state.slots[i]) Object.assign(state.slots[i], { hex, name });
+    else state.slots.push({ hex, name, mat:"PLA", price:22 });
+  });
+  o.slots = o.pal.map((_, i) => Math.min(i, MAX_SLOTS - 1)); o.use = "photo";
+}
+// or each colour prints in the loaded filament closest to it
+function photoNearestFilaments(o){
+  const lab = state.slots.map(s => C.srgbToLab(...C.hexToRgb(s.hex)));
+  o.slots = o.pal.map(c => { const p = C.srgbToLab(...c.rgb); let bi = 0, bd = Infinity;
+    lab.forEach((q, i) => { const d = (p[0]-q[0])**2 + (p[1]-q[1])**2 + (p[2]-q[2])**2; if (d < bd){ bd = d; bi = i; } }); return bi; });
+  o.use = "mine";
+}
+// which photo colour every triangle of a part gets (-1: none), cached on the part's refined mesh
+const photoInfo = new WeakMap();                     // step -> what the last colouring saw
+function photoLabels(pc, o){
+  const fits = o.views.map(photoFitNowFor);
+  const key = JSON.stringify([o.views.map((v, i) => [v.asset, v.cam, fits[i], v.tol]), o.pal, o.fill, o.speck, o.smooth]);
+  if (!pc.photo) pc.photo = new Map();
+  let r = pc.photo.get(key); if (r) return r;
+  const B = C.solidBounds(pc.solid), D = Math.hypot(B.mx[0]-B.mn[0], B.mx[1]-B.mn[1], B.mx[2]-B.mn[2]) || 1, views = [];
+  o.views.forEach((v, i) => {
+    const f = fits[i], px = f && photoPixels(v.asset, PHOTO_RES);
+    // a fit that makes the model many times bigger than the photo is broken (a hand-edited file): skip it
+    if (!px || !(f.a * D < 4)) return;
+    views.push(C.photoView(px.rgba, px.w, px.h, pc.solid, photoCamOf(v), f, o.pal, C.photoMask(px.rgba, px.w, px.h, v.tol)));
+  });
+  const n = pc.topo.n, lab = new Int16Array(n).fill(-1);
+  let info = { seen:0, painted:0, n };
+  if (views.length && o.pal.length){
+    const tmp = new Uint8Array(n).fill(PAINT_LEAVE);
+    info = C.paintFromPhotos(pc.solid, pc.topo, tmp, views, { slots:o.pal.map((_, i) => i), fill:o.fill, speck:o.speck, smooth:o.smooth });
+    for (let t=0;t<n;t++) if (tmp[t] !== PAINT_LEAVE) lab[t] = tmp[t];
+  }
+  r = { lab, info, views:views.length };
+  pc.photo.set(key, r); if (pc.photo.size > 3) pc.photo.delete(pc.photo.keys().next().value);
+  return r;
+}
+// the photo steps' results need a moment the first time: show that the app is working
+async function photoRepaint(){
+  setBusy(true, "Colouring the model from the photos…"); await new Promise(r => setTimeout(r, 30));
+  const t0 = performance.now();
+  try { repaint(true); } catch (err){ console.error(err); }
+  setBusy(false); pushHistory(); logLine(`Painted in ${Math.round(performance.now() - t0)} ms`);
+}
+function newPhotoOp(){ return { k:"photo", views:[], pal:[], slots:[], colours:clamp(Math.round(state.printer.colors || 4), 2, MAX_SLOTS), use:"photo", fill:true, speck:1, smooth:true }; }
+const photoOpOf = () => { const ops = state.paint.ops; for (let i = ops.length - 1; i >= 0; i--) if (ops[i].k === "photo") return ops[i]; return null; };
+// photos dropped on the Paint tab: kept like pictures, lined up, and the model coloured from them
+const photoInput = Object.assign(document.createElement("input"), { type:"file", accept:"image/png,image/jpeg,image/webp,image/gif", multiple:true, id:"photoInput", className:"vh" });
+document.body.appendChild(photoInput);
+photoInput.onchange = () => { const f = [...photoInput.files]; photoInput.value = ""; if (f.length) addPaintPhotos(f); };
+async function addPaintPhotos(files){
+  const imgs = [...files].filter(f => /^image\/(png|jpe?g|webp|gif)$/i.test(f.type));
+  if (!imgs.length){ notify("Those files are not photos (PNG, JPG, WebP or GIF)."); return false; }
+  if (!modelParts.length){ notify("Make or import a model first, then add a photo of it."); return false; }
+  if (!state.paint) state.paint = DEFAULTS().paint;
+  let o = photoOpOf(); const fresh = !o;
+  if (fresh){ o = newPhotoOp(); state.paint.ops.push(o); }
+  paintUI.method = "photo";
+  const order = ["front","back","right","left","front","back"];
+  for (const file of imgs){
+    if (o.views.length >= PHOTO_MAX){ notify(`A step takes up to ${PHOTO_MAX} photos.`); break; }
+    try {
+      const canvas = toCanvas(await loadImageFile(file), 1600), id = "a"+(uid++);
+      // a photo with a see-through background keeps it (PNG); any other is kept as a smaller JPEG
+      const px = canvas.getContext("2d", { willReadFrequently:true }).getImageData(0, 0, canvas.width, canvas.height).data;
+      let clear = 0; for (let i=3;i<px.length;i+=4*7) if (px[i] < 128) clear++;
+      const dataURL = clear > px.length/(4*7)*0.02 ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", 0.9);
+      assets[id] = { canvas, dataURL };
+      const side = PHOTO_SIDES[order[o.views.length]];
+      const v = { asset:id, name:cleanStr(file.name.replace(/\.[^.]+$/, ""), 60, "Photo"), cam:{ yaw:side[0], pitch:side[1] }, fit:null, tol:35, match:0 };
+      o.views.push(v); paintUI.photo = o.views.length - 1;
+      await photoFitNow(o, v, true);
+    } catch (err){ notify(err.message || "That photo could not be read."); }
+  }
+  if (!o.views.length){ state.paint.ops.splice(state.paint.ops.indexOf(o), 1); renderTab(); return false; }
+  photoPickColours(o);
+  if (fresh && o.use === "photo") notify(`Your filaments were set to the photo's ${o.pal.length} colours. Undo (Ctrl+Z) brings the old ones back.`);
+  renderTab(); await photoRepaint();
+  return true;
 }
 function modelBoundsOf(list){
   const mn=[Infinity,Infinity,Infinity], mx=[-Infinity,-Infinity,-Infinity];
@@ -7377,6 +7577,12 @@ function runPaintOps(p, pc, ops, B){
     else if (o.k === "regions") C.paintRegions(topo, paint, { angle:o.angle, slots:(o.slots||[]).map(S), minArea:4 });
     else if (o.k === "noise") C.paintNoise(topo, paint, { slots:(o.slots||[]).map(S), scale:o.scale, seed:o.seed });
     else if (o.k === "picture"){ const pic = paintPicture(o); if (pic) C.paintPicture(topo, paint, pic, o.dir, pictureBox(o, pic, B), o.facing !== false); }
+    else if (o.k === "photo" && !p.decal){
+      const r = photoLabels(pc, o), sl = (o.slots || []).map(s => s === PAINT_LEAVE ? s : S(s));
+      for (let t=0;t<topo.n;t++){ const c = r.lab[t]; if (c >= 0 && sl[c] != null && sl[c] !== PAINT_LEAVE) paint[t] = sl[c]; }
+      const was = photoInfo.get(o), add = was && was.rev === paintRev ? was : { rev:paintRev, seen:0, n:0, views:0 };
+      add.seen += r.info.seen; add.n += r.info.n; add.views = Math.max(add.views, r.views); photoInfo.set(o, add);
+    }
     else if (o.k === "brush"){
       if (!pc.grid) pc.grid = C.triangleGrid(topo, Math.max(1, (o.r||3)));
       const sl = o.slot === PAINT_LEAVE ? PAINT_LEAVE : S(o.slot);
@@ -7399,8 +7605,9 @@ function nearestTri(pc, pt){
   return -1;
 }
 // after a build (or when only the paint changed): refine and cut where needed, then replay the steps
+let paintRev = 0;
 function applyPaint(repaintOnly){
-  const ops = paintOps();
+  const ops = paintOps(); paintRev++;
   const targets = paintTargets();
   modelParts.forEach(p => { if (!p.solid0) p.solid0 = p.solid; });
   if (!ops.length && !modelParts.some(p => p.importPaint)){
@@ -7615,7 +7822,7 @@ async function rebuildAll(resetItems){
     if (t === "jigsaw" && tab === "make"){ drawJigsawPreview(); updateJigsawSummary(); }
     if (t === "lithophane" && tab === "make"){ drawLithoPreview(); updateLithoSummary(); }
     if (t === "tracer" && tab === "make"){ const cv = document.getElementById("tracerPreview"); if (cv) drawTracerPreview(cv); }
-    state.items.forEach(d => (d.solids||[]).forEach((s,i)=>{ if (s) modelParts.push({ name:state.slots[i].name, slot:i, solid:s, geom:solidToGeometry(s) }); }));
+    state.items.forEach(d => (d.solids||[]).forEach((s,i)=>{ if (s) modelParts.push({ name:state.slots[i].name, slot:i, solid:s, geom:solidToGeometry(s), decal:true }); }));
     applyPaint(false);
     refreshScene(); runChecks();
     if (tab === "paint") updatePaintSummary();
@@ -10106,7 +10313,7 @@ function removeSlot(i){
   (state.paint && state.paint.ops || []).forEach(o => {
     for (const k of ["slot","gap","up","side","down"]) if (typeof o[k] === "number") o[k] = pk(o[k]);
     for (const k of ["a","b","from","to"]) if (typeof o[k] === "number" && (o.k === "gradient" || o.k === "swap")) o[k] = p0(o[k]);
-    if (Array.isArray(o.slots)) o.slots = o.k === "height" ? o.slots.map(pk) : o.slots.map(pk).filter(v => v !== PAINT_LEAVE);
+    if (Array.isArray(o.slots)) o.slots = o.k === "height" || o.k === "photo" ? o.slots.map(pk) : o.slots.map(pk).filter(v => v !== PAINT_LEAVE);
   });
   if (paintUI.slot >= state.slots.length) paintUI.slot = state.slots.length - 1;
   renderTab(); schedule(); pushHistory();
@@ -10115,6 +10322,7 @@ function removeSlot(i){
 /* ---- Export ---- */
 /* ---- Paint ---- */
 const PAINT_METHODS = [
+  ["photo","From a photo of the model","Got a coloured photo of this model? Drop it here: it is lined up with the model and its colours go on, the hidden sides too."],
   ["height","Height bands","Bands of colour from the bottom up, like layers of a cake. The edges are cut straight into the model."],
   ["gradient","Colour fade","Two filaments fade into each other up the model, one layer at a time: sunsets, oceans, flames."],
   ["stripes","Stripes","A colour that repeats every few millimetres up the model, like a candy cane."],
@@ -10126,7 +10334,7 @@ const PAINT_METHODS = [
   ["swap","Swap a colour","Every part of the model in one colour changes to another. Quick recolouring after painting."]
 ];
 const PAINT_OP_NAME = { height:"Height bands", gradient:"Colour fade", swap:"Swap a colour", stripes:"Stripes", dir:"Tops and sides", shells:"Separate pieces", regions:"Smooth areas",
-  picture:"Picture", noise:"Random blobs", brush:"Brush stroke", fill:"Fill" };
+  picture:"Picture", noise:"Random blobs", brush:"Brush stroke", fill:"Fill", photo:"From a photo" };
 function slotChoices(withKeep){ return [...(withKeep ? [["255","Keep as it is"]] : []), ...state.slots.map((s,i)=>[String(i), `${i+1}. ${s.name}`])]; }
 function paintModelHeight(){ const B = modelBoundsOf(modelParts); return isFinite(B.mx[1]) ? Math.max(1, B.mx[1] - Math.min(0, B.mn[1])) : 50; }
 function newPaintOp(k){
@@ -10152,9 +10360,11 @@ function paintOpText(o){
   if (o.k === "brush") return `${o.slot === PAINT_LEAVE ? "eraser" : nm(o.slot)}, ${o.r} mm, ${o.pts.length} points${o.mirror ? ", mirrored" : ""}`;
   if (o.k === "fill") return `${o.slot === PAINT_LEAVE ? "eraser" : nm(o.slot)}, ${o.same ? "same colour" : "smooth area"}`;
   if (o.k === "picture") return `${(state.items[o.item]||{}).name || "missing artwork"}, from the ${o.dir}`;
+  if (o.k === "photo") return `${o.views.length} photo${o.views.length === 1 ? "" : "s"}, ${o.pal.length} colours: ${[...new Set(o.slots.filter(s => s !== PAINT_LEAVE))].map(nm).join(", ")}`;
   return (o.slots||[]).map(nm).join(", ");
 }
 function updatePaintSummary(){
+  updatePhotoInfo();
   const el = document.getElementById("paintSummary"); if (!el) return;
   const tot = Object.values(paintInfo.area).reduce((a,b)=>a+b, 0);
   if (!paintOps().length){ el.innerHTML = "Nothing painted yet."; return; }
@@ -10248,6 +10458,163 @@ function paintOpFields(parent, o){
     note(parent, "Colours switched off for this picture on the Art tab are left unpainted.");
   }
 }
+/* the "From a photo" card: the photos, how each lines up, the colours and the clean-up */
+// draw the panel again and put the focus back on the control that had it (found by its label)
+function renderKeepFocus(){
+  const a = document.activeElement, name = e => e.getAttribute("aria-label") || (e.labels && e.labels[0] ? e.labels[0].textContent : "") || e.textContent;
+  const inPanel = a && a.closest && a.closest("#panel"), key = inPanel ? [a.tagName, a.type, name(a)].join("|") : null;
+  renderTab();
+  if (key){ const el = [...document.querySelectorAll("#panel input, #panel button, #panel select, #panel canvas")].find(e => [e.tagName, e.type, name(e)].join("|") === key); if (el) el.focus(); }
+}
+let photoTimer = 0;
+const photoLater = (fn, ms) => { clearTimeout(photoTimer); photoTimer = setTimeout(fn, ms || 450); };
+function photoSideOf(v){
+  if (v.cam.pitch > 60) return "top";
+  const y = wrapYaw(v.cam.yaw); return Math.abs(y) <= 45 ? "front" : Math.abs(y) >= 135 ? "back" : y > 0 ? "right" : "left";
+}
+// the photo with the lined-up model's outline on it (a thick yellow line edged in black), or the colours
+// it reads there, each shown in the filament it prints in
+function drawPhotoPreview(cv, o, v){
+  const px = photoPixels(v.asset, 420); if (!px) return;
+  const W = px.w, H = px.h; cv.width = W; cv.height = H;
+  const x = cv.getContext("2d"), img = x.createImageData(W, H), d = img.data; d.set(px.rgba);
+  const model = photoModel();
+  if (v.fit && model){
+    const cam = photoCamOf(v), fit = photoFitNowFor(v), inside = C.photoModelMask(model, cam, fit, W, H, 0);
+    if (paintUI.photoShow === "colours" && o.pal.length){
+      const cls = C.photoView(px.rgba, W, H, model, cam, fit, o.pal, C.photoMask(px.rgba, W, H, v.tol)).cls.data;
+      for (let i=0;i<W*H;i++){
+        const c = cls[i];
+        if (c >= 0){ const s = o.slots[c], rgb = s !== PAINT_LEAVE && state.slots[s] ? C.hexToRgb(state.slots[s].hex) : o.pal[c].rgb; d[4*i] = rgb[0]; d[4*i+1] = rgb[1]; d[4*i+2] = rgb[2]; }
+        else { d[4*i] = d[4*i]*0.3 + 160; d[4*i+1] = d[4*i+1]*0.3 + 160; d[4*i+2] = d[4*i+2]*0.3 + 160; }
+        d[4*i+3] = 255;
+      }
+    }
+    const edge = new Uint8Array(W*H);
+    for (let y=0;y<H;y++) for (let i0=0;i0<W;i0++){ const i = y*W + i0; if (inside[i] && (i0 === 0 || y === 0 || i0 === W-1 || y === H-1 || !inside[i-1] || !inside[i+1] || !inside[i-W] || !inside[i+W])) edge[i] = 1; }
+    const grow = m => { const g = new Uint8Array(m); for (let y=0;y<H;y++) for (let i0=0;i0<W;i0++){ const i = y*W + i0; if (!m[i]) continue; if (i0 > 0) g[i-1] = 1; if (i0 < W-1) g[i+1] = 1; if (y > 0) g[i-W] = 1; if (y < H-1) g[i+W] = 1; } return g; };
+    const e1 = grow(edge), e2 = grow(e1);
+    for (let i=0;i<W*H;i++) if (e2[i]){ const c = e1[i] ? [255, 214, 0] : [15, 15, 15]; d[4*i] = c[0]; d[4*i+1] = c[1]; d[4*i+2] = c[2]; d[4*i+3] = 255; }
+  }
+  x.putImageData(img, 0, 0);
+}
+function photoCard(c){
+  if (!modelParts.length){ note(c, "Make or import a model first, then add a photo of it here."); return; }
+  const o = photoOpOf();
+  const drop = document.createElement("label"); drop.className = "drop"; drop.id = "photoDrop"; drop.htmlFor = "photoInput"; drop.tabIndex = 0;
+  drop.innerHTML = `<span><strong>${o ? "Add another photo" : "Add a photo of the model"}</strong><span class="hint">Click or drop a JPG or PNG: the front first, then the back or a side if you have them.</span></span>`;
+  drop.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); photoInput.click(); } });
+  ["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", e => { if (e.dataTransfer && e.dataTransfer.files.length) addPaintPhotos(e.dataTransfer.files); });
+  c.appendChild(drop);
+  if (!o){
+    note(c, "Any photo or drawing of this model in colour works: the app finds the figure, lines it up with the model's outline and picks the filaments from its colours. " +
+      "Where the photo cannot see (the back, under the arms) the nearest colour is used, so a second photo from the back makes that part right too.");
+    return;
+  }
+  const i = clamp(paintUI.photo || 0, 0, Math.max(0, o.views.length - 1)), v = o.views[i];
+  if (o.views.length > 1){
+    const row = document.createElement("div"); row.className = "chips"; row.setAttribute("role", "group"); row.setAttribute("aria-label", "Photo to adjust");
+    o.views.forEach((w, j) => { const b = document.createElement("button"); b.className = "pchip pick"; b.setAttribute("aria-pressed", String(j === i));
+      b.textContent = `${j+1}. ${w.name} (${photoSideOf(w)})`; b.onclick = () => { paintUI.photo = j; renderTab(); }; row.appendChild(b); });
+    c.appendChild(row);
+  }
+  if (!v) return;
+  const removePhoto = () => {
+    o.views.splice(i, 1); paintUI.photo = Math.max(0, i - 1);
+    if (!o.views.length){ state.paint.ops.splice(state.paint.ops.indexOf(o), 1); notify("The photo step is gone. Undo (Ctrl+Z) brings it back."); }
+    renderTab(); photoRepaint();
+  };
+  if (!assets[v.asset]){
+    c.insertAdjacentHTML("beforeend", `<div class="card empty">The photo <b>${esc(v.name)}</b> is not in this project (share links leave photos out). Add it again, then remove this one.</div>`);
+    buttonRow(c, [["Remove this photo", removePhoto]]);
+    return;
+  }
+  // the photo, lined up
+  const cv = document.createElement("canvas"); cv.className = "photoPrev"; cv.tabIndex = 0; cv.setAttribute("role", "application");
+  cv.setAttribute("aria-label", `${v.name} with the model's outline drawn on it in yellow. Drag it, or use the arrow keys to move it, plus and minus to resize and comma and full stop to turn.`);
+  c.appendChild(cv);
+  const redraw = () => { try { drawPhotoPreview(cv, o, v); } catch (err){ console.error(err); } };
+  redraw();
+  segField(c, [["photo","Photo and outline"],["colours","Colours it reads"]], () => paintUI.photoShow, k => { paintUI.photoShow = k; redraw(); c.querySelectorAll(".seg.show button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.k === k))); }, "two show");
+  const fitted = () => { photoLater(() => photoRepaint()); };
+  // nudges keep the model's middle where it is
+  const centre = () => photoBox(photoModel(), photoCamOf(v));
+  const at = (f, cu, cv0) => { const uu = f.mirror ? -cu : cu, cs = Math.cos(f.rot), sn = Math.sin(f.rot); return [f.tx + f.a*(uu*cs - cv0*sn), f.ty - f.a*(uu*sn + cv0*cs)]; };
+  const nudge = (kind, amt) => {
+    if (!v.fit) return;
+    photoBake(v);
+    const f = v.fit, [cu, cv0] = centre(), p0 = at(f, cu, cv0);
+    if (kind === "x") f.tx += amt; else if (kind === "y") f.ty += amt;
+    else { if (kind === "a") f.a *= 1 + amt; else f.rot = clamp(f.rot + amt, -0.35, 0.35); const p1 = at(f, cu, cv0); f.tx += p0[0] - p1[0]; f.ty += p0[1] - p1[1]; }
+    redraw(); fitted();
+  };
+  cv.addEventListener("keydown", e => {
+    const k = { ArrowLeft:["x",-0.005], ArrowRight:["x",0.005], ArrowUp:["y",-0.005], ArrowDown:["y",0.005], "+":["a",0.01], "=":["a",0.01], "-":["a",-0.01], ",":["rot",-Math.PI/180], ".":["rot",Math.PI/180] }[e.key];
+    if (k){ e.preventDefault(); e.stopPropagation(); nudge(k[0], k[1] * (e.shiftKey ? 5 : 1)); }
+  });
+  let drag = null;
+  cv.addEventListener("pointerdown", e => { if (!v.fit) return; photoBake(v); drag = { x:e.clientX, y:e.clientY }; cv.setPointerCapture && cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener("pointermove", e => { if (!drag) return; const r = cv.getBoundingClientRect(), s = 1 / Math.max(1, r.height);
+    v.fit.tx += (e.clientX - drag.x) * s; v.fit.ty += (e.clientY - drag.y) * s; drag = { x:e.clientX, y:e.clientY }; redraw(); });
+  const endDrag = () => { if (drag){ drag = null; fitted(); } };
+  cv.addEventListener("pointerup", endDrag); cv.addEventListener("pointercancel", endDrag);
+  const nb = document.createElement("div"); nb.className = "row nudges"; nb.setAttribute("role", "group"); nb.setAttribute("aria-label", "Move the photo");
+  [["◀","Move left","x",-0.005],["▶","Move right","x",0.005],["▲","Move up","y",-0.005],["▼","Move down","y",0.005],["−","Smaller","a",-0.01],["+","Bigger","a",0.01],["⟲","Turn left","rot",-Math.PI/180],["⟳","Turn right","rot",Math.PI/180]]
+    .forEach(([t, lbl, k, a]) => { const b = document.createElement("button"); b.className = "btn small icon"; b.textContent = t; b.title = lbl; b.setAttribute("aria-label", lbl); b.onclick = () => nudge(k, a); nb.appendChild(b); });
+  c.appendChild(nb);
+  const matchNote = document.createElement("p"); matchNote.className = "hint"; matchNote.setAttribute("aria-live", "polite"); c.appendChild(matchNote);
+  const showMatch = () => { const m = v.match || 0;
+    matchNote.textContent = !v.fit ? "This photo is not lined up yet: no figure was found in it. Change the background setting, or try a photo on a plain background."
+      : m < 0.75 ? `The outline matches the photo only ${Math.round(m*100)}%. Pick the side the photo was taken from, or drag it into place.`
+      : `The outline matches the photo ${Math.round(m*100)}%. Drag it or use the arrows to fine-tune.`; };
+  showMatch();
+  // where it was taken from
+  segField(c, [["front","Front"],["right","Right"],["back","Back"],["left","Left"],["top","Top"]], () => photoSideOf(v), async k => {
+    const s0 = PHOTO_SIDES[k]; v.cam = { yaw:s0[0], pitch:s0[1] }; await photoFitNow(o, v, true); renderKeepFocus(); photoRepaint(); }, "five");
+  // a new angle or background: line up again at that angle (the card stays as it is, so a slider keeps the focus)
+  const refit = () => photoLater(async () => { await photoFitNow(o, v, false); redraw(); showMatch(); photoRepaint(); }, 500);
+  numField(c, { label:"Taken from (° round the model)", min:-180, max:180, step:1, get:()=>v.cam.yaw, set:x=>v.cam.yaw = Math.round(x), onChange:refit, noReset:true,
+    sub:()=>"0 is the front, 90 the right side, 180 the back." });
+  numField(c, { label:"Taken from (° above)", min:-89, max:89, step:1, get:()=>v.cam.pitch, set:x=>v.cam.pitch = Math.round(x), onChange:refit, noReset:true });
+  checkField(c, "The photo is mirrored (a selfie or a reflection)", () => !!(v.fit && v.fit.mirror), x => { if (!v.fit) v.fit = { a:0.01, tx:0.5, ty:0.9, rot:0, mirror:x }; else v.fit.mirror = x; refit(); });
+  numField(c, { label:"Background (how different the figure is from it)", min:0, max:100, step:1, def:35, get:()=>v.tol, set:x=>v.tol = Math.round(x), onChange:refit,
+    sub:()=>"Lower it when parts of the figure go missing; raise it when the background is busy." });
+  buttonRow(c, [["Line it up again", async () => { await photoFitNow(o, v, true); renderKeepFocus(); photoRepaint(); }], ["Remove this photo", removePhoto]]);
+
+  // the colours
+  c.insertAdjacentHTML("beforeend", `<h3>Colours</h3>`);
+  numField(c, { label:"Number of colours", min:2, max:MAX_SLOTS, step:1, def:clamp(Math.round(state.printer.colors || 4), 2, MAX_SLOTS), get:()=>o.colours, set:x=>o.colours = Math.round(x),
+    onChange:() => photoLater(() => { photoPickColours(o); renderKeepFocus(); photoRepaint(); }, 500) });
+  if (o.pal.length > (state.printer.colors || 4)) note(c, `Your printer is set to load ${state.printer.colors} filaments, and this uses ${o.pal.length}. Fewer colours, or colour swaps during the print, get round that.`);
+  o.pal.forEach((col, j) => {
+    const hex = C.rgbToHex(...col.rgb);
+    selField(c, `<span class="sw-inline" style="background:${esc(hex)}"></span>Photo colour ${j+1} (${esc(colourWord(col.rgb).toLowerCase())}) prints in`, slotChoices(true),
+      () => String(o.slots[j] ?? PAINT_LEAVE), x => { o.slots[j] = +x; repaint(true); renderTab(); });
+  });
+  buttonRow(c, [["Set my filaments to these colours", () => { photoSetFilaments(o); renderTab(); repaint(true); pushHistory(); }],
+    ["Use my nearest filaments", () => { photoNearestFilaments(o); renderTab(); repaint(true); pushHistory(); }],
+    ["Pick the colours again", () => { photoPickColours(o); renderTab(); photoRepaint(); }]]);
+  // clean-up
+  c.insertAdjacentHTML("beforeend", `<h3>Finishing</h3>`);
+  checkField(c, "Colour what the photos cannot see from the nearest colour", () => o.fill, x => { o.fill = x; photoRepaint(); });
+  numField(c, { label:"Clean up specks smaller than (mm²)", min:0, max:50, step:0.5, def:1, get:()=>o.speck, set:x=>o.speck = x, onChange:() => photoLater(() => photoRepaint()),
+    sub:()=>"Small spots of the wrong colour join the colour round them. Keep it small to keep eyes and buttons." });
+  checkField(c, "Smooth ragged edges between colours", () => o.smooth, x => { o.smooth = x; photoRepaint(); });
+  if ((state.paint.detail || "auto") !== "fine") note(c, "Small details such as eyes need small triangles: set <b>Paint detail</b> (the last page) to Fine to follow them more closely.");
+  const seen = document.createElement("p"); seen.className = "hint"; seen.id = "photoSeen"; seen.setAttribute("aria-live", "polite"); c.appendChild(seen);
+  updatePhotoInfo();
+}
+// how much the photos show, once the model has been coloured from them (after the card is drawn)
+function updatePhotoInfo(){
+  const el = document.getElementById("photoSeen"), o = state.paint && photoOpOf(), info = o && photoInfo.get(o);
+  if (!el || !info || !info.n) return;
+  const pct = Math.round(100 * info.seen / info.n);
+  el.textContent = `The photos show ${pct}% of the model's surface. ${o.fill ? "The rest took the nearest colour" : "The rest keeps its own colour"}` +
+    (o.views.length === 1 && pct < 70 ? ": a photo from the back makes that part right too." : ".") +
+    " Touch it up with the brush and fill below: they paint on top of this step.";
+}
 function tabPaint(p){
   if (!state.paint) state.paint = DEFAULTS().paint;
   p.insertAdjacentHTML("beforeend", `<h2>Paint</h2>`);
@@ -10276,7 +10643,8 @@ function tabPaint(p){
   const ops = state.paint.ops, last = ops.length && ops[ops.length-1].k === paintUI.method ? ops[ops.length-1] : null;
   const m = PAINT_METHODS.find(x => x[0] === paintUI.method);
   const c2 = card(p); c2.insertAdjacentHTML("beforeend", `<b>${esc(m[1])}</b>`);
-  if (last){ paintOpFields(c2, last); note(c2, "Changes show straight away. Remove it on the Paint list page."); }
+  if (paintUI.method === "photo") photoCard(c2);
+  else if (last){ paintOpFields(c2, last); note(c2, "Changes show straight away. Remove it on the Paint list page."); }
   else buttonRow(c2, [[`Paint it: ${m[1].toLowerCase()}`, ()=>{ const o = newPaintOp(paintUI.method); if (o){ ops.push(o); renderTab(); paintChanged(); } }]]);
 
   p.insertAdjacentHTML("beforeend", `<h2>Brush and fill</h2>`);
@@ -10556,6 +10924,7 @@ async function importModelFile(file){
   // its paint steps, scale and filaments are kept
   const again = state.base.type === "stl" && !stlData && !!state.base.stl && state.base.stl.name === name;
   if (!again) clearPaintForNewModel();
+  if (!again && !paint) paintUI.method = "photo";          // a plain model: colouring it from a photo comes first
   stlData = y; stlPaint = paint; stlCache = null; stlName = name; state.base.type = "stl";
   rememberModel(name, y, paint);
   state.base.stl = { name, scale: again ? state.base.stl.scale : 100 };
@@ -10676,6 +11045,28 @@ function cleanPaint(P0){
       case "brush": { const pts = (Array.isArray(o.pts) ? o.pts : []).slice(0, Math.min(5000, budget)).map(v3).filter(Boolean); budget -= pts.length;
         return pts.length ? { k:"brush", slot:slotOrKeep(o.slot), r:num(o.r, 0.2, 50, 3), facing:v3(o.facing), pts, mirror:o.mirror === true } : null; }
       case "fill": { const pt = v3(o.p); return pt ? { k:"fill", p:pt, slot:slotOrKeep(o.slot), same:o.same === true, angle:num(o.angle, 1, 89, 30) } : null; }
+      case "photo": {
+        // the photos (by picture id), where each was taken from and how it lines up; the colours as lit
+        // RGB and their Lab keys; a fit of text or of absurd size falls back to "not lined up yet"
+        const plain = x => x && typeof x === "object" && !Array.isArray(x), fin = x => typeof x === "number" && isFinite(x);
+        const views = (Array.isArray(o.views) ? o.views : []).filter(plain).slice(0, 6).map(v => {
+          const f = plain(v.fit) && fin(v.fit.a) && v.fit.a > 0 && fin(v.fit.tx) && fin(v.fit.ty) && fin(v.fit.rot) ? v.fit : null, c = plain(v.cam) ? v.cam : {};
+          return { asset:cleanStr(typeof v.asset === "string" ? v.asset : "", 40, ""), name:cleanStr(v.name, 60, "Photo"),
+            cam:{ yaw:Math.round(num(c.yaw, -180, 180, 0)), pitch:Math.round(num(c.pitch, -89, 89, 0)) },
+            fit:f ? { a:num(f.a, 1e-5, 10, 0.01), tx:num(f.tx, -5, 5, 0.5), ty:num(f.ty, -5, 5, 0.5), rot:num(f.rot, -0.35, 0.35, 0), mirror:f.mirror === true } : null,
+            tol:Math.round(num(v.tol, 0, 100, 35)), match:num(v.match, 0, 1, 0),
+            box:Array.isArray(v.box) && v.box.length === 3 && v.box.every(fin) && v.box[2] > 1e-3 ? v.box.map(x => num(x, -1e4, 1e4, 0)) : undefined };
+        });
+        const pal = (Array.isArray(o.pal) ? o.pal : []).filter(plain).slice(0, 8).map(c => {
+          const rgb = [0,1,2].map(i => Math.round(num(Array.isArray(c.rgb) ? c.rgb[i] : 128, 0, 255, 128)));
+          const keys = (Array.isArray(c.keys) ? c.keys : []).filter(k => Array.isArray(k) && k.length === 3 && k.every(fin)).slice(0, 24)
+            .map(k => [num(k[0], -10, 60, 0), num(k[1], -200, 200, 0), num(k[2], -200, 200, 0)]);
+          return keys.length ? { rgb, keys } : { rgb };
+        });
+        const sl = slots(o.slots, 8).slice(0, pal.length); while (sl.length < pal.length) sl.push(PAINT_LEAVE);
+        return { k:"photo", views, pal, slots:sl, colours:Math.round(num(o.colours, 2, MAX_SLOTS, 4)), use:one(o.use, ["photo","mine"]),
+          fill:o.fill !== false, speck:num(o.speck, 0, 50, 1), smooth:o.smooth !== false };
+      }
       default: return null;
     }
   }).filter(Boolean);
@@ -11119,7 +11510,8 @@ window.MakerForge = {
   printNow: runPrintability, optimize: optimizePrint, revertOptimize, exportParts,
   // the painter, for the tests: its tool settings, a repaint now, the last result, a model import and the zip
   paint: { ui: paintUI, repaint: () => repaint(true), changed: paintChanged, get info(){ return paintInfo; }, importModel: importModelFile, buildZip,
-    hit: paintHit, get prefs(){ return prefs; }, applyPrefs, findDefault, cleanPaint },
+    hit: paintHit, get prefs(){ return prefs; }, applyPrefs, findDefault, cleanPaint,
+    photo: { add: addPaintPhotos, fit: photoFitView, colours: photoPickColours, setFilaments: photoSetFilaments, nearest: photoNearestFilaments, get op(){ return photoOpOf(); }, info: o => photoInfo.get(o), labels: photoLabels, colourWord } },
   phone: { spec: phoneSpec, get info(){ return phoneInfo; }, list: PHONES },
   get overlay(){ return overlay.children.length; },
   rebuild: rebuildAll,

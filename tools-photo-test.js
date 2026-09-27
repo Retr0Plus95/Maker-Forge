@@ -9,83 +9,7 @@ const C = globalThis.PRCore;
 let fails = 0;
 const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${what}${got !== undefined ? "  (" + got + ")" : ""}`); if (!ok) fails++; };
 
-// ---- the figure: base, legs, body, arms, neck and head, standing on y = 0, facing +z ----
-const cyl = (r, y0, y1, seg = 48) => C.revolveLoop([[0, y0], [r, y0], [r, y1], [0, y1]], seg);
-const ball = (r, cy, seg = 64) => { const pr = []; for (let i = 0; i <= 24; i++) { const a = -Math.PI / 2 + i / 24 * Math.PI; pr.push([Math.cos(a) * r, cy + Math.sin(a) * r]); } pr[0][0] = 0; pr[24][0] = 0; return C.revolveLoop(pr, seg); };
-const PART_NAMES = ["base", "leg", "leg", "body", "arm", "arm", "neck", "head"];
-function figure() {
-  const parts = [
-    cyl(18, 0, 4, 64),
-    C.transformSolid(cyl(4, 3, 41), 1, -6, 0, 0), C.transformSolid(cyl(4, 3, 41), 1, 6, 0, 0),
-    C.revolveLoop([[0, 38], [11, 38], [12.5, 50], [13, 66], [11.5, 80], [0, 80]], 64),
-    C.transformSolid(cyl(3.5, 50, 79), 1, -15.5, 0, 0), C.transformSolid(cyl(3.5, 50, 79), 1, 15.5, 0, 0),
-    cyl(4, 78, 85), ball(10, 92),
-  ];
-  // refined to about 1 mm, as the painter does before it paints (a colour edge needs triangles to fall on)
-  const partOf = []; parts.forEach((q, i) => { for (let t = 0; t < q.idx.length / 3; t++) partOf.push(i); });
-  const ed = C.meshEditor(C.mergeSolids(parts)); ed.refine(1.0, 900000);
-  const src = ed.source();
-  return { solid: ed.solid(), partOf: Array.from(src, t => partOf[t]) };
-}
-const PAL = { skin: [230, 180, 140], hair: [45, 30, 20], shirt: [205, 25, 35], white: [240, 240, 240], boots: [20, 90, 200], base: [70, 80, 110] };
-const NAMES = Object.keys(PAL);
-// the true colour of every triangle, part by part
-function truth(topo, partOf) {
-  const cls = new Int8Array(topo.n);
-  for (let t = 0; t < topo.n; t++) {
-    const x = topo.cen[3 * t], y = topo.cen[3 * t + 1], z = topo.cen[3 * t + 2], ax = Math.abs(x), part = PART_NAMES[partOf[t]];
-    let c;
-    if (part === "base") c = "base";
-    else if (part === "leg") c = y < 9 ? "boots" : y < 29 ? "skin" : "white";
-    else if (part === "body") c = y < 50 ? "white" : (z < -6 && ax < 5 && y > 58 && y < 72 ? "white" : "shirt");   // shorts, shirt, a white number on the back
-    else if (part === "arm") c = y > 67 ? "shirt" : "skin";
-    else if (part === "neck") c = "skin";
-    else c = (Math.hypot(ax - 3.5, y - 93) < 1.4 && z > 7) || y > 95.5 || z < -2.5 ? "hair" : "skin";   // eyes, hair
-    cls[t] = NAMES.indexOf(c);
-  }
-  return cls;
-}
-// the outside of the model: triangles some camera round it can see (the joins inside other parts never print)
-function outside(solid, topo) {
-  const cams = Object.assign({}, C.PHOTO_CAMS), s2 = Math.SQRT1_2;
-  cams.bottom = { r: [1, 0, 0], up: [0, 0, 1], c: [0, -1, 0] };
-  [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach(([a, b], i) => { cams["d" + i] = { r: [b * s2, 0, -a * s2], up: [0, 1, 0], c: [a * s2, 0, b * s2] }; });
-  const out = new Uint8Array(topo.n), fit = { a: 1 / 130, tx: 0.5, ty: 0.9, rot: 0, mirror: false };
-  for (const k of Object.keys(cams)) {
-    C.PHOTO_CAMS["_t"] = cams[k];
-    const f = k === "top" || k === "bottom" ? Object.assign({}, fit, { ty: 0.5 }) : fit, R = C.photoRaster(solid, "_t", f, 1400, 1400);
-    for (const t of R.id) if (t >= 0) out[t] = 1;
-  }
-  delete C.PHOTO_CAMS["_t"];
-  return out;
-}
-// a lit, noisy picture of the coloured figure, with a light grey background
-function render(solid, topo, cls, cam, fit, W, H, seed) {
-  const R = C.photoRaster(solid, cam, fit, W, H), rgba = new Uint8ClampedArray(W * H * 4), rnd = C.seededRandom(seed);
-  const L = [0.35, 0.6, 0.72], ln = Math.hypot(...L);
-  for (let i = 0; i < W * H; i++) {
-    const t = R.id[i], o = 4 * i;
-    let col;
-    if (t < 0) { const g = 238 + (i / W / H) * 12; col = [g, g, g + 2]; }
-    else {
-      const nd = (topo.nrm[3 * t] * L[0] + topo.nrm[3 * t + 1] * L[1] + topo.nrm[3 * t + 2] * L[2]) / ln;
-      const sh = 0.62 + 0.38 * Math.max(0, cam === "back" ? -nd * 0.3 + 0.7 : nd);
-      col = PAL[NAMES[cls[t]]].map(v => v * sh);
-    }
-    for (let k = 0; k < 3; k++) rgba[o + k] = col[k] + (rnd() - 0.5) * 12;
-    rgba[o + 3] = 255;
-  }
-  return { rgba, mask: R.id.map(v => v >= 0 ? 1 : 0) };
-}
-// how much of the surface (by area) got its true colour, each found colour counted as the truth colour it overlaps most
-function score(topo, pred, cls, out) {
-  const over = new Map();
-  for (let t = 0; t < topo.n; t++) if (out[t]) { const k = pred[t] + "," + cls[t]; over.set(k, (over.get(k) || 0) + topo.area[t]); }
-  const to = new Map();
-  for (const [k, a] of over) { const [p] = k.split(","); if (!to.has(p) || to.get(p)[1] < a) to.set(p, [+k.split(",")[1], a]); }
-  let good = 0, all = 0; for (let t = 0; t < topo.n; t++) if (out[t]) { all += topo.area[t]; if (to.get(String(pred[t]))[0] === cls[t]) good += topo.area[t]; }
-  return good / all;
-}
+const { PART_NAMES, PAL, NAMES, figure, truth, outside, render, score } = require("./tools-photo-figure.js")(C);
 
 (async () => {
   console.log("colour from a photo: the engine");
@@ -123,6 +47,7 @@ function score(topo, pred, cls, out) {
   // 4. colouring, front only and front + back
   const vF = C.photoView(front.rgba, W, H, solid, "front", F.fit, pal, m), clsF = vF.cls;
   const mb = C.photoMask(back.rgba, W, H, 35), Fb = C.photoFit(solid, "back", mb, W, H, "auto"), clsB = C.photoView(back.rgba, W, H, solid, "back", Fb.fit, pal, mb).cls;
+  if (process.env.VERBOSE) { let bi = 0, bu = 0; for (let i = 0; i < W * H; i++) { if (mb[i] && back.mask[i]) bi++; if (mb[i] || back.mask[i]) bu++; } console.log(`    back photo: figure found ${(bi / bu * 100).toFixed(1)}%, outlines overlap ${(Fb.iou * 100).toFixed(1)}%`); }
   const slots = pal.map((_, i) => i);
   t0 = Date.now();
   const p1 = new Uint8Array(topo.n).fill(255), r1 = C.paintFromPhotos(solid, topo, p1, [{ cam: "front", fit: F.fit, cls: clsF }], { slots, fill: true, speck: 1 });
@@ -181,6 +106,130 @@ function score(topo, pred, cls, out) {
   check(ms4 < 15000, "a model of a few hundred thousand triangles colours in seconds", `${dtopo.n} triangles, ${ms4} ms`);
 
   if (process.env.CORE || !process.argv[2]) { console.log(fails ? `\n${fails} FAILED` : "\nall passed"); process.exit(fails ? 1 : 0); }
+
+  // ---- 7. the Paint tab: import the plain figure, drop the two photos on it, and check what comes out ----
+  console.log("\nthe Paint tab");
+  const boot = require("./tools-test-env.js"), env = boot(process.argv[2]);
+  const win = env.window, document = win.document, $$ = s => [...document.querySelectorAll(s)];
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  await sleep(800);
+  const MF = win.MakerForge;
+  const settle = async () => { const r0 = MF.rev; for (let i = 0; i < 40 && MF.rev === r0 && !MF.busy; i++) await sleep(30); for (let i = 0; i < 2400; i++) { if (!MF.busy) { await sleep(40); if (!MF.busy) return true; } await sleep(25); } return false; };
+  const pageErrors = () => env.errors.filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
+  // the figure as an OBJ file, Z up like a printer's (the app turns it Y up)
+  const raw = fig.raw, lines = [];
+  for (let i = 0; i < raw.pos.length; i += 3) lines.push(`v ${raw.pos[i]} ${-raw.pos[i + 2]} ${raw.pos[i + 1]}`);
+  for (let i = 0; i < raw.idx.length; i += 3) lines.push(`f ${raw.idx[i] + 1} ${raw.idx[i + 1] + 1} ${raw.idx[i + 2] + 1}`);
+  MF.state.printer.colors = 6;                         // a printer that loads six filaments: six colours by default
+  await MF.paint.importModel(new win.File([lines.join("\n")], "footballer.obj")); await settle();
+  $$("#tabs button").find(b => b.dataset.k === "paint").click(); await sleep(80);
+  check(MF.paint.ui.method === "photo" && document.querySelector("#photoDrop"), "an imported plain model opens the Paint tab on colouring from a photo");
+  const png = (img, name) => new win.File([boot.encodePNG(W, H, img.rgba)], name, { type: "image/png" });
+  t0 = Date.now();
+  await MF.paint.photo.add([png(front, "front.png"), png(back, "back.png")]); await settle();
+  const addMs = Date.now() - t0, op = MF.paint.photo.op, part = MF.parts[0];
+  check(op && op.views.length === 2 && op.views.every(v => v.fit && v.match > 0.8) && Math.abs(op.views[0].cam.yaw) <= 10 && Math.abs(Math.abs(op.views[1].cam.yaw) - 180) <= 10,
+    "both photos line up by themselves, the first from the front and the second from the back (white shorts on a white background lower the match)", op && `${op.views.map(v => `${v.name}: ${v.cam.yaw}° round, ${v.cam.pitch}° up, outline ${(v.match * 100).toFixed(0)}%`).join("; ")}, ${addMs} ms in all`);
+  const slotRgb = MF.state.slots.map(s => C.hexToRgb(s.hex));
+  const near6 = seenNames.map(nm => Math.min(...op.slots.map(s => dE(slotRgb[s], PAL[nm]))));
+  check(op.pal.length === 6 && MF.state.slots.length >= 6 && near6.every(d => d < 25), "the filaments are set to the photos' six colours, with plain names",
+    MF.state.slots.map(s => `${s.name} ${s.hex}`).join(", "));
+  // how much of the painted figure is right: each triangle against the nearest one of the labelled figure
+  const grid = C.triangleGrid(topo, 2);
+  const accuracy = (q, k) => {                       // k: how much bigger the imported model is than the figure
+    const ptopo = q.pc.topo, pout = outside(q.pc.solid, ptopo), ptruth = new Int8Array(ptopo.n).fill(-1);
+    for (let t = 0; t < ptopo.n; t++) {
+      let bd = Infinity; const x = ptopo.cen[3 * t] / k, y = ptopo.cen[3 * t + 1] / k, z = ptopo.cen[3 * t + 2] / k;
+      grid.near(x, y, z, 3, u => { if (topo.nrm[3 * u] * ptopo.nrm[3 * t] + topo.nrm[3 * u + 1] * ptopo.nrm[3 * t + 1] + topo.nrm[3 * u + 2] * ptopo.nrm[3 * t + 2] < 0.3) return;
+        const d = (topo.cen[3 * u] - x) ** 2 + (topo.cen[3 * u + 1] - y) ** 2 + (topo.cen[3 * u + 2] - z) ** 2; if (d < bd) { bd = d; ptruth[t] = cls[u]; } });
+      if (ptruth[t] < 0) pout[t] = 0;
+    }
+    return { acc: score(ptopo, q.paint, ptruth, pout), n: ptopo.n };
+  };
+  const { acc: accApp, n: nApp } = accuracy(part, 1), ptopo = { n: nApp };
+  check(accApp > 0.93 && part.paint.every(s => s !== 255), "the figure comes out coloured all over, nearly all of it right",
+    `${(accApp * 100).toFixed(1)}% of the surface, ${ptopo.n} triangles`);
+  const info = MF.paint.photo.info(op);
+  check(info && info.seen > 0.6 * info.n && /The photos show \d+% of the model/.test(document.querySelector("#panel").textContent), "the card says how much of the model the photos show",
+    info && `${info.seen} of ${info.n} triangles seen`);
+  // the preview: the photo with the model's outline on it in yellow
+  const cv = document.querySelector("canvas.photoPrev"), px = cv && cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data;
+  let yellow = 0; if (px) for (let i = 0; i < px.length; i += 4) if (px[i] === 255 && px[i + 1] === 214 && px[i + 2] === 0) yellow++;
+  check(cv && yellow > 200, "the preview shows the lined-up outline", `${yellow} outline pixels on a ${cv && cv.width} × ${cv && cv.height} preview`);
+  // nudging: the arrow keys on the preview move the photo, not the brush or the tabs
+  const sel = op.views[MF.paint.ui.photo], tx0 = sel.fit.tx, a0 = sel.fit.a;
+  const press = k => { const e = new win.KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true }); cv.dispatchEvent(e); return e.defaultPrevented; };
+  const took = press("ArrowRight") && press("+");
+  check(took && Math.abs(sel.fit.tx - tx0 - 0.005) < 0.002 && Math.abs(sel.fit.a / a0 - 1.01) < 1e-9, "the arrow keys and + on the preview nudge and resize the photo",
+    `tx ${tx0.toFixed(4)} → ${sel.fit.tx.toFixed(4)}, size ×${(sel.fit.a / a0).toFixed(3)}`);
+  sel.fit.a = a0;
+  sel.fit.tx = tx0; await sleep(600); await settle();
+  // a brush stroke after the photo step does not colour it all again
+  t0 = Date.now(); MF.paint.repaint(); const again = Date.now() - t0;
+  MF.state.paint.ops.push({ k: "brush", slot: 0, r: 2, pts: [[0, 92, 10]], facing: null }); t0 = Date.now(); MF.paint.repaint(); const stroke = Date.now() - t0;
+  check(stroke < 1500 && part.paint.some((s, t) => s === 0), "a brush stroke on top stays quick: the photo step's result is kept", `repaint ${again} ms, with a stroke ${stroke} ms`);
+  MF.state.paint.ops.pop(); MF.paint.repaint();
+  // my own filaments instead: every colour prints in the nearest loaded one
+  const before = op.slots.slice(); MF.state.slots.splice(0, MF.state.slots.length,
+    { hex: "#ffffff", name: "White", mat: "PLA", price: 20 }, { hex: "#111111", name: "Black", mat: "PLA", price: 20 }, { hex: "#c81e28", name: "Red", mat: "PLA", price: 20 }, { hex: "#1e5ac8", name: "Blue", mat: "PLA", price: 20 });
+  MF.paint.photo.nearest(op); MF.paint.repaint();
+  const want = { white: 0, hair: 1, shirt: 2, boots: 3 }, got = Object.keys(want).map(nm => op.slots[op.pal.map(p => dE(p.rgb, PAL[nm])).indexOf(Math.min(...op.pal.map(p => dE(p.rgb, PAL[nm]))))]);
+  check(Object.values(want).every((s, i) => got[i] === s) && op.use === "mine", "with my own four filaments, each photo colour prints in the nearest one", `was ${before.join(",")}, now ${op.slots.join(",")}`);
+  // the card's own controls: fewer colours, and the hidden parts left alone
+  const field = re => $$("#panel .field").find(w => re.test((w.querySelector("label") || {}).textContent || ""));
+  const numIn = field(/^Number of colours/).querySelector("input[type=number]"); numIn.value = "4"; numIn.dispatchEvent(new win.Event("change"));
+  for (let i = 0; i < 200 && op.pal.length !== 4; i++) await sleep(50);
+  for (let i = 0; i < 100 && !(MF.paint.photo.info(op) && part.paint.every(s => op.slots.includes(s))); i++) await sleep(50);
+  const used4 = [...new Set(part.paint)];
+  check(op.pal.length === 4 && op.slots.length === 4 && used4.every(s => op.slots.includes(s)) && $$("#panel select").filter(x => /prints in/.test((x.labels[0] || {}).textContent)).length === 4,
+    "\"Number of colours\" picks four colours from the photos, each printed in one of my filaments", `${op.pal.map(p => C.rgbToHex(...p.rgb)).join(" ")} → filaments ${op.slots.join(",")}`);
+  const fillBox = $$("#panel label.check").find(l => /cannot see/.test(l.textContent)).querySelector("input");
+  fillBox.checked = false; fillBox.dispatchEvent(new win.Event("change"));
+  for (let i = 0; i < 200 && !part.paint.some(s => s === 255); i++) await sleep(50);
+  const left = part.paint.filter(s => s === 255).length, inf = MF.paint.photo.info(op);
+  check(left > 0 && inf && Math.abs(left - (inf.n - inf.seen)) < inf.n * 0.02, "unticking the hidden-parts fill leaves what the photos cannot see in the model's own colour",
+    `${left} of ${part.paint.length} triangles left, ${inf && inf.n - inf.seen} unseen`);
+  fillBox.checked = true; fillBox.dispatchEvent(new win.Event("change"));
+  for (let i = 0; i < 200 && part.paint.some(s => s === 255); i++) await sleep(50);
+  await sleep(300); await settle();
+
+  // a project file keeps the photos, the fit and the colours
+  const sig = () => JSON.stringify(MF.state.paint), payload = MF.projectPayload(true), paintBefore = Array.from(part.paint), sig0 = sig();
+  const inp = document.querySelector("#projInput"), open = async text => {
+    const f = new win.File([text], "p.json", { type: "application/json" }), r1 = MF.rev;
+    Object.defineProperty(inp, "files", { value: [f], configurable: true }); inp.dispatchEvent(new win.Event("change"));
+    for (let i = 0; i < 100 && MF.rev === r1; i++) await sleep(30); return settle();
+  };
+  await open(payload);
+  const kept = Object.keys(JSON.parse(payload).assets || {});
+  check(sig() === sig0 && kept.length === 2 && MF.parts[0].paint && MF.parts[0].paint.every((s, t) => s === paintBefore[t]), "saved and opened again: the same photos, fit, colours and paint",
+    `${kept.length} pictures in the file, ${(payload.length / 1024).toFixed(0)} KB`);
+
+  // the imported model made bigger on the Make tab: the photos follow it
+  const acc100 = accuracy(MF.parts[0], 1).acc;
+  MF.state.base.stl.scale = 150; MF.rebuild(false); await settle();
+  const big = MF.parts[0], acc150 = accuracy(big, 1.5).acc;
+  check(acc150 > acc100 - 0.01, "the model made 1.5 times bigger afterwards: the photos follow it", `${(acc100 * 100).toFixed(1)}% of the surface right with four colours, ${(acc150 * 100).toFixed(1)}% at 150%`);
+  MF.state.base.stl.scale = 100; MF.rebuild(false); await settle();
+
+  // ---- 8. a hostile project file ----
+  console.log("\na photo step in a hostile project file");
+  const data = JSON.parse(payload), hv = data.state.paint.ops.find(o => o.k === "photo");
+  hv.views = Array.from({ length: 50 }, (_, i) => ({ asset: i ? "<img src=x onerror=alert(1)>" : hv.views[0].asset, name: "<b>x</b>".repeat(40), cam: { yaw: 1e9, pitch: -1e9 },
+    fit: i === 0 ? { a: 1e9, tx: 0.5, ty: 0.9, rot: 0, mirror: "yes" } : i === 1 ? { a: "big", tx: 0, ty: 0, rot: 0 } : { a: 0.01, tx: 1e9, ty: -1e9, rot: 50, mirror: true }, tol: -5, match: 7 }));
+  hv.pal = Array.from({ length: 100 }, () => ({ rgb: [1e9, "x", -4], keys: [[NaN, 0, 0], [1e9, -1e9, 3], "k"] }));
+  hv.slots = [99, -1, "2", 255]; hv.colours = 1e6; hv.speck = 1e9; hv.fill = "no"; hv.use = "<script>";
+  t0 = Date.now(); const e0 = env.errors.length; await open(JSON.stringify(data)); const hostileMs = Date.now() - t0;
+  const ho = MF.state.paint.ops.find(o => o.k === "photo"), herr = env.errors.slice(e0).filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
+  check(ho && ho.views.length === 6 && ho.pal.length === 8 && ho.slots.length === 8 && ho.views[0].fit.a <= 10 && ho.views[1].fit === null && Math.abs(ho.views[2].fit.tx) <= 5 &&
+    ho.views.every(v => Math.abs(v.cam.yaw) <= 180 && Math.abs(v.cam.pitch) <= 89 && v.tol >= 0 && v.match <= 1 && v.name.length <= 60) &&
+    ho.pal.every(p => p.rgb.every(c => c >= 0 && c <= 255) && p.keys.every(k => k.every(Number.isFinite))) && ho.colours === 8 && ho.speck === 50 && ho.use === "photo",
+    "at most six photos and eight colours, numbers clamped, a broken fit dropped", ho && `${ho.views.length} photos, ${ho.pal.length} colours, a ${ho.views[0].fit.a}, slots ${ho.slots.join(",")}`);
+  check(hostileMs < 20000 && !herr.length && !document.querySelector("#panel b b") && !document.querySelector("#panel img[src=x]"), "it opens quickly without errors and no markup gets in",
+    `${hostileMs} ms${herr.length ? ", " + herr[0].split("\n")[0] : ""}`);
+
+  const errs = pageErrors();
+  check(!errs.length, "no page errors", errs.slice(0, 2).join(" / "));
   console.log(fails ? `\n${fails} FAILED` : "\nall passed");
   process.exit(fails ? 1 : 0);
 })();

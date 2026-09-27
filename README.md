@@ -17,6 +17,14 @@ Four tabs in the top bar — **Make · Art · Colours · Export**. Down the left
 | **Colours** | Up to 8 slots with colour, name, material and price. Palette presets, colour matching, and a **printer library** (Bambu, Prusa, Creality, Elegoo, Anycubic, Voron) that sets bed size, nozzle, layer height and how many colours the machine can load. |
 | **Export** | Preflight checks (watertightness, bed fit, colour count vs printer, features thinner than the nozzle, thin colour layers, unused filaments), material in g/m/cost, rough print time, **colour swap heights** for single-filament printers, and the files themselves: zip with 3mf, coloured obj, per-filament STLs, a merged STL, notes and the project file. Projects save and reopen as `.json`, plus **batch export**: one keychain per name from a list. |
 
+### New in 0.18
+
+- **Colour a model from a photo.** Import a plain model (a figurine, a bust, a toy), open the **Paint** tab and drop a coloured photo of it on **From a photo of the model**. The app finds the figure in the photo, lines it up with the model's outline by itself (size, place, a slight turn, and the angle the photo was taken from), picks your filaments from the photo's colours (light and shade count as one colour; 2 to 8 colours, starting from the number your printer loads) and colours the model. The colour only goes where the photo really sees (the face does not come out on the back of the head); what no photo shows takes the nearest colour, and small specks are cleaned up while small details such as eyes stay. Add a photo from the back or a side for those parts (up to six photos). Fine-tune by dragging the photo, with the arrow buttons or keys, or by picking the side it was taken from; **Colours it reads** shows each colour in the filament it prints in. Then touch up with the brush and fill: they paint on top. The photos are saved in the project file.
+
+| A plain figure coloured from a photo of its front and one of its back |
+| --- |
+| ![The Paint tab with the back photo lined up (yellow outline) and the coloured figure](docs/images/painter-photo.jpg) |
+
 ### New in 0.17.2
 
 - **Every font is built in.** The 34 lettering fonts and the Easy reading font are inside `index.html`, so the page never downloads a font (and never talks to Google).

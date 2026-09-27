@@ -41,6 +41,8 @@ Plus, depending on what changed:
 - painter work, or `meshEditor` / the paint steps / 3mf or OBJ reading and writing → `npm run test:paint`
 - phone case work, or `PHONES` / `heightSheet` → `npm run test:phonecase`
 - pictures on objects (placement, the Art tab), or the keys that move artwork → `npm run test:art`
+- colour from a photo (the `photo*` functions in `src/core.js`, the Paint tab's photo step) → `npm run test:photo`
+  (`CORE=1` for the engine only; the test figure and its photos are in `tools-photo-figure.js`)
 - new settings, `sanitizeProject`, `LIMITS` / `LIMITS_AT`, or `DEFAULTS` → `npm run test:project` (every quick start and object
   must come back unchanged from a saved project, and out-of-range values must not make a build run away)
 - after any generator change → `node tools-print-survey.js index.html` (look for new warnings)

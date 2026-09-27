@@ -1,6 +1,6 @@
 {
   "name": "maker-forge",
-  "version": "0.17.2",
+  "version": "0.18.0",
   "private": true,
   "description": "Browser-based multi-colour 3D printing studio. The app needs no build tools; these are the test dependencies.",
   "license": "MIT",
@@ -20,7 +20,8 @@
     "test:paint": "node tools-paint-test.js index.html",
     "test:phonecase": "node tools-phonecase-test.js index.html",
     "test:art": "node tools-art-test.js index.html",
-    "test:project": "node tools-project-test.js index.html"
+    "test:project": "node tools-project-test.js index.html",
+    "test:photo": "node tools-photo-test.js index.html"
   },
   "devDependencies": {
     "@fontsource/alfa-slab-one": "5.3.0",

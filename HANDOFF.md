@@ -593,7 +593,7 @@ The owner asked whether another programming language would add capabilities. The
 **Verified:**
 - `tools-photo-test.js`, all 38 checks. The engine: the AI's mask on a plain photo 93.7%; on the worst case 80% (the colour method 25%, its fit 124% too big), the fit within 2.9% in size and 0.9% of the height in place; in front of a bookshelf 88% (colour 45%), the fit within 0.3% and 0.28%; a 40 × 30 photo works; about 2 s a photo in Node. The app, one front photo in front of a bookshelf: by colour the outline matches 45% and about half the surface is right; with the AI 89%, 0°, size within 0.4%, 84% of the surface right (a plain background gives 87%); reopened without the AI, the same paint. Over three bookshelf scenes (Node): 48 to 58% right by colour, 83 to 85% with the AI.
 - The browser check in Chromium: a wrong model file refused before it runs; the real files (served from `node_modules` and `models/` in place of jsDelivr) loaded, checked and run in about 13 s including the transfer, outline 89%, 1° round, size within 0.2%; screenshot `paint-photo-ai`.
-- The full suites and the full browser check, listed at the end of this section once run.
+- The full browser check: 148 screenshots, no findings, no page errors. Smoke test, `test:paint`, `test:project`, `test:art`, `test:phonecase` and the Paint tab audit on a turned shape (no findings) all pass.
 - **Not checked:** the real download from jsDelivr (blocked here; the `gh` copy of the model exists only once this branch is merged into `main` and the repository is public, until then only a website with `models/` or a local server works); a real photo; Firefox and Safari (WebAssembly SIMD is needed; recent versions have it); how long the model takes on a phone.
 
 ## Unfinished (in priority order)

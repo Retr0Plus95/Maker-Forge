@@ -136,6 +136,24 @@ console.log("\nwriting and reading painted files");
   let threw = 0; try { C.parseOBJ("nothing here"); } catch (e) { threw++; } try { C.parse3MFModel("<model></model>"); } catch (e) { threw++; }
   check(threw === 2, "empty files give a clear error"); }
 
+console.log("\npainter tools (Session 18): the smart brush and strokes repeated round the middle");
+{ const b = box(-10, 0, -10, 10, 20, 10), ed = C.meshEditor(b); ed.refine(1, 1e6);
+  const s = ed.solid(), topo = C.meshTopology(s), g = C.triangleGrid(topo, 2);
+  const plain = C.brushTris(topo, g, [9, 20, 0], 3, null, 0), smart = C.brushTris(topo, g, [9, 20, 0], 3, null, 40);
+  const onTop = ts => ts.filter(t => topo.nrm[3 * t + 1] > 0.9).length;
+  check(plain.length > onTop(plain) && onTop(plain) > 0, "near an edge the plain brush runs over onto the side", `${onTop(plain)} on top, ${plain.length - onTop(plain)} on the side`);
+  check(smart.length === onTop(smart) && onTop(smart) === onTop(plain), "the smart brush stops at the edge: the same top, none of the side", `${smart.length} triangles`);
+  check(C.brushTris(topo, g, [9, 20, 0], 3, null, 89).length === smart.length && C.brushTris(topo, g, [9, 20, 0], 3, [0, -1, 0], 40).length === smart.length, "  and with the facing check as well");
+  const cp = C.symmetryCopies([[10, 5, 0]], [-1, 0, 0], false, 4), at = cp.map(c => c.pts[0].map(v => Math.round(v)).join(",")).sort();
+  check(cp.length === 4 && at.join(" ") === "-10,5,0 0,5,-10 0,5,10 10,5,0" && cp.every(c => Math.abs(Math.hypot(...c.facing) - 1) < 1e-9 && Math.abs(c.facing[0] * c.pts[0][0] + c.facing[2] * c.pts[0][2] + 10) < 1e-9),
+    "four copies round the upright middle line, each still facing the model", at.join(" "));
+  check(C.symmetryCopies([[3, 1, 2]], null, true, 3).length === 6 && C.symmetryCopies([[3, 1, 2]], null, false, 99).length === 12 && C.symmetryCopies([[3, 1, 2]], null, false, "x").length === 1,
+    "mirrored copies double them; at most 12 round; nonsense counts as once");
+  const p = new Uint8Array(topo.n).fill(255);
+  for (const c of C.symmetryCopies([[10, 10, 0]], null, false, 4)) C.paintBrush(topo, g, p, c.pts, 3, 2, c.facing, 0);
+  const side = [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]].map(n => { let a = 0; for (let t = 0; t < topo.n; t++) if (p[t] === 2 && topo.nrm[3 * t] * n[0] + topo.nrm[3 * t + 2] * n[2] > 0.9) a += topo.area[t]; return a; });
+  check(side.every(a => a > 0 && Math.abs(a - side[0]) < side[0] * 0.05), "a dab repeated four times round a cube paints the four sides alike", side.map(a => a.toFixed(1)).join(" / ")); }
+
 if (process.env.CORE) { console.log(fails ? `\n${fails} FAILED` : "\nall passed"); process.exit(fails ? 1 : 0); }
 
 // ---------- the app ----------
@@ -206,6 +224,22 @@ async function settle() {
   // the fill tool on the base: everything that faces down, in one go
   st().paint.ops.push({ k: "fill", p: [0, 0, 0], slot: 2, same: false, angle: 30 }); MF.paint.repaint(); await settle();
   check((painted()[2] || 0) > 0, "a fill from the base paints the base", painted()[2]);
+  // Session 18: strokes repeated round the middle, the eyedropper and recolour
+  st().paint.ops = [{ k: "brush", slot: 3, r: 4, facing: null, pts: [[20, 45, 33.5]] }]; MF.paint.repaint(); await settle();
+  const once = painted()[3] || 0; st().paint.ops[0].radial = 4; MF.paint.repaint(); await settle();
+  check(once > 0 && painted()[3] > once * 3.2 && painted()[3] < once * 4.8, "a stroke repeated four times round the vase paints about four times as much", `${once} → ${painted()[3]}`);
+  st().paint.ops[0].edge = 30; MF.paint.repaint(); await settle();
+  check(painted()[3] > 0 && painted()[3] <= once * 4.8, "the smart brush replays too", painted()[3]);
+  const part0 = MF.parts[0], t3 = Array.from(part0.paint).indexOf(3), tPlain = Array.from(part0.paint).indexOf(255);
+  MF.paint.ui.slot = 0; MF.paint.ui.tool = "pick"; MF.paint.ui.lastTool = "brush";
+  check(MF.paint.pick({ part: 0, face: t3 }) && MF.paint.ui.slot === 3 && MF.paint.ui.tool === "brush" && MF.paint.colourAt({ part: 0, face: tPlain }) === part0.slot,
+    "the eyedropper takes the colour clicked on (paint, or the part's own) and goes back to the brush", `slot ${MF.paint.ui.slot}, tool ${MF.paint.ui.tool}`);
+  MF.paint.ui.slot = 1; const nOps = st().paint.ops.length;
+  check(MF.paint.recolour({ part: 0, face: t3 }) && st().paint.ops.length === nOps + 1 && st().paint.ops[nOps].k === "swap" && st().paint.ops[nOps].from === 3 && st().paint.ops[nOps].to === 1, "recolour adds a step: that colour everywhere becomes the brush colour");
+  await settle(); check(!painted()[3] && painted()[1] > 0, "and the model has none of it left", JSON.stringify(painted()));
+  check(!MF.paint.recolour({ part: 0, face: Array.from(MF.parts[0].paint).indexOf(1) }) && st().paint.ops.length === nOps + 1, "recolouring a colour into itself adds nothing");
+  st().paint.ops = [{ k: "fill", p: [0, 0, 0], slot: 2, same: false, angle: 30, radial: 3 }]; MF.paint.repaint(); await settle();
+  check((painted()[2] || 0) > 0, "a fill repeated round the middle replays", painted()[2]);
   // paint detail
   st().paint.detail = "coarse"; MF.paint.repaint(); await settle(); const coarse = MF.paint.info.tris;
   st().paint.detail = "fine"; MF.paint.repaint(); await settle(); const fine = MF.paint.info.tris;
@@ -293,6 +327,10 @@ async function settle() {
   check(JSON.stringify(hostile.ops[0].slots) === "[0,255,255,255,255]" && hostile.ops[0].cuts.every(h => h >= -1000 && h <= 1000), "bad colours become 'keep', heights clamped", JSON.stringify(hostile.ops[0]));
   check(hostile.ops[1].pts.length === 5000 && hostile.ops[1].r === 50 && hostile.ops[1].facing === null, "a stroke: at most 5000 points, brush at most 50 mm, a broken direction dropped");
   check(hostile.ops[2].p[0] === 1e4 && hostile.ops[3].item === 0 && hostile.ops[3].dir === "front" && hostile.ops[3].scale === 10 && hostile.ops[4].every === 0.4, "fill point, picture and stripes clamped");
+  const h18 = MF.paint.cleanPaint({ ops: [{ k: "brush", slot: 1, r: 3, pts: [[0, 0, 0]], radial: 1e9, edge: 1e9 }, { k: "brush", slot: 1, r: 3, pts: [[0, 0, 0]], radial: "x", edge: -5 },
+    { k: "fill", p: [0, 0, 0], slot: 1, radial: 6.4 }, { k: "brush", slot: 1, r: 3, pts: [[0, 0, 0]], radial: 6, edge: 30, mirror: true }] }).ops;
+  check(h18[0].radial === 12 && h18[0].edge === 89 && !("radial" in h18[1]) && !("edge" in h18[1]) && h18[2].radial === 6 && h18[3].radial === 6 && h18[3].edge === 30,
+    "repeats round the middle at most 12, the smart brush's edge 0 to 89; ordinary strokes keep no extra settings", JSON.stringify(h18.map(o => [o.radial, o.edge])));
   const load = async state => {
     const f = new win.File([JSON.stringify({ app: "Maker Forge", v: 4, state })], "p.json", { type: "application/json" });
     const inp = document.querySelector("#projInput"); Object.defineProperty(inp, "files", { value: [f], configurable: true }); inp.dispatchEvent(new win.Event("change"));

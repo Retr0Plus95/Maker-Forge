@@ -2814,13 +2814,44 @@
   }
   // brush: every triangle whose centre is within r of a point; `facing` skips faces turned away
   // from the viewer (so a thin wall's far side is not painted through)
-  function paintBrush(topo, grid, paint, pts, r, slot, facing) {
-    let n = 0;
-    for (const p of pts) grid.near(p[0], p[1], p[2], r, t => {
-      if (facing && topo.nrm[3 * t] * facing[0] + topo.nrm[3 * t + 1] * facing[1] + topo.nrm[3 * t + 2] * facing[2] > 0.05) return;
-      if (paint[t] !== slot) { paint[t] = slot; n++; }
+  // the triangles one dab of the brush covers: within r of p, facing the viewer when `facing` (the view
+  // direction) is given; with edge (degrees) only those joined to the one nearest p without crossing an
+  // edge sharper than that (the "smart" brush: it stops at the rim of a face, a fold, an eye socket)
+  function brushTris(topo, grid, p, r, facing, edge) {
+    const ok = t => !facing || topo.nrm[3 * t] * facing[0] + topo.nrm[3 * t + 1] * facing[1] + topo.nrm[3 * t + 2] * facing[2] <= 0.05, out = [];
+    if (!(edge > 0)) { grid.near(p[0], p[1], p[2], r, t => { if (ok(t)) out.push(t); }); return out; }
+    const inR = new Set(); let t0 = -1, bd = Infinity;
+    grid.near(p[0], p[1], p[2], r, t => {
+      if (!ok(t)) return; inR.add(t);
+      const d = (topo.cen[3 * t] - p[0]) ** 2 + (topo.cen[3 * t + 1] - p[1]) ** 2 + (topo.cen[3 * t + 2] - p[2]) ** 2; if (d < bd) { bd = d; t0 = t; }
     });
+    if (t0 < 0) return out;
+    const lim = Math.cos(Math.min(89, edge) * Math.PI / 180), seen = new Set([t0]), stack = [t0];
+    while (stack.length) {
+      const t = stack.pop(); out.push(t);
+      for (let e = 0; e < 3; e++) {
+        const u = topo.nbr[3 * t + e]; if (u < 0 || seen.has(u) || !inR.has(u)) continue;
+        if (topo.nrm[3 * t] * topo.nrm[3 * u] + topo.nrm[3 * t + 1] * topo.nrm[3 * u + 1] + topo.nrm[3 * t + 2] * topo.nrm[3 * u + 2] >= lim) { seen.add(u); stack.push(u); }
+      }
+    }
+    return out;
+  }
+  function paintBrush(topo, grid, paint, pts, r, slot, facing, edge) {
+    let n = 0;
+    for (const p of pts) for (const t of brushTris(topo, grid, p, r, facing, edge)) if (paint[t] !== slot) { paint[t] = slot; n++; }
     return n;
+  }
+  // a stroke and its copies: `radial` times round the vertical axis through the middle (x = z = 0), each
+  // also mirrored across x = 0 when `mirror`; returns [{ pts, facing }] with the stroke itself first
+  function symmetryCopies(pts, facing, mirror, radial) {
+    const n = Math.max(1, Math.min(12, Math.round(+radial || 1))), out = [];
+    for (let k = 0; k < n; k++) {
+      const a = 2 * Math.PI * k / n, c = Math.cos(a), s = Math.sin(a), rot = q => [q[0] * c + q[2] * s, q[1], -q[0] * s + q[2] * c];
+      const P = k ? pts.map(rot) : pts, F = facing && k ? rot(facing) : facing;
+      out.push({ pts: P, facing: F });
+      if (mirror) out.push({ pts: P.map(q => [-q[0], q[1], q[2]]), facing: F ? [-F[0], F[1], F[2]] : null });
+    }
+    return out;
   }
   // fill: from triangle t0 across edges that bend less than `angle` ("smooth") or, with angle < 0,
   // across neighbours that have the same colour as t0 ("same colour")
@@ -3392,7 +3423,7 @@
     seededRandom, jigsawGrid, jigsawCut, jigsawEdge, jigsawPiece, jigsawSVG, jigsawCutLines, ringField, ringDistance, outlineBand, strokeText,
     gridAround, heightSheet,
     meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, gradientCuts, gradientLayers, paintGradient, paintSwap, meshShells, paintShells,
-    meshRegions, paintRegions, paintNoise, paintBrush, paintFill, paintPicture, parseOBJ, parse3MFModel,
+    meshRegions, paintRegions, paintNoise, paintBrush, brushTris, symmetryCopies, paintFill, paintPicture, parseOBJ, parse3MFModel,
     PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, paintFromPhotos,
     photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure
   };

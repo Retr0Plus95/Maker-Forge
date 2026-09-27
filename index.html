@@ -302,6 +302,7 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
 .oprow .grow{flex:1;min-width:0}
 .oprow small{color:var(--muted)}
 .seg.five{grid-template-columns:repeat(5,1fr)}
+.seg.tools{grid-template-columns:repeat(3,1fr)}
 /* colour from a photo: the photo with the model's outline on it, and the buttons that move it */
 .photoPrev{display:block;width:100%;height:auto;max-height:420px;object-fit:contain;margin:10px 0 4px;border-radius:10px;border:1px solid var(--line);background:var(--field);cursor:grab;touch-action:none}
 .photoPrev:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
@@ -3256,13 +3257,44 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
   }
   // brush: every triangle whose centre is within r of a point; `facing` skips faces turned away
   // from the viewer (so a thin wall's far side is not painted through)
-  function paintBrush(topo, grid, paint, pts, r, slot, facing) {
-    let n = 0;
-    for (const p of pts) grid.near(p[0], p[1], p[2], r, t => {
-      if (facing && topo.nrm[3 * t] * facing[0] + topo.nrm[3 * t + 1] * facing[1] + topo.nrm[3 * t + 2] * facing[2] > 0.05) return;
-      if (paint[t] !== slot) { paint[t] = slot; n++; }
+  // the triangles one dab of the brush covers: within r of p, facing the viewer when `facing` (the view
+  // direction) is given; with edge (degrees) only those joined to the one nearest p without crossing an
+  // edge sharper than that (the "smart" brush: it stops at the rim of a face, a fold, an eye socket)
+  function brushTris(topo, grid, p, r, facing, edge) {
+    const ok = t => !facing || topo.nrm[3 * t] * facing[0] + topo.nrm[3 * t + 1] * facing[1] + topo.nrm[3 * t + 2] * facing[2] <= 0.05, out = [];
+    if (!(edge > 0)) { grid.near(p[0], p[1], p[2], r, t => { if (ok(t)) out.push(t); }); return out; }
+    const inR = new Set(); let t0 = -1, bd = Infinity;
+    grid.near(p[0], p[1], p[2], r, t => {
+      if (!ok(t)) return; inR.add(t);
+      const d = (topo.cen[3 * t] - p[0]) ** 2 + (topo.cen[3 * t + 1] - p[1]) ** 2 + (topo.cen[3 * t + 2] - p[2]) ** 2; if (d < bd) { bd = d; t0 = t; }
     });
+    if (t0 < 0) return out;
+    const lim = Math.cos(Math.min(89, edge) * Math.PI / 180), seen = new Set([t0]), stack = [t0];
+    while (stack.length) {
+      const t = stack.pop(); out.push(t);
+      for (let e = 0; e < 3; e++) {
+        const u = topo.nbr[3 * t + e]; if (u < 0 || seen.has(u) || !inR.has(u)) continue;
+        if (topo.nrm[3 * t] * topo.nrm[3 * u] + topo.nrm[3 * t + 1] * topo.nrm[3 * u + 1] + topo.nrm[3 * t + 2] * topo.nrm[3 * u + 2] >= lim) { seen.add(u); stack.push(u); }
+      }
+    }
+    return out;
+  }
+  function paintBrush(topo, grid, paint, pts, r, slot, facing, edge) {
+    let n = 0;
+    for (const p of pts) for (const t of brushTris(topo, grid, p, r, facing, edge)) if (paint[t] !== slot) { paint[t] = slot; n++; }
     return n;
+  }
+  // a stroke and its copies: `radial` times round the vertical axis through the middle (x = z = 0), each
+  // also mirrored across x = 0 when `mirror`; returns [{ pts, facing }] with the stroke itself first
+  function symmetryCopies(pts, facing, mirror, radial) {
+    const n = Math.max(1, Math.min(12, Math.round(+radial || 1))), out = [];
+    for (let k = 0; k < n; k++) {
+      const a = 2 * Math.PI * k / n, c = Math.cos(a), s = Math.sin(a), rot = q => [q[0] * c + q[2] * s, q[1], -q[0] * s + q[2] * c];
+      const P = k ? pts.map(rot) : pts, F = facing && k ? rot(facing) : facing;
+      out.push({ pts: P, facing: F });
+      if (mirror) out.push({ pts: P.map(q => [-q[0], q[1], q[2]]), facing: F ? [-F[0], F[1], F[2]] : null });
+    }
+    return out;
   }
   // fill: from triangle t0 across edges that bend less than `angle` ("smooth") or, with angle < 0,
   // across neighbours that have the same colour as t0 ("same colour")
@@ -3834,7 +3866,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
     seededRandom, jigsawGrid, jigsawCut, jigsawEdge, jigsawPiece, jigsawSVG, jigsawCutLines, ringField, ringDistance, outlineBand, strokeText,
     gridAround, heightSheet,
     meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, gradientCuts, gradientLayers, paintGradient, paintSwap, meshShells, paintShells,
-    meshRegions, paintRegions, paintNoise, paintBrush, paintFill, paintPicture, parseOBJ, parse3MFModel,
+    meshRegions, paintRegions, paintNoise, paintBrush, brushTris, symmetryCopies, paintFill, paintPicture, parseOBJ, parse3MFModel,
     PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, paintFromPhotos,
     photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure
   };
@@ -7381,7 +7413,7 @@ renderer.domElement.addEventListener("pointerup", e => {
    slic3rpe:mmu_segmentation for PrusaSlicer); the OBJ groups faces by colour. */
 const PAINT_MAX_TRIS = 900000, PAINT_LEAVE = 255;
 const PAINT_DETAIL = { coarse:2.5, normal:1.2, fine:0.6 };
-const paintUI = { slot:1, tool:"brush", r:3, facing:true, fill:"smooth", angle:30, method:"height", mirror:false, photo:0, photoShow:"photo" };
+const paintUI = { slot:1, tool:"brush", r:3, facing:true, fill:"smooth", angle:30, method:"height", mirror:false, photo:0, photoShow:"photo", radial:1, smart:false, edge:40, lastTool:"brush" };
 const paintCache = new WeakMap();                  // original solid -> refined mesh, topology, brush grid
 let paintInfo = { tris:0, painted:0, edge:0, capped:false, area:{} };
 const paintOps = () => (state.paint && state.paint.on !== false && Array.isArray(state.paint.ops)) ? state.paint.ops : [];
@@ -7771,11 +7803,12 @@ function runPaintOps(p, pc, ops, B){
     else if (o.k === "brush"){
       if (!pc.grid) pc.grid = C.triangleGrid(topo, Math.max(1, (o.r||3)));
       const sl = o.slot === PAINT_LEAVE ? PAINT_LEAVE : S(o.slot);
-      C.paintBrush(topo, pc.grid, paint, o.pts || [], o.r || 3, sl, o.facing || null);
-      // a mirrored stroke on the other side of the middle (x = 0), for figures and faces
-      if (o.mirror) C.paintBrush(topo, pc.grid, paint, (o.pts || []).map(q => [-q[0], q[1], q[2]]), o.r || 3, sl, o.facing ? [-o.facing[0], o.facing[1], o.facing[2]] : null);
+      // the stroke, its copies round the middle and mirrored across it (x = 0), for figures, faces and vases
+      for (const c of C.symmetryCopies(o.pts || [], o.facing || null, o.mirror, o.radial)) C.paintBrush(topo, pc.grid, paint, c.pts, o.r || 3, sl, c.facing, o.edge || 0);
     }
-    else if (o.k === "fill"){ const t0 = nearestTri(pc, o.p); if (t0 >= 0) C.paintFill(topo, paint, t0, o.slot === PAINT_LEAVE ? PAINT_LEAVE : S(o.slot), o.same ? -1 : (o.angle ?? 30), p.slot); }
+    else if (o.k === "fill"){
+      for (const c of C.symmetryCopies([o.p], null, false, o.radial)){ const t0 = nearestTri(pc, c.pts[0]); if (t0 >= 0) C.paintFill(topo, paint, t0, o.slot === PAINT_LEAVE ? PAINT_LEAVE : S(o.slot), o.same ? -1 : (o.angle ?? 30), p.slot); }
+    }
   }
   return paint;
 }
@@ -7892,10 +7925,32 @@ function paintHit(e){
   const local = mesh.worldToLocal(hit.point.clone());
   const dir = ray.ray.direction.clone().transformDirection(inv);
   const wn = hit.face ? hit.face.normal.clone().transformDirection(mesh.matrixWorld) : new THREE.Vector3(0,1,0);
-  return { part:mesh.userData.part, p:[local.x, local.y, local.z], dir:[dir.x, dir.y, dir.z], world:hit.point.clone(), wn };
+  return { part:mesh.userData.part, p:[local.x, local.y, local.z], dir:[dir.x, dir.y, dir.z], world:hit.point.clone(), wn, face:hit.faceIndex };
+}
+// the filament a spot on the model prints in (its paint, or its part's own filament)
+function colourAt(h){
+  const p = h && modelParts[h.part]; if (!p) return -1;
+  const t = h.face, v = p.paint && t != null && t < p.paint.length ? p.paint[t] : PAINT_LEAVE;
+  return v === PAINT_LEAVE ? p.slot : v;
+}
+// the eyedropper: the brush takes the colour clicked on; recolour: that colour everywhere becomes the brush's
+function paintPick(h){
+  const c = colourAt(h); if (c < 0 || !state.slots[c]) return false;
+  paintUI.slot = c; paintUI.tool = paintUI.lastTool === "fill" ? "fill" : "brush"; paintControls(); renderTab();
+  notify(`Picked ${state.slots[c].name} (filament ${c + 1}).`);
+  return true;
+}
+function paintRecolour(h){
+  const c = colourAt(h), to = paintUI.slot; if (c < 0 || !state.slots[c] || !state.slots[to]) return false;
+  if (c === to){ notify(`That is ${state.slots[to].name} already. Pick another brush colour first.`); return false; }
+  if (state.paint.on === false) state.paint.on = true;
+  state.paint.ops.push({ k:"swap", from:c, to });
+  repaint(true); pushHistory(); renderTab();
+  notify(`Everything in ${state.slots[c].name} is now ${state.slots[to].name}. Undo (Ctrl+Z) brings it back.`);
+  return true;
 }
 function showBrush(h){
-  if (!h || paintUI.tool === "fill"){ brushRing.visible = false; return; }
+  if (!h || ["fill","pick","recolour"].includes(paintUI.tool)){ brushRing.visible = false; return; }
   const sc = (state.model.scale||100)/100;
   brushRing.visible = true; brushRing.position.copy(h.world).addScaledVector(h.wn, 0.05);
   brushRing.lookAt(h.world.clone().add(h.wn)); brushRing.scale.setScalar(paintUI.r*sc);
@@ -7907,16 +7962,13 @@ function strokeAt(h){
   if (last && Math.hypot(h.p[0]-last[0], h.p[1]-last[1], h.p[2]-last[2]) < paintUI.r*0.3) return;
   if (stroke.op.pts.length >= 5000) return;
   stroke.op.pts.push(h.p.map(v => +v.toFixed(3)));
-  const F = stroke.op.facing, spots = [[h.p, F]];
-  if (stroke.op.mirror) spots.push([[-h.p[0], h.p[1], h.p[2]], F ? [-F[0], F[1], F[2]] : null]);
+  const o = stroke.op, spots = C.symmetryCopies([h.p], o.facing, o.mirror, o.radial);
   paintTargets().forEach(p => {
     if (!p.pc || !p.paint) return;
     if (!p.pc.grid) p.pc.grid = C.triangleGrid(p.pc.topo, Math.max(1, paintUI.r));
     const changed = [];
-    for (const [q, f] of spots) p.pc.grid.near(q[0], q[1], q[2], paintUI.r, t => {
-      if (f){ const n = p.pc.topo.nrm; if (n[3*t]*f[0] + n[3*t+1]*f[1] + n[3*t+2]*f[2] > 0.05) return; }
-      if (p.paint[t] !== stroke.op.slot){ p.paint[t] = stroke.op.slot; changed.push(t); }
-    });
+    for (const c of spots) for (const t of C.brushTris(p.pc.topo, p.pc.grid, c.pts[0], o.r, c.facing, o.edge || 0))
+      if (p.paint[t] !== o.slot){ p.paint[t] = o.slot; changed.push(t); }
     if (changed.length) recolourTris(p, changed);
   });
 }
@@ -7924,13 +7976,17 @@ renderer.domElement.addEventListener("pointerdown", e => {
   if (!painting() || e.button !== 0) return;
   const h = paintHit(e); if (!h) return;
   e.preventDefault();
+  if (paintUI.tool === "pick"){ paintPick(h); return; }
+  if (paintUI.tool === "recolour"){ paintRecolour(h); return; }
   if (state.paint.on === false){ state.paint.on = true; }
+  const radial = paintUI.radial > 1 ? { radial:paintUI.radial } : {};
   if (paintUI.tool === "fill"){
-    state.paint.ops.push({ k:"fill", p:h.p.map(v => +v.toFixed(3)), slot:paintUI.slot, same:paintUI.fill === "same", angle:paintUI.angle });
+    state.paint.ops.push(Object.assign({ k:"fill", p:h.p.map(v => +v.toFixed(3)), slot:paintUI.slot, same:paintUI.fill === "same", angle:paintUI.angle }, radial));
     repaint(true); pushHistory(); return;
   }
   const facing = paintUI.facing ? h.dir.map(v => +v.toFixed(4)) : null;
-  const op = { k:"brush", slot:paintUI.tool === "erase" ? PAINT_LEAVE : paintUI.slot, r:paintUI.r, facing, pts:[], mirror:paintUI.mirror === true };
+  const op = Object.assign({ k:"brush", slot:paintUI.tool === "erase" ? PAINT_LEAVE : paintUI.slot, r:paintUI.r, facing, pts:[], mirror:paintUI.mirror === true },
+    radial, paintUI.smart ? { edge:paintUI.edge } : {});
   state.paint.ops.push(op);
   // the first stroke on a model: split it into triangles small enough to paint, then start
   if (!modelParts.some(p => p.pc) || !isFinite(paintInfo.edge)){ applyPaint(true); refreshScene(); }
@@ -10542,8 +10598,8 @@ function paintOpText(o){
   if (o.k === "gradient") return `${nm(o.a)} to ${nm(o.b)}, ${o.from} to ${o.to} mm`;
   if (o.k === "swap") return `${nm(o.from)} becomes ${nm(o.to)}`;
   if (o.k === "dir") return `tops ${nm(o.up)}, sides ${nm(o.side)}, undersides ${nm(o.down)}`;
-  if (o.k === "brush") return `${o.slot === PAINT_LEAVE ? "eraser" : nm(o.slot)}, ${o.r} mm, ${o.pts.length} points${o.mirror ? ", mirrored" : ""}`;
-  if (o.k === "fill") return `${o.slot === PAINT_LEAVE ? "eraser" : nm(o.slot)}, ${o.same ? "same colour" : "smooth area"}`;
+  if (o.k === "brush") return `${o.slot === PAINT_LEAVE ? "eraser" : nm(o.slot)}, ${o.r} mm, ${o.pts.length} points${o.mirror ? ", mirrored" : ""}${o.radial > 1 ? `, ${o.radial} times round` : ""}${o.edge ? ", stops at sharp edges" : ""}`;
+  if (o.k === "fill") return `${o.slot === PAINT_LEAVE ? "eraser" : nm(o.slot)}, ${o.same ? "same colour" : "smooth area"}${o.radial > 1 ? `, ${o.radial} times round` : ""}`;
   if (o.k === "picture") return `${(state.items[o.item]||{}).name || "missing artwork"}, from the ${o.dir}`;
   if (o.k === "photo") return `${o.views.length} photo${o.views.length === 1 ? "" : "s"}, ${o.pal.length} colours: ${[...new Set(o.slots.filter(s => s !== PAINT_LEAVE))].map(nm).join(", ")}`;
   return (o.slots||[]).map(nm).join(", ");
@@ -10842,14 +10898,22 @@ function tabPaint(p){
   else buttonRow(c2, [[`Paint it: ${m[1].toLowerCase()}`, ()=>{ const o = newPaintOp(paintUI.method); if (o){ ops.push(o); renderTab(); paintChanged(); } }]]);
 
   p.insertAdjacentHTML("beforeend", `<h2>Brush and fill</h2>`);
-  segField(p, [["view","✋ Turn view"],["brush","🖌 Brush"],["fill","🪣 Fill"],["erase","⌫ Eraser"]], () => paintUI.tool, v => { paintUI.tool = v; paintControls(); renderTab(); }, "four");
+  segField(p, [["view","✋ Turn view"],["brush","🖌 Brush"],["fill","🪣 Fill"],["erase","⌫ Eraser"],["pick","💧 Pick colour"],["recolour","🔁 Recolour"]], () => paintUI.tool,
+    v => { if (v === "pick" || v === "recolour"){ if (paintUI.tool === "brush" || paintUI.tool === "fill") paintUI.lastTool = paintUI.tool; } paintUI.tool = v; paintControls(); renderTab(); }, "tools");
   note(p, paintUI.tool === "view" ? "Drag to turn the view. Pick the brush, fill or eraser to paint."
     : paintUI.tool === "fill" ? "Click the model to fill an area. Right-drag (or two fingers) turns the view."
+    : paintUI.tool === "pick" ? "Click the model to take its colour for the brush (key I)."
+    : paintUI.tool === "recolour" ? "Click a colour on the model: all of it changes to the brush colour below (key R). Undo brings it back."
     : "Drag on the model to paint. Right-drag turns the view, the wheel zooms. [ and ] change the brush size.");
   paletteRow(p);
   numField(p,{ label:"Brush size (mm)", min:0.5, max:30, step:0.5, get:()=>paintUI.r, set:v=>paintUI.r=v, onChange:()=>{} });
   checkField(p, "Only paint the side facing me", () => paintUI.facing, v => { paintUI.facing = v; });
   checkField(p, "Mirror my strokes to the other side (left and right)", () => paintUI.mirror, v => { paintUI.mirror = v; });
+  numField(p,{ label:"Repeat round the middle (times)", min:1, max:12, step:1, def:1, get:()=>paintUI.radial, set:v=>paintUI.radial=Math.round(v), onChange:()=>{},
+    sub:()=> paintUI.radial > 1 ? `Every stroke and fill is repeated ${paintUI.radial} times round the upright middle line, like petals: vases, mandalas, wheels.` : "1 paints once. More repeats every stroke round the upright middle line." });
+  checkField(p, "Smart brush: stop at sharp edges", () => paintUI.smart, v => { paintUI.smart = v; renderTab(); });
+  if (paintUI.smart) numField(p,{ label:"An edge is sharp when it bends more than (°)", min:5, max:89, step:1, def:40, get:()=>paintUI.edge, set:v=>paintUI.edge=v, onChange:()=>{},
+    sub:()=>"The brush paints only the surface it starts on, up to edges this sharp: the rim of a face, a fold, a groove." });
   segField(p, [["smooth","Fill a smooth area"],["same","Fill the same colour"]], () => paintUI.fill, v => { paintUI.fill = v; renderTab(); }, "two");
   if (paintUI.fill === "smooth") numField(p,{ label:"Stop at edges sharper than (°)", min:5, max:89, step:1, get:()=>paintUI.angle, set:v=>paintUI.angle=v, onChange:()=>{} });
   buttonRow(p, [["Undo the last stroke", ()=>{ const i = state.paint.ops.map(o=>o.k).lastIndexOf("brush"), j = state.paint.ops.map(o=>o.k).lastIndexOf("fill");
@@ -10881,7 +10945,10 @@ window.addEventListener("keydown", e => {
   const t = e.target; if (t && (t.matches("input,textarea,select") || t.isContentEditable)) return;
   if (/^[1-8]$/.test(e.key) && +e.key <= state.slots.length){ paintUI.slot = +e.key - 1; if (paintUI.tool === "erase" || paintUI.tool === "view") paintUI.tool = "brush"; paintControls(); renderTab(); e.preventDefault(); }
   else if (e.key === "[" || e.key === "]"){ paintUI.r = clamp(paintUI.r + (e.key === "]" ? 0.5 : -0.5), 0.5, 30); renderTab(); e.preventDefault(); }
-  else if ({ b:"brush", f:"fill", e:"erase", v:"view" }[e.key.toLowerCase()]){ paintUI.tool = { b:"brush", f:"fill", e:"erase", v:"view" }[e.key.toLowerCase()]; paintControls(); renderTab(); e.preventDefault(); }
+  else if ({ b:"brush", f:"fill", e:"erase", v:"view", i:"pick", r:"recolour" }[e.key.toLowerCase()]){
+    const t = { b:"brush", f:"fill", e:"erase", v:"view", i:"pick", r:"recolour" }[e.key.toLowerCase()];
+    if ((t === "pick" || t === "recolour") && (paintUI.tool === "brush" || paintUI.tool === "fill")) paintUI.lastTool = paintUI.tool;
+    paintUI.tool = t; paintControls(); renderTab(); e.preventDefault(); }
 });
 
 function tabExport(p){
@@ -11237,8 +11304,11 @@ function cleanPaint(P0){
       case "picture": return { k:"picture", item:Math.round(num(o.item, 0, 59, 0)), dir:one(o.dir, ["front","back","left","right","top"]), scale:num(o.scale, 10, 400, 100),
         dx:num(o.dx, -1000, 1000, 0), dy:num(o.dy, -1000, 1000, 0), facing:o.facing !== false };
       case "brush": { const pts = (Array.isArray(o.pts) ? o.pts : []).slice(0, Math.min(5000, budget)).map(v3).filter(Boolean); budget -= pts.length;
-        return pts.length ? { k:"brush", slot:slotOrKeep(o.slot), r:num(o.r, 0.2, 50, 3), facing:v3(o.facing), pts, mirror:o.mirror === true } : null; }
-      case "fill": { const pt = v3(o.p); return pt ? { k:"fill", p:pt, slot:slotOrKeep(o.slot), same:o.same === true, angle:num(o.angle, 1, 89, 30) } : null; }
+        const radial = Math.round(num(o.radial, 1, 12, 1)), edge = num(o.edge, 0, 89, 0);
+        return pts.length ? Object.assign({ k:"brush", slot:slotOrKeep(o.slot), r:num(o.r, 0.2, 50, 3), facing:v3(o.facing), pts, mirror:o.mirror === true },
+          radial > 1 ? { radial } : {}, edge > 0 ? { edge } : {}) : null; }
+      case "fill": { const pt = v3(o.p), radial = Math.round(num(o.radial, 1, 12, 1));
+        return pt ? Object.assign({ k:"fill", p:pt, slot:slotOrKeep(o.slot), same:o.same === true, angle:num(o.angle, 1, 89, 30) }, radial > 1 ? { radial } : {}) : null; }
       case "photo": {
         // the photos (by picture id), where each was taken from and how it lines up; the colours as lit
         // RGB and their Lab keys; a fit of text or of absurd size falls back to "not lined up yet"
@@ -11705,7 +11775,7 @@ window.MakerForge = {
   printNow: runPrintability, optimize: optimizePrint, revertOptimize, exportParts,
   // the painter, for the tests: its tool settings, a repaint now, the last result, a model import and the zip
   paint: { ui: paintUI, repaint: () => repaint(true), changed: paintChanged, get info(){ return paintInfo; }, importModel: importModelFile, buildZip,
-    hit: paintHit, get prefs(){ return prefs; }, applyPrefs, findDefault, cleanPaint,
+    hit: paintHit, pick: paintPick, recolour: paintRecolour, colourAt, get prefs(){ return prefs; }, applyPrefs, findDefault, cleanPaint,
     photo: { ai: { hooks: aiHooks, find: aiFindFigures, config: AI_FIGURE, state: aiState, sha256: sha256Hex, get: aiGet, mapOf: aiMapOf },
       add: addPaintPhotos, fit: photoFitView, colours: photoPickColours, setFilaments: photoSetFilaments, nearest: photoNearestFilaments, get op(){ return photoOpOf(); }, info: o => photoInfo.get(o), labels: photoLabels, colourWord } },
   phone: { spec: phoneSpec, get info(){ return phoneInfo; }, list: PHONES },

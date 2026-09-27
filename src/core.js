@@ -2913,8 +2913,11 @@
       }
       for (let i = 0; i < n; i++) mask[i] = bg[i] ? 0 : 1;
     }
-    // keep the figure, drop dust
-    const lab = new Int32Array(n).fill(-1), sizes = [], q = new Int32Array(n);
+    return keepFigure(mask, w, h);
+  }
+  // keep the figure, drop dust: the biggest piece and the pieces at least 2% of its size
+  function keepFigure(mask, w, h) {
+    const n = w * h, lab = new Int32Array(n).fill(-1), sizes = [], q = new Int32Array(n);
     for (let s = 0; s < n; s++) {
       if (!mask[s] || lab[s] >= 0) continue;
       const id = sizes.length; let qh = 0, qt = 0; q[qt++] = s; lab[s] = id;
@@ -2927,6 +2930,55 @@
     const big = sizes.length ? Math.max(...sizes) : 0;
     for (let i = 0; i < n; i++) if (mask[i] && sizes[lab[i]] < big * 0.02) mask[i] = 0;
     return mask;
+  }
+  // ---- the AI figure finder (Session 17): the pictures in and out of the small U²-Net ----
+  // The network ("u2netp", Apache 2.0) marks a photo's main object. It takes the photo squeezed to S x S
+  // (area-averaged), divided by its brightest value and standardised per channel (the ImageNet means and
+  // spreads), as rembg feeds it; returns the 1 x 3 x S x S input.
+  function photoNetInput(rgba, w, h, S) {
+    S = S || 320;
+    const sum = new Float64Array(3 * S * S), cnt = new Float64Array(S * S);
+    for (let y = 0; y < h; y++) {
+      const oy = Math.min(S - 1, Math.floor(y * S / h));
+      for (let x = 0; x < w; x++) {
+        const o = oy * S + Math.min(S - 1, Math.floor(x * S / w)), p = 4 * (y * w + x);
+        sum[3 * o] += rgba[p]; sum[3 * o + 1] += rgba[p + 1]; sum[3 * o + 2] += rgba[p + 2]; cnt[o]++;
+      }
+    }
+    const px = new Float32Array(3 * S * S); let top = 1;
+    for (let o = 0; o < S * S; o++) {
+      if (cnt[o]) for (let c = 0; c < 3; c++) px[3 * o + c] = sum[3 * o + c] / cnt[o];
+      else {                                           // a photo smaller than S: the nearest pixel
+        const x = Math.min(w - 1, Math.floor(((o % S) + 0.5) * w / S)), y = Math.min(h - 1, Math.floor((Math.floor(o / S) + 0.5) * h / S)), p = 4 * (y * w + x);
+        for (let c = 0; c < 3; c++) px[3 * o + c] = rgba[p + c];
+      }
+      top = Math.max(top, px[3 * o], px[3 * o + 1], px[3 * o + 2]);
+    }
+    const out = new Float32Array(3 * S * S), mean = [0.485, 0.456, 0.406], sd = [0.229, 0.224, 0.225];
+    for (let o = 0; o < S * S; o++) for (let c = 0; c < 3; c++) out[c * S * S + o] = (px[3 * o + c] / top - mean[c]) / sd[c];
+    return out;
+  }
+  // its first output, stretched to 0..255 (the network's own scale varies from photo to photo)
+  function photoNetOutput(data, S) {
+    S = S || 320;
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < S * S; i++) { const v = data[i]; if (v < lo) lo = v; if (v > hi) hi = v; }
+    const out = new Uint8Array(S * S), k = hi > lo ? 255 / (hi - lo) : 0;
+    for (let i = 0; i < S * S; i++) out[i] = Math.round((data[i] - lo) * k);
+    return out;
+  }
+  // a 0..255 map (mw x mh) to the figure's mask in a W x H picture: smoothly enlarged, cut at th (128)
+  function photoMaskFromMap(map, mw, mh, W, H, th) {
+    const cut = th == null ? 128 : th, mask = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) {
+      const sy = Math.min(mh - 1, Math.max(0, (y + 0.5) * mh / H - 0.5)), y0 = Math.floor(sy), y1 = Math.min(mh - 1, y0 + 1), fy = sy - y0;
+      for (let x = 0; x < W; x++) {
+        const sx = Math.min(mw - 1, Math.max(0, (x + 0.5) * mw / W - 0.5)), x0 = Math.floor(sx), x1 = Math.min(mw - 1, x0 + 1), fx = sx - x0;
+        const v = (map[y0 * mw + x0] * (1 - fx) + map[y0 * mw + x1] * fx) * (1 - fy) + (map[y1 * mw + x0] * (1 - fx) + map[y1 * mw + x1] * fx) * fy;
+        mask[y * W + x] = v > cut ? 1 : 0;
+      }
+    }
+    return keepFigure(mask, W, H);
   }
   // the photo's main colours. Light and shade must not become two colours: the pixels are first split
   // into more groups than asked for (k-means in Lab, lightness counting half), then the closest groups are
@@ -2963,9 +3015,14 @@
       if (R > 0.3 && R < 1 / 0.3 && r.every(v => Math.abs(v / R - 1) < 0.22)) d *= 0.33;
       return d;
     };
-    while (groups.length > k) {
+    // a group of under 0.4% of the pixels gets no colour of its own: it joins its nearest group first
+    // (a rim of background inside a slightly large outline would otherwise take whole filaments)
+    const tiny = g => g.members.length < pts.length * 0.004;
+    while (groups.length > 1 && (groups.length > k || groups.some(tiny))) {
       let bi = 0, bj = 1, bc = Infinity;
-      for (let i = 0; i < groups.length; i++) for (let j = i + 1; j < groups.length; j++) { const c = cost(groups[i], groups[j]); if (c < bc) { bc = c; bi = i; bj = j; } }
+      const t = groups.findIndex(tiny);
+      if (t >= 0) { for (let j = 0; j < groups.length; j++) if (j !== t) { const c = cost(groups[t], groups[j]); if (c < bc) { bc = c; bi = Math.min(t, j); bj = Math.max(t, j); } } }
+      else for (let i = 0; i < groups.length; i++) for (let j = i + 1; j < groups.length; j++) { const c = cost(groups[i], groups[j]); if (c < bc) { bc = c; bi = i; bj = j; } }
       const g = { keys: groups[bi].keys.concat(groups[bj].keys), members: groups[bi].members.concat(groups[bj].members) };
       stats(g); groups.splice(bj, 1); groups.splice(bi, 1, g);
     }
@@ -3047,9 +3104,12 @@
     return { cam, fit, cls: { w: W, h: H, data: photoClasses(rgba, use, W, H, palette) } };
   }
   // line a photo's figure up with the model's outline seen by cam: size, place and a slight turn, and
-  // mirrored if that fits better (mirror: true, false or "auto"); mask is W x H
-  function photoFit(solid, cam, mask, W, H, mirror, angles, quick) {
-    if (angles) return photoFitAngles(solid, cam, mask, W, H, mirror, angles);
+  // mirrored if that fits better (mirror: true, false or "auto"); mask is W x H. opt.extra: how much a
+  // part of the mask the model does not cover counts against the fit (1, as much as a part of the model
+  // outside the mask; less for a mask that may take in some background, like the AI figure finder's)
+  function photoFit(solid, cam, mask, W, H, mirror, angles, quick, opt) {
+    if (angles) return photoFitAngles(solid, cam, mask, W, H, mirror, angles, opt);
+    const extra = opt && opt.extra != null ? Math.max(0.05, Math.min(1, +opt.extra)) : 1;
     const C = photoCam(cam), P = solid.pos, I = solid.idx, nv = P.length / 3;
     const U = new Float32Array(nv), V = new Float32Array(nv);
     let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
@@ -3096,7 +3156,7 @@
         const m = ix >= 0 && iy >= 0 && ix < gw && iy < gh ? S[iy * gw + ix] : 0;
         if (m) { model++; if (PM[y * pw + x]) inter++; }
       }
-      return inter / (pn + model - inter);
+      return inter / (inter + (model - inter) + extra * (pn - inter));
     };
     const best = { score: -1, fit: null };
     for (const mir of mirror === "auto" ? [false, true] : [!!mirror]) {
@@ -3121,20 +3181,24 @@
   }
   // the same, also turning the camera: angles.yaw / angles.pitch are how far to look either side of cam
   // (degrees); a coarse search every 15°, then finer; returns { fit, iou, cam: { yaw, pitch } }
-  function photoFitAngles(solid, cam, mask, W, H, mirror, angles) {
+  // a turn away from the side asked for has to fit clearly better (0.1 points of overlap per degree): a
+  // figure's outline changes little as it turns, and a noisy outline would otherwise pick a wrong angle
+  // (on the test figure a 35° photo gains 15 points, the AI figure finder's outline wandered 1 or 2)
+  function photoFitAngles(solid, cam, mask, W, H, mirror, angles, opt) {
     const base = typeof cam === "string" ? PHOTO_ANGLES[cam] || [0, 0] : [+cam.yaw || 0, +cam.pitch || 0];
     const ry = Math.max(0, +angles.yaw || 0), rp = Math.max(0, +angles.pitch || 0);
     // quickly at low detail round the model, then up and down at the best two, then finely near the best
     let best = null;
-    const quickAt = (yaw, pitch) => { const r = photoFit(solid, { yaw, pitch }, mask, W, H, mirror, null, true); return r ? Object.assign(r, { cam: { yaw, pitch } }) : null; };
+    const prior = (yaw, pitch) => 0.001 * (Math.abs(yaw - base[0]) + Math.abs(pitch - base[1]));
+    const quickAt = (yaw, pitch) => { const r = photoFit(solid, { yaw, pitch }, mask, W, H, mirror, null, true, opt); return r ? Object.assign(r, { cam: { yaw, pitch }, score: r.iou - prior(yaw, pitch) }) : null; };
     const ys = [], ps = [];
     for (let d = 0; d <= ry + 1e-9; d += 15) { ys.push(d); if (d) ys.push(-d); }
     for (let d = 10; d <= rp + 1e-9; d += 10) ps.push(d, -d);
-    const round = ys.map(dy => quickAt(base[0] + dy, base[1])).filter(Boolean).sort((a, b) => b.iou - a.iou);
+    const round = ys.map(dy => quickAt(base[0] + dy, base[1])).filter(Boolean).sort((a, b) => b.score - a.score);
     const cands = round.slice(0, 2).concat(...round.slice(0, 2).map(r => ps.map(dp => quickAt(r.cam.yaw, base[1] + dp)).filter(Boolean)));
-    cands.sort((a, b) => b.iou - a.iou);
+    cands.sort((a, b) => b.score - a.score);
     if (!cands.length) return null;
-    const tryAt = (yaw, pitch) => { const r = photoFit(solid, { yaw, pitch }, mask, W, H, mirror); if (r && (!best || r.iou > best.iou)) best = Object.assign(r, { cam: { yaw, pitch } }); };
+    const tryAt = (yaw, pitch) => { const r = photoFit(solid, { yaw, pitch }, mask, W, H, mirror, null, false, opt); if (r) { r.score = r.iou - prior(yaw, pitch); if (!best || r.score > best.score) best = Object.assign(r, { cam: { yaw, pitch } }); } };
     tryAt(cands[0].cam.yaw, cands[0].cam.pitch);
     for (const step of [8, 4, 2]) {
       const c = best.cam;
@@ -3329,6 +3393,7 @@
     gridAround, heightSheet,
     meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, gradientCuts, gradientLayers, paintGradient, paintSwap, meshShells, paintShells,
     meshRegions, paintRegions, paintNoise, paintBrush, paintFill, paintPicture, parseOBJ, parse3MFModel,
-    PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, paintFromPhotos
+    PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, paintFromPhotos,
+    photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure
   };
 })(typeof window !== "undefined" ? window : globalThis);

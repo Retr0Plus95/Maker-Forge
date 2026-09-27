@@ -365,7 +365,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.18.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.18.1</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -3355,8 +3355,11 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
       }
       for (let i = 0; i < n; i++) mask[i] = bg[i] ? 0 : 1;
     }
-    // keep the figure, drop dust
-    const lab = new Int32Array(n).fill(-1), sizes = [], q = new Int32Array(n);
+    return keepFigure(mask, w, h);
+  }
+  // keep the figure, drop dust: the biggest piece and the pieces at least 2% of its size
+  function keepFigure(mask, w, h) {
+    const n = w * h, lab = new Int32Array(n).fill(-1), sizes = [], q = new Int32Array(n);
     for (let s = 0; s < n; s++) {
       if (!mask[s] || lab[s] >= 0) continue;
       const id = sizes.length; let qh = 0, qt = 0; q[qt++] = s; lab[s] = id;
@@ -3369,6 +3372,55 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
     const big = sizes.length ? Math.max(...sizes) : 0;
     for (let i = 0; i < n; i++) if (mask[i] && sizes[lab[i]] < big * 0.02) mask[i] = 0;
     return mask;
+  }
+  // ---- the AI figure finder (Session 17): the pictures in and out of the small U²-Net ----
+  // The network ("u2netp", Apache 2.0) marks a photo's main object. It takes the photo squeezed to S x S
+  // (area-averaged), divided by its brightest value and standardised per channel (the ImageNet means and
+  // spreads), as rembg feeds it; returns the 1 x 3 x S x S input.
+  function photoNetInput(rgba, w, h, S) {
+    S = S || 320;
+    const sum = new Float64Array(3 * S * S), cnt = new Float64Array(S * S);
+    for (let y = 0; y < h; y++) {
+      const oy = Math.min(S - 1, Math.floor(y * S / h));
+      for (let x = 0; x < w; x++) {
+        const o = oy * S + Math.min(S - 1, Math.floor(x * S / w)), p = 4 * (y * w + x);
+        sum[3 * o] += rgba[p]; sum[3 * o + 1] += rgba[p + 1]; sum[3 * o + 2] += rgba[p + 2]; cnt[o]++;
+      }
+    }
+    const px = new Float32Array(3 * S * S); let top = 1;
+    for (let o = 0; o < S * S; o++) {
+      if (cnt[o]) for (let c = 0; c < 3; c++) px[3 * o + c] = sum[3 * o + c] / cnt[o];
+      else {                                           // a photo smaller than S: the nearest pixel
+        const x = Math.min(w - 1, Math.floor(((o % S) + 0.5) * w / S)), y = Math.min(h - 1, Math.floor((Math.floor(o / S) + 0.5) * h / S)), p = 4 * (y * w + x);
+        for (let c = 0; c < 3; c++) px[3 * o + c] = rgba[p + c];
+      }
+      top = Math.max(top, px[3 * o], px[3 * o + 1], px[3 * o + 2]);
+    }
+    const out = new Float32Array(3 * S * S), mean = [0.485, 0.456, 0.406], sd = [0.229, 0.224, 0.225];
+    for (let o = 0; o < S * S; o++) for (let c = 0; c < 3; c++) out[c * S * S + o] = (px[3 * o + c] / top - mean[c]) / sd[c];
+    return out;
+  }
+  // its first output, stretched to 0..255 (the network's own scale varies from photo to photo)
+  function photoNetOutput(data, S) {
+    S = S || 320;
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < S * S; i++) { const v = data[i]; if (v < lo) lo = v; if (v > hi) hi = v; }
+    const out = new Uint8Array(S * S), k = hi > lo ? 255 / (hi - lo) : 0;
+    for (let i = 0; i < S * S; i++) out[i] = Math.round((data[i] - lo) * k);
+    return out;
+  }
+  // a 0..255 map (mw x mh) to the figure's mask in a W x H picture: smoothly enlarged, cut at th (128)
+  function photoMaskFromMap(map, mw, mh, W, H, th) {
+    const cut = th == null ? 128 : th, mask = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) {
+      const sy = Math.min(mh - 1, Math.max(0, (y + 0.5) * mh / H - 0.5)), y0 = Math.floor(sy), y1 = Math.min(mh - 1, y0 + 1), fy = sy - y0;
+      for (let x = 0; x < W; x++) {
+        const sx = Math.min(mw - 1, Math.max(0, (x + 0.5) * mw / W - 0.5)), x0 = Math.floor(sx), x1 = Math.min(mw - 1, x0 + 1), fx = sx - x0;
+        const v = (map[y0 * mw + x0] * (1 - fx) + map[y0 * mw + x1] * fx) * (1 - fy) + (map[y1 * mw + x0] * (1 - fx) + map[y1 * mw + x1] * fx) * fy;
+        mask[y * W + x] = v > cut ? 1 : 0;
+      }
+    }
+    return keepFigure(mask, W, H);
   }
   // the photo's main colours. Light and shade must not become two colours: the pixels are first split
   // into more groups than asked for (k-means in Lab, lightness counting half), then the closest groups are
@@ -3405,9 +3457,14 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
       if (R > 0.3 && R < 1 / 0.3 && r.every(v => Math.abs(v / R - 1) < 0.22)) d *= 0.33;
       return d;
     };
-    while (groups.length > k) {
+    // a group of under 0.4% of the pixels gets no colour of its own: it joins its nearest group first
+    // (a rim of background inside a slightly large outline would otherwise take whole filaments)
+    const tiny = g => g.members.length < pts.length * 0.004;
+    while (groups.length > 1 && (groups.length > k || groups.some(tiny))) {
       let bi = 0, bj = 1, bc = Infinity;
-      for (let i = 0; i < groups.length; i++) for (let j = i + 1; j < groups.length; j++) { const c = cost(groups[i], groups[j]); if (c < bc) { bc = c; bi = i; bj = j; } }
+      const t = groups.findIndex(tiny);
+      if (t >= 0) { for (let j = 0; j < groups.length; j++) if (j !== t) { const c = cost(groups[t], groups[j]); if (c < bc) { bc = c; bi = Math.min(t, j); bj = Math.max(t, j); } } }
+      else for (let i = 0; i < groups.length; i++) for (let j = i + 1; j < groups.length; j++) { const c = cost(groups[i], groups[j]); if (c < bc) { bc = c; bi = i; bj = j; } }
       const g = { keys: groups[bi].keys.concat(groups[bj].keys), members: groups[bi].members.concat(groups[bj].members) };
       stats(g); groups.splice(bj, 1); groups.splice(bi, 1, g);
     }
@@ -3489,9 +3546,12 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
     return { cam, fit, cls: { w: W, h: H, data: photoClasses(rgba, use, W, H, palette) } };
   }
   // line a photo's figure up with the model's outline seen by cam: size, place and a slight turn, and
-  // mirrored if that fits better (mirror: true, false or "auto"); mask is W x H
-  function photoFit(solid, cam, mask, W, H, mirror, angles, quick) {
-    if (angles) return photoFitAngles(solid, cam, mask, W, H, mirror, angles);
+  // mirrored if that fits better (mirror: true, false or "auto"); mask is W x H. opt.extra: how much a
+  // part of the mask the model does not cover counts against the fit (1, as much as a part of the model
+  // outside the mask; less for a mask that may take in some background, like the AI figure finder's)
+  function photoFit(solid, cam, mask, W, H, mirror, angles, quick, opt) {
+    if (angles) return photoFitAngles(solid, cam, mask, W, H, mirror, angles, opt);
+    const extra = opt && opt.extra != null ? Math.max(0.05, Math.min(1, +opt.extra)) : 1;
     const C = photoCam(cam), P = solid.pos, I = solid.idx, nv = P.length / 3;
     const U = new Float32Array(nv), V = new Float32Array(nv);
     let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
@@ -3538,7 +3598,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         const m = ix >= 0 && iy >= 0 && ix < gw && iy < gh ? S[iy * gw + ix] : 0;
         if (m) { model++; if (PM[y * pw + x]) inter++; }
       }
-      return inter / (pn + model - inter);
+      return inter / (inter + (model - inter) + extra * (pn - inter));
     };
     const best = { score: -1, fit: null };
     for (const mir of mirror === "auto" ? [false, true] : [!!mirror]) {
@@ -3563,20 +3623,24 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
   }
   // the same, also turning the camera: angles.yaw / angles.pitch are how far to look either side of cam
   // (degrees); a coarse search every 15°, then finer; returns { fit, iou, cam: { yaw, pitch } }
-  function photoFitAngles(solid, cam, mask, W, H, mirror, angles) {
+  // a turn away from the side asked for has to fit clearly better (0.1 points of overlap per degree): a
+  // figure's outline changes little as it turns, and a noisy outline would otherwise pick a wrong angle
+  // (on the test figure a 35° photo gains 15 points, the AI figure finder's outline wandered 1 or 2)
+  function photoFitAngles(solid, cam, mask, W, H, mirror, angles, opt) {
     const base = typeof cam === "string" ? PHOTO_ANGLES[cam] || [0, 0] : [+cam.yaw || 0, +cam.pitch || 0];
     const ry = Math.max(0, +angles.yaw || 0), rp = Math.max(0, +angles.pitch || 0);
     // quickly at low detail round the model, then up and down at the best two, then finely near the best
     let best = null;
-    const quickAt = (yaw, pitch) => { const r = photoFit(solid, { yaw, pitch }, mask, W, H, mirror, null, true); return r ? Object.assign(r, { cam: { yaw, pitch } }) : null; };
+    const prior = (yaw, pitch) => 0.001 * (Math.abs(yaw - base[0]) + Math.abs(pitch - base[1]));
+    const quickAt = (yaw, pitch) => { const r = photoFit(solid, { yaw, pitch }, mask, W, H, mirror, null, true, opt); return r ? Object.assign(r, { cam: { yaw, pitch }, score: r.iou - prior(yaw, pitch) }) : null; };
     const ys = [], ps = [];
     for (let d = 0; d <= ry + 1e-9; d += 15) { ys.push(d); if (d) ys.push(-d); }
     for (let d = 10; d <= rp + 1e-9; d += 10) ps.push(d, -d);
-    const round = ys.map(dy => quickAt(base[0] + dy, base[1])).filter(Boolean).sort((a, b) => b.iou - a.iou);
+    const round = ys.map(dy => quickAt(base[0] + dy, base[1])).filter(Boolean).sort((a, b) => b.score - a.score);
     const cands = round.slice(0, 2).concat(...round.slice(0, 2).map(r => ps.map(dp => quickAt(r.cam.yaw, base[1] + dp)).filter(Boolean)));
-    cands.sort((a, b) => b.iou - a.iou);
+    cands.sort((a, b) => b.score - a.score);
     if (!cands.length) return null;
-    const tryAt = (yaw, pitch) => { const r = photoFit(solid, { yaw, pitch }, mask, W, H, mirror); if (r && (!best || r.iou > best.iou)) best = Object.assign(r, { cam: { yaw, pitch } }); };
+    const tryAt = (yaw, pitch) => { const r = photoFit(solid, { yaw, pitch }, mask, W, H, mirror, null, false, opt); if (r) { r.score = r.iou - prior(yaw, pitch); if (!best || r.score > best.score) best = Object.assign(r, { cam: { yaw, pitch } }); } };
     tryAt(cands[0].cam.yaw, cands[0].cam.pitch);
     for (const step of [8, 4, 2]) {
       const c = best.cam;
@@ -3771,7 +3835,8 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
     gridAround, heightSheet,
     meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, gradientCuts, gradientLayers, paintGradient, paintSwap, meshShells, paintShells,
     meshRegions, paintRegions, paintNoise, paintBrush, paintFill, paintPicture, parseOBJ, parse3MFModel,
-    PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, paintFromPhotos
+    PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, paintFromPhotos,
+    photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure
   };
 })(typeof window !== "undefined" ? window : globalThis);
 
@@ -4558,7 +4623,7 @@ function projectPayload(withModel){
 }
 function usedAssets(){
   const used = new Set(state.items.map(it => it.asset).filter(Boolean));
-  ((state.paint && state.paint.ops) || []).forEach(o => { if (o.k === "photo") o.views.forEach(v => used.add(v.asset)); });
+  ((state.paint && state.paint.ops) || []).forEach(o => { if (o.k === "photo") o.views.forEach(v => { used.add(v.asset); if (v.ai) used.add(v.ai); }); });
   return used;
 }
 /* Share link: the project, pictures left out, deflated into the part of the address after "#p=".
@@ -7410,12 +7475,128 @@ function photoFitNowFor(v){
 // before the fit is changed by hand: take the model as it is now as the reference
 function photoBake(v){ const model = photoModel(); if (!v.fit || !model) return; v.fit = photoFitNowFor(v); v.box = photoBox(model, photoCamOf(v)).map(x => +x.toFixed(5)); }
 const wrapYaw = y => { y = ((y + 180) % 360 + 360) % 360 - 180; return y === -180 ? 180 : Math.round(y); };
+/* ---- the AI figure finder (Session 17) ----
+   For photos on a busy background, where finding the figure by colour fails: the small U²-Net ("u2netp",
+   Apache 2.0, 4.6 MB) run by ONNX Runtime Web (MIT, 14 MB) marks a photo's main object. Nothing loads
+   until someone asks for it. Then the runtime comes from jsDelivr like three.js, the model from models/
+   next to this page or else from the project's repository through jsDelivr, and each file is checked
+   against its SHA-256 before it is used. The photo never leaves the computer. Each photo's result is kept
+   as a small grey picture (v.ai, 320 x 320) in the project, so a saved project colours the same without
+   the model. */
+const AI_FIGURE = {
+  runtime:{ urls:["https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.wasm.bundle.min.mjs"], sha256:"11e64bd8ffe11bd1a2a2f0d6275fdfbbba7262f0b76b99b53d228a8a22ef3d90" },
+  wasm:{ urls:["https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort-wasm-simd-threaded.wasm"], sha256:"3398c10d07d229bd91b364548e130e0e51a8e5704b88c7c083ebbeb78842dee2" },
+  model:{ urls:["models/u2netp.onnx", "https://cdn.jsdelivr.net/gh/Retr0Plus95/Maker-Forge@main/models/u2netp.onnx"], sha256:"309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8" },
+  mb:19, size:320
+};
+const aiState = { ort:null, session:null, loading:null };
+const aiHooks = { run:null };                        // tests: run(input, size) -> the network's first output
+async function sha256Hex(bytes){ const d = await crypto.subtle.digest("SHA-256", bytes); return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, "0")).join(""); }
+// one file: from this browser's cache if it is there and still the right file, else downloaded and checked
+async function aiGet(part, step){
+  let cache = null, last = null;
+  try { cache = await caches.open("maker-forge-ai-1"); } catch(e){}
+  // a page opened as a file cannot read the folder next to it: go straight to jsDelivr
+  for (const url of part.urls.filter(u => /^https:/.test(u) || location.protocol !== "file:")){
+    try {
+      if (cache){ const hit = await cache.match(url); if (hit){ const b = new Uint8Array(await hit.arrayBuffer()); if (await sha256Hex(b) === part.sha256){ step(b.length); return b; } } }
+      const res = await fetch(url, { credentials:"omit" });
+      if (!res.ok) throw new Error(`${url} answered ${res.status}`);
+      const chunks = [], reader = res.body && res.body.getReader ? res.body.getReader() : null; let n = 0;
+      if (reader) for (;;){ const { done, value } = await reader.read(); if (done) break; chunks.push(value); n += value.length; step(value.length); }
+      else { const b = new Uint8Array(await res.arrayBuffer()); chunks.push(b); n = b.length; step(n); }
+      const b = new Uint8Array(n); let at = 0; chunks.forEach(c => { b.set(c, at); at += c.length; });
+      if (await sha256Hex(b) !== part.sha256) throw Object.assign(new Error(`${url} is not the expected file`), { unexpected:true });
+      if (cache) try { await cache.put(url, new Response(b)); } catch(e){}
+      return b;
+    } catch (err){ last = err; }
+  }
+  throw last || new Error("nothing to download");
+}
+function aiLoad(){
+  if (aiState.session) return Promise.resolve();
+  if (!aiState.loading) aiState.loading = (async () => {
+    if (!(window.crypto && crypto.subtle)) throw new Error("the page has to be opened over https (or as a file) so the download can be checked");
+    let got = 0; const step = n => { got += n; setBusy(true, `Downloading the AI figure finder… ${Math.min(AI_FIGURE.mb, Math.round(got / 1e6))} of ${AI_FIGURE.mb} MB`); };
+    const [code, wasm, model] = await Promise.all([aiGet(AI_FIGURE.runtime, step), aiGet(AI_FIGURE.wasm, step), aiGet(AI_FIGURE.model, step)]);
+    // the checked code runs from a local copy; where it looks for its own address it is told the jsDelivr one
+    const text = new TextDecoder().decode(code).split("import.meta.url").join(JSON.stringify(AI_FIGURE.runtime.urls[0]));
+    const url = URL.createObjectURL(new Blob([text], { type:"text/javascript" }));
+    let ort; try { ort = await import(url); } finally { URL.revokeObjectURL(url); }
+    ort.env.wasm.numThreads = 1; ort.env.wasm.proxy = false; ort.env.wasm.wasmBinary = wasm;
+    setBusy(true, "Starting the AI figure finder…");
+    aiState.session = await ort.InferenceSession.create(model, { executionProviders:["wasm"] });
+    aiState.ort = ort;
+  })().catch(err => { aiState.loading = null; throw err; });
+  return aiState.loading;
+}
+// a photo's figure map (0..255, size x size) from the network
+async function aiFigureMap(canvas){
+  const S = AI_FIGURE.size, k = Math.min(1, 640 / Math.max(canvas.width, canvas.height));
+  const w = Math.max(8, Math.round(canvas.width * k)), h = Math.max(8, Math.round(canvas.height * k)), img = resample(canvas, w, h, false);
+  const input = C.photoNetInput(img.data, w, h, S);
+  let out;
+  if (aiHooks.run) out = await aiHooks.run(input, S);
+  else {
+    await aiLoad();
+    const { ort, session } = aiState, r = await session.run({ [session.inputNames[0]]: new ort.Tensor("float32", input, [1, 3, S, S]) });
+    out = r[session.outputNames[0]].data;
+  }
+  return C.photoNetOutput(out, S);
+}
+// kept with the photo as a grey picture
+function aiMapAsset(map, S){
+  const cv = document.createElement("canvas"); cv.width = S; cv.height = S;
+  const x = cv.getContext("2d"), img = x.createImageData(S, S);
+  for (let i=0;i<S*S;i++){ img.data[4*i] = img.data[4*i+1] = img.data[4*i+2] = map[i]; img.data[4*i+3] = 255; }
+  x.putImageData(img, 0, 0);
+  const id = "a"+(uid++); assets[id] = { canvas:cv, dataURL:cv.toDataURL("image/png") };
+  return id;
+}
+const aiMapCache = new WeakMap();
+function aiMapOf(id){
+  const a = id && assets[id]; if (!a || !a.canvas) return null;
+  let m = aiMapCache.get(a.canvas);
+  if (!m){ const c = a.canvas, d = c.getContext("2d", { willReadFrequently:true }).getImageData(0, 0, c.width, c.height).data, v = new Uint8Array(c.width * c.height);
+    for (let i=0;i<v.length;i++) v[i] = d[4*i]; m = { w:c.width, h:c.height, v }; aiMapCache.set(a.canvas, m); }
+  return m;
+}
+// the figure in a photo (px: its pixels at some size): the AI's outline when it has one, else by colour
+function photoFigure(v, px){
+  const m = aiMapOf(v.ai);
+  return m ? C.photoMaskFromMap(m.v, m.w, m.h, px.w, px.h) : C.photoMask(px.rgba, px.w, px.h, v.tol);
+}
+// find the figure with the AI in every photo of a step that does not have it yet, then line them up again
+async function aiFindFigures(o, only){
+  const todo = (only || o.views).filter(v => !aiMapOf(v.ai) && assets[v.asset]);
+  if (!todo.length) return true;
+  try {
+    setBusy(true, aiState.session || aiHooks.run ? "Finding the figure…" : `Downloading the AI figure finder (about ${AI_FIGURE.mb} MB)…`);
+    await new Promise(r => setTimeout(r, 30));
+    for (const [j, v] of todo.entries()){
+      if (!aiHooks.run) await aiLoad();
+      setBusy(true, `Finding the figure in photo ${j + 1} of ${todo.length}…`); await new Promise(r => setTimeout(r, 20));
+      v.ai = aiMapAsset(await aiFigureMap(assets[v.asset].canvas), AI_FIGURE.size);
+    }
+  } catch (err){
+    setBusy(false); console.warn(err);
+    notify(err.unexpected ? "A file of the AI figure finder was not the one it should be, so it was not used (it may have been changed on the way). Nothing was run. Try again later."
+      : `The AI figure finder could not be loaded (${err.message}). Check the internet connection. On your own website, put the models folder next to index.html.`);
+    return false;
+  }
+  setBusy(false);
+  // the angle found from the colour method's outline means little: look again from the side it was taken from
+  for (const v of todo){ photoToSide(v); await photoFitNow(o, v, true); }
+  notify(`The AI figure finder found the figure in ${todo.length === 1 ? "the photo" : `${todo.length} photos`}.`);
+  return true;
+}
 // line a photo up with the model; search: also look for the angle it was taken from (±45° round, ±20° up)
 function photoFitView(v, search){
   const model = photoModel(), px = photoPixels(v.asset, 480);
   if (!model || !px) return false;
-  const mask = C.photoMask(px.rgba, px.w, px.h, v.tol);
-  const r = C.photoFit(model, photoCamOf(v), mask, px.w, px.h, !!(v.fit && v.fit.mirror), search ? { yaw:45, pitch:20 } : null);
+  const mask = photoFigure(v, px);
+  // the AI's outline may take in a little background: a part of it the model does not cover counts less
+  const r = C.photoFit(model, photoCamOf(v), mask, px.w, px.h, !!(v.fit && v.fit.mirror), search ? { yaw:45, pitch:20 } : null, false, aiMapOf(v.ai) ? { extra:0.7 } : null);
   if (!r) return false;
   v.fit = { a:r.fit.a, tx:r.fit.tx, ty:r.fit.ty, rot:r.fit.rot, mirror:r.fit.mirror };
   v.match = +r.iou.toFixed(3);
@@ -7435,7 +7616,10 @@ function photoPickColours(o){
   const model = photoModel(), parts = [];
   for (const v of o.views){
     const px = photoPixels(v.asset, 400); if (!px) continue;
-    const m = v.fit && model ? C.photoModelMask(model, photoCamOf(v), photoFitNowFor(v), px.w, px.h, 2) : C.photoMask(px.rgba, px.w, px.h, v.tol);
+    // inside the lined-up model, less a rim of 2% of its height: a fit a little too big or off to one side
+    // would otherwise read the background round the figure as colours of its own
+    const f = v.fit && model ? photoFitNowFor(v) : null, rim = f ? Math.max(2, Math.round(0.02 * f.a * photoBox(model, photoCamOf(v))[2] * px.h)) : 0;
+    const m = f ? C.photoModelMask(model, photoCamOf(v), f, px.w, px.h, rim) : photoFigure(v, px);
     parts.push([px.rgba, m]);
   }
   const n = parts.reduce((s, q) => s + q[1].length, 0);
@@ -7483,7 +7667,7 @@ function photoNearestFilaments(o){
 const photoInfo = new WeakMap();                     // step -> what the last colouring saw
 function photoLabels(pc, o){
   const fits = o.views.map(photoFitNowFor);
-  const key = JSON.stringify([o.views.map((v, i) => [v.asset, v.cam, fits[i], v.tol]), o.pal, o.fill, o.speck, o.smooth]);
+  const key = JSON.stringify([o.views.map((v, i) => [v.asset, v.cam, fits[i], v.tol, v.ai || ""]), o.pal, o.fill, o.speck, o.smooth]);
   if (!pc.photo) pc.photo = new Map();
   let r = pc.photo.get(key); if (r) return r;
   const B = C.solidBounds(pc.solid), D = Math.hypot(B.mx[0]-B.mn[0], B.mx[1]-B.mn[1], B.mx[2]-B.mn[2]) || 1, views = [];
@@ -7491,7 +7675,7 @@ function photoLabels(pc, o){
     const f = fits[i], px = f && photoPixels(v.asset, PHOTO_RES);
     // a fit that makes the model many times bigger than the photo is broken (a hand-edited file): skip it
     if (!px || !(f.a * D < 4)) return;
-    views.push(C.photoView(px.rgba, px.w, px.h, pc.solid, photoCamOf(v), f, o.pal, C.photoMask(px.rgba, px.w, px.h, v.tol)));
+    views.push(C.photoView(px.rgba, px.w, px.h, pc.solid, photoCamOf(v), f, o.pal, photoFigure(v, px)));
   });
   const n = pc.topo.n, lab = new Int16Array(n).fill(-1);
   let info = { seen:0, painted:0, n };
@@ -7538,7 +7722,8 @@ async function addPaintPhotos(files){
       const side = PHOTO_SIDES[order[o.views.length]];
       const v = { asset:id, name:cleanStr(file.name.replace(/\.[^.]+$/, ""), 60, "Photo"), cam:{ yaw:side[0], pitch:side[1] }, fit:null, tol:35, match:0 };
       o.views.push(v); paintUI.photo = o.views.length - 1;
-      await photoFitNow(o, v, true);
+      if (o.views.some(w => aiMapOf(w.ai)) && (aiState.session || aiHooks.run)) await aiFindFigures(o, [v]);
+      else await photoFitNow(o, v, true);
     } catch (err){ notify(err.message || "That photo could not be read."); }
   }
   if (!o.views.length){ state.paint.ops.splice(state.paint.ops.indexOf(o), 1); renderTab(); return false; }
@@ -10468,6 +10653,7 @@ function renderKeepFocus(){
 }
 let photoTimer = 0;
 const photoLater = (fn, ms) => { clearTimeout(photoTimer); photoTimer = setTimeout(fn, ms || 450); };
+function photoToSide(v){ const s0 = PHOTO_SIDES[photoSideOf(v)]; v.cam = { yaw:s0[0], pitch:s0[1] }; }
 function photoSideOf(v){
   if (v.cam.pitch > 60) return "top";
   const y = wrapYaw(v.cam.yaw); return Math.abs(y) <= 45 ? "front" : Math.abs(y) >= 135 ? "back" : y > 0 ? "right" : "left";
@@ -10482,7 +10668,7 @@ function drawPhotoPreview(cv, o, v){
   if (v.fit && model){
     const cam = photoCamOf(v), fit = photoFitNowFor(v), inside = C.photoModelMask(model, cam, fit, W, H, 0);
     if (paintUI.photoShow === "colours" && o.pal.length){
-      const cls = C.photoView(px.rgba, W, H, model, cam, fit, o.pal, C.photoMask(px.rgba, W, H, v.tol)).cls.data;
+      const cls = C.photoView(px.rgba, W, H, model, cam, fit, o.pal, photoFigure(v, px)).cls.data;
       for (let i=0;i<W*H;i++){
         const c = cls[i];
         if (c >= 0){ const s = o.slots[c], rgb = s !== PAINT_LEAVE && state.slots[s] ? C.hexToRgb(state.slots[s].hex) : o.pal[c].rgb; d[4*i] = rgb[0]; d[4*i+1] = rgb[1]; d[4*i+2] = rgb[2]; }
@@ -10567,7 +10753,7 @@ function photoCard(c){
   const matchNote = document.createElement("p"); matchNote.className = "hint"; matchNote.setAttribute("aria-live", "polite"); c.appendChild(matchNote);
   const showMatch = () => { const m = v.match || 0;
     matchNote.textContent = !v.fit ? "This photo is not lined up yet: no figure was found in it. Change the background setting, or try a photo on a plain background."
-      : m < 0.75 ? `The outline matches the photo only ${Math.round(m*100)}%. Pick the side the photo was taken from, or drag it into place.`
+      : m < 0.75 ? `The outline matches the photo only ${Math.round(m*100)}%. Pick the side the photo was taken from, or drag it into place.${aiMapOf(v.ai) ? "" : " On a busy background, try Find the figure with AI below."}`
       : `The outline matches the photo ${Math.round(m*100)}%. Drag it or use the arrows to fine-tune.`; };
   showMatch();
   // where it was taken from
@@ -10579,8 +10765,16 @@ function photoCard(c){
     sub:()=>"0 is the front, 90 the right side, 180 the back." });
   numField(c, { label:"Taken from (° above)", min:-89, max:89, step:1, get:()=>v.cam.pitch, set:x=>v.cam.pitch = Math.round(x), onChange:refit, noReset:true });
   checkField(c, "The photo is mirrored (a selfie or a reflection)", () => !!(v.fit && v.fit.mirror), x => { if (!v.fit) v.fit = { a:0.01, tx:0.5, ty:0.9, rot:0, mirror:x }; else v.fit.mirror = x; refit(); });
-  numField(c, { label:"Background (how different the figure is from it)", min:0, max:100, step:1, def:35, get:()=>v.tol, set:x=>v.tol = Math.round(x), onChange:refit,
-    sub:()=>"Lower it when parts of the figure go missing; raise it when the background is busy." });
+  if (aiMapOf(v.ai)){
+    note(c, "The AI figure finder found the figure in this photo.");
+    buttonRow(c, [["Find the figure by colour instead", async () => { v.ai = null; photoToSide(v); await photoFitNow(o, v, true); photoPickColours(o); renderKeepFocus(); photoRepaint(); }]]);
+  } else {
+    numField(c, { label:"Background (how different the figure is from it)", min:0, max:100, step:1, def:35, get:()=>v.tol, set:x=>v.tol = Math.round(x), onChange:refit,
+      sub:()=>"Lower it when parts of the figure go missing; raise it when the background is busy." });
+    buttonRow(c, [["Busy background? Find the figure with AI", async () => { if (await aiFindFigures(o)){ photoPickColours(o); renderKeepFocus(); photoRepaint(); } }]]);
+    note(c, aiState.session ? "The AI figure finder is ready. It looks at every photo of this step."
+      : `The AI figure finder looks at every photo of this step. It downloads once (about ${AI_FIGURE.mb} MB) and runs on this computer: your photos are not sent anywhere.`);
+  }
   buttonRow(c, [["Line it up again", async () => { await photoFitNow(o, v, true); renderKeepFocus(); photoRepaint(); }], ["Remove this photo", removePhoto]]);
 
   // the colours
@@ -11055,7 +11249,8 @@ function cleanPaint(P0){
             cam:{ yaw:Math.round(num(c.yaw, -180, 180, 0)), pitch:Math.round(num(c.pitch, -89, 89, 0)) },
             fit:f ? { a:num(f.a, 1e-5, 10, 0.01), tx:num(f.tx, -5, 5, 0.5), ty:num(f.ty, -5, 5, 0.5), rot:num(f.rot, -0.35, 0.35, 0), mirror:f.mirror === true } : null,
             tol:Math.round(num(v.tol, 0, 100, 35)), match:num(v.match, 0, 1, 0),
-            box:Array.isArray(v.box) && v.box.length === 3 && v.box.every(fin) && v.box[2] > 1e-3 ? v.box.map(x => num(x, -1e4, 1e4, 0)) : undefined };
+            box:Array.isArray(v.box) && v.box.length === 3 && v.box.every(fin) && v.box[2] > 1e-3 ? v.box.map(x => num(x, -1e4, 1e4, 0)) : undefined,
+            ai:typeof v.ai === "string" && v.ai ? cleanStr(v.ai, 40, "") : undefined };
         });
         const pal = (Array.isArray(o.pal) ? o.pal : []).filter(plain).slice(0, 8).map(c => {
           const rgb = [0,1,2].map(i => Math.round(num(Array.isArray(c.rgb) ? c.rgb[i] : 128, 0, 255, 128)));
@@ -11511,7 +11706,8 @@ window.MakerForge = {
   // the painter, for the tests: its tool settings, a repaint now, the last result, a model import and the zip
   paint: { ui: paintUI, repaint: () => repaint(true), changed: paintChanged, get info(){ return paintInfo; }, importModel: importModelFile, buildZip,
     hit: paintHit, get prefs(){ return prefs; }, applyPrefs, findDefault, cleanPaint,
-    photo: { add: addPaintPhotos, fit: photoFitView, colours: photoPickColours, setFilaments: photoSetFilaments, nearest: photoNearestFilaments, get op(){ return photoOpOf(); }, info: o => photoInfo.get(o), labels: photoLabels, colourWord } },
+    photo: { ai: { hooks: aiHooks, find: aiFindFigures, config: AI_FIGURE, state: aiState, sha256: sha256Hex, get: aiGet, mapOf: aiMapOf },
+      add: addPaintPhotos, fit: photoFitView, colours: photoPickColours, setFilaments: photoSetFilaments, nearest: photoNearestFilaments, get op(){ return photoOpOf(); }, info: o => photoInfo.get(o), labels: photoLabels, colourWord } },
   phone: { spec: phoneSpec, get info(){ return phoneInfo; }, list: PHONES },
   get overlay(){ return overlay.children.length; },
   rebuild: rebuildAll,

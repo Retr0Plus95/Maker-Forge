@@ -21,7 +21,7 @@ new work, and read the relevant "Session N" section before touching that feature
 ## Setup
 
 ```
-npm install          # dev deps only: jsdom, three@0.128.0, earcut@2.2.4, jszip@3.10.1 (tests), @fontsource/* (npm run fonts)
+npm install          # dev deps only: jsdom, three@0.128.0, earcut@2.2.4, jszip@3.10.1, onnxruntime-web@1.30.0 (tests), @fontsource/* (npm run fonts)
 python3 build.py
 ```
 
@@ -41,8 +41,9 @@ Plus, depending on what changed:
 - painter work, or `meshEditor` / the paint steps / 3mf or OBJ reading and writing → `npm run test:paint`
 - phone case work, or `PHONES` / `heightSheet` → `npm run test:phonecase`
 - pictures on objects (placement, the Art tab), or the keys that move artwork → `npm run test:art`
-- colour from a photo (the `photo*` functions in `src/core.js`, the Paint tab's photo step) → `npm run test:photo`
-  (`CORE=1` for the engine only; the test figure and its photos are in `tools-photo-figure.js`)
+- colour from a photo (the `photo*` functions in `src/core.js`, the Paint tab's photo step) or the AI figure finder
+  (`AI_FIGURE`, `models/`) → `npm run test:photo` (`CORE=1` for the engine only; the test figure and its photos are in
+  `tools-photo-figure.js`; the model runs in Node through the `onnxruntime-web` dev dependency)
 - new settings, `sanitizeProject`, `LIMITS` / `LIMITS_AT`, or `DEFAULTS` → `npm run test:project` (every quick start and object
   must come back unchanged from a saved project, and out-of-range values must not make a build run away)
 - after any generator change → `node tools-print-survey.js index.html` (look for new warnings)
@@ -55,7 +56,8 @@ tests accept `CORE=1` for the fast geometry-only part.
 ## Conventions
 
 - Keep the app a single self-contained file with no build toolchain beyond `build.py`.
-  Runtime libraries load from CDNs (three.js r128, OrbitControls, earcut 2.2.4, JSZip 3.10.1). The fonts are
+  Runtime libraries load from CDNs (three.js r128, OrbitControls, earcut 2.2.4, JSZip 3.10.1; ONNX Runtime Web 1.30.0
+  only when the AI figure finder is asked for, checked by SHA-256 in `AI_FIGURE`). The fonts are
   built in (`fonts/`, packed by `build.py`, used by `fontFaceCSS` in `src/app.html`); the page never downloads a font.
 - Every new generator control must actually change the model (the audit flags "dead controls").
 - Every loaded project goes through `sanitizeProject`: clamp numbers, never inject markup.
@@ -64,5 +66,6 @@ tests accept `CORE=1` for the fast geometry-only part.
 - UI text is plain and friendly, written for makers rather than engineers.
 - Bump `version` in `package.json` for each release and add a "Session N" section to `HANDOFF.md`
   describing what changed, what was tested and anything left unfinished.
+- Updating ONNX Runtime Web or the model means new SHA-256 values in `AI_FIGURE` (`src/app.html`) and in `models/LICENSE.md`.
 - Tests run headlessly only; say clearly when something still needs checking in a real browser,
   slicer or on a real print.

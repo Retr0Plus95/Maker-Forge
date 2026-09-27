@@ -37,7 +37,12 @@ const LIBS = [
   [/three@[\d.]+\/examples\/js\/controls\/OrbitControls\.js/, "three/examples/js/controls/OrbitControls.js"],
   [/earcut@[\d.]+\/dist\/earcut\.min\.js/, "earcut/dist/earcut.min.js"],
   [/jszip@[\d.]+\/dist\/jszip\.min\.js/, "jszip/dist/jszip.min.js"],
+  // the AI figure finder (Session 17), only when it is asked for: the runtime, and the model from the repository
+  [/onnxruntime-web@[\d.]+\/dist\/ort\.wasm\.bundle\.min\.mjs/, "onnxruntime-web/dist/ort.wasm.bundle.min.mjs"],
+  [/onnxruntime-web@[\d.]+\/dist\/ort-wasm-simd-threaded\.wasm/, "onnxruntime-web/dist/ort-wasm-simd-threaded.wasm"],
+  [/gh\/Retr0Plus95\/Maker-Forge@[^/]+\/models\/u2netp\.onnx/, "../models/u2netp.onnx"],
 ];
+const TYPES = { js: "application/javascript", mjs: "application/javascript", wasm: "application/wasm", onnx: "application/octet-stream" };
 const env = process.env, ONLY = env.ONLY ? env.ONLY.split(",") : null;
 fs.mkdirSync(OUT, { recursive: true });
 for (const f of fs.readdirSync(OUT)) if (/\.(png|html|json)$/.test(f)) fs.unlinkSync(path.join(OUT, f));
@@ -127,7 +132,7 @@ function pageCoverage() {
       // the fonts are built into the page: a font download means one is missing from fonts/
       if (/\/@fontsource\/|\.woff2?(\?|$)/.test(u)) { errors.push(`${label}: a font was downloaded ${u}`); return r.abort(); }
       if (!l) { errors.push(`${label}: unexpected CDN request ${u}`); return r.abort(); }
-      return r.fulfill({ status: 200, contentType: "application/javascript", headers: { "access-control-allow-origin": "*" }, body: fs.readFileSync(path.join(NM, l[1])) });
+      return r.fulfill({ status: 200, contentType: TYPES[l[1].split(".").pop()], headers: { "access-control-allow-origin": "*" }, body: fs.readFileSync(path.join(NM, l[1])) });
     });
     // nor ask Google (or anyone) for fonts
     await page.route(/fonts\.(googleapis|gstatic)\.com/, r => { errors.push(`${label}: Google Fonts request ${r.request().url()}`); return r.abort(); });
@@ -399,6 +404,36 @@ function pageCoverage() {
     }
     [fFront, fBack, fObj].forEach(f => fs.unlinkSync(f));
     notes.push(`colour from a photo: ${r.views.map(v => `${v.yaw}° (outline ${Math.round(v.match * 100)}%)`).join(" and ")}, ${r.colours} colours (${r.slots}), ${(r.painted * 100).toFixed(1)}% painted, ${ms} ms; a 30 px drag moved it ${dragged == null ? "–" : dragged.toFixed(1)} px`);
+
+    // ---------- the AI figure finder (Session 17): a photo in front of a bookshelf ----------
+    const fShelf = path.join(OUT, "photo-shelf.png");
+    fs.writeFileSync(fShelf, encodePNG(W, H, F.onShelfBackground(F.render(fig.solid, topo, cls, "front", { a: 6.3 / H, tx: 310 / H, ty: 760 / H, rot: 0.04, mirror: false }, W, H, 1), W, H, 11).rgba));
+    await page.evaluate(() => { const MF = window.MakerForge; MF.state.paint.ops.length = 0; MF.paint.repaint(); });
+    await page.setInputFiles("#photoInput", fShelf);
+    await page.waitForFunction(() => { const o = window.MakerForge.paint.photo.op; return o && o.views.length === 1 && window.MakerForge.paint.photo.info(o); }, null, { timeout: 240000 }).catch(() => {});
+    await settle(page);
+    const aiClick = () => page.evaluate(() => { const b = [...document.querySelectorAll("#panel button")].find(b => /Find the figure with AI/.test(b.textContent)); if (b) b.click(); return !!b; });
+    const aiIdle = () => page.waitForFunction(() => !/Downloading|Starting|Finding|Lining|Colouring/.test(document.querySelector("#statusLine").textContent), null, { timeout: 240000 }).catch(() => {});
+    // a model file that is not the right one is refused before it runs
+    const bad = r2 => r2.fulfill({ status: 200, contentType: "application/octet-stream", headers: { "access-control-allow-origin": "*" }, body: Buffer.from("not the model") });
+    await page.route(/gh\/Retr0Plus95\/Maker-Forge@[^/]+\/models\/u2netp\.onnx/, bad);
+    const clicked = await aiClick(); await page.waitForTimeout(500); await aiIdle();
+    const refused = await page.evaluate(() => ({ ai: !!window.MakerForge.paint.photo.op.views[0].ai, notice: document.querySelector("#notice").textContent }));
+    await page.unroute(/gh\/Retr0Plus95\/Maker-Forge@[^/]+\/models\/u2netp\.onnx/, bad);
+    if (!clicked || refused.ai || !/was not the one it should be/.test(refused.notice)) findings.push({ where: "AI figure finder", what: `a wrong model file was not refused: ${JSON.stringify(refused)}` });
+    // the real one: downloaded, checked, run in the browser
+    const t1 = Date.now(); await aiClick(); await page.waitForTimeout(500);
+    await page.waitForFunction(() => { const MF = window.MakerForge, v = MF.paint.photo.op.views[0]; return v.ai && MF.paint.photo.info(MF.paint.photo.op); }, null, { timeout: 240000 }).catch(() => {});
+    await aiIdle(); await settle(page); const aiMs = Date.now() - t1;
+    const ai = await page.evaluate(() => { const MF = window.MakerForge, v = MF.paint.photo.op.views[0], p = MF.parts[0];
+      return { ai: !!(v.ai && MF.paint.photo.ai.mapOf(v.ai)), match: v.match, yaw: v.cam.yaw, a: v.fit && v.fit.a, painted: p.paint ? p.paint.filter(s => s !== 255).length / p.paint.length : 0,
+        ready: !!MF.paint.photo.ai.state.session, text: document.querySelector("#panel").textContent.includes("AI figure finder found the figure") }; });
+    const sizeOff = ai.a ? Math.abs(ai.a / (6.3 / H) - 1) : 9;
+    await page.evaluate(() => document.querySelector("canvas.photoPrev") && document.querySelector("canvas.photoPrev").scrollIntoView({ block: "center" }));
+    await shot(page, "paint-photo-ai", "Paint tab: a photo in front of a bookshelf, the figure found by the AI figure finder");
+    if (!(ai.ai && ai.ready && ai.text && ai.match > 0.75 && Math.abs(ai.yaw) <= 10 && sizeOff < 0.03 && ai.painted > 0.999)) findings.push({ where: "AI figure finder", what: JSON.stringify(ai) });
+    fs.unlinkSync(fShelf);
+    notes.push(`AI figure finder: a wrong model file ${refused.ai ? "WAS NOT" : "was"} refused; the real one found the figure in ${aiMs} ms with the download (outline ${Math.round(ai.match * 100)}%, ${ai.yaw}° round, size off ${(sizeOff * 100).toFixed(1)}%)`);
   }
   await page.context().close();
 

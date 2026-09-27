@@ -9,7 +9,18 @@ const C = globalThis.PRCore;
 let fails = 0;
 const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${what}${got !== undefined ? "  (" + got + ")" : ""}`); if (!ok) fails++; };
 
-const { PART_NAMES, PAL, NAMES, figure, truth, outside, render, score } = require("./tools-photo-figure.js")(C);
+const { PART_NAMES, PAL, NAMES, figure, truth, outside, render, score, onBusyBackground, onShelfBackground } = require("./tools-photo-figure.js")(C);
+// the AI figure finder (Session 17): the small U²-Net run by ONNX Runtime (a dev dependency here; the app
+// downloads it from jsDelivr when asked), with the same picture in and out as the app
+const fs = require("fs"), MODEL = path.join(__dirname, "models", "u2netp.onnx");
+let ortSession = null;
+async function netRaw(input, S) {                    // the network itself: input 1 x 3 x S x S, its first output
+  const ort = require("onnxruntime-web");
+  if (!ortSession) { ort.env.wasm.numThreads = 1; ortSession = await ort.InferenceSession.create(fs.readFileSync(MODEL)); }
+  const out = await ortSession.run({ [ortSession.inputNames[0]]: new ort.Tensor("float32", Float32Array.from(input), [1, 3, S, S]) });
+  return out[ortSession.outputNames[0]].data;
+}
+async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.photoNetInput(rgba, w, h, 320), 320), 320); }
 
 (async () => {
   console.log("colour from a photo: the engine");
@@ -96,6 +107,31 @@ const { PART_NAMES, PAL, NAMES, figure, truth, outside, render, score } = requir
   const eyesKept = eyes.filter(t => p2[t] === hairSlot).length / eyes.length, eyesGone = eyes.filter(t => p3[t] === hairSlot).length / eyes.length;
   check(eyes.length > 0 && eyesKept > 0.6 && eyesGone < 0.2, "small details (the eyes) are kept with a small speck size and cleaned away with a big one",
     `${eyes.length} eye triangles: ${(eyesKept * 100).toFixed(0)}% kept at 1 mm², ${(eyesGone * 100).toFixed(0)}% at 40 mm²`);
+
+  // 5b. the AI figure finder: a plain background, then a busy one where the colour method gets lost
+  {
+    const overlap = (m, truthMask) => { let a = 0, b = 0; for (let i = 0; i < W * H; i++) { if (m[i] && truthMask[i]) a++; if (m[i] || truthMask[i]) b++; } return a / b; };
+    t0 = Date.now(); const mapPlain = await figureNet(front.rgba, W, H), netMs = Date.now() - t0;
+    const aiPlain = C.photoMaskFromMap(mapPlain, 320, 320, W, H);
+    check(overlap(aiPlain, front.mask) > 0.9, "AI figure finder: the figure on a plain background", `overlap ${(overlap(aiPlain, front.mask) * 100).toFixed(1)}%, ${netMs} ms (the first run loads the model)`);
+    const busy = onBusyBackground(front, W, H, 7), colourBusy = C.photoMask(busy.rgba, W, H, 35);
+    t0 = Date.now(); const mapBusy = await figureNet(busy.rgba, W, H), busyMs = Date.now() - t0;
+    const aiBusy = C.photoMaskFromMap(mapBusy, 320, 320, W, H);
+    const fc = C.photoFit(fig.raw, "front", colourBusy, W, H, false), fa = C.photoFit(fig.raw, "front", aiBusy, W, H, false);
+    const off = f => f ? [Math.abs(f.fit.a / trueFront.a - 1), Math.hypot(f.fit.tx - trueFront.tx, f.fit.ty - trueFront.ty)] : [9, 9];
+    const [ca, ct] = off(fc), [aa, at] = off(fa);
+    check(overlap(colourBusy, busy.mask) < 0.5 && ca > 0.2, "on a busy background the colour method loses the figure (why the AI is there)",
+      `overlap ${(overlap(colourBusy, busy.mask) * 100).toFixed(1)}%, size off ${(ca * 100).toFixed(0)}%`);
+    check(overlap(aiBusy, busy.mask) > 0.75 && aa < 0.05 && at < 0.015, "the AI finds it there (a worst case: a red disc hugs the head), and the photo lines up roughly",
+      `overlap ${(overlap(aiBusy, busy.mask) * 100).toFixed(1)}%, size off ${(aa * 100).toFixed(1)}%, place off ${(at * 100).toFixed(2)}% of the height, ${busyMs} ms`);
+    // an everyday busy background: a bookshelf behind the figure
+    const shelf = onShelfBackground(front, W, H, 11), aiShelf = C.photoMaskFromMap(await figureNet(shelf.rgba, W, H), 320, 320, W, H), colourShelf = C.photoMask(shelf.rgba, W, H, 35);
+    const fs2 = C.photoFit(fig.raw, "front", aiShelf, W, H, false, null, false, { extra: 0.7 }), [sa, st] = off(fs2);
+    check(overlap(aiShelf, shelf.mask) > 0.8 && overlap(colourShelf, shelf.mask) < 0.6 && sa < 0.02 && st < 0.01, "in front of a bookshelf: the AI finds the figure (the colour method does not) and it lines up closely",
+      `AI ${(overlap(aiShelf, shelf.mask) * 100).toFixed(1)}%, by colour ${(overlap(colourShelf, shelf.mask) * 100).toFixed(1)}%, size off ${(sa * 100).toFixed(1)}%, place off ${(st * 100).toFixed(2)}%`);
+    const tiny = await figureNet(front.rgba.slice(0, 4 * 40 * 30), 40, 30);
+    check(tiny.length === 320 * 320 && tiny.some(v => v > 0), "a photo smaller than the network's 320 pixels works too");
+  }
 
   // 6. a denser model: time
   const ed = C.meshEditor(solid); ed.refine(0.9, 900000);
@@ -212,6 +248,35 @@ const { PART_NAMES, PAL, NAMES, figure, truth, outside, render, score } = requir
   check(acc150 > acc100 - 0.01, "the model made 1.5 times bigger afterwards: the photos follow it", `${(acc100 * 100).toFixed(1)}% of the surface right with four colours, ${(acc150 * 100).toFixed(1)}% at 150%`);
   MF.state.base.stl.scale = 100; MF.rebuild(false); await settle();
 
+  // ---- 7b. a photo on a busy background, and the AI figure finder (the network run here in Node) ----
+  console.log("\na photo in front of a bookshelf");
+  MF.state.paint.ops.length = 0; MF.paint.repaint(); await settle();
+  const busyFront = onShelfBackground(front, W, H, 11);
+  await MF.paint.photo.add([png(busyFront, "shelf.png")]); await settle();
+  const bop = MF.paint.photo.op, bv = bop.views[0], byColour = { match: bv.match, a: bv.fit ? Math.abs(bv.fit.a / trueFront.a - 1) : 9, acc: accuracy(MF.parts[0], 1).acc };
+  const aiBtn = () => $$("#panel button").find(b => /Find the figure with AI/.test(b.textContent));
+  check(byColour.match < 0.75 && aiBtn() && /try Find the figure with AI/.test(document.querySelector("#panel").textContent), "by colour it does not line up, and the card points to the AI figure finder",
+    `outline ${(byColour.match * 100).toFixed(0)}%, size off ${(byColour.a * 100).toFixed(0)}%, ${(byColour.acc * 100).toFixed(1)}% of the surface right`);
+  let netCalls = 0; MF.paint.photo.ai.hooks.run = async (input, S) => { netCalls++; return netRaw(input, S); };
+  aiBtn().click();
+  for (let i = 0; i < 600 && !(bv.ai && MF.paint.photo.info(bop) && !/Finding|Lining|Colouring/.test(document.querySelector("#statusLine").textContent)); i++) await sleep(50);
+  await sleep(600); await settle();
+  const aiMap = MF.paint.photo.ai.mapOf(bv.ai), sizeOff = Math.abs(bv.fit.a / trueFront.a - 1), placeOff = Math.hypot(bv.fit.tx - trueFront.tx, bv.fit.ty - trueFront.ty);
+  check(netCalls === 1 && aiMap && aiMap.w === 320 && bv.match > 0.75 && sizeOff < 0.03 && placeOff < 0.01 && Math.abs(bv.cam.yaw) <= 10,
+    "Find the figure with AI: the photo lines up", `outline ${(bv.match * 100).toFixed(0)}%, size off ${(sizeOff * 100).toFixed(1)}%, place off ${(placeOff * 100).toFixed(2)}%, ${bv.cam.yaw}° round`);
+  const accBusy = accuracy(MF.parts[0], 1).acc;
+  check(accBusy > 0.78 && accBusy > byColour.acc + 0.15 && MF.parts[0].paint.every(s => s !== 255), "and the figure is coloured from it nearly as well as from a plain background (one photo, so the back is a guess)",
+    `${(accBusy * 100).toFixed(1)}% of the surface right, ${(byColour.acc * 100).toFixed(1)}% by colour`);
+  check($$("#panel button").some(b => /by colour instead/.test(b.textContent)) && /AI figure finder found the figure/.test(document.querySelector("#panel").textContent),
+    "the card says the AI found it, and offers the colour method back");
+  // saved and opened again with no AI at hand: the grey picture it made is in the file, so the paint is the same
+  MF.paint.photo.ai.hooks.run = null;
+  const bPaint = Array.from(MF.parts[0].paint), bPayload = MF.projectPayload(true), bKept = Object.keys(JSON.parse(bPayload).assets || {});
+  await open(bPayload);
+  const bv2 = MF.paint.photo.op.views[0];
+  check(bKept.includes(bv.ai) && bv2.ai === bv.ai && MF.paint.photo.ai.mapOf(bv2.ai) && MF.parts[0].paint.every((s, t) => s === bPaint[t]),
+    "saved and opened again without the AI: its outline is in the file and the paint is the same", `${bKept.length} pictures in the file`);
+
   // ---- 8. a hostile project file ----
   console.log("\na photo step in a hostile project file");
   const data = JSON.parse(payload), hv = data.state.paint.ops.find(o => o.k === "photo");
@@ -219,10 +284,12 @@ const { PART_NAMES, PAL, NAMES, figure, truth, outside, render, score } = requir
     fit: i === 0 ? { a: 1e9, tx: 0.5, ty: 0.9, rot: 0, mirror: "yes" } : i === 1 ? { a: "big", tx: 0, ty: 0, rot: 0 } : { a: 0.01, tx: 1e9, ty: -1e9, rot: 50, mirror: true }, tol: -5, match: 7 }));
   hv.pal = Array.from({ length: 100 }, () => ({ rgb: [1e9, "x", -4], keys: [[NaN, 0, 0], [1e9, -1e9, 3], "k"] }));
   hv.slots = [99, -1, "2", 255]; hv.colours = 1e6; hv.speck = 1e9; hv.fill = "no"; hv.use = "<script>";
+  hv.views[3].ai = "<img src=x onerror=alert(1)>"; hv.views[4].ai = { evil: 1 }; hv.views[5].ai = "x".repeat(500);
   t0 = Date.now(); const e0 = env.errors.length; await open(JSON.stringify(data)); const hostileMs = Date.now() - t0;
   const ho = MF.state.paint.ops.find(o => o.k === "photo"), herr = env.errors.slice(e0).filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
   check(ho && ho.views.length === 6 && ho.pal.length === 8 && ho.slots.length === 8 && ho.views[0].fit.a <= 10 && ho.views[1].fit === null && Math.abs(ho.views[2].fit.tx) <= 5 &&
     ho.views.every(v => Math.abs(v.cam.yaw) <= 180 && Math.abs(v.cam.pitch) <= 89 && v.tol >= 0 && v.match <= 1 && v.name.length <= 60) &&
+    ho.views[4].ai === undefined && ho.views[5].ai.length === 40 && !MF.paint.photo.ai.mapOf(ho.views[3].ai) &&
     ho.pal.every(p => p.rgb.every(c => c >= 0 && c <= 255) && p.keys.every(k => k.every(Number.isFinite))) && ho.colours === 8 && ho.speck === 50 && ho.use === "photo",
     "at most six photos and eight colours, numbers clamped, a broken fit dropped", ho && `${ho.views.length} photos, ${ho.pal.length} colours, a ${ho.views[0].fit.a}, slots ${ho.slots.join(",")}`);
   check(hostileMs < 20000 && !herr.length && !document.querySelector("#panel b b") && !document.querySelector("#panel img[src=x]"), "it opens quickly without errors and no markup gets in",

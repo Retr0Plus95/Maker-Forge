@@ -80,5 +80,36 @@ module.exports = C => {
     return good / all;
   }
 
-  return { PART_NAMES, PAL, NAMES, figure, truth, outside, render, score };
+  // the same photo on a busy background (Session 17): a wall with coloured circles, one red behind the
+  // head and one pink behind the shorts, over a wooden desk; the figure itself is left as it was
+  function onBusyBackground(img, W, H, seed) {
+    const rnd = C.seededRandom(seed || 7), rgba = new Uint8ClampedArray(img.rgba);
+    const blobs = Array.from({ length: 14 }, () => [rnd() * W, rnd() * H, 30 + rnd() * 120, [rnd() * 255, rnd() * 255, rnd() * 255]]);
+    const desk = Math.round(H * 0.775);
+    for (let i = 0; i < W * H; i++) {
+      if (img.mask[i]) continue;
+      const x = i % W, y = (i - x) / W;
+      let col = y > desk ? [150 + 30 * Math.sin(x / 9), 100 + 20 * Math.sin(x / 9), 60] : [200 - y * 0.1, 190 - y * 0.08, 170];
+      for (const [bx, by, br, bc] of blobs) if (y < desk && Math.hypot(x - bx, y - by) < br) { col = bc; break; }
+      for (let k = 0; k < 3; k++) rgba[4 * i + k] = col[k] + (rnd() - 0.5) * 10;
+    }
+    return { rgba, mask: img.mask };
+  }
+  // a more everyday busy background: a bookshelf of coloured books behind the figure, standing on a desk
+  function onShelfBackground(img, W, H, seed) {
+    const rnd = C.seededRandom(seed || 11), rgba = new Uint8ClampedArray(img.rgba), desk = Math.round(H * 0.8), books = [];
+    for (let row = 0; row < 3; row++) {
+      const y1 = Math.round(H * (0.26 + 0.27 * row)), y0 = y1 - Math.round(H * (0.14 + rnd() * 0.06));
+      for (let x = 0; x < W;) { const w = 14 + Math.round(rnd() * 26), top = y0 + Math.round(rnd() * H * 0.05); books.push([x, x + w - 2, top, y1, [40 + rnd() * 200, 40 + rnd() * 200, 40 + rnd() * 200]]); x += w; }
+    }
+    for (let i = 0; i < W * H; i++) {
+      if (img.mask[i]) continue;
+      const x = i % W, y = (i - x) / W;
+      let col = y > desk ? [160 + 25 * Math.sin(x / 7 + y / 40), 110 + 18 * Math.sin(x / 7 + y / 40), 70] : [120, 90, 60];   // desk, shelf wood
+      if (y <= desk) for (const [a, b, t, bt, c] of books) if (x >= a && x <= b && y >= t && y <= bt) { const sh = 0.8 + 0.2 * Math.cos((x - a) / (b - a + 1) * Math.PI - Math.PI / 2); col = c.map(v => v * sh); break; }
+      for (let k = 0; k < 3; k++) rgba[4 * i + k] = col[k] + (rnd() - 0.5) * 10;
+    }
+    return { rgba, mask: img.mask };
+  }
+  return { PART_NAMES, PAL, NAMES, figure, truth, outside, render, score, onBusyBackground, onShelfBackground };
 };

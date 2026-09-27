@@ -2,7 +2,7 @@
 
 A browser-based studio for designing **multi-colour 3D prints** from photos, logos and names, and exporting them ready to slice.
 
-Everything runs locally in the browser. No account, no uploads, no server: your images and models never leave the machine. (The page does load its three code libraries from jsDelivr, a public CDN, so that one service sees that it was opened. The fonts are built in. No Google Fonts, no analytics.) One HTML file, no build toolchain, MIT licensed.
+Everything runs locally in the browser. No account, no uploads, no server: your images and models never leave the machine. (The page does load its three code libraries from jsDelivr, a public CDN, so that one service sees that it was opened. The fonts are built in. No Google Fonts, no analytics. The optional AI figure finder on the Paint tab downloads once from jsDelivr when you ask for it, and runs on your computer too.) One HTML file, no build toolchain, MIT licensed.
 
 ---
 
@@ -16,6 +16,11 @@ Four tabs in the top bar — **Make · Art · Colours · Export**. Down the left
 | **Art** | Photos, logos and text placed on any object, front **or back**. Colour separation, crisp outline tracing, photo relief and lithophanes, pixel/cross-stitch snapping, halo outlines, brightness/contrast/saturation, rotate, trim, background drop, split-view preview with zoom. |
 | **Colours** | Up to 8 slots with colour, name, material and price. Palette presets, colour matching, and a **printer library** (Bambu, Prusa, Creality, Elegoo, Anycubic, Voron) that sets bed size, nozzle, layer height and how many colours the machine can load. |
 | **Export** | Preflight checks (watertightness, bed fit, colour count vs printer, features thinner than the nozzle, thin colour layers, unused filaments), material in g/m/cost, rough print time, **colour swap heights** for single-filament printers, and the files themselves: zip with 3mf, coloured obj, per-filament STLs, a merged STL, notes and the project file. Projects save and reopen as `.json`, plus **batch export**: one keychain per name from a list. |
+
+### New in 0.18.1
+
+- **AI figure finder for busy backgrounds.** Colouring from a photo finds the figure by its colour against the background, which fails on a shelf, a desk or a patterned wall. On the photo card, **Busy background? Find the figure with AI** runs a small AI model (U²-Net, 4.6 MB) that marks the photo's main object, then lines the photo up from that. Nothing loads until you press it: then it downloads once (about 19 MB with its runtime, ONNX Runtime Web), every file is checked against its known fingerprint before it runs, and it works on your computer (your photos are not sent anywhere). Its result is saved with the project, so a reopened project colours the same without it. In tests with one front photo of a figure in front of a bookshelf, finding it by colour got 48 to 58% of the surface right; with the AI, 83 to 85% (87% on a plain background).
+- Lining up picks the angle more steadily (a turn away from the side you chose has to fit clearly better), and a thin rim of background round a slightly misplaced outline no longer takes a filament of its own.
 
 ### New in 0.18
 
@@ -94,7 +99,7 @@ python3 build.py      # inlines src/core.js into src/app.html -> index.html
 The test rigs run the real app headlessly in jsdom with a software canvas:
 
 ```bash
-npm install                                      # test dependencies only: jsdom, three, earcut, jszip
+npm install                                      # test dependencies only: jsdom, three, earcut, jszip, onnxruntime-web
 node tools-smoke-test.js index.html              # clicks every tab, button and export path
 node tools-audit.js index.html nameplate,board   # sweeps controls to their extremes
 node tools-audit.js index.html board art         # sweeps the artwork controls
@@ -103,6 +108,7 @@ npm run test:print                               # printability checks on shapes
 npm run test:enclosure                           # project boxes: sizes, openings, lids, labels, hostile files
 npm run test:paint                               # the colour painter: mesh splitting, paint steps, 3mf paint in and out
 npm run test:phonecase                           # every phone in the list, openings, the lip, hostile files
+npm run test:photo                               # colour from a photo, and the AI figure finder (the real model, run in Node)
 npm run test:jigsaw && npm run test:litho        # puzzles and lithophanes
 npm run test:size                                # on-screen size = exported size, in every format
 npm run survey:print                             # what the printability check says about every object
@@ -133,6 +139,8 @@ console.log(PRCore.checkMesh(solid));   // { tris, open: 0, volume }
 ### Dependencies
 
 Loaded from CDNs at runtime, no package manager: [three.js](https://threejs.org) r128 (preview and primitives), [earcut](https://github.com/mapbox/earcut) (polygon triangulation), [JSZip](https://stuk.github.io/jszip/) (3mf and zip writing), all from jsDelivr. The 35 fonts (the name plate typefaces and Atkinson Hyperlegible) are **built into `index.html`**: `fonts/` holds them as WOFF2 files from [Fontsource](https://fontsource.org) 5.3.0, one per font, weight and alphabet, and `build.py` packs them in (1.9 MB). `npm run fonts` copies them again after a font is added.
+
+Only when the AI figure finder is used: [ONNX Runtime Web](https://onnxruntime.ai) 1.30.0 (`ort.wasm.bundle.min.mjs` and its 14 MB `.wasm`, from jsDelivr) and the model `models/u2netp.onnx` (from `models/` next to the page, or from this repository through jsDelivr). **On your own website**, upload the `models` folder next to `index.html` so the model comes from your site. If the site sends a Content-Security-Policy, it needs `script-src blob: 'wasm-unsafe-eval'` and `connect-src https://cdn.jsdelivr.net` for the finder (plus `font-src data:` for the built-in fonts).
 
 ---
 
@@ -196,6 +204,7 @@ Everything runs locally; nothing is uploaded. The threats worth defending are a 
 - Project files pass through `sanitizeProject`: prototype-pollution keys are stripped, every number is finite and clamped, and anything that decides memory or time (trace resolution, grid cells, letter height and so on) has hard limits. Colours must be `#rrggbb` before they reach a style attribute, text is length-capped, fonts and object types are whitelisted, vectors must be three finite numbers, and embedded images must be `data:image/png|jpeg|webp|gif`. The box, painter, phone case, jigsaw, lithophane and printability tests each throw a deliberately hostile file at the loader.
 - All user text reaches the page through `textContent` or `esc()`.
 - Every script is pinned by version and Subresource Integrity hash (`integrity="sha384-…"`), computed from the npm package files, so the browser refuses a tampered copy. The fonts are built in, so nothing else is fetched.
+- The AI figure finder's three files (runtime code, its WebAssembly and the model) are fetched only when asked for, and each is checked against a SHA-256 fingerprint before it is used: the code runs from the checked copy, so a changed file is refused and nothing of it runs. The browser check tries a wrong model file to make sure.
 
 ## Known limitations
 
@@ -223,4 +232,4 @@ The printer library has 39 printers from Bambu Lab (A1 mini, A1, P1P, P1S / X1C,
 
 ## Licence
 
-MIT. See [LICENSE](LICENSE). The fonts in `fonts/`, also built into `index.html`, keep their own licences (SIL Open Font License 1.1, or Apache 2.0 for five of them): see [fonts/LICENSES.md](fonts/LICENSES.md), which `build.py` also copies into the page.
+MIT. See [LICENSE](LICENSE). The fonts in `fonts/`, also built into `index.html`, keep their own licences (SIL Open Font License 1.1, or Apache 2.0 for five of them): see [fonts/LICENSES.md](fonts/LICENSES.md), which `build.py` also copies into the page. The AI figure finder's model in `models/` is U²-Net under the Apache License 2.0: see [models/LICENSE.md](models/LICENSE.md).

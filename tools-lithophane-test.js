@@ -83,6 +83,9 @@ const DEF = { shape: "flat", outline: "rect", radius: 4, width: 100, minT: 0.8, 
   const MF = win.MakerForge;
   console.log("\nno picture yet");
   { const s = document.querySelector("#objectSel"); s.value = "lithophane"; s.dispatchEvent(new win.Event("change")); await settle(); }
+  check(MF.state.items.some(d => d.example) && MF.parts.length === 1 && MF.core.checkMesh(MF.parts[0].solid).open === 0,
+    "a new lithophane opens with its example picture, one closed sheet", MF.state.items.map(d => d.name).join(", "));
+  MF.examples.drop(); MF.rebuild(false); await settle();
   check(!MF.parts.length && /lithophane is made from a picture/i.test(document.querySelector("#notice").textContent), "nothing built, and the app says why", document.querySelector("#notice").textContent);
 
   console.log("\na dark-to-light gradient, 200 x 150 px");

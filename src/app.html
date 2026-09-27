@@ -3,7 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Maker Forge — multi-colour 3D print studio</title>
+<title>Maker Forge: free multi-colour 3D print designer</title>
+<meta name="description" content="Free multi-colour (multi-color) 3D print designer in your browser. Make name keychains, patches, car badges, phone cases, lithophanes, jigsaw puzzles, cookie cutters, lightboxes, project boxes and painted models from names, photos and logos, and export 3MF for Bambu Studio, OrcaSlicer and PrusaSlicer. No install, no account, no uploads.">
+<meta name="keywords" content="multi-colour 3D printing, multicolor 3D print, 3MF, image to STL, photo to STL, SVG to STL, keychain generator, name tag, lithophane maker, jigsaw puzzle generator, cookie cutter generator, phone case generator, project box generator, electronics enclosure, PCB art, lightbox, plastic canvas, Bambu Lab AMS, Prusa MMU3, OrcaSlicer, PrusaSlicer, Bambu Studio">
+<meta name="application-name" content="Maker Forge">
+<meta name="theme-color" content="#1f6f8b">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Maker Forge: free multi-colour 3D print designer">
+<meta property="og:description" content="Turn names, photos and logos into multi-colour 3D prints, right in your browser. Exports 3MF for Bambu Studio, OrcaSlicer and PrusaSlicer.">
+<meta property="og:image" content="https://raw.githubusercontent.com/Retr0Plus95/Maker-Forge/main/docs/images/examples-gallery.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Maker Forge","applicationCategory":"DesignApplication","operatingSystem":"Any (web browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://opensource.org/licenses/MIT","url":"https://github.com/Retr0Plus95/Maker-Forge","description":"Free, open-source multi-colour 3D print designer that runs in the browser and exports 3MF, STL and OBJ."}</script>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <style>
 :root{
@@ -380,7 +390,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.19.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.20.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -2601,10 +2611,13 @@ function buildLightbox(){
   const diffSlot = clamp(L.diffSlot,0,state.slots.length-1), frameSlot = clamp(L.frameSlot,0,state.slots.length-1);
   const panelRect = C.ringRect(inW, inH, 1, 6);
   const nLayers = clamp(Math.round(L.layers), 2, 8);
+  // as the backlit parts print: the panel below the frame, the stand turned lengthways beside them, so a
+  // 170 mm lightbox fits a 256 mm bed (a column of all three was 294 mm long)
+  const gap = 8, colX = -(L.standDepth + gap)/2, panelAt = [colX, 0, -(inH/2 + gap/2)];
 
   if (L.mode === "backlit"){
     const panel = C.extrudePolys([{ outer:panelRect, holes:[] }], L.panelThick);
-    if (panel) parts.push({ name:"Diffuser panel", slot:diffSlot, solid:panel, layout:[0,0,0] });
+    if (panel) parts.push({ name:"Diffuser panel", slot:diffSlot, solid:panel, layout:panelAt });
     const cm = C.buildCellMap(img, state.slots.map(s2=>C.hexToRgb(s2.hex)),
       state.slots.map((_,i)=>d.skip.includes(i)), d.smooth);
     state.slots.forEach((sl,i)=>{
@@ -2616,7 +2629,7 @@ function buildLightbox(){
       const rgb = C.hexToRgb(sl.hex), dark = 1 - C.luma(rgb[0], rgb[1], rgb[2]);
       const h = L.lightAware ? L.colourH*(0.5 + dark*1.5) : L.colourH;
       const s2 = C.extrudePolysAt(polys, Math.max(0,L.panelThick-0.2), L.panelThick + h);
-      if (s2) parts.push({ name:sl.name, slot:i, solid:s2, layout:[0,0,0] });
+      if (s2) parts.push({ name:sl.name, slot:i, solid:s2, layout:panelAt });
     });
   } else {
     const lum = new Float32Array(gx*gy);
@@ -2644,7 +2657,7 @@ function buildLightbox(){
   const frameHoles = [C.ringRect(inW+0.4, inH+0.4, 1, 6)];
   if (L.hang) frameHoles.push(C.ringCircle(L.hangDia/2, 32).map(q=>[q[0], q[1] + outH/2 - L.frame/2]));
   const frame = C.extrudePolys([{ outer:C.ringRect(outW, outH, Math.min(6,L.frame), 8), holes:frameHoles }], L.frameThick);
-  if (frame) parts.push({ name:"Frame", slot:frameSlot, solid:frame, layout:[0, 0, outH + 10] });
+  if (frame) parts.push({ name:"Frame", slot:frameSlot, solid:frame, layout:L.mode === "backlit" ? [colX, 0, outH/2 + gap/2] : [0, 0, outH + 10] });
 
   if (L.stand){
     const stackT = L.mode === "backlit" ? L.frameThick + 1.2
@@ -2653,7 +2666,8 @@ function buildLightbox(){
     const holes = [rectPoly(0, 0, outW*0.86, slotW)];
     if (L.led) holes.push(rectPoly(0, -slotW/2 - L.ledW/2 - 1.5, outW*0.8, L.ledW));
     const stand = C.extrudePolys([{ outer:C.ringRect(outW*0.94, L.standDepth, 3, 8), holes }], L.standH);
-    if (stand) parts.push({ name:"Stand", slot:frameSlot, solid:stand, layout:[0, 0, -(outH/2 + L.standDepth/2 + 8)] });
+    if (stand && L.mode === "backlit") parts.push({ name:"Stand", slot:frameSlot, solid:C.affineSolid(stand, [0,0,1, 0,1,0, -1,0,0], [0,0,0]), layout:[outW/2 + gap/2, 0, 0] });
+    else if (stand) parts.push({ name:"Stand", slot:frameSlot, solid:stand, layout:[0, 0, -(outH/2 + L.standDepth/2 + 8)] });
   }
   return parts;
 }
@@ -7748,6 +7762,7 @@ async function importModelFile(file){
   // its paint steps, scale and filaments are kept
   const again = state.base.type === "stl" && !stlData && !!state.base.stl && state.base.stl.name === name;
   if (!again) clearPaintForNewModel();
+  dropExamples(); setViewFlags({ flip:false, layout:false });      // an example's picture would be stamped on the imported model
   if (!again && !paint) paintUI.method = "photo";          // a plain model: colouring it from a photo comes first
   stlData = y; stlPaint = paint; stlCache = null; stlName = name; state.base.type = "stl";
   rememberModel(name, y, paint);

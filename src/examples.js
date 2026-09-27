@@ -157,8 +157,8 @@ const EXAMPLE_ART = (function(){
         x.closePath();
       }
       fill(x, SILVER);
-      x.beginPath(); for (const f of F){ x.moveTo(f.x0 + s*20, f.y0); x.quadraticCurveTo((f.x0 + f.x1)/2, f.y0 - 2, f.x1 - s*f.t*1.6, f.tipY + 2); }
-      stroke(x, GUN, 6);
+      x.beginPath(); for (const f of F){ x.moveTo(f.x0 + s*20, f.y0); x.quadraticCurveTo((f.x0 + f.x1)/2, f.y0 - 2, f.x1 - s*f.t*2.2, f.tipY + 2); }
+      stroke(x, GUN, 10, "butt");
     }
     const shield = (r, begin = true) => { const top = 22 + (112 - r)*0.9, bot = 304 - (112 - r)*1.1;
       if (begin) x.beginPath(); x.moveTo(cx - r, top + 16); x.quadraticCurveTo(cx - r*0.5, top - 4, cx, top + 10); x.quadraticCurveTo(cx + r*0.5, top - 4, cx + r, top + 16);
@@ -576,7 +576,7 @@ const EXAMPLE_ART = (function(){
         for (let e = 0; e < 4; e++){ const a = v[e], b = v[(e + 1) % 4]; if ((a < iso) !== (b < iso)){ const t = (iso - a)/(b - a), p = P[e], q = P[(e + 1) % 4]; cut.push([p[0] + (q[0] - p[0])*t, p[1] + (q[1] - p[1])*t]); } }
         for (let c = 0; c + 1 < cut.length; c += 2){ x.moveTo(cut[c][0], cut[c][1]); x.lineTo(cut[c + 1][0], cut[c + 1][1]); }
       }
-      stroke(x, L < 4 ? TEAL : L < 8 ? GOLD : CR, L % 4 === 3 ? 12 : 7);
+      stroke(x, L < 4 ? TEAL : L < 8 ? GOLD : CR, L % 4 === 3 ? 13 : 9);
     }
     // clear room for the name and the compass
     x.save(); x.globalCompositeOperation = "destination-out"; x.beginPath(); rrect(x, 26, 560, 330, 118, 18, false); circle(x, 806, 598, 74, false); x.fillStyle = "#000"; x.fill(); x.restore();
@@ -595,11 +595,11 @@ const EXAMPLE_ART = (function(){
       x.beginPath(); x.moveTo(cx - w*0.3, top + 70); x.lineTo(cx + w*0.3, top + 70); stroke(x, CR, 8); };
     // a tall one with arms
     x.beginPath(); rrect(x, 180, 110, 70, 310, 35, false); rrect(x, 110, 220, 50, 120, 25, false); rrect(x, 130, 310, 90, 44, 22, false); rrect(x, 270, 170, 50, 120, 25, false); rrect(x, 220, 262, 90, 44, 22, false); fill(x, GREEN);
-    x.beginPath(); for (const px of [200, 230]){ x.moveTo(px, 140); x.lineTo(px, 400); } stroke(x, CR, 5);
+    x.beginPath(); for (const px of [200, 230]){ x.moveTo(px, 140); x.lineTo(px, 400); } stroke(x, CR, 8);
     pot(215, 400, 190, 180);
     // a round one with a flower
     x.beginPath(); ellipse(x, 430, 340, 95, 82, 0, false); fill(x, GREEN);
-    x.beginPath(); for (const a of [-0.6, -0.2, 0.2, 0.6]){ x.moveTo(430 + a*120, 270); x.quadraticCurveTo(430 + a*150, 340, 430 + a*110, 410); } stroke(x, CR, 5);
+    x.beginPath(); for (const a of [-0.6, -0.2, 0.2, 0.6]){ x.moveTo(430 + a*120, 270); x.quadraticCurveTo(430 + a*150, 340, 430 + a*110, 410); } stroke(x, CR, 8);
     x.beginPath(); for (let k = 0; k < 6; k++){ const a = k*TAU/6; ellipse(x, 430 + Math.cos(a)*26, 250 + Math.sin(a)*26, 26, 14, a, false); } fill(x, PINK); circle(x, 430, 250, 13); fill(x, CR);
     pot(430, 400, 200, 180);
     // a paddle one

@@ -178,6 +178,9 @@ async function setFile(input, name, bytes, type) {
   console.log("\nin the app");
   const choose = async v => { const s = document.querySelector("#objectSel"); s.value = v; s.dispatchEvent(new win.Event("change")); await settle(); };
   await choose("jigsaw");
+  check(MF.state.items.some(d => d.example) && MF.parts.length >= 3 && MF.parts.every(p => MF.core.checkMesh(p.solid).open === 0),
+    "a new puzzle opens with its example picture, in colour, every part closed", MF.parts.map(p => p.name).join(","));
+  MF.examples.drop(); MF.rebuild(false); await settle();
   check(MF.parts.length === 1 && MF.parts[0].name === "Pieces", "no picture yet: plain pieces", MF.parts.map(p => p.name).join(","));
   // a picture: blue disc with a yellow square on white
   const { encodePNG } = require("./tools-test-env.js"), W = 300, H = 200, px = new Uint8ClampedArray(W * H * 4);

@@ -11,7 +11,10 @@ new work, and read the relevant "Session N" section before touching that feature
 
 - `src/core.js` – geometry library, no DOM, exposed as `window.PRCore`. Runs in Node for tests.
 - `src/app.html` – UI, state, generators, export. Contains the placeholders `/*CORE*/` and `/*FONTS*/{}`.
-- `build.py` – inlines `src/core.js` and the fonts in `fonts/` (with their licences) into `src/app.html` → `index.html`.
+- `build.py` – inlines `src/core.js`, `src/examples.js`, the Start pictures (`examples/start-thumbs.json`), the manual
+  (`MANUAL.md`, as HTML) and the fonts in `fonts/` (with their licences) into `src/app.html` → `index.html`.
+- `src/examples.js` – the example pictures (drawn in code) and which Start button opens which (Session 19).
+- `MANUAL.md` – the user manual, also shown inside the app; `CHANGELOG.md` – what's new, for users.
 - `fonts/` – the built-in fonts as WOFF2 files and `LICENSES.md`, copied from the @fontsource packages by
   `npm run fonts` (`tools-fonts.js`). Run it after adding a font to `FONTS`.
 - `index.html` – the built single-file app. **Generated: edit `src/`, never `index.html` directly.**
@@ -49,6 +52,9 @@ Plus, depending on what changed:
 - after any generator change → `node tools-print-survey.js index.html` (look for new warnings)
 - anything visual, text or fonts, the 3D view or view tools → `npm run check:browser` (Chromium via Playwright;
   screenshots and `report.html` land in `browser-check/`, which is git-ignored)
+- an example (`src/examples.js`) or anything that changes how an example looks → `npm run thumbs` (then build again)
+  and, if the README or manual shows it, `npm run screenshots`
+- a change a user would notice → update `MANUAL.md` and `CHANGELOG.md`
 
 Smoke test options: `QUICK=1`, `ONLY=tracer,board`, `PAGES=0-3`, `VERBOSE=1`. Lithophane and jigsaw
 tests accept `CORE=1` for the fast geometry-only part.

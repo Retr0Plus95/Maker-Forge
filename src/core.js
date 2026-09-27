@@ -3014,6 +3014,53 @@
     }
     return cls;
   }
+  // ---- colours layer by layer (Session 18) ----
+  // which filaments each layer uses: parts [{ pos, idx, paint, slot }] standing on y = 0 (Y up), layer height
+  // h; a layer takes the colour of every triangle crossing its middle (unpainted ones: the part's own).
+  // The inside follows the outside: slicers carry the painted colours inward across each layer
+  // (PrusaSlicer's segmentation, Bambu Studio and OrcaSlicer by default). One bit per filament per layer.
+  function layerSlots(parts, h) {
+    h = Math.max(0.02, +h || 0.2);
+    let top = 0;
+    for (const p of parts) for (let i = 1; i < p.pos.length; i += 3) if (p.pos[i] > top) top = p.pos[i];
+    const n = Math.max(1, Math.min(20000, Math.ceil(top / h))), bits = new Uint32Array(n);
+    for (const p of parts) {
+      const P = p.pos, I = p.idx;
+      for (let t = 0; t < I.length / 3; t++) {
+        const a = P[3 * I[3 * t] + 1], b = P[3 * I[3 * t + 1] + 1], c = P[3 * I[3 * t + 2] + 1];
+        const lo = Math.min(a, b, c), hi = Math.max(a, b, c);
+        const v = p.paint && p.paint[t] !== LEAVE ? p.paint[t] : p.slot, bit = 1 << (v & 31);
+        // the layers whose middle this triangle crosses
+        const l0 = Math.max(0, Math.ceil(lo / h - 0.5)), l1 = Math.min(n - 1, Math.floor(hi / h - 0.5));
+        for (let l = l0; l <= l1; l++) bits[l] |= bit;
+      }
+    }
+    return bits;
+  }
+  // how many times the filament changes printing those layers in order, each layer starting with the
+  // filament the last one ended with when it can and ending with one the next layer uses; returns
+  // { changes, busiest (most filaments in a layer), at (that layer) }
+  function colourChanges(bits) {
+    const pop = v => { let c = 0; while (v) { v &= v - 1; c++; } return c; }, low = v => { for (let s = 0; s < 32; s++) if (v >> s & 1) return s; return -1; };
+    let cur = -1, changes = 0, busiest = 0, at = 0;
+    for (let l = 0; l < bits.length; l++) {
+      const b = bits[l]; if (!b) continue;
+      const k = pop(b), next = bits[l + 1] || 0; if (k > busiest) { busiest = k; at = l; }
+      if (cur >= 0 && (b >> cur & 1)) {
+        if (k === 1) continue;                            // the same single filament: nothing to change
+        // start with the one loaded; end on another the next layer uses, or on the loaded one (one more change)
+        const cand = b & next & ~(1 << cur);
+        if (cand) { changes += k - 1; cur = low(cand); }
+        else if (next >> cur & 1) { changes += k; }
+        else { changes += k - 1; cur = low(b & ~(1 << cur)); }
+      } else {
+        // a new layer set: change to it (not before the first layer), print it, end on one the next layer uses
+        changes += cur < 0 ? k - 1 : k;
+        cur = low((b & next) || b);
+      }
+    }
+    return { changes, busiest, at };
+  }
   // ---- colour from photos ----
   // A plain model and a coloured photo of the same model: the photo is lined up with the model's
   // outline, its colours are grouped into the filaments, and every triangle takes the colour the photos
@@ -3551,7 +3598,7 @@
     seededRandom, jigsawGrid, jigsawCut, jigsawEdge, jigsawPiece, jigsawSVG, jigsawCutLines, ringField, ringDistance, outlineBand, strokeText,
     gridAround, heightSheet,
     meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, gradientCuts, gradientLayers, paintGradient, paintSwap, meshShells, paintShells,
-    meshRegions, paintRegions, paintNoise, paintPictureWrap, paintCurvature, curvatureClasses, paintBrush, brushTris, symmetryCopies, areaTris, paintFill, paintPicture, parseOBJ, parse3MFModel,
+    meshRegions, paintRegions, paintNoise, paintPictureWrap, paintCurvature, curvatureClasses, layerSlots, colourChanges, paintBrush, brushTris, symmetryCopies, areaTris, paintFill, paintPicture, parseOBJ, parse3MFModel,
     PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, paintFromPhotos,
     photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure
   };

@@ -186,7 +186,17 @@ console.log("\npainter tools (Session 18): the smart brush and strokes repeated 
   check(Math.abs(w1 - 942.5) < 10 && Math.abs(w2 - 942.5) < 10 && ends === 0 && wrongSide === 0, "a picture wrapped once round a cylinder: each half on half the side, its left on the left, the ends untouched", `${w1.toFixed(0)} + ${w2.toFixed(0)} of 1885 mm²`);
   const q = new Uint8Array(cyl.n).fill(255); C.paintPictureWrap(cyl, q, { w: 1, h: 1, pix: Int16Array.from([3]) }, { mode: "around", c: [0, 0, 0], turn: 90, start: 90, v0: 10, v1: 20, outside: true });
   let qa = 0, qx = 0; for (let t = 0; t < cyl.n; t++) if (q[t] === 3) { qa += cyl.area[t]; qx += cyl.cen[3 * t] * cyl.area[t]; }
-  check(Math.abs(qa - 157) < 6 && qx / qa > 7, "a quarter turn, turned to the right: a 10 mm band on the right side", `${qa.toFixed(0)} of 157 mm²`); }
+  check(Math.abs(qa - 157) < 6 && qx / qa > 7, "a quarter turn, turned to the right: a 10 mm band on the right side", `${qa.toFixed(0)} of 157 mm²`);
+  // colours layer by layer: a 20 mm cube, white below 7 mm and red above; then three red rings on it
+  const lc = C.meshEditor(b); lc.cut(1, 7); const ls = lc.solid(), lt2 = C.meshTopology(ls), lp2 = new Uint8Array(lt2.n).fill(255); C.paintHeights(lt2, lp2, [7], [0, 1]);
+  const bits = C.layerSlots([{ pos: ls.pos, idx: ls.idx, paint: lp2, slot: 0 }], 0.2);
+  check(bits.length === 100 && bits.slice(0, 35).every(v => v === 1) && bits.slice(35).every(v => v === 2) && C.colourChanges(bits).changes === 1,
+    "a cube white below 7 mm and red above: one change, from white to red at 7 mm (the inside follows the outside)", `${bits.length} layers, ${C.colourChanges(bits).changes} change`);
+  const ring = C.colourChanges(Uint32Array.from([1, 1, 3, 3, 1, 1, 3, 1]));
+  check(ring.changes === 4 && ring.busiest === 2, "red rings on a white part: in and out of red, each layer's order chosen to save changes", `${ring.changes} changes`);
+  const cases = [[[1, 1, 1], 0], [[1, 1, 2, 2, 1], 2], [[3, 3, 3, 3], 4], [[7, 7, 7], 6], [[1, 3, 2], 1], [[1, 3, 1], 2], [[3, 1], 1], [[5, 6, 3], 3], [[0, 1, 0, 2], 1]];
+  const wrong = cases.filter(([a, w]) => C.colourChanges(Uint32Array.from(a)).changes !== w);
+  check(!wrong.length, "colour changes counted for layer patterns with known answers", wrong.map(([a]) => JSON.stringify(a)).join(" ") || `${cases.length} patterns`); }
 
 if (process.env.CORE) { console.log(fails ? `\n${fails} FAILED` : "\nall passed"); process.exit(fails ? 1 : 0); }
 
@@ -211,7 +221,7 @@ async function settle() {
   console.log("\nthe Paint tab");
   await choose("turned");
   toTab("paint"); await sleep(60);
-  check($$("#secrail button").map(b => b.dataset.title).join("|") === "Paint|Auto colour|Brush and fill|Paint list|Paint detail", "five pages", $$("#secrail button").map(b => b.dataset.title).join(", "));
+  check($$("#secrail button").map(b => b.dataset.title).join("|") === "Paint|Auto colour|Brush and fill|Paint list|Layers and colour changes|Paint detail", "six pages", $$("#secrail button").map(b => b.dataset.title).join(", "));
   const vis = [...document.querySelectorAll("#panel > .section")].find(d => !d.hidden);
   check(vis.querySelectorAll(".pswatch[role=radio]").length === st().slots.length, "a big swatch per loaded filament", vis.querySelectorAll(".pswatch[role=radio]").length);
   const methods = ["height", "gradient", "stripes", "dir", "shells", "regions", "noise", "curve", "swap"];
@@ -457,6 +467,38 @@ async function settle() {
   check(st().printer.model === "Bambu X2D" && st().printer.bed.join("x") === "256x256x260" && st().printer.colors === 5, "the Bambu X2D: 256 × 256 × 260 mm, 5 filaments", st().printer.bed.join("x"));
   check(JSON.parse(win.localStorage.getItem("makerforge.printer")).model === "Bambu X2D", "your printer is remembered for new projects");
   check(sel.options.length >= 35, "at least 35 printers", sel.options.length);
+  check(st().printer.purge === 0.3 && st().printer.swap === 45, "a printer brings its own waste and time per colour change (the X2D: 0.3 g, 45 s)", `${st().printer.purge} g, ${st().printer.swap} s`);
+  sel.value = "Snapmaker U1"; sel.dispatchEvent(new win.Event("change")); await settle();
+  check(st().printer.purge === 0.05 && st().printer.swap === 15, "a tool changer wastes almost nothing", `${st().printer.purge} g`);
+  sel.value = "Bambu X2D"; sel.dispatchEvent(new win.Event("change")); await settle();
+  // colour changes on a vase in two height bands, then in stripes
+  toTab("make"); await choose("turned"); st().printer.layer = 0.2;
+  st().paint.ops = [{ k: "height", slots: [0, 1], cuts: [45] }]; MF.paint.repaint(); await settle();
+  const LC1 = MF.checks.layers;
+  check(LC1 && LC1.changes === 1 && Math.abs(LC1.grams - 0.3) < 1e-9, "a vase in two bands: one colour change, 0.3 g flushed", LC1 && `${LC1.changes} change, ${LC1.grams} g`);
+  st().paint.ops = [{ k: "stripes", slot: 1, gap: 255, from: 10, to: 80, every: 10, width: 4 }]; MF.paint.repaint(); await settle();
+  const LC2 = MF.checks.layers;
+  check(LC2 && LC2.changes === 14 && LC2.busiest === 1, "seven stripes: in and out of each, 14 changes", LC2 && `${LC2.changes} changes`);
+  toTab("paint"); await sleep(40); toPage("Layers and colour changes"); await sleep(40);
+  const layText = document.querySelector("#panel").textContent;
+  check(/About 14 colour changes/.test(layText) && /about 4 g of filament wasted/.test(layText) && /Layer \d+ of \d+/.test(layText), "the Layers page counts them, with the filament and time they cost", (layText.match(/About [^.]*\./) || [""])[0]);
+  const layerField = $$("#panel .field").find(f => /Look at the layer at/.test(f.textContent)), lin = layerField.querySelector("input[type=number]");
+  lin.value = "12"; lin.dispatchEvent(new win.Event("change")); await sleep(50);
+  check(/Layer 61 of \d+: .*Charcoal|Layer 61 of \d+: [^.]+/.test(layerField.textContent) && MF.camera && document.querySelector("#sectionBox").hidden === false, "looking at a layer cuts the model there and names its colours", layerField.querySelector(".sub").textContent);
+  $$("#panel button").find(b => /Show the whole model/.test(b.textContent)).click(); await sleep(50);
+  check(document.querySelector("#sectionBox").hidden === true, "and the whole model comes back");
+  toTab("export"); await sleep(40); toPage("Material and time"); await sleep(40);
+  check(/About 14 colour changes/.test(document.querySelector("#panel").textContent), "the Export tab mentions the colour changes");
+  const cp2 = MF.paint.cleanPrinter({ purge: 1e9, swap: -5 }), cp3 = MF.paint.cleanPrinter({});
+  check(cp2.purge === 5 && cp2.swap === 0 && cp3.purge === 0.4 && cp3.swap === 60, "waste and time per change: clamped, and the defaults for an old project", `${cp2.purge}/${cp2.swap}, ${cp3.purge}/${cp3.swap}`);
+  // patterns for telling filaments apart
+  check(MF.parts[0].geom.attributes.slotId && MF.parts[0].geom.attributes.slotId.count === MF.parts[0].geom.attributes.position.count, "the painted model knows each corner's filament, for the patterns");
+  toTab("paint"); await sleep(40); toPage("Brush and fill"); await sleep(40);
+  MF.paint.prefs.patterns = true; MF.paint.applyPrefs(); MF.render(); await sleep(40);
+  const sw = $$("#panel .pswatch .sw").map(e => e.getAttribute("style")).slice(0, st().slots.length);
+  check(!/gradient/.test(sw[0]) && sw.slice(1).every(v => /gradient/.test(v)) && new Set(sw.slice(1)).size === sw.length - 1, "with patterns on, each swatch after the first has its own pattern", `${sw.length} swatches`);
+  MF.paint.prefs.patterns = false; MF.paint.applyPrefs(); MF.render();
+  st().paint.ops = []; MF.paint.repaint(); await settle();
   const P = MF.paint.prefs; P.ui = 1.5; P.contrast = "high"; MF.paint.applyPrefs();
   check(document.documentElement.style.getPropertyValue("--ui") === "1.5" && document.documentElement.getAttribute("data-contrast") === "high", "bigger text and high contrast switch on");
   P.ui = 1; P.contrast = "normal"; MF.paint.applyPrefs();

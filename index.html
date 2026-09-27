@@ -371,7 +371,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.18.1</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.19.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -3462,6 +3462,53 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
     }
     return cls;
   }
+  // ---- colours layer by layer (Session 18) ----
+  // which filaments each layer uses: parts [{ pos, idx, paint, slot }] standing on y = 0 (Y up), layer height
+  // h; a layer takes the colour of every triangle crossing its middle (unpainted ones: the part's own).
+  // The inside follows the outside: slicers carry the painted colours inward across each layer
+  // (PrusaSlicer's segmentation, Bambu Studio and OrcaSlicer by default). One bit per filament per layer.
+  function layerSlots(parts, h) {
+    h = Math.max(0.02, +h || 0.2);
+    let top = 0;
+    for (const p of parts) for (let i = 1; i < p.pos.length; i += 3) if (p.pos[i] > top) top = p.pos[i];
+    const n = Math.max(1, Math.min(20000, Math.ceil(top / h))), bits = new Uint32Array(n);
+    for (const p of parts) {
+      const P = p.pos, I = p.idx;
+      for (let t = 0; t < I.length / 3; t++) {
+        const a = P[3 * I[3 * t] + 1], b = P[3 * I[3 * t + 1] + 1], c = P[3 * I[3 * t + 2] + 1];
+        const lo = Math.min(a, b, c), hi = Math.max(a, b, c);
+        const v = p.paint && p.paint[t] !== LEAVE ? p.paint[t] : p.slot, bit = 1 << (v & 31);
+        // the layers whose middle this triangle crosses
+        const l0 = Math.max(0, Math.ceil(lo / h - 0.5)), l1 = Math.min(n - 1, Math.floor(hi / h - 0.5));
+        for (let l = l0; l <= l1; l++) bits[l] |= bit;
+      }
+    }
+    return bits;
+  }
+  // how many times the filament changes printing those layers in order, each layer starting with the
+  // filament the last one ended with when it can and ending with one the next layer uses; returns
+  // { changes, busiest (most filaments in a layer), at (that layer) }
+  function colourChanges(bits) {
+    const pop = v => { let c = 0; while (v) { v &= v - 1; c++; } return c; }, low = v => { for (let s = 0; s < 32; s++) if (v >> s & 1) return s; return -1; };
+    let cur = -1, changes = 0, busiest = 0, at = 0;
+    for (let l = 0; l < bits.length; l++) {
+      const b = bits[l]; if (!b) continue;
+      const k = pop(b), next = bits[l + 1] || 0; if (k > busiest) { busiest = k; at = l; }
+      if (cur >= 0 && (b >> cur & 1)) {
+        if (k === 1) continue;                            // the same single filament: nothing to change
+        // start with the one loaded; end on another the next layer uses, or on the loaded one (one more change)
+        const cand = b & next & ~(1 << cur);
+        if (cand) { changes += k - 1; cur = low(cand); }
+        else if (next >> cur & 1) { changes += k; }
+        else { changes += k - 1; cur = low(b & ~(1 << cur)); }
+      } else {
+        // a new layer set: change to it (not before the first layer), print it, end on one the next layer uses
+        changes += cur < 0 ? k - 1 : k;
+        cur = low((b & next) || b);
+      }
+    }
+    return { changes, busiest, at };
+  }
   // ---- colour from photos ----
   // A plain model and a coloured photo of the same model: the photo is lined up with the model's
   // outline, its colours are grouped into the filaments, and every triangle takes the colour the photos
@@ -3999,7 +4046,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
     seededRandom, jigsawGrid, jigsawCut, jigsawEdge, jigsawPiece, jigsawSVG, jigsawCutLines, ringField, ringDistance, outlineBand, strokeText,
     gridAround, heightSheet,
     meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, gradientCuts, gradientLayers, paintGradient, paintSwap, meshShells, paintShells,
-    meshRegions, paintRegions, paintNoise, paintPictureWrap, paintCurvature, curvatureClasses, paintBrush, brushTris, symmetryCopies, areaTris, paintFill, paintPicture, parseOBJ, parse3MFModel,
+    meshRegions, paintRegions, paintNoise, paintPictureWrap, paintCurvature, curvatureClasses, layerSlots, colourChanges, paintBrush, brushTris, symmetryCopies, areaTris, paintFill, paintPicture, parseOBJ, parse3MFModel,
     PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, paintFromPhotos,
     photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure
   };
@@ -4481,6 +4528,13 @@ const PRINTERS = {
   "Voron 2.4 350":      { brand:"Voron", bed:[350,350,340], nozzle:0.4, layer:0.2, colors:1, flow:20, note:"One colour unless you add a toolhead changer or ERCF." },
   "Custom":             { brand:"Other", bed:[256,256,256], nozzle:0.4, layer:0.12, colors:4, flow:12, note:"Type in your printer's bed and how many colours it loads." }
 };
+// rough waste and time for one colour change, by the kind of printer (editable on the Paint tab's Layers page)
+function changeCost(model){
+  if (/Prusa XL|Snapmaker U1|H2C/.test(model)) return { purge:0.05, swap:15 };     // tool changers: a head each
+  if (/H2D|X2D/.test(model)) return { purge:0.3, swap:45 };                         // two nozzles, the rest by AMS
+  if (/^Prusa (MK|CORE)/.test(model)) return { purge:0.15, swap:40 };               // MMU3 into a wipe tower
+  return { purge:0.4, swap:60 };                                                     // AMS, CFS, ACE, IFS, QIDI Box
+}
 const PALETTES = {
   "Warm sunset":["#f7f3e8","#e8452c","#f0b429","#3d2b2b"],
   "Nordic":["#f5f7f8","#2f5d8a","#8fb8c9","#20303a"],
@@ -4721,7 +4775,7 @@ const DEFAULTS = () => ({
       picture:"colour", colourH:0.6, faceDown:false, holder:"none", border:8, floor:1.2, frameSlot:1, labels:false, labelDepth:0.6 }
   },
   items:[], active:-1,
-  printer:{ model:"Bambu P1S / X1C", bed:[256,256,256], nozzle:0.4, layer:0.12, colors:4, flow:18, currency:"", overhang:45, bridge:10 },
+  printer:{ model:"Bambu P1S / X1C", bed:[256,256,256], nozzle:0.4, layer:0.12, colors:4, flow:18, currency:"", overhang:45, bridge:10, purge:0.4, swap:60 },
   model:{ scale:100, mirror:false, orient:null, brim:0 },
   view:{ units:"mm", theme:"auto" },
   paint:{ on:true, detail:"auto", part:-1, ops:[] }
@@ -7362,9 +7416,50 @@ let partsVer = 0, modelParts = [], plateInfo = { pieces:1, holes:0 }, lastSize =
 const slotMats = [], wireMats = [];
 // the section view: a plane that keeps everything below the cut; inside faces show through it
 const cutPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
+/* patterns for telling filaments apart without colour (Easy reading): the first filament plain, then
+   stripes one way and the other, lines across and up, dots, cross-hatching and checks, drawn on the screen
+   in black or white, whichever stands out from the colour; the swatches carry the same patterns */
+const patUniforms = { uPat:{ value:0 }, uPatScale:{ value:10 } };
+const PATTERN_GLSL = `
+float patternAt(float id, vec2 p){
+  int k = int(id + 0.5); vec2 q = p / uPatScale;
+  if (k <= 0) return 0.0;
+  if (k == 1) return step(0.7, fract(q.x + q.y));
+  if (k == 2) return step(0.7, fract(q.x - q.y));
+  if (k == 3) return step(0.7, fract(q.y));
+  if (k == 4) return step(0.7, fract(q.x));
+  if (k == 5) return 1.0 - step(0.24, length(fract(q) - 0.5));
+  if (k == 6) return max(step(0.8, fract(q.x + q.y)), step(0.8, fract(q.x - q.y)));
+  return mod(floor(q.x) + floor(q.y), 2.0) * 0.75;
+}`;
+// slot: the filament of a whole part (a uniform), or null for the painted model (each vertex says)
+function withPatterns(mat, slot){
+  const u = slot == null ? null : { value:slot };
+  mat.userData.patSlot = u;
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.uPat = patUniforms.uPat; sh.uniforms.uPatScale = patUniforms.uPatScale;
+    if (u) sh.uniforms.uSlot = u;
+    sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\n" + (u ? "" : "attribute float slotId;\n") + "varying float vSlot;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvSlot = " + (u ? "0.0" : "slotId") + ";");
+    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uPat; uniform float uPatScale;" + (u ? " uniform float uSlot;" : "") + "\nvarying float vSlot;" + PATTERN_GLSL)
+      .replace("#include <color_fragment>", "#include <color_fragment>\nif (uPat > 0.5){ float m = patternAt(" + (u ? "uSlot" : "vSlot") + ", gl_FragCoord.xy); vec3 ink = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)) > 0.45 ? vec3(0.0) : vec3(1.0); diffuseColor.rgb = mix(diffuseColor.rgb, ink, 0.55 * m); }");
+  };
+  mat.customProgramCacheKey = () => u ? "patternSlot" : "patternVertex";
+  return mat;
+}
+// the same pattern for a swatch, over its colour (CSS)
+function swatchStyle(i, hex){
+  const c = new THREE.Color(hex || "#888"), ink = 0.2126*c.r + 0.7152*c.g + 0.0722*c.b > 0.45 ? "rgba(0,0,0,.6)" : "rgba(255,255,255,.75)";
+  if (!prefs.patterns || !i) return `background:${esc(hex)}`;
+  const st = a => `repeating-linear-gradient(${a}deg,transparent 0 4px,${ink} 4px 6px)`;
+  const bg = [null, st(-45), st(45), st(0), st(90), `radial-gradient(circle,${ink} 0 2px,transparent 2.5px) 0 0/7px 7px`,
+    `${st(45)},${st(-45)}`, `repeating-conic-gradient(${ink} 0 25%,transparent 0 50%) 0 0/10px 10px`][Math.min(7, i)];
+  return `background:${bg},${esc(hex)}`;
+}
 function slotMat(i){
   const list = viewOpts.wire ? wireMats : slotMats;
-  if (!list[i]) list[i] = new THREE.MeshStandardMaterial({ roughness:0.55, metalness:0.02, flatShading:true, wireframe:viewOpts.wire });
+  if (!list[i]) list[i] = viewOpts.wire ? new THREE.MeshStandardMaterial({ roughness:0.55, metalness:0.02, flatShading:true, wireframe:true })
+    : withPatterns(new THREE.MeshStandardMaterial({ roughness:0.55, metalness:0.02, flatShading:true }), i);
   list[i].color.set(state.slots[i] ? state.slots[i].hex : "#8a8f94");
   list[i].clippingPlanes = viewOpts.section ? [cutPlane] : [];
   list[i].side = viewOpts.section ? THREE.DoubleSide : THREE.FrontSide;
@@ -7451,8 +7546,17 @@ function updateSection(){
   const h = (lastSize ? lastSize.y : 10)*viewOpts.cut/100;
   cutPlane.constant = h + 1e-3;
   $("#sectionV").textContent = mm(h);
-  [...slotMats, ...wireMats].forEach(m => { if (!m) return; m.clippingPlanes = viewOpts.section ? [cutPlane] : []; m.side = viewOpts.section ? THREE.DoubleSide : THREE.FrontSide; m.needsUpdate = true; });
+  [...slotMats, ...wireMats, paintMatCache].forEach(m => { if (!m) return; m.clippingPlanes = viewOpts.section ? [cutPlane] : []; m.side = viewOpts.section ? THREE.DoubleSide : THREE.FrontSide; m.needsUpdate = true; });
 }
+// the Paint tab's layer view: the section cut at one layer's height (or off)
+function showLayerCut(on, z){
+  viewOpts.section = !!on;
+  const b = $("#vSection"); if (b) b.setAttribute("aria-pressed", String(viewOpts.section));
+  $("#sectionBox").hidden = !viewOpts.section;
+  if (on && lastSize && lastSize.y > 0){ viewOpts.cut = clamp(z / lastSize.y * 100, 0, 100); $("#sectionR").value = String(Math.round(viewOpts.cut)); }
+  updateSection(); layerCutLabel();
+}
+function layerCutLabel(){ const b = document.getElementById("layerCutBtn"); if (b) b.textContent = viewOpts.section ? "Show the whole model" : "Cut the model at this layer"; }
 $("#vSection").onclick = e => {
   viewOpts.section = !viewOpts.section; e.currentTarget.setAttribute("aria-pressed", viewOpts.section);
   $("#sectionBox").hidden = !viewOpts.section; updateSection();
@@ -8033,27 +8137,28 @@ function applyPaint(repaintOnly){
 function slotRGB(s){ const c = new THREE.Color(state.slots[s] ? state.slots[s].hex : "#8a8f94"); return [c.r, c.g, c.b]; }
 function paintedGeometry(p){
   const g = new THREE.BufferGeometry(), I = p.solid.idx, P = p.solid.pos, n = I.length/3;
-  const pos = new Float32Array(n*9), col = new Float32Array(n*9), rgb = state.slots.map((_,i)=>slotRGB(i)), own = slotRGB(p.slot);
+  const pos = new Float32Array(n*9), col = new Float32Array(n*9), sid = new Float32Array(n*3), rgb = state.slots.map((_,i)=>slotRGB(i)), own = slotRGB(p.slot);
   for (let t=0;t<n;t++){
-    const s = p.paint[t], c = s === PAINT_LEAVE ? own : (rgb[s] || own);
+    const s = p.paint[t], c = s === PAINT_LEAVE ? own : (rgb[s] || own), id = s === PAINT_LEAVE || !rgb[s] ? p.slot : s;
     for (let k=0;k<3;k++){ const v = I[3*t+k]*3; pos[9*t+3*k] = P[v]; pos[9*t+3*k+1] = P[v+1]; pos[9*t+3*k+2] = P[v+2];
-      col[9*t+3*k] = c[0]; col[9*t+3*k+1] = c[1]; col[9*t+3*k+2] = c[2]; }
+      col[9*t+3*k] = c[0]; col[9*t+3*k+1] = c[1]; col[9*t+3*k+2] = c[2]; sid[3*t+k] = id; }
   }
   g.setAttribute("position", new THREE.BufferAttribute(pos,3));
   g.setAttribute("color", new THREE.BufferAttribute(col,3));
+  g.setAttribute("slotId", new THREE.BufferAttribute(sid,1));
   g.computeVertexNormals();
   return g;
 }
 function recolourTris(p, list){
   const col = p.geom && p.geom.attributes.color; if (!col) return;
-  const own = slotRGB(p.slot), rgb = state.slots.map((_,i)=>slotRGB(i)), a = col.array;
-  for (const t of list){ const s = p.paint[t], c = s === PAINT_LEAVE ? own : (rgb[s] || own);
-    for (let k=0;k<3;k++){ a[9*t+3*k] = c[0]; a[9*t+3*k+1] = c[1]; a[9*t+3*k+2] = c[2]; } }
-  col.needsUpdate = true;
+  const own = slotRGB(p.slot), rgb = state.slots.map((_,i)=>slotRGB(i)), a = col.array, sa = p.geom.attributes.slotId;
+  for (const t of list){ const s = p.paint[t], c = s === PAINT_LEAVE ? own : (rgb[s] || own), id = s === PAINT_LEAVE || !rgb[s] ? p.slot : s;
+    for (let k=0;k<3;k++){ a[9*t+3*k] = c[0]; a[9*t+3*k+1] = c[1]; a[9*t+3*k+2] = c[2]; if (sa) sa.array[3*t+k] = id; } }
+  col.needsUpdate = true; if (sa) sa.needsUpdate = true;
 }
-let paintMatCache = null;
+var paintMatCache = null;
 function paintMat(){
-  if (!paintMatCache) paintMatCache = new THREE.MeshStandardMaterial({ roughness:0.55, metalness:0.02, flatShading:true, vertexColors:true });
+  if (!paintMatCache) paintMatCache = withPatterns(new THREE.MeshStandardMaterial({ roughness:0.55, metalness:0.02, flatShading:true, vertexColors:true }), null);
   paintMatCache.wireframe = viewOpts.wire;
   paintMatCache.clippingPlanes = viewOpts.section ? [cutPlane] : [];
   paintMatCache.side = viewOpts.section ? THREE.DoubleSide : THREE.FrontSide;
@@ -8369,7 +8474,7 @@ function refreshScene(){
 }
 
 /* ---------- 7. checks ---------- */
-let lastChecks = { list:[], rows:[], totals:{}, swaps:[] };
+let lastChecks = { list:[], rows:[], totals:{}, swaps:[], layers:null };
 /* The print frame: the model scaled, mirrored and (after Optimize) turned, standing on the bed.
    Without a turn this is exactly the old export: scale, then mirror, nothing else moves. */
 function modelMatrix(){
@@ -8673,7 +8778,14 @@ function runChecks(){
   const totals = rows.reduce((a,r)=>({ cm3:a.cm3+r.cm3, grams:a.grams+r.grams, metres:a.metres+r.metres, cost:a.cost+r.cost }), {cm3:0,grams:0,metres:0,cost:0});
   const layers = Math.max(1, Math.round(size.y/(P.layer||0.12)));
   const swapsCount = Math.max(0, usedSlots.size-1);
-  const seconds = totals.cm3*1000/(P.flow||12) + layers*2.5 + (P.colors>1 ? layers*swapsCount*1.2 : swapsCount*30);
+  // colour changes layer by layer (a printer that loads several filaments): which filaments each layer
+  // uses, the changes in printing order, and the filament and time they cost
+  let layerInfo = null;
+  if (P.colors > 1 && usedSlots.size > 1){
+    const h = P.layer || 0.12, bits = C.layerSlots(printedParts(), h), cc = C.colourChanges(bits);
+    layerInfo = { bits, h, changes:cc.changes, busiest:cc.busiest, at:cc.at, grams:cc.changes*(P.purge ?? 0.4), seconds:cc.changes*(P.swap ?? 60) };
+  }
+  const seconds = totals.cm3*1000/(P.flow||12) + layers*2.5 + (P.colors>1 ? (layerInfo ? layerInfo.seconds : 0) : swapsCount*30);
   totals.minutes = seconds/60;
 
   // colour swap list, useful on a single-colour printer
@@ -8688,7 +8800,7 @@ function runChecks(){
     });
     [...zs.entries()].sort((a,b)=>a[1]-b[1]).forEach(([slot,z])=>swaps.push({ slot, z:Math.max(0,z) }));
   }
-  lastChecks = { list, rows, totals, swaps };
+  lastChecks = { list, rows, totals, swaps, layers:layerInfo };
   const worst = list.some(l=>l.k==="bad") ? "bad" : list.some(l=>l.k==="warn") ? "warn" : "ok";
   const pill = $("#checkPill");
   pill.className = "pill" + (worst === "ok" ? "" : " "+worst);
@@ -10764,7 +10876,7 @@ function tabColour(p){
   const printerChanged = () => { savePrinterPref(); runChecks(); makeBed(); renderTab(); };
   selField(p,"Your printer", brands, ()=>state.printer.model, v=>{
     const pr = PRINTERS[v];
-    Object.assign(state.printer, { model:v, bed:pr.bed.slice(), nozzle:pr.nozzle, colors:pr.colors, flow:pr.flow });
+    Object.assign(state.printer, { model:v, bed:pr.bed.slice(), nozzle:pr.nozzle, colors:pr.colors, flow:pr.flow }, changeCost(v));
     printerChanged();
   });
   const P0 = state.printer, info = encHas(PRINTERS, P0.model) ? PRINTERS[P0.model] : null;
@@ -10776,6 +10888,8 @@ function tabColour(p){
     numField(g2,{ label:"Bed depth (mm)", min:80,max:600,step:5, get:()=>state.printer.bed[1], set:v=>state.printer.bed[1]=v, onChange:printerChanged });
     numField(g2,{ label:"Build height (mm)", min:80,max:600,step:5, get:()=>state.printer.bed[2] || 256, set:v=>state.printer.bed[2]=v, onChange:printerChanged });
     numField(g2,{ label:"Colours it can load", min:1,max:16,step:1, get:()=>state.printer.colors, set:v=>state.printer.colors=Math.round(v), onChange:()=>{ savePrinterPref(); runChecks(); } });
+    numField(g2,{ label:"Waste per colour change (g)", min:0, max:3, step:0.05, def:changeCost(state.printer.model).purge, get:()=>state.printer.purge ?? 0.4, set:v=>state.printer.purge=v, onChange:()=>{ savePrinterPref(); runChecks(); } });
+    numField(g2,{ label:"Time per colour change (seconds)", min:0, max:300, step:5, def:changeCost(state.printer.model).swap, get:()=>state.printer.swap ?? 60, set:v=>state.printer.swap=v, onChange:()=>{ savePrinterPref(); runChecks(); } });
     numField(g2,{ label:"Nozzle (mm)", min:0.2,max:1,step:0.05, get:()=>state.printer.nozzle, set:v=>state.printer.nozzle=v, onChange:()=>{ savePrinterPref(); runChecks(); } });
     numField(g2,{ label:"Layer height (mm)", min:0.05,max:0.4,step:0.01, get:()=>state.printer.layer, set:v=>state.printer.layer=v, onChange:()=>{ savePrinterPref(); runChecks(); } });
     selField(g2,"Units",[["mm","Millimetres"],["in","Inches"]],()=>state.view.units, v=>{ state.view.units = v; refreshScene(); renderTab(); });
@@ -10861,7 +10975,7 @@ function updatePaintSummary(){
   const tot = Object.values(paintInfo.area).reduce((a,b)=>a+b, 0);
   if (!paintOps().length){ el.innerHTML = "Nothing painted yet."; return; }
   el.innerHTML = Object.entries(paintInfo.area).sort((a,b)=>b[1]-a[1]).map(([s,a]) =>
-    `<span class="pchip"><span class="sw" style="background:${esc((state.slots[s]||{}).hex||"#888")}"></span>${esc((state.slots[s]||{}).name||"")} ${Math.round(100*a/(tot||1))}%</span>`).join("") +
+    `<span class="pchip"><span class="sw" style="${swatchStyle(+s, (state.slots[s]||{}).hex||"#888")}"></span>${esc((state.slots[s]||{}).name||"")} ${Math.round(100*a/(tot||1))}%</span>`).join("") +
     `<div class="sub">${paintInfo.tris.toLocaleString()} triangles${isFinite(paintInfo.edge) && paintInfo.edge ? `, none longer than ${paintInfo.edge.toFixed(1)} mm` : ""}${paintInfo.capped ? ". The model is big, so the detail was lowered to keep the file small." : "."}</div>`;
 }
 function paletteRow(parent){
@@ -10869,7 +10983,7 @@ function paletteRow(parent){
   state.slots.forEach((s,i)=>{
     const b = document.createElement("button"); b.className = "pswatch"; b.setAttribute("role","radio"); b.setAttribute("aria-checked", String(paintUI.slot === i));
     b.setAttribute("aria-label", `${i+1}: ${s.name}`); b.title = `${s.name} (key ${i+1})`;
-    b.innerHTML = `<span class="sw" style="background:${esc(s.hex)}"></span><span class="num">${i+1}</span>`;
+    b.innerHTML = `<span class="sw" style="${swatchStyle(i, s.hex)}"></span><span class="num">${i+1}</span>`;
     b.onclick = () => { paintUI.slot = i; if (paintUI.tool === "erase") paintUI.tool = "brush"; renderTab(); };
     row.appendChild(b);
   });
@@ -10886,7 +11000,7 @@ function slotChecks(parent, o){
   const w = document.createElement("div"); w.className = "chips";
   state.slots.forEach((s,i)=>{
     const on = (o.slots||[]).includes(i), b = document.createElement("button"); b.className = "pchip toggle"; b.setAttribute("aria-pressed", String(on));
-    b.innerHTML = `<span class="sw" style="background:${esc(s.hex)}"></span>${esc(s.name)}`;
+    b.innerHTML = `<span class="sw" style="${swatchStyle(i, s.hex)}"></span>${esc(s.name)}`;
     b.onclick = () => { o.slots = on ? o.slots.filter(x=>x!==i) : [...(o.slots||[]), i].sort((a,b)=>a-b); if (!o.slots.length) o.slots = [i]; renderTab(); paintChanged(); };
     w.appendChild(b);
   });
@@ -11134,6 +11248,31 @@ function updatePhotoInfo(){
     (o.views.length === 1 && pct < 70 ? ": a photo from the back makes that part right too." : ".") +
     " Touch it up with the brush and fill below: they paint on top of this step.";
 }
+// how the colours come out layer by layer: the colour changes, what they waste, and one layer at a time
+const fmtTime = s => s < 90 ? `${Math.round(s)} seconds` : s < 5400 ? `${Math.round(s/60)} minutes` : `${(s/3600).toFixed(1)} hours`;
+function paintLayersPage(p){
+  const L = lastChecks.layers, P = state.printer;
+  const again = () => { savePrinterPref(); runChecks(); renderKeepFocus(); };
+  if (P.colors <= 1){ note(p, "Your printer is set to load one filament. The Export tab lists the heights to swap the spool by hand. Pick a printer with an AMS or a tool changer on the Colours tab to count colour changes here."); return; }
+  if (!L){ note(p, "One filament is used, so the colour never changes."); return; }
+  const n = L.bits.length, names = b => state.slots.map((s2, i) => b >> i & 1 ? s2.name : null).filter(Boolean);
+  const c = card(p); c.id = "layerSum";
+  c.innerHTML = `<b>About ${L.changes.toLocaleString()} colour change${L.changes === 1 ? "" : "s"}</b> over ${n.toLocaleString()} layers of ${L.h} mm.<br>
+    At about ${P.purge ?? 0.4} g and ${P.swap ?? 60} seconds each: about <b>${Math.round(L.grams).toLocaleString()} g of filament wasted</b> and ${fmtTime(L.seconds)} of changing.
+    <div class="sub">The busiest layer, ${(L.at * L.h + L.h/2).toFixed(1)} mm up, uses ${L.busiest} filaments: ${esc(names(L.bits[L.at]).join(", "))}.</div>`;
+  if (L.changes > n * 1.5) note(p, "Fewer changes save filament and time: keep small details to a few layers, line colour bands up with the layers (Height bands → Line up with the layers), or change a colour that barely shows into its neighbour (Recolour).");
+  if (paintUI.layerZ == null || paintUI.layerZ > n * L.h) paintUI.layerZ = +(L.at * L.h + L.h/2).toFixed(3);
+  const layerOf = z => clamp(Math.floor(z / L.h), 0, n - 1);
+  numField(p,{ label:"Look at the layer at (mm)", min:0, max:+(n * L.h).toFixed(2), step:L.h, noReset:true, get:()=>paintUI.layerZ, set:v=>paintUI.layerZ = v,
+    onChange:()=>showLayerCut(true, paintUI.layerZ),
+    sub:()=>{ const l = layerOf(paintUI.layerZ), b = L.bits[l]; return `Layer ${l + 1} of ${n}: ${names(b).join(", ") || "nothing"}.`; } });
+  const row = buttonRow(p, [["Go to the busiest layer", () => { paintUI.layerZ = +(L.at * L.h + L.h/2).toFixed(3); showLayerCut(true, paintUI.layerZ); renderKeepFocus(); }],
+    ["", () => showLayerCut(!viewOpts.section, paintUI.layerZ)]]);
+  row.lastChild.id = "layerCutBtn"; layerCutLabel();
+  numField(p,{ label:"Waste per colour change (g)", min:0, max:3, step:0.05, def:changeCost(P.model).purge, get:()=>P.purge ?? 0.4, set:v=>P.purge = v, onChange:again,
+    sub:()=>"What the printer flushes out each time it changes filament. It depends on the colours; the slicer's flushing settings give the exact figure." });
+  numField(p,{ label:"Time per colour change (seconds)", min:0, max:300, step:5, def:changeCost(P.model).swap, get:()=>P.swap ?? 60, set:v=>P.swap = v, onChange:again });
+}
 function tabPaint(p){
   if (!state.paint) state.paint = DEFAULTS().paint;
   p.insertAdjacentHTML("beforeend", `<h2>Paint</h2>`);
@@ -11208,6 +11347,9 @@ function tabPaint(p){
   });
   note(p, "Steps are painted in this order, so a later step covers an earlier one.");
 
+  p.insertAdjacentHTML("beforeend", `<h2>Layers and colour changes</h2>`);
+  paintLayersPage(p);
+
   p.insertAdjacentHTML("beforeend", `<h2>Paint detail</h2>`);
   segField(p, [["auto","Automatic"],["coarse","Coarse"],["normal","Normal"],["fine","Fine"]], () => state.paint.detail || "auto", v => { state.paint.detail = v; renderTab(); paintChanged(); }, "four");
   note(p, "The brush and pictures paint whole triangles, so the model is split into small ones: finer detail follows small shapes better but makes bigger files. Automatic uses normal detail when something needs it.");
@@ -11247,6 +11389,8 @@ function tabExport(p){
   p.appendChild(t);
   const mins = tot.minutes||0;
   note(p, `Rough print time <b>${mins<60?mins.toFixed(0)+" minutes":(mins/60).toFixed(1)+" hours"}</b>. Figures assume solid parts, so they are a worst case.`);
+  const LC = lastChecks.layers;
+  if (LC && LC.changes) note(p, `About <b>${LC.changes.toLocaleString()} colour changes</b>: about ${Math.round(LC.grams).toLocaleString()} g of filament flushed and ${fmtTime(LC.seconds)} of changing (in the time above). Paint → Layers and colour changes shows them layer by layer.`);
   if ((lastChecks.swaps||[]).length > 1) group(p,"Colour swap heights", g2 => {
     note(g2, "Your printer is set to one filament. Add a pause or an M600 at these heights and swap the spool by hand.");
     const s2 = document.createElement("table"); s2.className = "stats";
@@ -11553,7 +11697,8 @@ function cleanPrinter(pr){
     nozzle: num(P.nozzle, 0.1, 1.2, d.nozzle), layer: num(P.layer, 0.04, 0.6, d.layer),
     colors: Math.round(num(P.colors, 1, 16, d.colors)), flow: num(P.flow, 1, 60, d.flow),
     currency: cleanStr(P.currency, 4, "").replace(/[<>&"']/g, ""),
-    overhang: num(P.overhang, 20, 80, d.overhang), bridge: num(P.bridge, 0, 60, d.bridge) };
+    overhang: num(P.overhang, 20, 80, d.overhang), bridge: num(P.bridge, 0, 60, d.bridge),
+    purge: num(P.purge, 0, 5, d.purge), swap: num(P.swap, 0, 600, d.swap) };
 }
 // paint steps from a project file: known kinds only, colours as filament numbers, points capped
 function cleanPaint(P0){
@@ -11937,7 +12082,7 @@ function applyPreset(key){
 }
 
 /* ---- easy reading: kept in this browser for every project, not in project files ---- */
-const PREFS_DEFAULT = { ui:1, contrast:"normal", font:"normal", motion:"auto", notice:1, speak:false };
+const PREFS_DEFAULT = { ui:1, contrast:"normal", font:"normal", motion:"auto", notice:1, speak:false, patterns:false };
 let prefs = Object.assign({}, PREFS_DEFAULT);
 try { const raw = JSON.parse(localStorage.getItem("makerforge.prefs") || "null");
   if (raw && typeof raw === "object"){
@@ -11947,6 +12092,7 @@ try { const raw = JSON.parse(localStorage.getItem("makerforge.prefs") || "null")
     prefs.motion = raw.motion === "reduce" ? "reduce" : "auto";
     prefs.notice = [1, 2, 4].includes(raw.notice) ? raw.notice : 1;
     prefs.speak = raw.speak === true;
+    prefs.patterns = raw.patterns === true;
   } } catch(e){}
 function savePrefs(){ try { localStorage.setItem("makerforge.prefs", JSON.stringify(prefs)); } catch(e){} }
 function applyPrefs(){
@@ -11957,6 +12103,8 @@ function applyPrefs(){
     r.setAttribute("data-font", "clear");           // Atkinson Hyperlegible, built in (see fontFaceCSS)
   } else r.removeAttribute("data-font");
   if (prefs.motion === "reduce") r.setAttribute("data-motion", "reduce"); else r.removeAttribute("data-motion");
+  patUniforms.uPat.value = prefs.patterns ? 1 : 0;
+  patUniforms.uPatScale.value = 10 * (window.devicePixelRatio || 1) * prefs.ui;
   // big text needs the room: the start sidebar steps aside on narrower screens
   if (prefs.ui >= 1.3 && window.innerWidth < 1900 && typeof setSide === "function") setSide("right", false);
 }
@@ -11998,6 +12146,9 @@ function openEasyReading(){
     segField(b, [["1","Normal time"],["2","Twice as long"],["4","Until I click"]], () => String(prefs.notice), v => { prefs.notice = +v; savePrefs(); openEasyReading(); });
     checkField(b, "Read messages aloud", () => prefs.speak, v => { prefs.speak = v; savePrefs(); });
     checkField(b, "Less movement (no animations)", () => prefs.motion === "reduce", v => { prefs.motion = v ? "reduce" : "auto"; savePrefs(); applyPrefs(); });
+    b.insertAdjacentHTML("beforeend", `<h2>Colours</h2>`);
+    checkField(b, "A pattern on each filament, to tell them apart without colour", () => prefs.patterns, v => { prefs.patterns = v; savePrefs(); applyPrefs(); if (tab === "paint") renderTab(); });
+    note(b, "The first filament stays plain; the others get stripes, lines, dots, cross-hatching or checks, on the model and on the colour swatches.");
     buttonRow(b, [["🔊 Read this page aloud", () => { $("#modal").hidden = true; speakPage(); }], ["Back to normal", () => { prefs = Object.assign({}, PREFS_DEFAULT); savePrefs(); applyPrefs(); openEasyReading(); }]]);
     note(b, "Your browser's own zoom (Ctrl and +) makes everything bigger too, including the 3D view.");
   });
@@ -12057,7 +12208,7 @@ window.MakerForge = {
   printNow: runPrintability, optimize: optimizePrint, revertOptimize, exportParts,
   // the painter, for the tests: its tool settings, a repaint now, the last result, a model import and the zip
   paint: { ui: paintUI, repaint: () => repaint(true), changed: paintChanged, get info(){ return paintInfo; }, importModel: importModelFile, buildZip,
-    hit: paintHit, pick: paintPick, recolour: paintRecolour, colourAt, area: paintArea, previewTris, prepare: preparePaint, get previewCount(){ return previewCount; }, get prefs(){ return prefs; }, applyPrefs, findDefault, cleanPaint,
+    hit: paintHit, pick: paintPick, recolour: paintRecolour, colourAt, area: paintArea, previewTris, prepare: preparePaint, get previewCount(){ return previewCount; }, cleanPrinter, showLayerCut, get prefs(){ return prefs; }, applyPrefs, findDefault, cleanPaint,
     photo: { ai: { hooks: aiHooks, find: aiFindFigures, config: AI_FIGURE, state: aiState, sha256: sha256Hex, get: aiGet, mapOf: aiMapOf },
       add: addPaintPhotos, fit: photoFitView, colours: photoPickColours, setFilaments: photoSetFilaments, nearest: photoNearestFilaments, get op(){ return photoOpOf(); }, info: o => photoInfo.get(o), labels: photoLabels, colourWord } },
   phone: { spec: phoneSpec, get info(){ return phoneInfo; }, list: PHONES },

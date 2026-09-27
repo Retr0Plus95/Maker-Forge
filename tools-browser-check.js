@@ -426,6 +426,27 @@ function pageCoverage() {
     [fFront, fBack, fObj].forEach(f => fs.unlinkSync(f));
     notes.push(`colour from a photo: ${r.views.map(v => `${v.yaw}° (outline ${Math.round(v.match * 100)}%)`).join(" and ")}, ${r.colours} colours (${r.slots}), ${(r.painted * 100).toFixed(1)}% painted, ${ms} ms; a 30 px drag moved it ${dragged == null ? "–" : dragged.toFixed(1)} px`);
 
+    // ---------- Session 18: patterns for telling filaments apart, and one layer's colours ----------
+    {
+      const grab = () => page.screenshot({ clip: { x: 420, y: 150, width: 740, height: 680 } });
+      const plainShot = decodePNG(await grab());
+      await page.evaluate(() => { const MF = window.MakerForge; MF.paint.prefs.patterns = true; MF.paint.applyPrefs(); MF.render(); });
+      await page.waitForTimeout(400);
+      const patShot = decodePNG(await grab());
+      let diff = 0; for (let i = 0; i < plainShot.data.length; i += 4) if (Math.abs(plainShot.data[i] - patShot.data[i]) + Math.abs(plainShot.data[i + 1] - patShot.data[i + 1]) > 60) diff++;
+      await shot(page, "paint-patterns", "Easy reading: a pattern on each filament, to tell them apart without colour");
+      if (diff < 2000) findings.push({ where: "filament patterns", what: `switching patterns on changed only ${diff} pixels of the view` });
+      await page.evaluate(() => { const MF = window.MakerForge; MF.paint.prefs.patterns = false; MF.paint.applyPrefs(); MF.render(); });
+      await page.evaluate(() => { const b = [...document.querySelectorAll("#secrail button")].find(b => b.dataset.title === "Layers and colour changes"); if (b) b.click(); });
+      await page.waitForTimeout(200);
+      const lay = await page.evaluate(() => { const MF = window.MakerForge, L = MF.checks.layers; MF.paint.showLayerCut(true, 60); return L ? { changes: L.changes, busiest: L.busiest, text: (document.querySelector("#layerSum") || {}).textContent || "" } : null; });
+      await settle(page);
+      await shot(page, "paint-layers", "Paint tab: colour changes counted layer by layer, the model cut at 60 mm");
+      await page.evaluate(() => window.MakerForge.paint.showLayerCut(false));
+      if (!lay || !(lay.changes > 0) || !/colour change/.test(lay.text)) findings.push({ where: "layers page", what: JSON.stringify(lay) });
+      notes.push(`filament patterns changed ${diff} pixels of the view; the footballer needs about ${lay && lay.changes} colour changes (busiest layer: ${lay && lay.busiest} filaments)`);
+    }
+
     // ---------- the AI figure finder (Session 17): a photo in front of a bookshelf ----------
     const fShelf = path.join(OUT, "photo-shelf.png");
     fs.writeFileSync(fShelf, encodePNG(W, H, F.onShelfBackground(F.render(fig.solid, topo, cls, "front", { a: 6.3 / H, tx: 310 / H, ty: 760 / H, rot: 0.04, mirror: false }, W, H, 1), W, H, 11).rgba));

@@ -17,6 +17,24 @@ Four tabs in the top bar — **Make · Art · Colours · Export**. Down the left
 | **Colours** | Up to 8 slots with colour, name, material and price. Palette presets, colour matching, and a **printer library** (Bambu, Prusa, Creality, Elegoo, Anycubic, Voron) that sets bed size, nozzle, layer height and how many colours the machine can load. |
 | **Export** | Preflight checks (watertightness, bed fit, colour count vs printer, features thinner than the nozzle, thin colour layers, unused filaments), material in g/m/cost, rough print time, **colour swap heights** for single-filament printers, and the files themselves: zip with 3mf, coloured obj, per-filament STLs, a merged STL, notes and the project file. Projects save and reopen as `.json`, plus **batch export**: one keychain per name from a list. |
 
+### New in 0.19
+
+- **More ways to paint.** On the Paint tab's **Brush and fill** page:
+  - **Pick colour** (key I) takes a colour from the model.
+  - **Recolour** (key R) changes every part of one colour into another in one click.
+  - **Box or lasso** (key A) paints everything inside a box or a loop you draw over the model: the side you see, or right through.
+  - The brush **lights up what it will paint** before you press.
+  - **Repeat round the middle** copies every stroke 2 to 12 times round the model, for vases, mandalas and wheels.
+  - The **smart brush** stops at sharp edges, so painting a face does not spill round the corner.
+- **Edges and hollows.** A new automatic colour: ridges and edges in one filament and hollows in another, for worn paint, stone and wood.
+- **Pictures round a model.** The picture step can wrap a picture round the model like a label on a mug, or over it like a map on a globe.
+- **Layers and colour changes.** A new Paint page counts the colour changes in the print, layer by layer, and estimates the filament they flush away and the time they take. Your printer sets the figures (a tool changer wastes far less than an AMS), and you can change them. A slider cuts the model open at any layer to show its colours. A painted figure can easily need hundreds of changes; now you see it before you print.
+- **Patterns for colour.** Easy reading can put a pattern on each filament (stripes, lines, dots, hatching, checks) on the model and on the swatches, so filaments can be told apart without colour.
+
+| Box select on the vase | Patterns on each filament | Colour changes, layer by layer |
+| --- | --- | --- |
+| ![A gold square painted on a vase by dragging a box](docs/images/painter-box.jpg) | ![The footballer figure with a different pattern on each colour](docs/images/painter-patterns.jpg) | ![The Layers page with the figure cut at 60 mm](docs/images/painter-layers.jpg) |
+
 ### New in 0.18.1
 
 - **AI figure finder for busy backgrounds.** Colouring from a photo finds the figure by its colour against the background, which fails on a shelf, a desk or a patterned wall. On the photo card, **Busy background? Find the figure with AI** runs a small AI model (U²-Net, 4.6 MB) that marks the photo's main object, then lines the photo up from that. Nothing loads until you press it: then it downloads once (about 19 MB with its runtime, ONNX Runtime Web), every file is checked against its known fingerprint before it runs, and it works on your computer (your photos are not sent anywhere). Its result is saved with the project, so a reopened project colours the same without it. In tests with one front photo of a figure in front of a bookshelf, finding it by colour got 48 to 58% of the surface right; with the AI, 83 to 85% (87% on a plain background).

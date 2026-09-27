@@ -37,7 +37,12 @@ const LIBS = [
   [/three@[\d.]+\/examples\/js\/controls\/OrbitControls\.js/, "three/examples/js/controls/OrbitControls.js"],
   [/earcut@[\d.]+\/dist\/earcut\.min\.js/, "earcut/dist/earcut.min.js"],
   [/jszip@[\d.]+\/dist\/jszip\.min\.js/, "jszip/dist/jszip.min.js"],
+  // the AI figure finder (Session 17), only when it is asked for: the runtime, and the model from the repository
+  [/onnxruntime-web@[\d.]+\/dist\/ort\.wasm\.bundle\.min\.mjs/, "onnxruntime-web/dist/ort.wasm.bundle.min.mjs"],
+  [/onnxruntime-web@[\d.]+\/dist\/ort-wasm-simd-threaded\.wasm/, "onnxruntime-web/dist/ort-wasm-simd-threaded.wasm"],
+  [/gh\/Retr0Plus95\/Maker-Forge@[^/]+\/models\/u2netp\.onnx/, "../models/u2netp.onnx"],
 ];
+const TYPES = { js: "application/javascript", mjs: "application/javascript", wasm: "application/wasm", onnx: "application/octet-stream" };
 const env = process.env, ONLY = env.ONLY ? env.ONLY.split(",") : null;
 fs.mkdirSync(OUT, { recursive: true });
 for (const f of fs.readdirSync(OUT)) if (/\.(png|html|json)$/.test(f)) fs.unlinkSync(path.join(OUT, f));
@@ -124,17 +129,12 @@ function pageCoverage() {
     const page = await ctx.newPage();
     await page.route(/cdn\.jsdelivr\.net/, r => {
       const u = r.request().url(), l = LIBS.find(([re]) => re.test(u));
-      // fonts: the same @fontsource files, from the test dependencies (a missing one is a real 404)
-      const font = /\/npm\/@fontsource\/([a-z0-9-]+)@[\d.]+\/(files\/[a-z0-9-]+\.woff2)$/.exec(u);
-      if (font) {
-        const f = path.join(NM, "@fontsource", font[1], font[2]);
-        if (!fs.existsSync(f)) { errors.push(`${label}: font not found ${u}`); return r.fulfill({ status: 404, body: "" }); }
-        return r.fulfill({ status: 200, contentType: "font/woff2", headers: { "access-control-allow-origin": "*" }, body: fs.readFileSync(f) });
-      }
+      // the fonts are built into the page: a font download means one is missing from fonts/
+      if (/\/@fontsource\/|\.woff2?(\?|$)/.test(u)) { errors.push(`${label}: a font was downloaded ${u}`); return r.abort(); }
       if (!l) { errors.push(`${label}: unexpected CDN request ${u}`); return r.abort(); }
-      return r.fulfill({ status: 200, contentType: "application/javascript", headers: { "access-control-allow-origin": "*" }, body: fs.readFileSync(path.join(NM, l[1])) });
+      return r.fulfill({ status: 200, contentType: TYPES[l[1].split(".").pop()], headers: { "access-control-allow-origin": "*" }, body: fs.readFileSync(path.join(NM, l[1])) });
     });
-    // the app must not ask Google (or anyone but jsDelivr) for fonts any more
+    // nor ask Google (or anyone) for fonts
     await page.route(/fonts\.(googleapis|gstatic)\.com/, r => { errors.push(`${label}: Google Fonts request ${r.request().url()}`); return r.abort(); });
     page.on("pageerror", e => errors.push(`${label}: page error: ${e.message}`));
     page.on("console", m => { if (m.type() === "error") errors.push(`${label}: console: ${m.text()}`); });
@@ -176,16 +176,17 @@ function pageCoverage() {
   const page = await openPage({ width: 1440, height: 900 }, "desktop");
   if (env.THEME === "dark") await page.evaluate(() => { const MF = window.MakerForge; MF.state.view.theme = "dark"; document.documentElement.setAttribute("data-theme", "dark"); });
   await shot(page, "start", "Start: default name keychain", await modelInfo(page, "start"));
-  // every lettering font and the Easy reading font, from the jsDelivr @fontsource files (served locally here)
+  // every lettering font and the Easy reading font, built into the page
   {
     const f = await page.evaluate(async () => {
       const rules = [...document.getElementById("webFonts").sheet.cssRules];
       const faces = [...new Set(rules.map(r => `${r.style.fontWeight} 40px ${r.style.fontFamily}`))], bad = [];
       for (const k of faces) { try { if (!(await document.fonts.load(k, "AaZz")).length) bad.push(k); } catch (e) { bad.push(k); } }
-      return { n: faces.length, rules: rules.length, bad };
+      const inline = rules.every(r => /url\("?data:font\/woff2;base64,/.test(r.style.getPropertyValue("src")));
+      return { n: faces.length, rules: rules.length, bad, inline };
     });
-    if (f.bad.length || f.n < 36) findings.push({ where: "fonts", what: `${f.bad.length} of ${f.n} fonts did not load: ${f.bad.slice(0, 5).join(", ")}` });
-    notes.push(`fonts: ${f.n - f.bad.length} of ${f.n} font faces (${f.rules} alphabet rules) loaded from the jsDelivr @fontsource files`);
+    if (f.bad.length || f.n < 36 || !f.inline) findings.push({ where: "fonts", what: `${f.bad.length} of ${f.n} fonts did not load${f.inline ? "" : ", and not every font is built in"}: ${f.bad.slice(0, 5).join(", ")}` });
+    notes.push(`fonts: ${f.n - f.bad.length} of ${f.n} font faces (${f.rules} alphabet files) loaded, all built into the page`);
   }
   // drop the same two-colour badge the smoke test uses, through the Art tab's drop zone
   {
@@ -328,6 +329,27 @@ function pageCoverage() {
     const brushed = await page.evaluate(() => { const o = window.MakerForge.state.paint.ops; return { n:o.length, k:o[o.length - 1].k, pts:(o[o.length - 1].pts || []).length }; });
     await shot(page, "paint-brush", "Paint tab: height bands and a brush stroke made with the mouse");
     if (!(brushed.n === s.ops + 1 && brushed.k === "brush" && brushed.pts >= 3)) findings.push({ where:"paint brush", what:`dragging on the model left ${JSON.stringify(brushed)}` });
+    // Session 18: the brush preview under the pointer, then a box and a lasso drawn with the mouse
+    await page.mouse.move(s.x + 5, s.y - 20); await page.waitForTimeout(150); await page.mouse.move(s.x + 6, s.y - 22); await page.waitForTimeout(150);
+    const pv = await page.evaluate(() => window.MakerForge.paint.previewCount);
+    await shot(page, "paint-brush-preview", "Paint tab: the brush preview lights up what the brush will paint");
+    if (!(pv > 0)) findings.push({ where:"brush preview", what:`hovering with the brush lit up ${pv} triangles` });
+    const area = async (shape, pts) => {
+      await page.evaluate(sh => { const MF = window.MakerForge; MF.paint.ui.tool = "area"; MF.paint.ui.area = sh; MF.paint.ui.slot = 3; MF.render(); }, shape);
+      const n0 = await page.evaluate(() => window.MakerForge.state.paint.ops.length);
+      await page.mouse.move(pts[0][0], pts[0][1]); await page.mouse.down();
+      for (const q of pts.slice(1)) await page.mouse.move(q[0], q[1], { steps: 4 });
+      await page.mouse.up(); await settle(page);
+      return page.evaluate(n0 => { const MF = window.MakerForge, o = MF.state.paint.ops; let c = 0; MF.parts.forEach(p => p.paint && p.paint.forEach(v => { if (v === 3) c++; }));
+        return { added: o.length - n0, k: o.length ? o[o.length - 1].k : "", points: o.length ? (o[o.length - 1].poly || []).length : 0, painted: c }; }, n0);
+    };
+    const bx = await area("box", [[s.x - 60, s.y - 60], [s.x + 60, s.y + 40]]);
+    await shot(page, "paint-box", "Paint tab: a box drawn over the model paints the side you see");
+    const lz = await area("lasso", [[s.x - 40, s.y + 60], [s.x + 40, s.y + 70], [s.x + 50, s.y + 120], [s.x, s.y + 140], [s.x - 50, s.y + 110]]);
+    if (!(bx.added === 1 && bx.k === "area" && bx.points === 4 && bx.painted > 0)) findings.push({ where:"box select", what:JSON.stringify(bx) });
+    if (!(lz.added === 1 && lz.k === "area" && lz.points >= 5 && lz.painted > bx.painted)) findings.push({ where:"lasso select", what:JSON.stringify(lz) });
+    notes.push(`painter tools: the brush preview lit ${pv} triangles; a box painted ${bx.painted} triangles, then a lasso of ${lz.points} points took it to ${lz.painted}`);
+    await page.evaluate(() => { const MF = window.MakerForge; MF.paint.ui.tool = "brush"; MF.render(); });
     const exp = await page.evaluate(async () => {
       const MF = window.MakerForge, parts = MF.exportParts(), zip = await MF.paint.buildZip(parts, "vase"), u8 = await zip.file("model-bambu.3mf").async("uint8array");
       // the filament each triangle in the file prints in: its paint, or its part's own filament (a brim too)
@@ -348,6 +370,112 @@ function pageCoverage() {
     if (back.type !== "stl" || back.counts !== exp.counts) findings.push({ where:"painted 3mf", what:`exported ${exp.counts} (${exp.parts}), read back ${back.counts} (${back.type}: ${back.parts})` });
     await shot(page, "paint-reimported", "A painted Bambu 3mf opened again: the paint is kept");
     notes.push(`painter: a mouse stroke of ${brushed.pts} points; a painted 3mf read back ${back.counts === exp.counts ? "with every triangle's colour" : "DIFFERENT"}`);
+  }
+  // ---------- colour from a photo: a plain figure, then a photo of its front and one of its back (Session 16) ----------
+  {
+    require(path.join(__dirname, "src", "core.js"));
+    const PC = globalThis.PRCore, F = require("./tools-photo-figure.js")(PC);
+    const fig = F.figure(), topo = PC.meshTopology(fig.solid), cls = F.truth(topo, fig.partOf), W = 600, H = 800;
+    const photo = (cam, fit, seed, name) => { const r = F.render(fig.solid, topo, cls, cam, fit, W, H, seed), f = path.join(OUT, name); fs.writeFileSync(f, encodePNG(W, H, r.rgba)); return f; };
+    const fFront = photo("front", { a: 6.3 / H, tx: 310 / H, ty: 760 / H, rot: 0.04, mirror: false }, 1, "photo-front.png");
+    const fBack = photo("back", { a: 5.8 / H, tx: 290 / H, ty: 745 / H, rot: -0.03, mirror: false }, 2, "photo-back.png");
+    const raw = fig.raw, lines = [];
+    for (let i = 0; i < raw.pos.length; i += 3) lines.push(`v ${raw.pos[i]} ${-raw.pos[i + 2]} ${raw.pos[i + 1]}`);     // Z up, as printers have it
+    for (let i = 0; i < raw.idx.length; i += 3) lines.push(`f ${raw.idx[i] + 1} ${raw.idx[i + 1] + 1} ${raw.idx[i + 2] + 1}`);
+    const fObj = path.join(OUT, "footballer.obj"); fs.writeFileSync(fObj, lines.join("\n"));
+    // the badge from the Art tab would be laid on the figure as a decal: leave it out of this one
+    await page.evaluate(() => { const MF = window.MakerForge; MF.state.items.length = 0; MF.state.active = -1; MF.state.printer.colors = 6; const sel = document.querySelector("#objectSel"); sel.value = "stl"; });
+    await page.setInputFiles("#stlInput", fObj);
+    await page.waitForFunction(() => /^footballer\.obj/.test((window.MakerForge.state.base.stl || {}).name || ""), null, { timeout: 180000 }).catch(() => {});
+    await settle(page);
+    await page.evaluate(async () => {
+      [...document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "paint").click(); await new Promise(r => setTimeout(r, 100));
+      const b = [...document.querySelectorAll("#secrail button")].find(b => b.dataset.title === "Auto colour"); if (b) b.click();
+    });
+    const t0 = Date.now();
+    await page.setInputFiles("#photoInput", [fFront, fBack]);
+    await page.waitForFunction(() => { const MF = window.MakerForge, o = MF.paint.photo.op; return o && o.views.length === 2 && MF.paint.photo.info(o) && !MF.busy; }, null, { timeout: 240000 }).catch(() => {});
+    await settle(page);
+    const ms = Date.now() - t0;
+    const r = await page.evaluate(() => {
+      const MF = window.MakerForge, o = MF.paint.photo.op, p = MF.parts[0], cv = document.querySelector("canvas.photoPrev");
+      let yellow = 0; if (cv){ const d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data; for (let i = 0; i < d.length; i += 4) if (d[i] === 255 && d[i + 1] === 214 && d[i + 2] === 0) yellow++; }
+      const b = cv && cv.getBoundingClientRect();
+      return { views: o ? o.views.map(v => ({ yaw: v.cam.yaw, match: v.match })) : [], colours: o ? o.pal.length : 0, slots: MF.state.slots.map(s => s.name).join(", "),
+        painted: p && p.paint ? p.paint.filter(s => s !== 255).length / p.paint.length : 0, yellow, box: b && { x: b.left + b.width / 2, y: b.top + b.height / 2, h: b.height }, tx: o && o.views[MF.paint.ui.photo].fit.tx };
+    });
+    await page.evaluate(() => document.querySelector("canvas.photoPrev") && document.querySelector("canvas.photoPrev").scrollIntoView({ block: "center" }));
+    await shot(page, "paint-photo", "Paint tab: a plain figure coloured from a photo of its front and one of its back", await modelInfo(page, "paint from a photo"));
+    const ok = r.views.length === 2 && r.views.every(v => v.match > 0.8) && Math.abs(r.views[0].yaw) <= 10 && Math.abs(Math.abs(r.views[1].yaw) - 180) <= 10 && r.colours === 6 && r.painted > 0.999 && r.yellow > 200;
+    if (!ok) findings.push({ where: "paint from a photo", what: `after two photos: ${JSON.stringify(r)}` });
+    // drag the photo with the mouse, then look at the colours it reads
+    let dragged = null;
+    if (r.box){
+      const b = await page.evaluate(() => { const b = document.querySelector("canvas.photoPrev").getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2, h: b.height }; });
+      const tx0 = await page.evaluate(() => { const MF = window.MakerForge, o = MF.paint.photo.op; return o.views[MF.paint.ui.photo].fit.tx; });
+      await page.mouse.move(b.x, b.y); await page.mouse.down(); for (let i = 1; i <= 6; i++) await page.mouse.move(b.x + i * 5, b.y); await page.mouse.up();
+      const tx1 = await page.evaluate(() => { const MF = window.MakerForge, o = MF.paint.photo.op; return o.views[MF.paint.ui.photo].fit.tx; });
+      dragged = (tx1 - tx0) * b.h;
+      if (Math.abs(dragged - 30) > 3) findings.push({ where: "paint from a photo", what: `dragging the preview 30 px moved the photo ${dragged.toFixed(1)} px` });
+      await page.evaluate(tx => { const MF = window.MakerForge, o = MF.paint.photo.op; o.views[MF.paint.ui.photo].fit.tx = tx; }, tx0);
+      await page.evaluate(() => { const b = [...document.querySelectorAll("#panel .seg.show button")].find(b => b.dataset.k === "colours"); if (b) b.click(); });
+      await settle(page);
+      await shot(page, "paint-photo-colours", "Paint tab: the colours read from the photo, each in the filament it prints in");
+      await page.evaluate(() => { const b = [...document.querySelectorAll("#panel .seg.show button")].find(b => b.dataset.k === "photo"); if (b) b.click(); });
+    }
+    [fFront, fBack, fObj].forEach(f => fs.unlinkSync(f));
+    notes.push(`colour from a photo: ${r.views.map(v => `${v.yaw}° (outline ${Math.round(v.match * 100)}%)`).join(" and ")}, ${r.colours} colours (${r.slots}), ${(r.painted * 100).toFixed(1)}% painted, ${ms} ms; a 30 px drag moved it ${dragged == null ? "–" : dragged.toFixed(1)} px`);
+
+    // ---------- Session 18: patterns for telling filaments apart, and one layer's colours ----------
+    {
+      const grab = () => page.screenshot({ clip: { x: 420, y: 150, width: 740, height: 680 } });
+      const plainShot = decodePNG(await grab());
+      await page.evaluate(() => { const MF = window.MakerForge; MF.paint.prefs.patterns = true; MF.paint.applyPrefs(); MF.render(); });
+      await page.waitForTimeout(400);
+      const patShot = decodePNG(await grab());
+      let diff = 0; for (let i = 0; i < plainShot.data.length; i += 4) if (Math.abs(plainShot.data[i] - patShot.data[i]) + Math.abs(plainShot.data[i + 1] - patShot.data[i + 1]) > 60) diff++;
+      await shot(page, "paint-patterns", "Easy reading: a pattern on each filament, to tell them apart without colour");
+      if (diff < 2000) findings.push({ where: "filament patterns", what: `switching patterns on changed only ${diff} pixels of the view` });
+      await page.evaluate(() => { const MF = window.MakerForge; MF.paint.prefs.patterns = false; MF.paint.applyPrefs(); MF.render(); });
+      await page.evaluate(() => { const b = [...document.querySelectorAll("#secrail button")].find(b => b.dataset.title === "Layers and colour changes"); if (b) b.click(); });
+      await page.waitForTimeout(200);
+      const lay = await page.evaluate(() => { const MF = window.MakerForge, L = MF.checks.layers; MF.paint.showLayerCut(true, 60); return L ? { changes: L.changes, busiest: L.busiest, text: (document.querySelector("#layerSum") || {}).textContent || "" } : null; });
+      await settle(page);
+      await shot(page, "paint-layers", "Paint tab: colour changes counted layer by layer, the model cut at 60 mm");
+      await page.evaluate(() => window.MakerForge.paint.showLayerCut(false));
+      if (!lay || !(lay.changes > 0) || !/colour change/.test(lay.text)) findings.push({ where: "layers page", what: JSON.stringify(lay) });
+      notes.push(`filament patterns changed ${diff} pixels of the view; the footballer needs about ${lay && lay.changes} colour changes (busiest layer: ${lay && lay.busiest} filaments)`);
+    }
+
+    // ---------- the AI figure finder (Session 17): a photo in front of a bookshelf ----------
+    const fShelf = path.join(OUT, "photo-shelf.png");
+    fs.writeFileSync(fShelf, encodePNG(W, H, F.onShelfBackground(F.render(fig.solid, topo, cls, "front", { a: 6.3 / H, tx: 310 / H, ty: 760 / H, rot: 0.04, mirror: false }, W, H, 1), W, H, 11).rgba));
+    await page.evaluate(() => { const MF = window.MakerForge; MF.state.paint.ops.length = 0; MF.paint.repaint(); });
+    await page.setInputFiles("#photoInput", fShelf);
+    await page.waitForFunction(() => { const o = window.MakerForge.paint.photo.op; return o && o.views.length === 1 && window.MakerForge.paint.photo.info(o); }, null, { timeout: 240000 }).catch(() => {});
+    await settle(page);
+    const aiClick = () => page.evaluate(() => { const b = [...document.querySelectorAll("#panel button")].find(b => /Find the figure with AI/.test(b.textContent)); if (b) b.click(); return !!b; });
+    const aiIdle = () => page.waitForFunction(() => !/Downloading|Starting|Finding|Lining|Colouring/.test(document.querySelector("#statusLine").textContent), null, { timeout: 240000 }).catch(() => {});
+    // a model file that is not the right one is refused before it runs
+    const bad = r2 => r2.fulfill({ status: 200, contentType: "application/octet-stream", headers: { "access-control-allow-origin": "*" }, body: Buffer.from("not the model") });
+    await page.route(/gh\/Retr0Plus95\/Maker-Forge@[^/]+\/models\/u2netp\.onnx/, bad);
+    const clicked = await aiClick(); await page.waitForTimeout(500); await aiIdle();
+    const refused = await page.evaluate(() => ({ ai: !!window.MakerForge.paint.photo.op.views[0].ai, notice: document.querySelector("#notice").textContent }));
+    await page.unroute(/gh\/Retr0Plus95\/Maker-Forge@[^/]+\/models\/u2netp\.onnx/, bad);
+    if (!clicked || refused.ai || !/was not the one it should be/.test(refused.notice)) findings.push({ where: "AI figure finder", what: `a wrong model file was not refused: ${JSON.stringify(refused)}` });
+    // the real one: downloaded, checked, run in the browser
+    const t1 = Date.now(); await aiClick(); await page.waitForTimeout(500);
+    await page.waitForFunction(() => { const MF = window.MakerForge, v = MF.paint.photo.op.views[0]; return v.ai && MF.paint.photo.info(MF.paint.photo.op); }, null, { timeout: 240000 }).catch(() => {});
+    await aiIdle(); await settle(page); const aiMs = Date.now() - t1;
+    const ai = await page.evaluate(() => { const MF = window.MakerForge, v = MF.paint.photo.op.views[0], p = MF.parts[0];
+      return { ai: !!(v.ai && MF.paint.photo.ai.mapOf(v.ai)), match: v.match, yaw: v.cam.yaw, a: v.fit && v.fit.a, painted: p.paint ? p.paint.filter(s => s !== 255).length / p.paint.length : 0,
+        ready: !!MF.paint.photo.ai.state.session, text: document.querySelector("#panel").textContent.includes("AI figure finder found the figure") }; });
+    const sizeOff = ai.a ? Math.abs(ai.a / (6.3 / H) - 1) : 9;
+    await page.evaluate(() => document.querySelector("canvas.photoPrev") && document.querySelector("canvas.photoPrev").scrollIntoView({ block: "center" }));
+    await shot(page, "paint-photo-ai", "Paint tab: a photo in front of a bookshelf, the figure found by the AI figure finder");
+    if (!(ai.ai && ai.ready && ai.text && ai.match > 0.75 && Math.abs(ai.yaw) <= 10 && sizeOff < 0.03 && ai.painted > 0.999)) findings.push({ where: "AI figure finder", what: JSON.stringify(ai) });
+    fs.unlinkSync(fShelf);
+    notes.push(`AI figure finder: a wrong model file ${refused.ai ? "WAS NOT" : "was"} refused; the real one found the figure in ${aiMs} ms with the download (outline ${Math.round(ai.match * 100)}%, ${ai.yaw}° round, size off ${(sizeOff * 100).toFixed(1)}%)`);
   }
   await page.context().close();
 

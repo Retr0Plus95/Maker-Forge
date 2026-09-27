@@ -1,131 +1,159 @@
-# Maker Forge
+# Maker Forge: free multi-colour 3D print designer in your browser
 
-A browser-based studio for designing **multi-colour 3D prints** from photos, logos and names, and exporting them ready to slice.
+**Turn names, photos and logos into multi-colour (multi-color) 3D prints.** Keychains and name tags, iron-on patches, car badges, Christmas ornaments, phone cases, lithophanes and lithophane lamps, jigsaw puzzles, cookie cutters, lightboxes, circuit-board art, plastic canvas pixel art, bobble heads, project boxes and electronics enclosures, and more. Paint any STL, OBJ or 3MF model in up to eight colours. Export a **3MF ready for Bambu Studio, OrcaSlicer and PrusaSlicer**, with every colour already assigned for an AMS, MMU3, CFS or ACE, plus STL and OBJ files.
 
-Everything runs locally in the browser. No account, no uploads, no server: your images and models never leave the machine. (The page does load its libraries and fonts from jsDelivr, a public CDN, so that one service sees that it was opened. No Google Fonts, no analytics.) One HTML file, no build toolchain, MIT licensed.
+Free and open source (MIT). One HTML file: no install, no account, no uploads. It runs on your own computer, even offline.
 
----
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-2a9d8f)](LICENSE)
+[![Version 0.20](https://img.shields.io/badge/version-0.20-1f6f8b)](CHANGELOG.md)
+[![Runs in the browser](https://img.shields.io/badge/runs%20in-your%20browser-e9c46a)](#get-started-in-a-minute)
+[![Exports 3MF, STL, OBJ](https://img.shields.io/badge/exports-3MF%20·%20STL%20·%20OBJ-d1495b)](#printers-and-slicers)
 
-## What it does
+**[Get started](#get-started-in-a-minute)** · **[User manual](MANUAL.md)** · **[What's new](CHANGELOG.md)** · **[Examples](#what-you-can-make)** · **[FAQ](#questions)**
 
-Four tabs in the top bar — **Make · Art · Colours · Export**. Down the left edge, a rail of small icons: one per group of settings in the current tab. Clicking an icon opens a short pop-up panel with just those sliders plus a line of instructions; clicking it again closes the panel. The model fills the middle, and a **Start from** sidebar on the right groups every object and preset. A progress bar and an activity log show what the app is doing. Each tab has the everyday controls in view and the fussy ones tucked into collapsible groups. A status bar along the bottom always shows whether the model is ready, how much filament it needs and roughly how long it takes.
-
-| Tab | What lives there |
-| --- | --- |
-| **Make** | Eleven generators and shapes: flat shapes, the **name plate & keychain** generator (34 fonts previewed live, emoji and symbol charms on either or both sides, a picture beside the name, double-sided, engraved or raised), **plastic canvas / mosaic** panels, **bobble heads with printed spring necks**, **lightboxes and layered shadow boxes**, **circuit-board art from a schematic screenshot**, **cookie cutters traced from artwork**, **turned shapes** (vase, egg, cone, dome, ring), photo frames, tea light holders, plaques, cylinders, hex prisms, spheres, or your own STL. Preset buttons set up a product in one click. |
-| **Art** | Photos, logos and text placed on any object, front **or back**. Colour separation, crisp outline tracing, photo relief and lithophanes, pixel/cross-stitch snapping, halo outlines, brightness/contrast/saturation, rotate, trim, background drop, split-view preview with zoom. |
-| **Colours** | Up to 8 slots with colour, name, material and price. Palette presets, colour matching, and a **printer library** (Bambu, Prusa, Creality, Elegoo, Anycubic, Voron) that sets bed size, nozzle, layer height and how many colours the machine can load. |
-| **Export** | Preflight checks (watertightness, bed fit, colour count vs printer, features thinner than the nozzle, thin colour layers, unused filaments), material in g/m/cost, rough print time, **colour swap heights** for single-filament printers, and the files themselves: zip with 3mf, coloured obj, per-filament STLs, a merged STL, notes and the project file. Projects save and reopen as `.json`, plus **batch export**: one keychain per name from a list. |
-
-### New in 0.17
-
-- **Colour painter.** A new **Paint** tab colours any model, made here or imported, in up to eight filaments: **height bands** cut straight into the mesh, a **colour fade** between two filaments layer by layer, **stripes**, **tops and sides**, **separate pieces**, **smooth areas** split at sharp edges, a **picture projected** through the model, **random blobs**, or by hand with a **brush, fill and eraser** (mirror strokes for symmetrical models, keys 1 to 8 for colours). Painting follows the model when a setting changes. The paint goes into the 3mf files as slicer paint (`paint_color` for Bambu Studio and OrcaSlicer, `mmu_segmentation` for PrusaSlicer), so there is nothing to paint again in the slicer.
-- **Import STL, OBJ and 3MF.** 3mf files from Bambu Studio, OrcaSlicer and PrusaSlicer keep their painting, the filament each part prints in, and the filament colours, so a model painted elsewhere can be repainted here.
-- **Phone cases** for 75 phones, from the iPhone SE to the iPhone 18 Pro Max and Galaxy S26 Ultra (sizes from the makers' spec sheets): a snug TPU case or a bumper, a quick **fit test rim**, holes for the buttons and the port, a camera opening, a lip that prints without support, and a picture inlaid in the back in several colours.
-- **39 printers**, grouped by maker, including the Bambu X2D, H2S, H2C and P2S, Prusa CORE One, Creality K2, Elegoo Centauri Carbon, Snapmaker U1 and more. Your printer is remembered for every new project.
-- **Easy reading.** The **Aa** button makes text and buttons bigger (up to 175%), switches on high contrast, uses a font drawn for low vision (Atkinson Hyperlegible), keeps messages up longer and can read them aloud; 🔊 reads the open page aloud. Every slider has a **↺ default** button and every page a **Reset this page** button.
-- **Project boxes:** round holes are round again (pointed tops are an option), and choosing a fan, display or board bigger than the box makes the box grow to fit instead of quietly leaving it out.
-- **Pilot lights** wherever an LED goes: a printed **jewel lens** for a plain 3 or 5 mm LED (print it in a clear or coloured see-through filament), or holes sized for bought chrome-bezel LED holders and metal pilot lights from 8 to 22 mm.
-- Fixed: reopening a saved project quietly changed four settings (charm size, picture size, artwork outline width and the plastic canvas pixel count).
-
-| Colour fade and stripes on the Paint tab | Brush with mirrored strokes |
-| --- | --- |
-| ![A vase fading from navy to orange with white stripes](docs/images/painter-fade.jpg) | ![A sphere in height bands with mirrored brush strokes](docs/images/painter-brush.jpg) |
-| **Phone case** for an iPhone 17 Pro | **A picture inlaid in the case's back** |
-| ![A phone case with button and port openings](docs/images/phone-case.jpg) | ![The case turned over, a star inlaid in two colours](docs/images/phone-case-back.jpg) |
-| **39 printers**, your Bambu X2D remembered | **Easy reading:** bigger text, high contrast, clear letters |
-| ![The printer picker grouped by maker](docs/images/printers.jpg) | ![The app at 130% with high contrast](docs/images/easy-reading.jpg) |
-| **A PSU box with a 120 mm fan**: round grille, the box grew to fit | **Pilot lights** with printed jewel lenses |
-| ![A PSU box with a round 120 mm fan grille](docs/images/psu-box-fan.jpg) | ![Four red jewel lenses in front of the power bank box](docs/images/pilot-lights.jpg) |
-
-### New in 0.16
-
-- **Project boxes grew up.** Engraved labels beside any opening ("USB-C", "ON/OFF", "12V"), magnet lids, a sliding lid on 45° rails, stick-on-foot recesses, ports that open to the top edge so the lid closes them, pointed tops for wide ports, your logo inlaid into the lid in its own colours, and a **fit test**: a small box with your walls, lid, screws and one of each opening, to try before the real print. The stock boxes now print without support.
-- **Tracer:** SVG logos are drawn sharp and keep the size stated in the file; hairlines can be thickened to a printable width; multi-colour logos keep their colours on a body in your main filament; back plates get a hanging hole, a keychain loop or countersunk screw holes placed clear of the shape.
-- **Name plates from a list:** paste names (or a spreadsheet column) and each gets its own plate, packed onto the bed.
-- **Measure and look inside:** a measuring tape that snaps to corners, a section view that cuts the model at any height, and rulers in inches when you work in inches.
-- **Share a link** that opens the same design for someone else (pictures stay on your machine).
-- **Lithophane test strip:** steps from 0.6 to 3.2 mm, numbered, to choose thicknesses for your filament.
-- **Checked in a real browser:** `npm run check:browser` opens the app in Chromium and walks every object and page. It found and fixed a name plate bug that only real fonts showed: plates with charms were clipped and printed with holes under the letters.
-
-### Highlights
-
-- **Photo to 3D tracer.** Photograph a flat part on paper, give one real measurement, and get a printable replacement. Background removal or an automatic (Otsu) threshold separates the part; cleanup closes nicks and drops specks; round-ish holes are detected by circularity and replaced with true circles snapped to a sensible diameter plus a clearance for bolts. Scale either from one ruler measurement, or from **the sheet of paper under the part**: the sheet is detected, straightened with a perspective correction, and used as the ruler, so the photo can be taken at an angle. A hand brush adds or erases bits of the trace, and the outline exports as **SVG and DXF** at true scale for Inkscape, laser cutters, Fusion, FreeCAD or LibreCAD. On a synthetic 60 × 30 mm bracket photographed straight on it recovered exactly 60.00 × 30.00 mm; photographed at an angle on A4 with no measurement typed, 60.57 × 30.88 mm, with 8 mm and 5 mm holes measured at 7.93 and 4.92 mm.
-- **Sub-pixel outline tracing.** Contours come from marching squares with linear interpolation over a scalar field, not from a binary pixel mask. Letters are traced from the font's own anti-aliased coverage, and plates from a signed distance field, so offsets are smooth at any distance. Measured on a test ring: edge wobble fell from ±0.053 mm to ±0.005 mm while using a quarter of the points.
-- **Outline tracing instead of pixel blocks.** Colour regions are traced with marching squares, smoothed, simplified with Douglas-Peucker, then triangulated with earcut. Logos keep round curves and sharp corners, and meshes are roughly ten times lighter than a voxel-style approach.
-- **Name plates that follow the name.** The plate is a true distance-field offset of the rendered glyphs, so it hugs the letters. Widen the border until the letters merge into one piece; a "bridge gaps" control closes near-touching letters without fattening the plate.
-- **Lightboxes.** A photo becomes either a backlit panel (white diffuser plus colour zones, where darker filaments print thicker and block more light) or a layered shadow box of stacked plates with growing cut-outs. Both come with a frame, a slotted stand and a channel for an LED strip.
-- **Schematics become circuit boards.** Drop in a screenshot of a schematic or a PCB layout and the dark lines are thresholded, thickened to a printable width and raised as copper on a solder-mask coloured plate, with mounting holes, edge fingers and an optional hatched ground pour that keeps clear of the traces. Small marks and labels can be split off into a silkscreen colour by connected-component size.
-- **Hearts instead of dots.** Connected-component analysis finds the dots on `i` and `j` in any font, removes them and drops in a heart, star, flower or round dot.
-- **Drapes onto curved surfaces.** Artwork is projected onto the object's real geometry, with conforming subdivision so a logo follows a cylinder or sphere without T-junctions.
-- **Every part is a closed solid.** Top surface, bottom surface and walls generated from the actual boundary edges, so slicers do not need to repair anything.
-- **Double-sided pieces.** A name plate can carry a mirrored copy of the name underneath, so a tag reads correctly from either side, and any artwork can be placed on the back face of a flat object.
-- **Turned parts without CSG.** A closed-loop lathe builds spheres with bores, hollow vases and rings as single watertight meshes, which is how the bobble head gets its socket.
-- **Undo/redo, autosave, project files.** `Ctrl+Z` / `Ctrl+Shift+Z`, arrow keys nudge artwork, `Delete` removes it, `Ctrl+S` saves, and the last session restores automatically.
+![Maker Forge with the iron-on patch example: the settings on the left, the 3D preview in the middle and the Start from sidebar on the right](docs/manual/overview.jpg)
 
 ---
 
-## Running it
+## What you can make
 
-Open `index.html` in a browser. That is the whole install.
+Every button in the **Start from** sidebar opens with a finished example, so you can see what it makes before you add anything. Drop in your own picture and it takes the example's place.
 
-To hack on it:
+![Eighteen examples: a mountain patch, a winged car badge, a phone case with a retro sunset, a hot-air balloon jigsaw, an LED-heart circuit board, a bobble head, a Christmas ornament, a pixel cat on plastic canvas, a lighthouse lithophane, a sunset lightbox, a honey-bee coaster, a contour-map plaque, a whale puzzle, a forest tea light, a painted vase, a painted planet, a project box with a logo and a cactus pot](docs/images/examples-gallery.jpg)
+
+| Make | From | Good to know |
+| --- | --- | --- |
+| **Name keychains, name tags, bag tags** | A name, with charms (♥ ★ any emoji) and a small picture | 34 fonts, raised or engraved letters, double-sided tags, one keychain per name from a list |
+| **Iron-on and sew-on patches** | A logo or drawing | Thin and flexible in TPU |
+| **Car and bike badges** | A logo | Long badge shape; ASA or PETG |
+| **Christmas ornaments and baubles** | A picture | Round, star or heart, with a hanging hole |
+| **Phone cases** | A picture inlaid in the back | 75 phones, iPhone SE to iPhone 18 Pro Max, Galaxy S26, Pixel 11; fit test rim; TPU |
+| **Lithophanes and lithophane lamps** | A photo | Flat, curved or cylinder for an LED tea light; test strip |
+| **Jigsaw puzzles and kids' puzzles** | A picture | Prints assembled in one go; frame or tray; shuffle the cut |
+| **Cookie cutters** | A silhouette | Follows the picture's outline |
+| **Lightboxes and paper-cut shadow boxes** | A photo | Backlit colour panel or stacked layers, frame, stand, LED channel |
+| **Circuit-board art (PCB look)** | A schematic or PCB screenshot | Raised copper on solder mask, mounting holes, edge fingers |
+| **Plastic canvas, mosaics, pixel art** | A small picture | One square per stitch |
+| **Bobble heads** | A face | Printed spring neck |
+| **Tea lights and lanterns** | A silhouette or a photo | LED only |
+| **Photo frames, plaques, coasters, cylinders, spheres, vases** | A picture, or paint | Turned shapes: vase, egg, cone, dome, ring |
+| **Project boxes and electronics enclosures** | Openings and a lid logo | USB-C, buttons, switches, fans, displays, pilot lights, labels; Raspberry Pi case, power bank box, PSU box; fit test |
+| **Replacement parts from a photo** | A photo of a flat part on paper | Photo to 3D tracer, true circles for holes, SVG and DXF outlines |
+| **Your own model, painted** | An STL, OBJ or 3MF | Up to 8 colours, by hand, automatically or from a photo |
+
+---
+
+## Why Maker Forge
+
+- **Multi-colour without painting in the slicer.** Every colour of your picture becomes its own part, assigned to its own filament, so the 3MF opens in Bambu Studio, OrcaSlicer or PrusaSlicer ready to print on an AMS, AMS lite, MMU3, CFS or ACE. One-colour printers get a list of heights at which to swap filament.
+- **Printer-aware checks.** Choose your printer (39 models) and the app checks that the design fits the bed, uses no more colours than the printer loads, has no walls thinner than the nozzle and needs no surprise supports. It estimates grams, cost and time, including the filament flushed at every colour change.
+- **Photo to 3D.** Trace a real part from a photo, turn a photo into a lithophane or a relief, or colour a 3D model from a photo of the real thing (with an optional small AI model that finds the figure on a busy background).
+- **Private.** Nothing is uploaded, ever. No account, no tracking, no adverts.
+- **Easy to read.** Bigger text up to 175%, high contrast, a font made for low vision, messages read aloud, and patterns that tell filaments apart without colour.
+
+---
+
+## Screenshots
+
+| Start from: every button shows its example | Art: your picture split into your filaments |
+| --- | --- |
+| ![The Start from sidebar with a 3D picture on every button](docs/manual/start-sidebar.jpg) | ![The Art tab with the mountain patch split into navy, cream, marigold and teal](docs/manual/art-tab.jpg) |
+| **Phone case** with a picture inlaid in the back | **Paint** any model: a fade, stripes and bands |
+| ![A phone case turned over to show a retro sunset inlaid in its back](docs/images/phone-case-example.jpg) | ![The Paint tab with a vase painted in teal, gold and apricot](docs/manual/paint-tab.jpg) |
+| **Trace a part** from a photo on paper | **Lightbox** with a backlit colour panel, frame and stand |
+| ![A bracket traced from a photo, with its holes found](docs/images/tracer-example.jpg) | ![A sunset lightbox laid out as it prints, fitting a 256 mm bed](docs/images/lightbox-example.jpg) |
+| **Colours**: the filaments you have loaded | **Export**: checks, material, time and files |
+| ![The Colours tab with four filaments for the jigsaw](docs/manual/colours-tab.jpg) | ![The Export tab with the car badge ready to print](docs/manual/export-tab.jpg) |
+| **The user manual**, built in (press ?) | **Easy reading**: bigger text and high contrast |
+| ![The user manual window inside the app](docs/manual/help.jpg) | ![The app at 130% text size with high contrast](docs/images/easy-reading.jpg) |
+
+More pictures of the painter, phone cases, project boxes and printers are in [What's new](CHANGELOG.md).
+
+---
+
+## Get started in a minute
+
+1. **Get the app.** Download [`index.html`](index.html) (on GitHub: open it, then **Download raw file**), or clone this repository. Open it in Chrome, Edge, Firefox or Safari. That is the whole install.
+2. **Pick something** under **Start from**: a keychain, a patch, a puzzle, a phone case. A finished example appears.
+3. **Add your picture** on the **Art** tab. It takes the example's place.
+4. **Choose your printer** and set your filament colours on the **Colours** tab.
+5. **Download files** on the **Export** tab and open the 3MF in your slicer.
+
+The [user manual](MANUAL.md) walks through every tab, tool and setting, with printing tips and answers to common problems. The same manual is inside the app behind the **?** button.
+
+---
+
+## Printers and slicers
+
+**Slicers:** Bambu Studio, OrcaSlicer and PrusaSlicer open the 3MF with every part on its own filament; painted models keep their paint (`paint_color` and `mmu_segmentation`). Any slicer can use the STL per colour or the coloured OBJ.
+
+**Printers (39):** Bambu Lab A1 mini, A1, P1P, P1S, X1C, X1E, P2S, X2D, H2S, H2D and H2C (AMS, AMS lite, AMS 2 Pro); Prusa MK3S+, MK4, MK4S, CORE One, CORE One L, XL and MINI (MMU3); Creality Ender 3, K1, K1C, K1 Max, Hi Combo and K2 (CFS); Elegoo Neptune 4 and Centauri Carbon; Anycubic Kobra 2, Kobra 3 Combo and Kobra S1 Combo (ACE Pro); Qidi Q2 and Plus4; Snapmaker U1; Flashforge AD5X; Sovol SV08; Voron 2.4; and a custom profile. Each sets the bed size, nozzle, layer height, how many colours it loads and what a colour change costs.
+
+**Files:** 3MF (two flavours: Bambu, and PrusaSlicer / OrcaSlicer), STL per filament, merged STL, coloured OBJ, SVG and DXF outlines from the tracer, the project file (JSON) and a share link.
+
+---
+
+## Questions
+
+**Is it free?** Yes. Maker Forge is free and open source under the MIT licence, with no account and no paid tier.
+
+**Do I need to install anything?** No. It is one HTML file that runs in your web browser, on Windows, macOS, Linux and ChromeOS. It works offline once the page has loaded its three small code libraries.
+
+**Are my photos uploaded?** No. Everything happens on your computer. The optional AI figure finder downloads its model once when you ask for it, and runs on your computer too.
+
+**How do I make a multi-colour keychain for a Bambu Lab AMS?** Click **Name keychain**, type the name, choose your Bambu printer on the Colours tab, and download the files. Open `model-bambu.3mf` in Bambu Studio: each colour is already on its own AMS slot.
+
+**Can I turn an image or logo into an STL or 3MF?** Yes. Add a PNG, JPG, SVG or WebP on the Art tab: its colours become separate parts on any object, or the picture becomes a cookie cutter, a lithophane, a jigsaw, a lightbox or a traced part.
+
+**Can I colour an existing STL?** Yes. Import an STL, OBJ or 3MF and paint it on the Paint tab, by hand, automatically, or from a photo of the real object. 3MF files painted in Bambu Studio, OrcaSlicer or PrusaSlicer keep their paint.
+
+**My printer only has one extruder.** Choose it on the Colours tab: the Export tab lists the layer heights at which to pause and swap filament.
+
+**Can I use the example pictures?** Yes. They were drawn for Maker Forge and are MIT licensed like the rest of the app.
+
+---
+
+## For developers
+
+Maker Forge is plain JavaScript with no framework and no build toolchain beyond one small Python script.
 
 ```bash
-git clone <your-fork>
-cd maker-forge
-python3 build.py      # inlines src/core.js into src/app.html -> index.html
+git clone https://github.com/Retr0Plus95/Maker-Forge.git
+cd Maker-Forge
+npm install          # test dependencies only
+python3 build.py     # packs src/core.js, src/examples.js, the fonts, the manual and the Start pictures into index.html
 ```
 
-The test rigs run the real app headlessly in jsdom with a software canvas:
+| Path | What it is |
+| --- | --- |
+| `src/core.js` | The geometry library (no DOM, runs in Node): tracing, offsets, triangulation, closed solids, painting, 3MF/STL/OBJ writers |
+| `src/app.html` | The interface, the object generators and the exports |
+| `src/examples.js` | The example pictures (drawn in code) and which Start button opens which |
+| `MANUAL.md` | The user manual, also built into the app |
+| `tools-*.js` | Headless tests (jsdom and a software canvas), a real-browser check (Playwright), and the tools that render the Start pictures and the screenshots |
+| `HANDOFF.md` | Architecture notes, known issues and the history of every session |
+
+Tests (see [CLAUDE.md](CLAUDE.md) for which to run after which change):
 
 ```bash
-npm install                                      # test dependencies only: jsdom, three, earcut, jszip
-node tools-smoke-test.js index.html              # clicks every tab, button and export path
-node tools-audit.js index.html nameplate,board   # sweeps controls to their extremes
-node tools-audit.js index.html board art         # sweeps the artwork controls
-npm run test:tracer                              # traced parts measured against known sizes
-npm run test:print                               # printability checks on shapes with known answers
-npm run test:enclosure                           # project boxes: sizes, openings, lids, labels, hostile files
-npm run test:paint                               # the colour painter: mesh splitting, paint steps, 3mf paint in and out
-npm run test:phonecase                           # every phone in the list, openings, the lip, hostile files
+node tools-smoke-test.js index.html              # every tab, button, quick start and export
+node tools-audit.js index.html                   # every control to both ends; flags controls that change nothing
+npm run test:project                             # saved projects come back unchanged; hostile files are tamed
+npm run test:paint && npm run test:photo         # the colour painter and colour from a photo
+npm run test:enclosure && npm run test:phonecase # project boxes and phone cases
 npm run test:jigsaw && npm run test:litho        # puzzles and lithophanes
-npm run test:size                                # on-screen size = exported size, in every format
-npm run survey:print                             # what the printability check says about every object
+npm run test:tracer && npm run test:print        # traced parts against known sizes; printability
+npm run check:browser                            # the real app in Chromium: layout, fonts, errors, screenshots
+node tools-thumbs.js index.html                  # re-render the Start pictures after changing an example
+node tools-screenshots.js index.html             # re-take the README and manual screenshots
 ```
 
-And one in a real browser (needs Playwright with Chromium: `npm i --no-save playwright && npx playwright install chromium`):
+Every exported part is a closed, outward-facing, NaN-free mesh sitting on the bed; `PRCore.checkMesh(solid).open === 0` is the invariant the tests hold every generator to.
 
-```bash
-npm run check:browser                            # screenshots of every page in browser-check/, layout and error checks
-```
-
-The audit drives every slider to both ends and toggles every checkbox, waiting for each rebuild to finish, then checks the resulting meshes for open edges, NaN coordinates, empty output and zero volume. It also flags **dead controls**: if moving a control leaves the model byte-identical at both extremes, something is not wired up. That check found two real bugs that every other test missed.
-
-The app exposes `window.MakerForge` (state, live parts, check results, a build counter and the geometry library) for these rigs and for poking at things in the browser console.
-
-`src/core.js` is the geometry library and has no DOM dependencies, so it also runs under Node for tests:
-
-```js
-globalThis.THREE = require("three");
-globalThis.earcut = require("earcut");
-require("./src/core.js");
-const solid = PRCore.extrudePolys([{ outer: PRCore.ringRect(55, 28, 6, 10), holes: [] }], 3);
-console.log(PRCore.checkMesh(solid));   // { tris, open: 0, volume }
-```
-
-`checkMesh` reporting `open: 0` is the invariant every generator must hold: each part is a closed, consistently oriented mesh.
-
-### Dependencies
-
-Loaded from CDNs at runtime, no package manager: [three.js](https://threejs.org) r128 (preview and primitives), [earcut](https://github.com/mapbox/earcut) (polygon triangulation), [JSZip](https://stuk.github.io/jszip/) (3mf and zip writing), and the name plate typefaces from [Fontsource](https://fontsource.org) 5.3.0, all from jsDelivr. A font file downloads only when it is used, one file per alphabet.
-
----
-
-## How it works
+### How it works
 
 ```
-image / text  ->  raster mask per filament   (colour quantisation, k-means palette)
+image / text  ->  mask per filament (colour quantisation, k-means palette)
                       |
                       +-- distance transform  ->  offsets: plates, halos, inset accents
                       |
@@ -140,73 +168,24 @@ image / text  ->  raster mask per filament   (colour quantisation, k-means palet
                   3mf / obj / stl with extruder assignment
 ```
 
-Key pieces in `src/core.js`:
+Two 3MF flavours are written: `model-prusa-orca.3mf` uses the PrusaSlicer volume convention (`Metadata/Slic3r_PE_model.config`) plus core `basematerials` colours, which PrusaSlicer and OrcaSlicer read directly. `model-bambu.3mf` uses Bambu's layout: one object per filament assembled with components, extruders in `Metadata/model_settings.config` and spool colours in `Metadata/project_settings.config`.
 
-| Function | Role |
-| --- | --- |
-| `kmeans`, `buildCellMap` | Palette extraction and colour separation onto filament slots |
-| `edt`, `dilateMask`, `erodeMask`, `closeMask` | Exact Felzenszwalb distance transform and morphology |
-| `labelMask` | Connected components (dot detection, piece counting) |
-| `traceMask`, `chaikin`, `decimate`, `groupLoops` | Contours to polygons with holes |
-| `triangulate`, `refine` | earcut plus conforming edge subdivision |
-| `makeProjector` | Binned projection of a 2D point onto the object's surface with interpolated normals |
-| `sweepTube` | Tube swept along a 3D path with parallel-transport frames: springs, coils, wires |
-| `revolve`, `revolveLoop` | Turned solids from an open profile with caps, or a closed profile with bores and hollows |
-| `perforate`, `snapToGrid` | Plastic-canvas hole grids and pixel/cross-stitch snapping |
-| `transformSolid`, `mirrorSolid`, `solidBounds` | Scaling, laying parts out for printing, mirroring, measuring |
-| `solidFromTris`, `buildMaskSolid`, `extrudePolysAt` | Closed solids from a planar triangulation |
-| `homography`, `warpQuad`, `quadCorners` | Perspective correction from a detected sheet of paper |
-| `outlineSVG`, `outlineDXF` | True-scale CAD outlines |
-| `traceField`, `fieldToPolys`, `signedDistanceField`, `coverageField` | Sub-pixel contours, smooth offsets, anti-aliased coverage |
-| `make3MF`, `make3MF_BBL`, `makeOBJ`, `makeSTL`, `prepareParts` | Export writers, Y-up to Z-up conversion |
-| `checkMesh` | Open edges and signed volume |
+### Security
 
-Two 3mf flavours are written: `model-prusa-orca.3mf` uses the PrusaSlicer volume convention (`Metadata/Slic3r_PE_model.config`) plus core `basematerials` colours, which PrusaSlicer and OrcaSlicer read directly. `model-bambu.3mf` uses Bambu's own layout instead: one object per filament assembled with components, extruders assigned in `Metadata/model_settings.config`, and spool colours in `Metadata/project_settings.config`. The obj with per-part colours remains as a fallback.
+Everything runs locally; the threats worth defending are a hostile **project file** and a compromised **CDN**. Every project file passes through `sanitizeProject` (prototype-pollution keys stripped, numbers finite and clamped, colours and images validated, text length-capped, fonts and object types whitelisted), and each test suite throws a hostile file at it. User text reaches the page only through `textContent` or `esc()`. The three runtime libraries (three.js r128, earcut 2.2.4, JSZip 3.10.1, from jsDelivr) are pinned by version and Subresource Integrity hash; the fonts are built in. The AI figure finder's runtime and model load only when asked for, and each file is checked against a SHA-256 fingerprint before it runs.
+
+### Known limitations
+
+- No boolean CSG yet: engraving works on name plates, box lids, phone case backs and circuit boards, not on imported models.
+- Artwork projected onto a cylinder covers about 120° before the edges fall away; the painter can wrap a picture all the way round.
+- Cost and material figures assume solid parts, so treat them as a worst case.
+- Phone camera and button positions are careful estimates: print the fit test rim first.
+- Tested headlessly and in Chromium; real prints of every example have not all been made yet.
 
 ---
-
-## Printing notes
-
-- Flat pieces print face down on a smooth plate, no supports, 0.10–0.12 mm layers.
-- Patches for clothing: TPU, 0.8–1.2 mm. Attach with fabric glue or a low-temperature press; test on a scrap.
-- Car badges: ASA or PETG. PLA softens in a hot car.
-- Keychains: PETG, 3 mm plate, 4 mm ring hole.
-- Lithophanes and tea lights: print upright, 100% infill, 0.6–0.9 mm walls, LED light only.
-
----
-
-## Security
-
-Everything runs locally; nothing is uploaded. The threats worth defending are a hostile **project file** and a compromised **CDN**.
-
-- Project files pass through `sanitizeProject`: prototype-pollution keys are stripped, every number is finite and clamped, and anything that decides memory or time (trace resolution, grid cells, letter height and so on) has hard limits. Colours must be `#rrggbb` before they reach a style attribute, text is length-capped, fonts and object types are whitelisted, vectors must be three finite numbers, and embedded images must be `data:image/png|jpeg|webp|gif`. The box, painter, phone case, jigsaw, lithophane and printability tests each throw a deliberately hostile file at the loader.
-- All user text reaches the page through `textContent` or `esc()`.
-- Every script is pinned by version and Subresource Integrity hash (`integrity="sha384-…"`), computed from the npm package files, so the browser refuses a tampered copy. Font files are pinned by version but cannot carry SRI; fonts cannot run code.
-
-## Known limitations
-
-- No boolean CSG. Engraving is available on the name plate (done in mask space); cutting artwork into an arbitrary imported mesh is not.
-- Surface projection covers roughly 120° of a cylinder before the edges fall away. Full wrap-around needs a UV unwrap path.
-- Cost and material figures assume solid parts and ignore infill savings, so treat them as a worst case.
-- The painter colours whole triangles, so it splits the model into small ones (about 1.2 mm by default; height bands are cut exactly). Very fine brush work on big models makes big files.
-- Phone sizes come from the makers' spec sheets, but camera and button positions are careful estimates: check them against your phone, and print the fit test rim first.
-- Text rendering relies on the browser's canvas, so the exact glyph outlines follow whatever the browser does with the font. Letter spacing is applied glyph by glyph rather than through `ctx.letterSpacing`, so it behaves the same in every browser.
-
-## Printer support
-
-The printer library has 39 printers from Bambu Lab (A1 mini, A1, P1P, P1S / X1C, X1E, P2S, X2D, H2S, H2D, H2C), Prusa (MK3S+, MK4, CORE One, CORE One L, XL, MINI), Creality, Elegoo, Anycubic, Qidi, Snapmaker, Flashforge, Sovol and Voron, plus a custom profile. Each sets bed size, nozzle, layer height, how many filaments can be loaded and a flow rate for the time estimate. Pick one and the Check tab tells you whether your design fits the machine, and if the machine takes one filament it lists the heights at which to swap spools by hand.
-
-## Ideas worth contributing
-
-- Full cylindrical wrap for mugs and bottles (the painter's picture projection is flat for now).
-- Painting from the colours or textures of AI-generated models (OBJ vertex colours, GLB textures).
-- SVG import as vector paths rather than rasterising (0.16 draws SVGs at 2000 px, which suits most logos).
-- More object generators: cable tags, luggage tags, signs with mounting holes.
-- Real Gerber and KiCad file import for the circuit board generator, instead of working from a picture.
-- A filament library with real vendor colour codes.
-- Multi-line and arc-shaped name plates.
-- Boolean CSG so any object can be engraved.
 
 ## Licence
 
-MIT. See [LICENSE](LICENSE).
+MIT: see [LICENSE](LICENSE). The example pictures are part of the app and share its licence. The fonts in `fonts/`, also built into `index.html`, keep their own licences (SIL Open Font License 1.1, or Apache 2.0 for five of them): see [fonts/LICENSES.md](fonts/LICENSES.md). The AI figure finder's model in `models/` is U²-Net under the Apache License 2.0: see [models/LICENSE.md](models/LICENSE.md).
+
+<sub>Keywords: multi-colour 3D printing, multi-color 3D print, multicolor, 3MF generator, image to STL, photo to STL, logo to 3D print, SVG to STL, keychain generator, name tag maker, lithophane maker, lithophane lamp, jigsaw puzzle generator, cookie cutter generator, phone case generator, iPhone case STL, project box generator, electronics enclosure, Raspberry Pi case, PCB art, lightbox, shadow box, plastic canvas, pixel art, bobble head, iron-on patch, car badge, Christmas ornament, color painting, Bambu Lab AMS, AMS lite, Prusa MMU3, Creality CFS, Anycubic ACE, Bambu Studio, OrcaSlicer, PrusaSlicer, TPU, PETG, PLA, free, open source, browser-based, offline, no install.</sub>

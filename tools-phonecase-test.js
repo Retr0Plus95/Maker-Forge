@@ -21,6 +21,14 @@ async function settle() {
   const s = document.querySelector("#objectSel"); s.value = "phonecase"; s.dispatchEvent(new win.Event("change")); await settle();
   const K = () => st().base.phonecase;
   const closed = p => { const r = C.checkMesh(p.solid); return r.open === 0 && !r.nan && C.signedVolume(p.solid) > 0; };
+  console.log("the example");
+  {
+    const ex = st().items.filter(d => d.example), cols = MF.parts.slice(1);
+    check(ex.length === 1 && K().logo.on && cols.length >= 2 && MF.parts.every(closed), "a new case opens with a picture inlaid in the back, in its colours, every part closed",
+      `${ex.map(d => d.name).join(", ")}; ${cols.map(p => p.name).join(", ")}`);
+    // the rest measures the bare case
+    MF.examples.drop(); K().logo.on = false; MF.rebuild(false); await settle();
+  }
   const sel = $$("#panel select").find(x => [...x.options].some(o => o.value === "iPhone 17 Pro"));
   const phones = [...sel.options].map(o => o.value);
   console.log(`every phone (${phones.length})`);

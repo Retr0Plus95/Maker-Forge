@@ -3,7 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Maker Forge — multi-colour 3D print studio</title>
+<title>Maker Forge: free multi-colour 3D print designer</title>
+<meta name="description" content="Free multi-colour (multi-color) 3D print designer in your browser. Make name keychains, patches, car badges, phone cases, lithophanes, jigsaw puzzles, cookie cutters, lightboxes, project boxes and painted models from names, photos and logos, and export 3MF for Bambu Studio, OrcaSlicer and PrusaSlicer. No install, no account, no uploads.">
+<meta name="keywords" content="multi-colour 3D printing, multicolor 3D print, 3MF, image to STL, photo to STL, SVG to STL, keychain generator, name tag, lithophane maker, jigsaw puzzle generator, cookie cutter generator, phone case generator, project box generator, electronics enclosure, PCB art, lightbox, plastic canvas, Bambu Lab AMS, Prusa MMU3, OrcaSlicer, PrusaSlicer, Bambu Studio">
+<meta name="application-name" content="Maker Forge">
+<meta name="theme-color" content="#1f6f8b">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Maker Forge: free multi-colour 3D print designer">
+<meta property="og:description" content="Turn names, photos and logos into multi-colour 3D prints, right in your browser. Exports 3MF for Bambu Studio, OrcaSlicer and PrusaSlicer.">
+<meta property="og:image" content="https://raw.githubusercontent.com/Retr0Plus95/Maker-Forge/main/docs/images/examples-gallery.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Maker Forge","applicationCategory":"DesignApplication","operatingSystem":"Any (web browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://opensource.org/licenses/MIT","url":"https://github.com/Retr0Plus95/Maker-Forge","description":"Free, open-source multi-colour 3D print designer that runs in the browser and exports 3MF, STL and OBJ."}</script>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <style>
 :root{
@@ -144,6 +154,12 @@ button,input,select,textarea{font:inherit;color:inherit}
   border-radius:16px;box-shadow:var(--shadow);padding:16px 18px 18px;animation:pop .16s ease-out}
 @keyframes pop{from{transform:scale(.96);opacity:0}to{transform:none;opacity:1}}
 .modal-card header{display:flex;align-items:center;margin-bottom:6px}
+.modal.wide .modal-card{width:min(860px,100%);max-height:90vh}
+.manual{font-size:14.5px;line-height:1.6;color:var(--ink)}
+.manual h3{font-size:18px;margin:22px 0 6px;text-transform:none;color:var(--ink)} .manual h4{font-size:15.5px;margin:16px 0 4px;color:var(--ink)}
+.manual p,.manual li{max-width:72ch} .manual ul,.manual ol{padding-left:22px}
+.manual table{border-collapse:collapse;margin:8px 0 12px;width:100%;font-size:13.5px} .manual th,.manual td{border:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
+.manual th{background:var(--field)} .manual a{color:var(--accent)} .manual code{background:var(--field);padding:0 4px;border-radius:4px}
 .modal-card header h2{flex:1;margin:0;font-size:17px;text-transform:none;color:var(--ink)}
 .drop.loading{pointer-events:none}
 .drop.loading strong::after{content:"";display:inline-block;width:12px;height:12px;margin-left:8px;border-radius:50%;
@@ -215,6 +231,9 @@ textarea.ta{resize:vertical;min-height:52px;font-size:13px}
   font-weight:600;font-size:12px;display:grid;gap:4px;justify-items:center;text-align:center;line-height:1.25}
 .gallery button:hover{border-color:var(--accent);background:var(--accent-soft)}
 .gallery .em{font-size:19px}
+#presetGallery{grid-template-columns:1fr 1fr}
+.gallery img,.objcard img{width:100%;height:auto;aspect-ratio:4/3;display:block;border-radius:7px}
+#presetGallery button:has(img),.objcard:has(img){padding:5px 5px 8px}
 .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin:9px 0;padding:4px;background:var(--panel);
   border:1px solid var(--line);border-radius:10px}
 .seg.two{grid-template-columns:repeat(2,1fr)}
@@ -302,6 +321,19 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
 .oprow .grow{flex:1;min-width:0}
 .oprow small{color:var(--muted)}
 .seg.five{grid-template-columns:repeat(5,1fr)}
+.seg.tools{grid-template-columns:repeat(3,1fr)}
+/* the box or lasso being drawn over the view: white over a dark edge, seen on any model */
+.areaSel{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.areaSel path{fill:none;stroke-linejoin:round}
+.areaSel .under{stroke:#111;stroke-width:5}
+.areaSel .over{stroke:#fff;stroke-width:2.5;stroke-dasharray:8 5;fill:rgba(255,255,255,.12)}
+/* colour from a photo: the photo with the model's outline on it, and the buttons that move it */
+.photoPrev{display:block;width:100%;height:auto;max-height:420px;object-fit:contain;margin:10px 0 4px;border-radius:10px;border:1px solid var(--line);background:var(--field);cursor:grab;touch-action:none}
+.photoPrev:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.nudges{flex-wrap:wrap;gap:4px}
+.nudges .btn{min-width:40px;min-height:36px;font-size:16px;padding:4px 8px}
+.card h3{font-size:13.5px;margin:14px 0 4px}
+button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--accent-soft)}
 /* reset a setting to its default */
 .field .reset{grid-column:2;grid-row:1;justify-self:end;border:none;background:none;color:var(--accent);cursor:pointer;font-size:12px;font-weight:700;padding:2px 4px;border-radius:6px}
 .field .reset:hover{background:var(--accent-soft)}
@@ -358,7 +390,7 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.17.1</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.20.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -367,6 +399,7 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
     <button class="rail-icon" id="easyBtn" title="Easy reading: bigger text, stronger contrast" aria-label="Easy reading: text size and contrast"><b style="font-size:15px">Aa</b></button>
     <button class="rail-icon" id="themeBtn" title="Light or dark" aria-label="Theme">◐</button>
     <button class="rail-icon" id="settingsBtn" title="Settings" aria-label="Settings">⚙</button>
+    <button class="rail-icon" id="helpBtn" title="User manual: how everything works" aria-label="User manual"><b style="font-size:16px">?</b></button>
     <button class="rail-icon" id="aboutBtn" title="About Maker Forge" aria-label="About">ⓘ</button>
     <button class="btn primary" id="dockExport">Download files</button>
     <div class="progress" id="progress" aria-hidden="true"><span></span></div>
@@ -395,6 +428,7 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
       <button id="vLeft" title="From the left">◧</button>
       <button id="vRight" title="From the right">◨</button>
       <button id="vBottom" title="From below">⊟</button>
+      <button id="vFlip" aria-pressed="false" title="Turn over: see the side that prints on the bed">⟳</button>
       <span class="sep"></span>
       <button id="vWire" aria-pressed="false" title="Wireframe">◇</button>
       <button id="vLayout" aria-pressed="false" title="Lay the parts out as they print">⊞</button>
@@ -486,10 +520,17 @@ const FONTS = [
   { n:"Orbitron", w:800 },
   { n:"Press Start 2P", w:400 }
 ];
-/* Fonts come from the @fontsource packages on jsDelivr, the CDN the libraries already load from (no
-   Google Fonts). One rule per alphabet: the browser downloads a file only when it draws a letter in that
-   range, so a name in Latin letters fetches one small file per font used. */
-const FONT_CDN = "https://cdn.jsdelivr.net/npm/@fontsource/", FONT_VERSION = "5.3.0";
+/* The fonts are built into this file: fonts/ in the repository holds one WOFF2 file per font, weight and
+   alphabet (from the @fontsource packages, copied by tools-fonts.js), and build.py packs them in below, so
+   the page never downloads a font. Licences: fonts/LICENSES.md. One rule per alphabet with its
+   unicode-range: the browser only decodes a file when it draws a letter in that range. */
+const FONT_FILES = /*FONTS*/{};
+/* Pictures of each quick start and object as its example looks, for the Start sidebar: rendered by
+   tools-thumbs.js (npm run thumbs) into examples/start-thumbs.json and packed in by build.py. A button
+   without one shows its icon. */
+const START_THUMBS = /*THUMBS*/{};
+// the user manual (MANUAL.md, turned into HTML by build.py) for the Help window
+const MANUAL_HTML = /*MANUAL*/"";
 const FONT_RANGES = {
   "latin":"U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
   "latin-ext":"U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
@@ -501,30 +542,16 @@ const FONT_RANGES = {
   "hebrew":"U+0307-0308,U+0590-05FF,U+200C-2010,U+20AA,U+25CC,U+FB1D-FB4F",
   "devanagari":"U+0900-097F,U+1CD0-1CF9,U+200C-200D,U+20A8,U+20B9,U+20F0,U+25CC,U+A830-A839,U+A8E0-A8FF,U+11B00-11B09"
 };
-// the alphabets each font has (a missing one would be a failed download)
-const FONT_SUBSETS = {
-  "Dancing Script":"latin latin-ext vietnamese", "Pacifico":"latin latin-ext vietnamese cyrillic cyrillic-ext",
-  "Great Vibes":"latin latin-ext vietnamese cyrillic cyrillic-ext greek-ext", "Caveat":"latin latin-ext cyrillic cyrillic-ext",
-  "Satisfy":"latin", "Sacramento":"latin latin-ext", "Parisienne":"latin latin-ext", "Gloria Hallelujah":"latin latin-ext",
-  "Shadows Into Light":"latin latin-ext", "Permanent Marker":"latin", "Rock Salt":"latin", "Kalam":"latin latin-ext devanagari",
-  "Amatic SC":"latin latin-ext vietnamese cyrillic hebrew", "Chewy":"latin", "Luckiest Guy":"latin latin-ext", "Titan One":"latin latin-ext",
-  "Bungee":"latin latin-ext vietnamese", "Righteous":"latin latin-ext", "Baloo 2":"latin latin-ext vietnamese devanagari",
-  "Fredoka":"latin latin-ext hebrew", "Comfortaa":"latin latin-ext vietnamese cyrillic cyrillic-ext greek",
-  "Nunito":"latin latin-ext vietnamese cyrillic cyrillic-ext", "Poppins":"latin latin-ext devanagari",
-  "Manrope":"latin latin-ext vietnamese cyrillic cyrillic-ext greek", "Lobster":"latin latin-ext vietnamese cyrillic cyrillic-ext",
-  "Alfa Slab One":"latin latin-ext vietnamese", "Anton":"latin latin-ext vietnamese", "Oswald":"latin latin-ext vietnamese cyrillic cyrillic-ext",
-  "Bebas Neue":"latin latin-ext", "Secular One":"latin latin-ext hebrew", "Playfair Display":"latin latin-ext vietnamese cyrillic",
-  "Cinzel":"latin latin-ext", "Orbitron":"latin", "Press Start 2P":"latin latin-ext cyrillic cyrillic-ext greek",
-  "Atkinson Hyperlegible":"latin latin-ext"
-};
 function fontFaceCSS(){
   // the lettering fonts at the weight each is used in, and the Easy reading font (regular and bold)
   const list = FONTS.map(f => [f.n, [f.w]]).concat([["Atkinson Hyperlegible", [400, 700]]]), css = [];
   for (const [name, weights] of list){
     const id = name.toLowerCase().replace(/ /g, "-");
-    for (const w of weights) for (const sub of FONT_SUBSETS[name].split(" "))
-      css.push(`@font-face{font-family:"${name}";font-style:normal;font-display:swap;font-weight:${w};` +
-        `src:url(${FONT_CDN}${id}@${FONT_VERSION}/files/${id}-${sub}-${w}-normal.woff2) format("woff2");unicode-range:${FONT_RANGES[sub]}}`);
+    for (const w of weights) for (const sub in FONT_RANGES){
+      const data = FONT_FILES[`${id}-${sub}-${w}`];
+      if (data) css.push(`@font-face{font-family:"${name}";font-style:normal;font-display:swap;font-weight:${w};` +
+        `src:url(data:font/woff2;base64,${data}) format("woff2");unicode-range:${FONT_RANGES[sub]}}`);
+    }
   }
   return css.join("\n");
 }
@@ -575,6 +602,13 @@ const PRINTERS = {
   "Voron 2.4 350":      { brand:"Voron", bed:[350,350,340], nozzle:0.4, layer:0.2, colors:1, flow:20, note:"One colour unless you add a toolhead changer or ERCF." },
   "Custom":             { brand:"Other", bed:[256,256,256], nozzle:0.4, layer:0.12, colors:4, flow:12, note:"Type in your printer's bed and how many colours it loads." }
 };
+// rough waste and time for one colour change, by the kind of printer (editable on the Paint tab's Layers page)
+function changeCost(model){
+  if (/Prusa XL|Snapmaker U1|H2C/.test(model)) return { purge:0.05, swap:15 };     // tool changers: a head each
+  if (/H2D|X2D/.test(model)) return { purge:0.3, swap:45 };                         // two nozzles, the rest by AMS
+  if (/^Prusa (MK|CORE)/.test(model)) return { purge:0.15, swap:40 };               // MMU3 into a wipe tower
+  return { purge:0.4, swap:60 };                                                     // AMS, CFS, ACE, IFS, QIDI Box
+}
 const PALETTES = {
   "Warm sunset":["#f7f3e8","#e8452c","#f0b429","#3d2b2b"],
   "Nordic":["#f5f7f8","#2f5d8a","#8fb8c9","#20303a"],
@@ -587,7 +621,7 @@ const CURVED = { cylinder:1, sphere:1, shell:1, hex:1, stl:1, turned:1, bobble:1
 const FLAT = { board:1, nameplate:1, frame:1, box:1, canvas:1, pcb:1, tracer:1, jigsaw:1 };
 const CONSUMES_ART = { cutter:1, pcb:1, lightbox:1, tracer:1, jigsaw:1, lithophane:1 };
 // which of the picture's own settings each of those objects reads; the Art tab shows only these
-const ART_USED_BY = { cutter:["width","mirror","colours","smooth"], lightbox:["mirror","colours","smooth"], enclosure:["mirror","colours","smooth"],
+const ART_USED_BY = { cutter:["width","mirror","colours","smooth"], lightbox:["mirror","colours","smooth"], enclosure:["mirror","colours","smooth"], phonecase:["mirror","colours","smooth"],
   jigsaw:["mirror","colours","smooth"], pcb:["mirror"], tracer:[], lithophane:["mirror"] };
 const SHAPES = [["tracer","Photo to 3D tracer"],["lithophane","Lithophane"],["board","Flat shape"],["nameplate","Name plate & keychain"],["canvas","Plastic canvas / mosaic"],["jigsaw","Jigsaw puzzle"],
   ["bobble","Bobble head"],["cutter","Cookie cutter from artwork"],["turned","Turned shape (vase, egg, cone)"],
@@ -646,6 +680,7 @@ const PRESETS = {
   "Phone case":{ base:{ type:"phonecase" }, slots:[{ hex:"#2b2d42", name:"Black TPU" }],
     tip:"Pick your phone, print the fit test rim first, then the case. Print it in TPU so it snaps on." }
 };
+/*EXAMPLES*/
 
 /* Phones for the case maker. Height, width and thickness are the makers' published figures (checked
    September 2026). Corner radius, the camera cut-out (seen from the back: from the left edge and the top,
@@ -803,9 +838,10 @@ const DEFAULTS = () => ({
       fasten:"insert", screw:"M3", head:"sink", teardrop:false, grow:true, lensSlot:0, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
       labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
       board:"none", boardX:0, boardY:0, boardRot:false, standH:5, bw:60, bd:40, bsx:52, bsy:32, bscrew:"M3", boxSlot:1, lidSlot:1,
-      cut:[ { face:"front", kind:"usbc", u:-25, v:12, w:9.2, h:3.4, r:1.6, rot:false },
-            { face:"front", kind:"btn", u:0, v:18, dia:12.2, rot:false },
-            { face:"front", kind:"pilotp5", u:20, v:18, dia:8, rot:false } ] },
+      // every key newOpening gives, so a saved box opens exactly as it was
+      cut:[ { face:"front", kind:"usbc", u:-25, v:12, w:9.2, h:3.4, r:1.6, rot:false, label:"", labelPos:"below", top:"flat", notch:false },
+            { face:"front", kind:"btn", u:0, v:18, dia:12.2, rot:false, label:"", labelPos:"below", top:"flat", notch:false },
+            { face:"front", kind:"pilotp5", u:20, v:18, dia:8, rot:false, label:"", labelPos:"below", top:"flat", notch:false } ] },
     lithophane:{ shape:"flat", outline:"rect", radius:4, width:100, minT:0.8, maxT:3, border:3, cell:0.3, print:"stand",
       curve:120, dia:70, h:80, hole:false, holeDia:4, stripFrom:0.6, stripTo:3.2, stripStep:0.2 },
     phonecase:{ phone:"iPhone 17 Pro", spec:phoneSpec("iPhone 17 Pro"), style:"full", test:false, fit:0.25, wall:1.6, back:1.6, lip:1.0, lipT:1.2, edge:0.8,
@@ -814,7 +850,7 @@ const DEFAULTS = () => ({
       picture:"colour", colourH:0.6, faceDown:false, holder:"none", border:8, floor:1.2, frameSlot:1, labels:false, labelDepth:0.6 }
   },
   items:[], active:-1,
-  printer:{ model:"Bambu P1S / X1C", bed:[256,256,256], nozzle:0.4, layer:0.12, colors:4, flow:18, currency:"", overhang:45, bridge:10 },
+  printer:{ model:"Bambu P1S / X1C", bed:[256,256,256], nozzle:0.4, layer:0.12, colors:4, flow:18, currency:"", overhang:45, bridge:10, purge:0.4, swap:60 },
   model:{ scale:100, mirror:false, orient:null, brim:0 },
   view:{ units:"mm", theme:"auto" },
   paint:{ on:true, detail:"auto", part:-1, ops:[] }
@@ -822,7 +858,16 @@ const DEFAULTS = () => ({
 let state = DEFAULTS();
 const assets = {};
 let stlData = null, stlPaint = null, stlCache = null, uid = 1, tab = "make";
-let viewOpts = { explode:0, wire:false, layout:false, showPrint:false, rulers:true, measure:false, section:false, cut:50 };
+// the models opened in this tab, by name, so undo and redo bring back the right one (up to ~150 MB);
+// stlName is the name of the one in stlData
+const openedModels = new Map();
+let stlName = null;
+function rememberModel(name, data, paint){
+  openedModels.delete(name); openedModels.set(name, { data, paint });
+  let bytes = 0; for (const m of openedModels.values()) bytes += m.data.byteLength;
+  for (const [k, m] of openedModels){ if (bytes <= 150e6 || k === name) break; bytes -= m.data.byteLength; openedModels.delete(k); }
+}
+let viewOpts = { explode:0, wire:false, layout:false, showPrint:false, rulers:true, measure:false, section:false, cut:50, flip:false };
 
 function newItem(name, canvas, extra){
   const aspect = canvas.width/canvas.height;
@@ -838,7 +883,7 @@ function newItem(name, canvas, extra){
   }, extra||{});
 }
 const history = { past:[], future:[], timer:0 };
-const runtimeKeys = new Set(["src","thumb","solids","_img","_imgKey","_cm","_raw","_srcCv","_srcSig"]);
+const runtimeKeys = new Set(["src","thumb","solids","_img","_imgKey","_cm","_raw","_srcCv","_srcSig","_frameW"]);
 const serialize = () => JSON.stringify(state, (k,v)=> runtimeKeys.has(k) ? undefined : v);
 function pushHistory(){
   clearTimeout(history.timer);
@@ -851,15 +896,29 @@ function pushHistory(){
 }
 function applySnapshot(json){
   state = JSON.parse(json);
+  // an imported model is not in the snapshot: take the one it was made with, if this tab still has it
+  const want = state.base.type === "stl" && state.base.stl ? state.base.stl.name : null;
+  if (want && want !== stlName){ const m = openedModels.get(want); stlData = m ? m.data : null; stlPaint = m ? m.paint : null; stlName = m ? want : null; stlCache = null; }
   state.items.forEach(it => { it.solids = null; it._imgKey = ""; it._srcSig = ""; });
   applyTheme(); renderTab(); rebuildAll(true);
 }
 function undo(){ if (history.past.length < 2) return; history.future.push(history.past.pop()); applySnapshot(history.past[history.past.length-1]); updateHistoryButtons(); }
 function redo(){ if (!history.future.length) return; const j = history.future.pop(); history.past.push(j); applySnapshot(j); updateHistoryButtons(); }
 function updateHistoryButtons(){ $("#undoBtn").disabled = history.past.length < 2; $("#redoBtn").disabled = !history.future.length; }
-function projectPayload(){
+// the imported model a project was made with, when it did not come with the project ("" otherwise)
+function missingModel(){ return state.base.type === "stl" && !stlData && state.base.stl && state.base.stl.name ? state.base.stl.name.replace(/ \([\d,.\s\u00a0\u202f]+ triangles\)$/, "") : ""; }
+// withModel: a project file keeps an imported model (its triangles, Y up, and the paint it came with);
+// the autosave, the recent list and share links leave it out and ask for the file again
+function projectPayload(withModel){
+  const model = withModel && state.base.type === "stl" && stlData ? { name:state.base.stl.name,
+    tris:b64url(new Uint8Array(stlData.buffer, stlData.byteOffset, stlData.byteLength)), paint:stlPaint ? b64url(stlPaint) : null } : undefined;
   return JSON.stringify({ app:"Maker Forge", v:5, saved:new Date().toISOString(),
-    state:JSON.parse(serialize()), assets:Object.fromEntries(Object.entries(assets).map(([k,v])=>[k,v.dataURL])) });
+    state:JSON.parse(serialize()), assets:Object.fromEntries(Object.entries(assets).filter(([k]) => usedAssets().has(k)).map(([k,v])=>[k,v.dataURL])), model });
+}
+function usedAssets(){
+  const used = new Set(state.items.map(it => it.asset).filter(Boolean));
+  ((state.paint && state.paint.ops) || []).forEach(o => { if (o.k === "photo") o.views.forEach(v => { used.add(v.asset); if (v.ai) used.add(v.ai); }); });
+  return used;
 }
 /* Share link: the project, pictures left out, deflated into the part of the address after "#p=".
    That part never reaches a server. Opening one goes through sanitizeProject like any project file. */
@@ -1121,7 +1180,10 @@ function defaultPlace(){
     case "tracer": return { c:[0,b.tracer.thick,0], n:[0,1,0] };
     case "jigsaw": return { c:[0,b.jigsaw.thick,0], n:[0,1,0] };
     case "lithophane": return { c:[0,0,0], n:[0,0,1] };
-    case "frame": return { c:[0,b.frame.thick,0], n:[0,1,0] };
+    case "frame": {                                  // on the bottom border: the middle is the window
+      const f = b.frame, win = Math.min(f.winH, f.h - 4);
+      return { c:[0, f.thick, (win/2 + f.h/2)/2], n:[0,1,0] };
+    }
     case "shell": return { c:[0,b.shell.h/2,0], n:[0,0,1] };
     case "turned": return { c:[0,b.turned.h*0.55,0], n:[0,0,1] };
     case "box": return { c:[0,b.box.h,0], n:[0,1,0] };
@@ -1132,6 +1194,10 @@ function defaultPlace(){
   }
 }
 function defaultWidth(aspect){
+  if (state.base.type === "frame"){                // fits the bottom border, with a little margin
+    const f = state.base.frame, band = Math.max(2, (f.h - Math.min(f.winH, f.h - 4))/2 - 6);
+    return clamp(Math.round(Math.min(f.w - 10, band*aspect)), 5, 250);
+  }
   if (!baseGeom) return 60;
   baseGeom.computeBoundingBox();
   const s = baseGeom.boundingBox.getSize(new THREE.Vector3());
@@ -2545,20 +2611,25 @@ function buildLightbox(){
   const diffSlot = clamp(L.diffSlot,0,state.slots.length-1), frameSlot = clamp(L.frameSlot,0,state.slots.length-1);
   const panelRect = C.ringRect(inW, inH, 1, 6);
   const nLayers = clamp(Math.round(L.layers), 2, 8);
+  // as the backlit parts print: the panel below the frame, the stand turned lengthways beside them, so a
+  // 170 mm lightbox fits a 256 mm bed (a column of all three was 294 mm long)
+  const gap = 8, colX = -(L.standDepth + gap)/2, panelAt = [colX, 0, -(inH/2 + gap/2)];
 
   if (L.mode === "backlit"){
     const panel = C.extrudePolys([{ outer:panelRect, holes:[] }], L.panelThick);
-    if (panel) parts.push({ name:"Diffuser panel", slot:diffSlot, solid:panel, layout:[0,0,0] });
+    if (panel) parts.push({ name:"Diffuser panel", slot:diffSlot, solid:panel, layout:panelAt });
     const cm = C.buildCellMap(img, state.slots.map(s2=>C.hexToRgb(s2.hex)),
       state.slots.map((_,i)=>d.skip.includes(i)), d.smooth);
     state.slots.forEach((sl,i)=>{
       if (i === diffSlot) return;
       const m = C.maskOfSlot(cm, i); if (!m) return;
-      const polys = C.maskToPolys(m, gx, gy, opt); if (!polys.length) return;
+      // closed along the picture's edge: the whole photo is the panel, so a sky or a field that reaches
+      // the edge is part of it (a decal would drop such a region as background)
+      const polys = C.maskToPolys(m, gx, gy, { ...opt, closeEdges:true }); if (!polys.length) return;
       const rgb = C.hexToRgb(sl.hex), dark = 1 - C.luma(rgb[0], rgb[1], rgb[2]);
       const h = L.lightAware ? L.colourH*(0.5 + dark*1.5) : L.colourH;
       const s2 = C.extrudePolysAt(polys, Math.max(0,L.panelThick-0.2), L.panelThick + h);
-      if (s2) parts.push({ name:sl.name, slot:i, solid:s2, layout:[0,0,0] });
+      if (s2) parts.push({ name:sl.name, slot:i, solid:s2, layout:panelAt });
     });
   } else {
     const lum = new Float32Array(gx*gy);
@@ -2586,7 +2657,7 @@ function buildLightbox(){
   const frameHoles = [C.ringRect(inW+0.4, inH+0.4, 1, 6)];
   if (L.hang) frameHoles.push(C.ringCircle(L.hangDia/2, 32).map(q=>[q[0], q[1] + outH/2 - L.frame/2]));
   const frame = C.extrudePolys([{ outer:C.ringRect(outW, outH, Math.min(6,L.frame), 8), holes:frameHoles }], L.frameThick);
-  if (frame) parts.push({ name:"Frame", slot:frameSlot, solid:frame, layout:[0, 0, outH + 10] });
+  if (frame) parts.push({ name:"Frame", slot:frameSlot, solid:frame, layout:L.mode === "backlit" ? [colX, 0, outH/2 + gap/2] : [0, 0, outH + 10] });
 
   if (L.stand){
     const stackT = L.mode === "backlit" ? L.frameThick + 1.2
@@ -2595,7 +2666,8 @@ function buildLightbox(){
     const holes = [rectPoly(0, 0, outW*0.86, slotW)];
     if (L.led) holes.push(rectPoly(0, -slotW/2 - L.ledW/2 - 1.5, outW*0.8, L.ledW));
     const stand = C.extrudePolys([{ outer:C.ringRect(outW*0.94, L.standDepth, 3, 8), holes }], L.standH);
-    if (stand) parts.push({ name:"Stand", slot:frameSlot, solid:stand, layout:[0, 0, -(outH/2 + L.standDepth/2 + 8)] });
+    if (stand && L.mode === "backlit") parts.push({ name:"Stand", slot:frameSlot, solid:C.affineSolid(stand, [0,0,1, 0,1,0, -1,0,0], [0,0,0]), layout:[outW/2 + gap/2, 0, 0] });
+    else if (stand) parts.push({ name:"Stand", slot:frameSlot, solid:stand, layout:[0, 0, -(outH/2 + L.standDepth/2 + 8)] });
   }
   return parts;
 }
@@ -3122,8 +3194,12 @@ async function buildNamePlate(){
   const pic0 = np.pic || { on:false }, picItem = pic0.on && state.items.length ? (state.items[clamp(pic0.item,0,state.items.length-1)] || state.items[0]) : null;
   const picSrc = picItem ? sourceCanvas(picItem) : null;
   const picPad = picSrc ? (pic0.gap||0)*PLATE_PX + inkH*(pic0.size||1)*(picSrc.width/Math.max(1,picSrc.height)) : 0;
-  const pad = Math.ceil(np.border*PLATE_PX + tabR*2 + endR*2.4 + arcPad + symPad + picPad + 8*PLATE_PX);
-  const W = Math.ceil(inkW+pad*2), H = Math.ceil(inkH+pad*2+arcPad);
+  // charms and a picture need room across; up and down only as far as they stand taller than the letters
+  // (both used to pad every side, which made the canvas four times taller than needed)
+  const picH = picSrc ? inkH*(pic0.size||1) : 0;
+  const padX = Math.ceil(np.border*PLATE_PX + tabR*2 + endR*2.4 + arcPad + symPad + picPad + 8*PLATE_PX);
+  const padY = Math.ceil(np.border*PLATE_PX + tabR*2 + endR*2.4 + arcPad + Math.max(0, picH/2 - inkH/2, symR*1.1 - inkH/2) + 8*PLATE_PX);
+  const W = Math.ceil(inkW+padX*2), H = Math.ceil(inkH+padY*2+arcPad);
   if (W*H > 30e6) throw new Error("that name is too long at this letter height");
 
   const cvs = document.createElement("canvas"); cvs.width = W; cvs.height = H;
@@ -3136,7 +3212,7 @@ async function buildNamePlate(){
     let cx = x;
     for (const ch of text2){ ctx.fillText(ch, cx, y); cx += ctx.measureText(ch).width + spacePx; }
   };
-  const baseY = pad + metrics[0].actualBoundingBoxAscent + arcPad;
+  const baseY = padY + metrics[0].actualBoundingBoxAscent + arcPad;
   if (np.arc && lines.length === 1){                 // bend the name along an arc
     const total = metrics[0].width, sweep = np.arc*Math.PI/180;
     const radius = Math.abs(total/(sweep||0.001));
@@ -3209,7 +3285,7 @@ async function buildNamePlate(){
   }
 
   // a picture beside the name: its silhouette joins the plate, its colours print on top
-  let picParts = [];
+  let picParts = [], letterMask = null;
   const pic = pic0;
   if (picSrc){
     const item = picItem, psrc = picSrc;
@@ -3223,6 +3299,7 @@ async function buildNamePlate(){
       pctx.drawImage(pic.cutout !== false ? cutoutCanvas(psrc, pic.tolerance||28) : psrc, cx-pw/2, cy-ph/2, pw, ph);
       const pdata = pctx.getImageData(0,0,W,H);
       const picField = C.coverageField(pdata.data, W, H);
+      if (pic.colour) letterMask = mask.slice();         // the top layer covers the letters, not a picture in its own colours
       for (let i=0;i<mask.length;i++) if (picField[i] >= 0.5) mask[i] = 1;
       if (pic.colour){
         const cm2 = C.buildCellMap({ data:pdata.data, width:W, height:H },
@@ -3297,7 +3374,7 @@ async function buildNamePlate(){
       // the top layer is the letters shrunk by the border left showing; where a stroke is only a
       // little wider than twice that, a sliver thinner than the nozzle would be left: open the
       // shape (shrink by just over half a nozzle more, then grow back) so those slivers go
-      const sdf = C.signedDistanceField(mask, W, H), inset = np.accentInset*PLATE_PX;
+      const sdf = C.signedDistanceField(letterMask || mask, W, H), inset = np.accentInset*PLATE_PX;
       const rOpen = (state.printer.nozzle || 0.4)*0.55*PLATE_PX;
       let accPolys;
       if (rOpen >= 1){
@@ -3309,8 +3386,17 @@ async function buildNamePlate(){
         solid:C.extrudePolysAt(accPolys, np.thick+np.nameH-Math.min(0.3,np.nameH*0.5), np.thick+np.nameH+np.accentH) });
     }
   }
+  // each colour of the picture traced in a window round the picture only (a full-plate distance field each is slow)
+  const tracePart = m => {
+    const bb = maskBounds(m, W, H); if (bb.maxX < 0) return [];
+    const x0 = Math.max(0, bb.minX - 4), y0 = Math.max(0, bb.minY - 4), cw = Math.min(W, bb.maxX + 5) - x0, ch = Math.min(H, bb.maxY + 5) - y0;
+    const sub = new Uint8Array(cw*ch);
+    for (let y=0;y<ch;y++) for (let x=0;x<cw;x++) sub[y*cw + x] = m[(y0 + y)*W + x0 + x];
+    const dx = (x0 + cw/2 - W/2)*mmPerPx, dy = (H/2 - (y0 + ch/2))*mmPerPx, mv = L => L.map(([x, y]) => [x + dx, y + dy]);
+    return C.fieldToPolys(C.signedDistanceField(sub, cw, ch), cw, ch, sopt).map(q => ({ outer:mv(q.outer), holes:q.holes.map(mv) }));
+  };
   picParts.forEach(pp => {
-    const polys = C.fieldToPolys(C.signedDistanceField(pp.mask, W, H), W, H, sopt);
+    const polys = tracePart(pp.mask);
     const sol = polys.length ? C.extrudePolysAt(polys, Math.max(0,np.thick-0.3), np.thick+np.nameH) : null;
     if (sol) parts.push({ name:`Picture (${state.slots[pp.slot].name})`, slot:pp.slot, solid:sol });
   });
@@ -3425,9 +3511,50 @@ let partsVer = 0, modelParts = [], plateInfo = { pieces:1, holes:0 }, lastSize =
 const slotMats = [], wireMats = [];
 // the section view: a plane that keeps everything below the cut; inside faces show through it
 const cutPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
+/* patterns for telling filaments apart without colour (Easy reading): the first filament plain, then
+   stripes one way and the other, lines across and up, dots, cross-hatching and checks, drawn on the screen
+   in black or white, whichever stands out from the colour; the swatches carry the same patterns */
+const patUniforms = { uPat:{ value:0 }, uPatScale:{ value:10 } };
+const PATTERN_GLSL = `
+float patternAt(float id, vec2 p){
+  int k = int(id + 0.5); vec2 q = p / uPatScale;
+  if (k <= 0) return 0.0;
+  if (k == 1) return step(0.7, fract(q.x + q.y));
+  if (k == 2) return step(0.7, fract(q.x - q.y));
+  if (k == 3) return step(0.7, fract(q.y));
+  if (k == 4) return step(0.7, fract(q.x));
+  if (k == 5) return 1.0 - step(0.24, length(fract(q) - 0.5));
+  if (k == 6) return max(step(0.8, fract(q.x + q.y)), step(0.8, fract(q.x - q.y)));
+  return mod(floor(q.x) + floor(q.y), 2.0) * 0.75;
+}`;
+// slot: the filament of a whole part (a uniform), or null for the painted model (each vertex says)
+function withPatterns(mat, slot){
+  const u = slot == null ? null : { value:slot };
+  mat.userData.patSlot = u;
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.uPat = patUniforms.uPat; sh.uniforms.uPatScale = patUniforms.uPatScale;
+    if (u) sh.uniforms.uSlot = u;
+    sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\n" + (u ? "" : "attribute float slotId;\n") + "varying float vSlot;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvSlot = " + (u ? "0.0" : "slotId") + ";");
+    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uPat; uniform float uPatScale;" + (u ? " uniform float uSlot;" : "") + "\nvarying float vSlot;" + PATTERN_GLSL)
+      .replace("#include <color_fragment>", "#include <color_fragment>\nif (uPat > 0.5){ float m = patternAt(" + (u ? "uSlot" : "vSlot") + ", gl_FragCoord.xy); vec3 ink = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)) > 0.45 ? vec3(0.0) : vec3(1.0); diffuseColor.rgb = mix(diffuseColor.rgb, ink, 0.55 * m); }");
+  };
+  mat.customProgramCacheKey = () => u ? "patternSlot" : "patternVertex";
+  return mat;
+}
+// the same pattern for a swatch, over its colour (CSS)
+function swatchStyle(i, hex){
+  const c = new THREE.Color(hex || "#888"), ink = 0.2126*c.r + 0.7152*c.g + 0.0722*c.b > 0.45 ? "rgba(0,0,0,.6)" : "rgba(255,255,255,.75)";
+  if (!prefs.patterns || !i) return `background:${esc(hex)}`;
+  const st = a => `repeating-linear-gradient(${a}deg,transparent 0 4px,${ink} 4px 6px)`;
+  const bg = [null, st(-45), st(45), st(0), st(90), `radial-gradient(circle,${ink} 0 2px,transparent 2.5px) 0 0/7px 7px`,
+    `${st(45)},${st(-45)}`, `repeating-conic-gradient(${ink} 0 25%,transparent 0 50%) 0 0/10px 10px`][Math.min(7, i)];
+  return `background:${bg},${esc(hex)}`;
+}
 function slotMat(i){
   const list = viewOpts.wire ? wireMats : slotMats;
-  if (!list[i]) list[i] = new THREE.MeshStandardMaterial({ roughness:0.55, metalness:0.02, flatShading:true, wireframe:viewOpts.wire });
+  if (!list[i]) list[i] = viewOpts.wire ? new THREE.MeshStandardMaterial({ roughness:0.55, metalness:0.02, flatShading:true, wireframe:true })
+    : withPatterns(new THREE.MeshStandardMaterial({ roughness:0.55, metalness:0.02, flatShading:true }), i);
   list[i].color.set(state.slots[i] ? state.slots[i].hex : "#8a8f94");
   list[i].clippingPlanes = viewOpts.section ? [cutPlane] : [];
   list[i].side = viewOpts.section ? THREE.DoubleSide : THREE.FrontSide;
@@ -3504,7 +3631,38 @@ $("#vBottom").onclick = ()=>frameCamera(lastSize,"bottom");
 $("#vAngle").onclick = ()=>frameCamera(lastSize,"angle");
 $("#vWire").onclick = e => { viewOpts.wire = !viewOpts.wire; e.currentTarget.setAttribute("aria-pressed", viewOpts.wire); refreshScene(); };
 $("#vLayout").onclick = e => { viewOpts.layout = !viewOpts.layout; e.currentTarget.setAttribute("aria-pressed", viewOpts.layout); refreshScene(); };
+$("#vFlip").onclick = () => { setViewFlags({ flip:!viewOpts.flip }); userMoved = false; refreshScene(); };
+// the view's switches that an example may set: turned over (to see a picture on the underside) and laid out
+function setViewFlags(f){
+  if ("flip" in f){ viewOpts.flip = !!f.flip; $("#vFlip").setAttribute("aria-pressed", viewOpts.flip); }
+  if ("layout" in f){ viewOpts.layout = !!f.layout; $("#vLayout").setAttribute("aria-pressed", viewOpts.layout); }
+}
 $("#vRuler").onclick = e => { viewOpts.rulers = !viewOpts.rulers; e.currentTarget.setAttribute("aria-pressed", viewOpts.rulers); makeBed(); };
+// the model alone on a clear background (no bed, rulers or measurements), seen from the usual angle and
+// fitted into w × h: the pictures on the Start sidebar's buttons (tools-thumbs.js)
+function modelThumb(w, h){
+  const hide = [bedHelper, overlay, measureGroup].filter(o => o && o.visible);
+  hide.forEach(o => o.visible = false);
+  const keep = { pos:camera.position.clone(), target:controls.target.clone() };
+  const box = new THREE.Box3().setFromObject(modelGroup), c = box.getCenter(new THREE.Vector3()), r = Math.max(5, box.getSize(new THREE.Vector3()).length()/2);
+  const half = Math.min(camera.fov/2, Math.atan(Math.tan(camera.fov*Math.PI/360)*Math.max(0.2, camera.aspect))*180/Math.PI);
+  const k = r/Math.sin(half*Math.PI/180)*1.02/Math.hypot(0.3, 0.62, 0.72);
+  camera.position.set(c.x + 0.3*k, c.y + 0.62*k, c.z + 0.72*k); controls.target.copy(c); camera.lookAt(c); camera.updateMatrixWorld();
+  renderer.render(scene, camera);
+  const src = renderer.domElement, cv = document.createElement("canvas"); cv.width = src.width; cv.height = src.height;
+  const x = cv.getContext("2d"); x.drawImage(src, 0, 0);
+  const d = x.getImageData(0, 0, cv.width, cv.height).data;
+  let x0 = cv.width, y0 = cv.height, x1 = -1, y1 = -1;
+  for (let j = 0; j < cv.height; j++) for (let i = 0; i < cv.width; i++) if (d[(j*cv.width + i)*4 + 3] > 12){ if (i < x0) x0 = i; if (i > x1) x1 = i; if (j < y0) y0 = j; if (j > y1) y1 = j; }
+  hide.forEach(o => o.visible = true);
+  camera.position.copy(keep.pos); controls.target.copy(keep.target); controls.update(); renderer.render(scene, camera);
+  const out = document.createElement("canvas"); out.width = w; out.height = h;
+  if (x1 >= x0){
+    const bw = x1 - x0 + 1, bh = y1 - y0 + 1, s = Math.min(w*0.94/bw, h*0.94/bh), o = out.getContext("2d");
+    o.imageSmoothingQuality = "high"; o.drawImage(cv, x0, y0, bw, bh, (w - bw*s)/2, (h - bh*s)/2, bw*s, bh*s);
+  }
+  return out.toDataURL("image/webp", 0.8);
+}
 $("#vShot").onclick = ()=>{
   renderer.render(scene,camera);
   renderer.domElement.toBlob(b => offerDownload("maker-forge.png", b), "image/png");
@@ -3514,8 +3672,17 @@ function updateSection(){
   const h = (lastSize ? lastSize.y : 10)*viewOpts.cut/100;
   cutPlane.constant = h + 1e-3;
   $("#sectionV").textContent = mm(h);
-  [...slotMats, ...wireMats].forEach(m => { if (!m) return; m.clippingPlanes = viewOpts.section ? [cutPlane] : []; m.side = viewOpts.section ? THREE.DoubleSide : THREE.FrontSide; m.needsUpdate = true; });
+  [...slotMats, ...wireMats, paintMatCache].forEach(m => { if (!m) return; m.clippingPlanes = viewOpts.section ? [cutPlane] : []; m.side = viewOpts.section ? THREE.DoubleSide : THREE.FrontSide; m.needsUpdate = true; });
 }
+// the Paint tab's layer view: the section cut at one layer's height (or off)
+function showLayerCut(on, z){
+  viewOpts.section = !!on;
+  const b = $("#vSection"); if (b) b.setAttribute("aria-pressed", String(viewOpts.section));
+  $("#sectionBox").hidden = !viewOpts.section;
+  if (on && lastSize && lastSize.y > 0){ viewOpts.cut = clamp(z / lastSize.y * 100, 0, 100); $("#sectionR").value = String(Math.round(viewOpts.cut)); }
+  updateSection(); layerCutLabel();
+}
+function layerCutLabel(){ const b = document.getElementById("layerCutBtn"); if (b) b.textContent = viewOpts.section ? "Show the whole model" : "Cut the model at this layer"; }
 $("#vSection").onclick = e => {
   viewOpts.section = !viewOpts.section; e.currentTarget.setAttribute("aria-pressed", viewOpts.section);
   $("#sectionBox").hidden = !viewOpts.section; updateSection();
@@ -3609,7 +3776,8 @@ renderer.domElement.addEventListener("pointerup", e => {
    slic3rpe:mmu_segmentation for PrusaSlicer); the OBJ groups faces by colour. */
 const PAINT_MAX_TRIS = 900000, PAINT_LEAVE = 255;
 const PAINT_DETAIL = { coarse:2.5, normal:1.2, fine:0.6 };
-const paintUI = { slot:1, tool:"brush", r:3, facing:true, fill:"smooth", angle:30, method:"height", mirror:false };
+const paintUI = { slot:1, tool:"brush", r:3, facing:true, fill:"smooth", angle:30, method:"height", mirror:false, photo:0, photoShow:"photo", radial:1, smart:false, edge:40, lastTool:"brush",
+  area:"box", through:false, rubOut:false };
 const paintCache = new WeakMap();                  // original solid -> refined mesh, topology, brush grid
 let paintInfo = { tris:0, painted:0, edge:0, capped:false, area:{} };
 const paintOps = () => (state.paint && state.paint.on !== false && Array.isArray(state.paint.ops)) ? state.paint.ops : [];
@@ -3624,10 +3792,18 @@ function paintCuts(ops){
   }
   return [...cuts].filter(isFinite).sort((a,b)=>a-b).slice(0, 600);
 }
-const paintNeedsFine = ops => ops.some(o => ["brush","picture","noise","fill"].includes(o.k));
+const paintNeedsFine = ops => ops.some(o => ["brush","picture","noise","fill","photo","area","curve"].includes(o.k));
+// the brush wants small triangles before it paints (to show what it will paint): set while a brush-type
+// tool is used on the Paint tab, dropped when leaving it or opening another model with nothing painted
+let paintPrepared = false;
+function preparePaint(){
+  if (paintPrepared && modelParts.some(p => p.pc)) return false;
+  paintPrepared = true; applyPaint(true); refreshScene();
+  return true;
+}
 function paintEdgeFor(parts, ops){
   const d = state.paint.detail || "auto";
-  if (d === "auto" && !paintNeedsFine(ops)) return Infinity;
+  if (d === "auto" && !paintNeedsFine(ops) && !paintPrepared) return Infinity;
   let want = PAINT_DETAIL[d] || PAINT_DETAIL.normal, area = 0;
   parts.forEach(p => { const s = p.solid0 || p.solid, P = s.pos, I = s.idx;
     for (let i=0;i<I.length;i+=3){ const a=I[i]*3,b=I[i+1]*3,c=I[i+2]*3;
@@ -3652,6 +3828,314 @@ function paintPicture(o){
   paintPicCache.key = key; paintPicCache.pic = { w, h, pix, aspect:w/h };
   return paintPicCache.pic;
 }
+/* ---- colour from a photo (Session 16) ----
+   A "photo" step holds up to six photos of the model (each kept in the project as a picture, like the
+   Art tab's), where each one was taken from (yaw round the model, pitch up), how it lines up with the
+   model (core photoFit) and the photo's colours (core photoPalette), each printed in a filament. The
+   colours land on the model through a depth test (core paintFromPhotos); what no photo shows takes the
+   nearest colour. The result per part is cached, so brush strokes after it stay quick. */
+const PHOTO_MAX = 6, PHOTO_RES = 900, PHOTO_SIDES = { front:[0,0], right:[90,0], back:[180,0], left:[-90,0], top:[0,89] };
+const photoPixCache = new WeakMap();                 // a photo's canvas -> its pixels at a size
+function photoPixels(asset, long){
+  const a = assets[asset]; if (!a || !a.canvas) return null;
+  const cv = a.canvas, s = Math.min(1, long / Math.max(cv.width, cv.height));
+  const w = Math.max(8, Math.round(cv.width*s)), h = Math.max(8, Math.round(cv.height*s)), key = w + "x" + h;
+  let m = photoPixCache.get(cv); if (!m){ m = new Map(); photoPixCache.set(cv, m); }
+  if (!m.has(key)){ const img = resample(cv, w, h, false); m.set(key, { w, h, rgba:img.data }); }
+  return m.get(key);
+}
+// the parts being painted as one solid (their own shape, before the painter splits them), for lining up
+let photoModelCache = { list:[], solid:null };
+function photoModel(){
+  // artwork laid on the model is not in a photo of it
+  const all = paintTargets(), own = all.filter(p => !p.decal), list = (own.length ? own : all).map(p => p.solid0 || p.solid);
+  if (!list.length) return null;
+  if (list.length === photoModelCache.list.length && list.every((s,i) => s === photoModelCache.list[i])) return photoModelCache.solid;
+  photoModelCache = { list, solid: list.length === 1 ? list[0] : C.mergeSolids(list) };
+  return photoModelCache.solid;
+}
+const photoCamOf = v => ({ yaw:v.cam.yaw, pitch:v.cam.pitch });
+// the model's middle and height as a camera sees it; a view keeps this from when it was lined up, so
+// the photo follows the model when its size changes afterwards (the imported model's size on the Make tab)
+const photoBoxCache = new WeakMap();
+function photoBox(model, cam){
+  let m = photoBoxCache.get(model); if (!m){ m = new Map(); photoBoxCache.set(model, m); }
+  const key = cam.yaw + "," + cam.pitch; if (m.has(key)) return m.get(key);
+  const C0 = C.photoCam(cam), P = model.pos; let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+  for (let k=0;k<P.length;k+=3){ const u = P[k]*C0.r[0] + P[k+1]*C0.r[1] + P[k+2]*C0.r[2], w = P[k]*C0.up[0] + P[k+1]*C0.up[1] + P[k+2]*C0.up[2];
+    if (u < u0) u0 = u; if (u > u1) u1 = u; if (w < v0) v0 = w; if (w > v1) v1 = w; }
+  const b = [(u0 + u1)/2, (v0 + v1)/2, Math.max(1e-6, v1 - v0)]; m.set(key, b);
+  return b;
+}
+function photoFitNowFor(v){
+  const f = v.fit, model = f && v.box && photoModel(); if (!model) return f;
+  const b = photoBox(model, photoCamOf(v)), [cu0, cv0, h0] = v.box, s = b[2] / h0;
+  if (!(s > 0.01 && s < 100) || (Math.abs(s - 1) < 1e-9 && Math.abs(b[0] - cu0) < 1e-9 && Math.abs(b[1] - cv0) < 1e-9)) return f;
+  // photoXY: (x, y) = (tx, ty) + a·R(u, v); keep the old middle where it was and scale by the height
+  const c = Math.cos(f.rot), sn = Math.sin(f.rot), R = (u, w) => { const uu = f.mirror ? -u : u; return [uu*c - w*sn, -(uu*sn + w*c)]; };
+  const a2 = f.a / s, r0 = R(cu0, cv0), r1 = R(b[0], b[1]);
+  return { a:a2, tx:f.tx + f.a*r0[0] - a2*r1[0], ty:f.ty + f.a*r0[1] - a2*r1[1], rot:f.rot, mirror:f.mirror };
+}
+// before the fit is changed by hand: take the model as it is now as the reference
+function photoBake(v){ const model = photoModel(); if (!v.fit || !model) return; v.fit = photoFitNowFor(v); v.box = photoBox(model, photoCamOf(v)).map(x => +x.toFixed(5)); }
+const wrapYaw = y => { y = ((y + 180) % 360 + 360) % 360 - 180; return y === -180 ? 180 : Math.round(y); };
+/* ---- the AI figure finder (Session 17) ----
+   For photos on a busy background, where finding the figure by colour fails: the small U²-Net ("u2netp",
+   Apache 2.0, 4.6 MB) run by ONNX Runtime Web (MIT, 14 MB) marks a photo's main object. Nothing loads
+   until someone asks for it. Then the runtime comes from jsDelivr like three.js, the model from models/
+   next to this page or else from the project's repository through jsDelivr, and each file is checked
+   against its SHA-256 before it is used. The photo never leaves the computer. Each photo's result is kept
+   as a small grey picture (v.ai, 320 x 320) in the project, so a saved project colours the same without
+   the model. */
+const AI_FIGURE = {
+  runtime:{ urls:["https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.wasm.bundle.min.mjs"], sha256:"11e64bd8ffe11bd1a2a2f0d6275fdfbbba7262f0b76b99b53d228a8a22ef3d90" },
+  wasm:{ urls:["https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort-wasm-simd-threaded.wasm"], sha256:"3398c10d07d229bd91b364548e130e0e51a8e5704b88c7c083ebbeb78842dee2" },
+  model:{ urls:["models/u2netp.onnx", "https://cdn.jsdelivr.net/gh/Retr0Plus95/Maker-Forge@main/models/u2netp.onnx"], sha256:"309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8" },
+  mb:19, size:320
+};
+const aiState = { ort:null, session:null, loading:null };
+const aiHooks = { run:null };                        // tests: run(input, size) -> the network's first output
+async function sha256Hex(bytes){ const d = await crypto.subtle.digest("SHA-256", bytes); return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, "0")).join(""); }
+// one file: from this browser's cache if it is there and still the right file, else downloaded and checked
+async function aiGet(part, step){
+  let cache = null, last = null;
+  try { cache = await caches.open("maker-forge-ai-1"); } catch(e){}
+  // a page opened as a file cannot read the folder next to it: go straight to jsDelivr
+  for (const url of part.urls.filter(u => /^https:/.test(u) || location.protocol !== "file:")){
+    try {
+      if (cache){ const hit = await cache.match(url); if (hit){ const b = new Uint8Array(await hit.arrayBuffer()); if (await sha256Hex(b) === part.sha256){ step(b.length); return b; } } }
+      const res = await fetch(url, { credentials:"omit" });
+      if (!res.ok) throw new Error(`${url} answered ${res.status}`);
+      const chunks = [], reader = res.body && res.body.getReader ? res.body.getReader() : null; let n = 0;
+      if (reader) for (;;){ const { done, value } = await reader.read(); if (done) break; chunks.push(value); n += value.length; step(value.length); }
+      else { const b = new Uint8Array(await res.arrayBuffer()); chunks.push(b); n = b.length; step(n); }
+      const b = new Uint8Array(n); let at = 0; chunks.forEach(c => { b.set(c, at); at += c.length; });
+      if (await sha256Hex(b) !== part.sha256) throw Object.assign(new Error(`${url} is not the expected file`), { unexpected:true });
+      if (cache) try { await cache.put(url, new Response(b)); } catch(e){}
+      return b;
+    } catch (err){ last = err; }
+  }
+  throw last || new Error("nothing to download");
+}
+function aiLoad(){
+  if (aiState.session) return Promise.resolve();
+  if (!aiState.loading) aiState.loading = (async () => {
+    if (!(window.crypto && crypto.subtle)) throw new Error("the page has to be opened over https (or as a file) so the download can be checked");
+    let got = 0; const step = n => { got += n; setBusy(true, `Downloading the AI figure finder… ${Math.min(AI_FIGURE.mb, Math.round(got / 1e6))} of ${AI_FIGURE.mb} MB`); };
+    const [code, wasm, model] = await Promise.all([aiGet(AI_FIGURE.runtime, step), aiGet(AI_FIGURE.wasm, step), aiGet(AI_FIGURE.model, step)]);
+    // the checked code runs from a local copy; where it looks for its own address it is told the jsDelivr one
+    const text = new TextDecoder().decode(code).split("import.meta.url").join(JSON.stringify(AI_FIGURE.runtime.urls[0]));
+    const url = URL.createObjectURL(new Blob([text], { type:"text/javascript" }));
+    let ort; try { ort = await import(url); } finally { URL.revokeObjectURL(url); }
+    ort.env.wasm.numThreads = 1; ort.env.wasm.proxy = false; ort.env.wasm.wasmBinary = wasm;
+    setBusy(true, "Starting the AI figure finder…");
+    aiState.session = await ort.InferenceSession.create(model, { executionProviders:["wasm"] });
+    aiState.ort = ort;
+  })().catch(err => { aiState.loading = null; throw err; });
+  return aiState.loading;
+}
+// a photo's figure map (0..255, size x size) from the network
+async function aiFigureMap(canvas){
+  const S = AI_FIGURE.size, k = Math.min(1, 640 / Math.max(canvas.width, canvas.height));
+  const w = Math.max(8, Math.round(canvas.width * k)), h = Math.max(8, Math.round(canvas.height * k)), img = resample(canvas, w, h, false);
+  const input = C.photoNetInput(img.data, w, h, S);
+  let out;
+  if (aiHooks.run) out = await aiHooks.run(input, S);
+  else {
+    await aiLoad();
+    const { ort, session } = aiState, r = await session.run({ [session.inputNames[0]]: new ort.Tensor("float32", input, [1, 3, S, S]) });
+    out = r[session.outputNames[0]].data;
+  }
+  return C.photoNetOutput(out, S);
+}
+// kept with the photo as a grey picture
+function aiMapAsset(map, S){
+  const cv = document.createElement("canvas"); cv.width = S; cv.height = S;
+  const x = cv.getContext("2d"), img = x.createImageData(S, S);
+  for (let i=0;i<S*S;i++){ img.data[4*i] = img.data[4*i+1] = img.data[4*i+2] = map[i]; img.data[4*i+3] = 255; }
+  x.putImageData(img, 0, 0);
+  const id = "a"+(uid++); assets[id] = { canvas:cv, dataURL:cv.toDataURL("image/png") };
+  return id;
+}
+const aiMapCache = new WeakMap();
+function aiMapOf(id){
+  const a = id && assets[id]; if (!a || !a.canvas) return null;
+  let m = aiMapCache.get(a.canvas);
+  if (!m){ const c = a.canvas, d = c.getContext("2d", { willReadFrequently:true }).getImageData(0, 0, c.width, c.height).data, v = new Uint8Array(c.width * c.height);
+    for (let i=0;i<v.length;i++) v[i] = d[4*i]; m = { w:c.width, h:c.height, v }; aiMapCache.set(a.canvas, m); }
+  return m;
+}
+// the figure in a photo (px: its pixels at some size): the AI's outline when it has one, else by colour
+function photoFigure(v, px){
+  const m = aiMapOf(v.ai);
+  return m ? C.photoMaskFromMap(m.v, m.w, m.h, px.w, px.h) : C.photoMask(px.rgba, px.w, px.h, v.tol);
+}
+// find the figure with the AI in every photo of a step that does not have it yet, then line them up again
+async function aiFindFigures(o, only){
+  const todo = (only || o.views).filter(v => !aiMapOf(v.ai) && assets[v.asset]);
+  if (!todo.length) return true;
+  try {
+    setBusy(true, aiState.session || aiHooks.run ? "Finding the figure…" : `Downloading the AI figure finder (about ${AI_FIGURE.mb} MB)…`);
+    await new Promise(r => setTimeout(r, 30));
+    for (const [j, v] of todo.entries()){
+      if (!aiHooks.run) await aiLoad();
+      setBusy(true, `Finding the figure in photo ${j + 1} of ${todo.length}…`); await new Promise(r => setTimeout(r, 20));
+      v.ai = aiMapAsset(await aiFigureMap(assets[v.asset].canvas), AI_FIGURE.size);
+    }
+  } catch (err){
+    setBusy(false); console.warn(err);
+    notify(err.unexpected ? "A file of the AI figure finder was not the one it should be, so it was not used (it may have been changed on the way). Nothing was run. Try again later."
+      : `The AI figure finder could not be loaded (${err.message}). Check the internet connection. On your own website, put the models folder next to index.html.`);
+    return false;
+  }
+  setBusy(false);
+  // the angle found from the colour method's outline means little: look again from the side it was taken from
+  for (const v of todo){ photoToSide(v); await photoFitNow(o, v, true); }
+  notify(`The AI figure finder found the figure in ${todo.length === 1 ? "the photo" : `${todo.length} photos`}.`);
+  return true;
+}
+// line a photo up with the model; search: also look for the angle it was taken from (±45° round, ±20° up)
+function photoFitView(v, search){
+  const model = photoModel(), px = photoPixels(v.asset, 480);
+  if (!model || !px) return false;
+  const mask = photoFigure(v, px);
+  // the AI's outline may take in a little background: a part of it the model does not cover counts less
+  const r = C.photoFit(model, photoCamOf(v), mask, px.w, px.h, !!(v.fit && v.fit.mirror), search ? { yaw:45, pitch:20 } : null, false, aiMapOf(v.ai) ? { extra:0.7 } : null);
+  if (!r) return false;
+  v.fit = { a:r.fit.a, tx:r.fit.tx, ty:r.fit.ty, rot:r.fit.rot, mirror:r.fit.mirror };
+  v.match = +r.iou.toFixed(3);
+  if (r.cam) v.cam = { yaw:wrapYaw(r.cam.yaw), pitch:clamp(Math.round(r.cam.pitch), -89, 89) };
+  v.box = photoBox(model, photoCamOf(v)).map(x => +x.toFixed(5));
+  return true;
+}
+async function photoFitNow(o, v, search){
+  setBusy(true, "Lining the photo up with the model…"); await new Promise(r => setTimeout(r, 30));
+  let ok = false; try { ok = photoFitView(v, search); } catch (err){ console.error(err); }
+  setBusy(false); if (ok) logLine(`Lined ${v.name} up with the model (outline ${Math.round(100 * v.match)}%)`);
+  if (!ok) notify("The photo could not be lined up: no figure was found in it. Try a photo on a plain background, or change the background setting.");
+  return ok;
+}
+// the photos' colours: pixels inside the lined-up model (the photo's own figure until it is lined up)
+function photoPickColours(o){
+  const model = photoModel(), parts = [];
+  for (const v of o.views){
+    const px = photoPixels(v.asset, 400); if (!px) continue;
+    // inside the lined-up model, less a rim of 2% of its height: a fit a little too big or off to one side
+    // would otherwise read the background round the figure as colours of its own
+    const f = v.fit && model ? photoFitNowFor(v) : null, rim = f ? Math.max(2, Math.round(0.02 * f.a * photoBox(model, photoCamOf(v))[2] * px.h)) : 0;
+    const m = f ? C.photoModelMask(model, photoCamOf(v), f, px.w, px.h, rim) : photoFigure(v, px);
+    parts.push([px.rgba, m]);
+  }
+  const n = parts.reduce((s, q) => s + q[1].length, 0);
+  if (!n){ o.pal = []; o.slots = []; return; }
+  const rgba = new Uint8ClampedArray(n*4), mask = new Uint8Array(n); let at = 0;
+  for (const [px, m] of parts){ rgba.set(px, at*4); mask.set(m, at); at += m.length; }
+  o.pal = C.photoPalette(rgba, mask, n, 1, o.colours).map(c => ({ rgb:c.rgb, keys:c.keys.map(k => k.map(x => +x.toFixed(2))) }));
+  if (o.use === "photo") photoSetFilaments(o); else photoNearestFilaments(o);
+}
+// a plain name for a colour, so a filament reads "Red" rather than "Filament 3"
+function colourWord(rgb){
+  const [r, g, b] = rgb.map(v => v/255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn)/2, d = mx - mn;
+  const s = d ? d / (1 - Math.abs(2*l - 1)) : 0;
+  if (l < 0.12) return "Black";
+  if (s < 0.15 || d < 0.08) return l > 0.85 ? "White" : l > 0.62 ? "Light grey" : l > 0.3 ? "Grey" : "Dark grey";
+  const h = 60 * (mx === r ? ((g - b)/d + 6) % 6 : mx === g ? (b - r)/d + 2 : (r - g)/d + 4);
+  if (h < 15 || h >= 340) return l > 0.72 ? "Pink" : l < 0.28 ? "Dark red" : "Red";
+  if (h < 45) return l < 0.38 || (s < 0.45 && l < 0.5) ? "Brown" : l > 0.68 ? "Beige" : "Orange";
+  if (h < 70) return l < 0.3 ? "Olive" : "Yellow";
+  if (h < 165) return l < 0.25 ? "Dark green" : l > 0.7 ? "Light green" : "Green";
+  if (h < 200) return "Teal";
+  if (h < 255) return l < 0.25 ? "Navy" : l > 0.7 ? "Light blue" : "Blue";
+  if (h < 290) return "Purple";
+  return l > 0.7 ? "Pink" : "Magenta";
+}
+// the photo's colours become the loaded filaments (the first ones, adding filaments where needed)
+function photoSetFilaments(o){
+  const used = new Map();
+  o.pal.slice(0, MAX_SLOTS).forEach((c, i) => {
+    const w = colourWord(c.rgb), k = (used.get(w) || 0) + 1; used.set(w, k);
+    const hex = C.rgbToHex(...c.rgb), name = k > 1 ? `${w} ${k}` : w;
+    if (state.slots[i]) Object.assign(state.slots[i], { hex, name });
+    else state.slots.push({ hex, name, mat:"PLA", price:22 });
+  });
+  o.slots = o.pal.map((_, i) => Math.min(i, MAX_SLOTS - 1)); o.use = "photo";
+}
+// or each colour prints in the loaded filament closest to it
+function photoNearestFilaments(o){
+  const lab = state.slots.map(s => C.srgbToLab(...C.hexToRgb(s.hex)));
+  o.slots = o.pal.map(c => { const p = C.srgbToLab(...c.rgb); let bi = 0, bd = Infinity;
+    lab.forEach((q, i) => { const d = (p[0]-q[0])**2 + (p[1]-q[1])**2 + (p[2]-q[2])**2; if (d < bd){ bd = d; bi = i; } }); return bi; });
+  o.use = "mine";
+}
+// which photo colour every triangle of a part gets (-1: none), cached on the part's refined mesh
+const photoInfo = new WeakMap();                     // step -> what the last colouring saw
+function photoLabels(pc, o){
+  const fits = o.views.map(photoFitNowFor);
+  const key = JSON.stringify([o.views.map((v, i) => [v.asset, v.cam, fits[i], v.tol, v.ai || ""]), o.pal, o.fill, o.speck, o.smooth]);
+  if (!pc.photo) pc.photo = new Map();
+  let r = pc.photo.get(key); if (r) return r;
+  const B = C.solidBounds(pc.solid), D = Math.hypot(B.mx[0]-B.mn[0], B.mx[1]-B.mn[1], B.mx[2]-B.mn[2]) || 1, views = [];
+  o.views.forEach((v, i) => {
+    const f = fits[i], px = f && photoPixels(v.asset, PHOTO_RES);
+    // a fit that makes the model many times bigger than the photo is broken (a hand-edited file): skip it
+    if (!px || !(f.a * D < 4)) return;
+    views.push(C.photoView(px.rgba, px.w, px.h, pc.solid, photoCamOf(v), f, o.pal, photoFigure(v, px)));
+  });
+  const n = pc.topo.n, lab = new Int16Array(n).fill(-1);
+  let info = { seen:0, painted:0, n };
+  if (views.length && o.pal.length){
+    const tmp = new Uint8Array(n).fill(PAINT_LEAVE);
+    info = C.paintFromPhotos(pc.solid, pc.topo, tmp, views, { slots:o.pal.map((_, i) => i), fill:o.fill, speck:o.speck, smooth:o.smooth });
+    for (let t=0;t<n;t++) if (tmp[t] !== PAINT_LEAVE) lab[t] = tmp[t];
+  }
+  r = { lab, info, views:views.length };
+  pc.photo.set(key, r); if (pc.photo.size > 3) pc.photo.delete(pc.photo.keys().next().value);
+  return r;
+}
+// the photo steps' results need a moment the first time: show that the app is working
+async function photoRepaint(){
+  setBusy(true, "Colouring the model from the photos…"); await new Promise(r => setTimeout(r, 30));
+  const t0 = performance.now();
+  try { repaint(true); } catch (err){ console.error(err); }
+  setBusy(false); pushHistory(); logLine(`Painted in ${Math.round(performance.now() - t0)} ms`);
+}
+function newPhotoOp(){ return { k:"photo", views:[], pal:[], slots:[], colours:clamp(Math.round(state.printer.colors || 4), 2, MAX_SLOTS), use:"photo", fill:true, speck:1, smooth:true }; }
+const photoOpOf = () => { const ops = state.paint.ops; for (let i = ops.length - 1; i >= 0; i--) if (ops[i].k === "photo") return ops[i]; return null; };
+// photos dropped on the Paint tab: kept like pictures, lined up, and the model coloured from them
+const photoInput = Object.assign(document.createElement("input"), { type:"file", accept:"image/png,image/jpeg,image/webp,image/gif", multiple:true, id:"photoInput", className:"vh" });
+document.body.appendChild(photoInput);
+photoInput.onchange = () => { const f = [...photoInput.files]; photoInput.value = ""; if (f.length) addPaintPhotos(f); };
+async function addPaintPhotos(files){
+  const imgs = [...files].filter(f => /^image\/(png|jpe?g|webp|gif)$/i.test(f.type));
+  if (!imgs.length){ notify("Those files are not photos (PNG, JPG, WebP or GIF)."); return false; }
+  if (!modelParts.length){ notify("Make or import a model first, then add a photo of it."); return false; }
+  if (!state.paint) state.paint = DEFAULTS().paint;
+  let o = photoOpOf(); const fresh = !o;
+  if (fresh){ o = newPhotoOp(); state.paint.ops.push(o); }
+  paintUI.method = "photo";
+  const order = ["front","back","right","left","front","back"];
+  for (const file of imgs){
+    if (o.views.length >= PHOTO_MAX){ notify(`A step takes up to ${PHOTO_MAX} photos.`); break; }
+    try {
+      const canvas = toCanvas(await loadImageFile(file), 1600), id = "a"+(uid++);
+      // a photo with a see-through background keeps it (PNG); any other is kept as a smaller JPEG
+      const px = canvas.getContext("2d", { willReadFrequently:true }).getImageData(0, 0, canvas.width, canvas.height).data;
+      let clear = 0; for (let i=3;i<px.length;i+=4*7) if (px[i] < 128) clear++;
+      const dataURL = clear > px.length/(4*7)*0.02 ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", 0.9);
+      assets[id] = { canvas, dataURL };
+      const side = PHOTO_SIDES[order[o.views.length]];
+      const v = { asset:id, name:cleanStr(file.name.replace(/\.[^.]+$/, ""), 60, "Photo"), cam:{ yaw:side[0], pitch:side[1] }, fit:null, tol:35, match:0 };
+      o.views.push(v); paintUI.photo = o.views.length - 1;
+      if (o.views.some(w => aiMapOf(w.ai)) && (aiState.session || aiHooks.run)) await aiFindFigures(o, [v]);
+      else await photoFitNow(o, v, true);
+    } catch (err){ notify(err.message || "That photo could not be read."); }
+  }
+  if (!o.views.length){ state.paint.ops.splice(state.paint.ops.indexOf(o), 1); renderTab(); return false; }
+  photoPickColours(o);
+  if (fresh && o.use === "photo") notify(`Your filaments were set to the photo's ${o.pal.length} colours. Undo (Ctrl+Z) brings the old ones back.`);
+  renderTab(); await photoRepaint();
+  return true;
+}
 function modelBoundsOf(list){
   const mn=[Infinity,Infinity,Infinity], mx=[-Infinity,-Infinity,-Infinity];
   list.forEach(p => { const b = C.solidBounds(p.solid0 || p.solid); for (let k=0;k<3;k++){ mn[k]=Math.min(mn[k],b.mn[k]); mx[k]=Math.max(mx[k],b.mx[k]); } });
@@ -3667,6 +4151,13 @@ function pictureBox(o, pic, B){
   const s = clamp(+o.scale || 100, 10, 400)/100; w *= s; h *= s;
   return [cu-w/2, cv-h/2, cu+w/2, cv+h/2];
 }
+// a wrapped picture: round the model's upright middle line (its width once round at 360°), or over a ball
+// at the model's middle; its height follows the picture's shape at the model's widest
+function pictureWrap(o, pic, B){
+  const c = [(B.mn[0]+B.mx[0])/2, (B.mn[1]+B.mx[1])/2, (B.mn[2]+B.mx[2])/2], R = Math.max(1, (B.mx[0]-B.mn[0])/2, (B.mx[2]-B.mn[2])/2);
+  const turn = clamp(+o.turn || 360, 10, 360), h = 2*Math.PI*R*turn/360 / pic.aspect, mid = c[1] + (+o.dy || 0);
+  return { mode:o.wrap, c:o.wrap === "ball" ? [c[0], mid, c[2]] : c, turn, start:+o.start || 0, v0:mid - h/2, v1:mid + h/2, outside:o.facing !== false };
+}
 // replay every step on one part
 function runPaintOps(p, pc, ops, B){
   const topo = pc.topo, paint = new Uint8Array(topo.n).fill(PAINT_LEAVE);
@@ -3681,15 +4172,40 @@ function runPaintOps(p, pc, ops, B){
     else if (o.k === "shells") C.paintShells(topo, paint, (o.slots||[]).map(S));
     else if (o.k === "regions") C.paintRegions(topo, paint, { angle:o.angle, slots:(o.slots||[]).map(S), minArea:4 });
     else if (o.k === "noise") C.paintNoise(topo, paint, { slots:(o.slots||[]).map(S), scale:o.scale, seed:o.seed });
-    else if (o.k === "picture"){ const pic = paintPicture(o); if (pic) C.paintPicture(topo, paint, pic, o.dir, pictureBox(o, pic, B), o.facing !== false); }
+    else if (o.k === "picture"){
+      const pic = paintPicture(o);
+      if (pic && (o.wrap === "around" || o.wrap === "ball")) C.paintPictureWrap(topo, paint, pic, pictureWrap(o, pic, B));
+      else if (pic) C.paintPicture(topo, paint, pic, o.dir, pictureBox(o, pic, B), o.facing !== false);
+    }
+    else if (o.k === "curve"){
+      // which triangles are ridges or hollows is kept with the refined mesh (it takes a moment on big models)
+      const key = [o.radius, o.band].join("|"); if (!pc.curve) pc.curve = new Map();
+      let cls = pc.curve.get(key); if (!cls){ cls = C.curvatureClasses(topo, o.radius, o.band); pc.curve.set(key, cls); if (pc.curve.size > 4) pc.curve.delete(pc.curve.keys().next().value); }
+      const e = S(o.edges), h = S(o.hollows), f = S(o.flat);
+      for (let t=0;t<topo.n;t++){ const s = cls[t] > 0 ? e : cls[t] < 0 ? h : f; if (s !== PAINT_LEAVE) paint[t] = s; }
+    }
+    else if (o.k === "photo" && !p.decal){
+      const r = photoLabels(pc, o), sl = (o.slots || []).map(s => s === PAINT_LEAVE ? s : S(s));
+      for (let t=0;t<topo.n;t++){ const c = r.lab[t]; if (c >= 0 && sl[c] != null && sl[c] !== PAINT_LEAVE) paint[t] = sl[c]; }
+      const was = photoInfo.get(o), add = was && was.rev === paintRev ? was : { rev:paintRev, seen:0, n:0, views:0 };
+      add.seen += r.info.seen; add.n += r.info.n; add.views = Math.max(add.views, r.views); photoInfo.set(o, add);
+    }
     else if (o.k === "brush"){
       if (!pc.grid) pc.grid = C.triangleGrid(topo, Math.max(1, (o.r||3)));
       const sl = o.slot === PAINT_LEAVE ? PAINT_LEAVE : S(o.slot);
-      C.paintBrush(topo, pc.grid, paint, o.pts || [], o.r || 3, sl, o.facing || null);
-      // a mirrored stroke on the other side of the middle (x = 0), for figures and faces
-      if (o.mirror) C.paintBrush(topo, pc.grid, paint, (o.pts || []).map(q => [-q[0], q[1], q[2]]), o.r || 3, sl, o.facing ? [-o.facing[0], o.facing[1], o.facing[2]] : null);
+      // the stroke, its copies round the middle and mirrored across it (x = 0), for figures, faces and vases
+      for (const c of C.symmetryCopies(o.pts || [], o.facing || null, o.mirror, o.radial)) C.paintBrush(topo, pc.grid, paint, c.pts, o.r || 3, sl, c.facing, o.edge || 0);
     }
-    else if (o.k === "fill"){ const t0 = nearestTri(pc, o.p); if (t0 >= 0) C.paintFill(topo, paint, t0, o.slot === PAINT_LEAVE ? PAINT_LEAVE : S(o.slot), o.same ? -1 : (o.angle ?? 30), p.slot); }
+    else if (o.k === "area"){
+      // a box or lasso drawn on the screen: which triangles it takes is kept with the refined mesh
+      const key = JSON.stringify([o.m, o.poly, o.through]); if (!pc.area) pc.area = new Map();
+      let tris = pc.area.get(key); if (!tris){ tris = C.areaTris(pc.solid, o.m, o.poly, o.through); pc.area.set(key, tris); if (pc.area.size > 40) pc.area.delete(pc.area.keys().next().value); }
+      const sl = o.slot === PAINT_LEAVE ? PAINT_LEAVE : S(o.slot);
+      for (const t of tris) paint[t] = sl;
+    }
+    else if (o.k === "fill"){
+      for (const c of C.symmetryCopies([o.p], null, false, o.radial)){ const t0 = nearestTri(pc, c.pts[0]); if (t0 >= 0) C.paintFill(topo, paint, t0, o.slot === PAINT_LEAVE ? PAINT_LEAVE : S(o.slot), o.same ? -1 : (o.angle ?? 30), p.slot); }
+    }
   }
   return paint;
 }
@@ -3704,11 +4220,12 @@ function nearestTri(pc, pt){
   return -1;
 }
 // after a build (or when only the paint changed): refine and cut where needed, then replay the steps
+let paintRev = 0;
 function applyPaint(repaintOnly){
-  const ops = paintOps();
+  const ops = paintOps(); paintRev++;
   const targets = paintTargets();
   modelParts.forEach(p => { if (!p.solid0) p.solid0 = p.solid; });
-  if (!ops.length && !modelParts.some(p => p.importPaint)){
+  if (!ops.length && !modelParts.some(p => p.importPaint) && !(paintPrepared && state.paint.on !== false)){
     let changed = false;
     modelParts.forEach(p => { if (p.paint){ p.solid = p.solid0; p.paint = null; if (p.geom && p.geom !== baseGeom) p.geom.dispose(); p.geom = solidToGeometry(p.solid); changed = true; } });
     paintInfo = { tris:0, painted:0, edge:0, capped:false, area:{} };
@@ -3746,27 +4263,28 @@ function applyPaint(repaintOnly){
 function slotRGB(s){ const c = new THREE.Color(state.slots[s] ? state.slots[s].hex : "#8a8f94"); return [c.r, c.g, c.b]; }
 function paintedGeometry(p){
   const g = new THREE.BufferGeometry(), I = p.solid.idx, P = p.solid.pos, n = I.length/3;
-  const pos = new Float32Array(n*9), col = new Float32Array(n*9), rgb = state.slots.map((_,i)=>slotRGB(i)), own = slotRGB(p.slot);
+  const pos = new Float32Array(n*9), col = new Float32Array(n*9), sid = new Float32Array(n*3), rgb = state.slots.map((_,i)=>slotRGB(i)), own = slotRGB(p.slot);
   for (let t=0;t<n;t++){
-    const s = p.paint[t], c = s === PAINT_LEAVE ? own : (rgb[s] || own);
+    const s = p.paint[t], c = s === PAINT_LEAVE ? own : (rgb[s] || own), id = s === PAINT_LEAVE || !rgb[s] ? p.slot : s;
     for (let k=0;k<3;k++){ const v = I[3*t+k]*3; pos[9*t+3*k] = P[v]; pos[9*t+3*k+1] = P[v+1]; pos[9*t+3*k+2] = P[v+2];
-      col[9*t+3*k] = c[0]; col[9*t+3*k+1] = c[1]; col[9*t+3*k+2] = c[2]; }
+      col[9*t+3*k] = c[0]; col[9*t+3*k+1] = c[1]; col[9*t+3*k+2] = c[2]; sid[3*t+k] = id; }
   }
   g.setAttribute("position", new THREE.BufferAttribute(pos,3));
   g.setAttribute("color", new THREE.BufferAttribute(col,3));
+  g.setAttribute("slotId", new THREE.BufferAttribute(sid,1));
   g.computeVertexNormals();
   return g;
 }
 function recolourTris(p, list){
   const col = p.geom && p.geom.attributes.color; if (!col) return;
-  const own = slotRGB(p.slot), rgb = state.slots.map((_,i)=>slotRGB(i)), a = col.array;
-  for (const t of list){ const s = p.paint[t], c = s === PAINT_LEAVE ? own : (rgb[s] || own);
-    for (let k=0;k<3;k++){ a[9*t+3*k] = c[0]; a[9*t+3*k+1] = c[1]; a[9*t+3*k+2] = c[2]; } }
-  col.needsUpdate = true;
+  const own = slotRGB(p.slot), rgb = state.slots.map((_,i)=>slotRGB(i)), a = col.array, sa = p.geom.attributes.slotId;
+  for (const t of list){ const s = p.paint[t], c = s === PAINT_LEAVE ? own : (rgb[s] || own), id = s === PAINT_LEAVE || !rgb[s] ? p.slot : s;
+    for (let k=0;k<3;k++){ a[9*t+3*k] = c[0]; a[9*t+3*k+1] = c[1]; a[9*t+3*k+2] = c[2]; if (sa) sa.array[3*t+k] = id; } }
+  col.needsUpdate = true; if (sa) sa.needsUpdate = true;
 }
-let paintMatCache = null;
+var paintMatCache = null;
 function paintMat(){
-  if (!paintMatCache) paintMatCache = new THREE.MeshStandardMaterial({ roughness:0.55, metalness:0.02, flatShading:true, vertexColors:true });
+  if (!paintMatCache) paintMatCache = withPatterns(new THREE.MeshStandardMaterial({ roughness:0.55, metalness:0.02, flatShading:true, vertexColors:true }), null);
   paintMatCache.wireframe = viewOpts.wire;
   paintMatCache.clippingPlanes = viewOpts.section ? [cutPlane] : [];
   paintMatCache.side = viewOpts.section ? THREE.DoubleSide : THREE.FrontSide;
@@ -3793,7 +4311,7 @@ function paintControls(){
   controls.mouseButtons = on ? { LEFT:-1, MIDDLE:THREE.MOUSE.DOLLY, RIGHT:THREE.MOUSE.ROTATE } : { LEFT:THREE.MOUSE.ROTATE, MIDDLE:THREE.MOUSE.DOLLY, RIGHT:THREE.MOUSE.PAN };
   controls.touches = on ? { ONE:-1, TWO:THREE.TOUCH.DOLLY_PAN } : { ONE:THREE.TOUCH.ROTATE, TWO:THREE.TOUCH.DOLLY_PAN };
   renderer.domElement.style.cursor = on ? "crosshair" : "";
-  if (!on) brushRing.visible = false;
+  if (!on){ brushRing.visible = false; brushPreview.visible = false; }
 }
 function paintHit(e){
   const r = renderer.domElement.getBoundingClientRect();
@@ -3805,10 +4323,86 @@ function paintHit(e){
   const local = mesh.worldToLocal(hit.point.clone());
   const dir = ray.ray.direction.clone().transformDirection(inv);
   const wn = hit.face ? hit.face.normal.clone().transformDirection(mesh.matrixWorld) : new THREE.Vector3(0,1,0);
-  return { part:mesh.userData.part, p:[local.x, local.y, local.z], dir:[dir.x, dir.y, dir.z], world:hit.point.clone(), wn };
+  return { part:mesh.userData.part, p:[local.x, local.y, local.z], dir:[dir.x, dir.y, dir.z], world:hit.point.clone(), wn, face:hit.faceIndex };
+}
+// the filament a spot on the model prints in (its paint, or its part's own filament)
+function colourAt(h){
+  const p = h && modelParts[h.part]; if (!p) return -1;
+  const t = h.face, v = p.paint && t != null && t < p.paint.length ? p.paint[t] : PAINT_LEAVE;
+  return v === PAINT_LEAVE ? p.slot : v;
+}
+// the eyedropper: the brush takes the colour clicked on; recolour: that colour everywhere becomes the brush's
+function paintPick(h){
+  const c = colourAt(h); if (c < 0 || !state.slots[c]) return false;
+  paintUI.slot = c; paintUI.tool = paintUI.lastTool === "fill" ? "fill" : "brush"; paintControls(); renderTab();
+  notify(`Picked ${state.slots[c].name} (filament ${c + 1}).`);
+  return true;
+}
+function paintRecolour(h){
+  const c = colourAt(h), to = paintUI.slot; if (c < 0 || !state.slots[c] || !state.slots[to]) return false;
+  if (c === to){ notify(`That is ${state.slots[to].name} already. Pick another brush colour first.`); return false; }
+  if (state.paint.on === false) state.paint.on = true;
+  state.paint.ops.push({ k:"swap", from:c, to });
+  repaint(true); pushHistory(); renderTab();
+  notify(`Everything in ${state.slots[c].name} is now ${state.slots[to].name}. Undo (Ctrl+Z) brings it back.`);
+  return true;
+}
+// what the brush would paint where the pointer is: those triangles lit up in the brush colour
+const brushPreview = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.55, depthWrite:false,
+  polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2, side:THREE.DoubleSide }));
+brushPreview.renderOrder = 7; brushPreview.visible = false;
+let previewCount = 0;
+function previewTris(h){
+  const p = h && modelParts[h.part];
+  if (!p || !p.pc || !p.paint || !paintTargets().includes(p)) return null;
+  if (!p.pc.grid) p.pc.grid = C.triangleGrid(p.pc.topo, Math.max(1, paintUI.r));
+  const set = new Set(), facing = paintUI.facing ? h.dir : null;
+  for (const c of C.symmetryCopies([h.p], facing, paintUI.mirror, paintUI.radial)) for (const t of C.brushTris(p.pc.topo, p.pc.grid, c.pts[0], paintUI.r, c.facing, paintUI.smart ? paintUI.edge : 0)) set.add(t);
+  return { part:p, tris:[...set] };
+}
+function showPreview(h){
+  if (h && !stroke && (paintUI.tool === "brush" || paintUI.tool === "erase") && !modelParts[h.part]?.pc && preparePaint()) return;   // shown from the next move
+  const r = !stroke && (paintUI.tool === "brush" || paintUI.tool === "erase") ? previewTris(h) : null;
+  previewCount = r ? r.tris.length : 0;
+  if (!r || !r.tris.length){ brushPreview.visible = false; return; }
+  const P = r.part.solid.pos, I = r.part.solid.idx, pos = new Float32Array(r.tris.length * 9);
+  r.tris.forEach((t, j) => { for (let k=0;k<3;k++){ const v = I[3*t+k]*3; pos[9*j+3*k] = P[v]; pos[9*j+3*k+1] = P[v+1]; pos[9*j+3*k+2] = P[v+2]; } });
+  brushPreview.geometry.dispose(); brushPreview.geometry = new THREE.BufferGeometry(); brushPreview.geometry.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  // the brush colour moved a third of the way to white (or, for a light colour, to black): it shows even
+  // over paint of the same colour
+  const col = new THREE.Color(paintUI.tool === "erase" ? "#ffffff" : (state.slots[paintUI.slot] || {}).hex || "#ffffff"), light = 0.2126*col.r + 0.7152*col.g + 0.0722*col.b;
+  brushPreview.material.color.copy(col).lerp(new THREE.Color(light > 0.6 ? 0x000000 : 0xffffff), 0.35);
+  const mesh = modelGroup.children.find(m => m.userData.part === h.part);
+  if (mesh && brushPreview.parent !== mesh) mesh.add(brushPreview);
+  brushPreview.visible = !!mesh;
+}
+// the box or lasso being drawn, over the view
+const areaSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+areaSvg.setAttribute("class", "areaSel"); areaSvg.setAttribute("aria-hidden", "true");
+areaSvg.innerHTML = `<path class="under"/><path class="over"/>`;
+view.appendChild(areaSvg);
+let areaDraw = null;
+function areaPath(){
+  const d = areaDraw ? "M" + areaDraw.pts.map(q => q.join(",")).join("L") + (areaDraw.pts.length > 2 ? "Z" : "") : "";
+  areaSvg.querySelectorAll("path").forEach(pa => pa.setAttribute("d", d));
+}
+function areaPoints(e){ const r = renderer.domElement.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top, r.width, r.height]; }
+// a finished outline: the screen matrix of the whole model and the outline in screen units (-1..1)
+function paintArea(polyNdc, through, rubOut){
+  if (!polyNdc || polyNdc.length < 3) return false;
+  camera.updateMatrixWorld(); modelGroup.updateMatrixWorld(true);
+  const M = new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse).multiply(modelGroup.matrixWorld);
+  if (!M.elements.every(v => isFinite(v))){ notify("The view is not ready yet: try again in a moment."); return false; }
+  if (state.paint.on === false) state.paint.on = true;
+  state.paint.ops.push({ k:"area", m:M.elements.map(v => +v.toPrecision(9)), poly:polyNdc.map(q => [+q[0].toFixed(5), +q[1].toFixed(5)]),
+    slot:rubOut ? PAINT_LEAVE : paintUI.slot, through:!!through });
+  if (!modelParts.some(p => p.pc) || !isFinite(paintInfo.edge)){ applyPaint(true); refreshScene(); }
+  repaint(true); pushHistory();
+  return true;
 }
 function showBrush(h){
-  if (!h || paintUI.tool === "fill"){ brushRing.visible = false; return; }
+  showPreview(h);
+  if (!h || ["fill","pick","recolour","area"].includes(paintUI.tool)){ brushRing.visible = false; return; }
   const sc = (state.model.scale||100)/100;
   brushRing.visible = true; brushRing.position.copy(h.world).addScaledVector(h.wn, 0.05);
   brushRing.lookAt(h.world.clone().add(h.wn)); brushRing.scale.setScalar(paintUI.r*sc);
@@ -3820,16 +4414,13 @@ function strokeAt(h){
   if (last && Math.hypot(h.p[0]-last[0], h.p[1]-last[1], h.p[2]-last[2]) < paintUI.r*0.3) return;
   if (stroke.op.pts.length >= 5000) return;
   stroke.op.pts.push(h.p.map(v => +v.toFixed(3)));
-  const F = stroke.op.facing, spots = [[h.p, F]];
-  if (stroke.op.mirror) spots.push([[-h.p[0], h.p[1], h.p[2]], F ? [-F[0], F[1], F[2]] : null]);
+  const o = stroke.op, spots = C.symmetryCopies([h.p], o.facing, o.mirror, o.radial);
   paintTargets().forEach(p => {
     if (!p.pc || !p.paint) return;
     if (!p.pc.grid) p.pc.grid = C.triangleGrid(p.pc.topo, Math.max(1, paintUI.r));
     const changed = [];
-    for (const [q, f] of spots) p.pc.grid.near(q[0], q[1], q[2], paintUI.r, t => {
-      if (f){ const n = p.pc.topo.nrm; if (n[3*t]*f[0] + n[3*t+1]*f[1] + n[3*t+2]*f[2] > 0.05) return; }
-      if (p.paint[t] !== stroke.op.slot){ p.paint[t] = stroke.op.slot; changed.push(t); }
-    });
+    for (const c of spots) for (const t of C.brushTris(p.pc.topo, p.pc.grid, c.pts[0], o.r, c.facing, o.edge || 0))
+      if (p.paint[t] !== o.slot){ p.paint[t] = o.slot; changed.push(t); }
     if (changed.length) recolourTris(p, changed);
   });
 }
@@ -3837,13 +4428,18 @@ renderer.domElement.addEventListener("pointerdown", e => {
   if (!painting() || e.button !== 0) return;
   const h = paintHit(e); if (!h) return;
   e.preventDefault();
+  if (paintUI.tool === "pick"){ paintPick(h); return; }
+  if (paintUI.tool === "area") return;                  // handled below: it may start off the model
+  if (paintUI.tool === "recolour"){ paintRecolour(h); return; }
   if (state.paint.on === false){ state.paint.on = true; }
+  const radial = paintUI.radial > 1 ? { radial:paintUI.radial } : {};
   if (paintUI.tool === "fill"){
-    state.paint.ops.push({ k:"fill", p:h.p.map(v => +v.toFixed(3)), slot:paintUI.slot, same:paintUI.fill === "same", angle:paintUI.angle });
+    state.paint.ops.push(Object.assign({ k:"fill", p:h.p.map(v => +v.toFixed(3)), slot:paintUI.slot, same:paintUI.fill === "same", angle:paintUI.angle }, radial));
     repaint(true); pushHistory(); return;
   }
   const facing = paintUI.facing ? h.dir.map(v => +v.toFixed(4)) : null;
-  const op = { k:"brush", slot:paintUI.tool === "erase" ? PAINT_LEAVE : paintUI.slot, r:paintUI.r, facing, pts:[], mirror:paintUI.mirror === true };
+  const op = Object.assign({ k:"brush", slot:paintUI.tool === "erase" ? PAINT_LEAVE : paintUI.slot, r:paintUI.r, facing, pts:[], mirror:paintUI.mirror === true },
+    radial, paintUI.smart ? { edge:paintUI.edge } : {});
   state.paint.ops.push(op);
   // the first stroke on a model: split it into triangles small enough to paint, then start
   if (!modelParts.some(p => p.pc) || !isFinite(paintInfo.edge)){ applyPaint(true); refreshScene(); }
@@ -3853,9 +4449,31 @@ renderer.domElement.addEventListener("pointerdown", e => {
 });
 renderer.domElement.addEventListener("pointermove", e => {
   if (!painting()) return;
+  if (areaDraw){
+    const [x, y] = areaPoints(e);
+    if (paintUI.area === "box") areaDraw.pts = [areaDraw.pts[0], [x, areaDraw.pts[0][1]], [x, y], [areaDraw.pts[0][0], y]];
+    else { const l = areaDraw.pts[areaDraw.pts.length - 1]; if (Math.hypot(x - l[0], y - l[1]) > 4 && areaDraw.pts.length < 2000) areaDraw.pts.push([x, y]); }
+    areaPath(); return;
+  }
   const h = paintHit(e); showBrush(h);
   if (stroke && h) strokeAt(h);
 });
+// the area tool: press, drag a box or a loop, let go
+renderer.domElement.addEventListener("pointerdown", e => {
+  if (!painting() || e.button !== 0 || paintUI.tool !== "area") return;
+  e.preventDefault(); const [x, y] = areaPoints(e);
+  areaDraw = { pts:[[x, y]] }; areaPath();
+  try { renderer.domElement.setPointerCapture(e.pointerId); } catch(err){}
+});
+const endArea = e => {
+  if (!areaDraw) return;
+  const r = renderer.domElement.getBoundingClientRect(), pts = areaDraw.pts; areaDraw = null; areaPath();
+  const bw = Math.max(...pts.map(q => q[0])) - Math.min(...pts.map(q => q[0])), bh = Math.max(...pts.map(q => q[1])) - Math.min(...pts.map(q => q[1]));
+  if (pts.length < 3 || bw < 4 || bh < 4) return;
+  paintArea(pts.map(q => [q[0] / r.width * 2 - 1, -(q[1] / r.height * 2 - 1)]), paintUI.through, paintUI.rubOut);
+};
+renderer.domElement.addEventListener("pointerup", endArea);
+renderer.domElement.addEventListener("pointercancel", () => { areaDraw = null; areaPath(); });
 const endStroke = () => {
   if (!stroke) return;
   const op = stroke.op; stroke = null;
@@ -3864,7 +4482,7 @@ const endStroke = () => {
 };
 renderer.domElement.addEventListener("pointerup", endStroke);
 renderer.domElement.addEventListener("pointercancel", endStroke);
-renderer.domElement.addEventListener("pointerleave", () => { brushRing.visible = false; });
+renderer.domElement.addEventListener("pointerleave", () => { brushRing.visible = false; brushPreview.visible = false; });
 
 let timer = 0, busy = false, queued = false, buildRev = 0;
 function schedule(){ clearTimeout(timer); timer = setTimeout(()=>rebuildAll(false), 130); }
@@ -3920,7 +4538,7 @@ async function rebuildAll(resetItems){
     if (t === "jigsaw" && tab === "make"){ drawJigsawPreview(); updateJigsawSummary(); }
     if (t === "lithophane" && tab === "make"){ drawLithoPreview(); updateLithoSummary(); }
     if (t === "tracer" && tab === "make"){ const cv = document.getElementById("tracerPreview"); if (cv) drawTracerPreview(cv); }
-    state.items.forEach(d => (d.solids||[]).forEach((s,i)=>{ if (s) modelParts.push({ name:state.slots[i].name, slot:i, solid:s, geom:solidToGeometry(s) }); }));
+    state.items.forEach(d => (d.solids||[]).forEach((s,i)=>{ if (s) modelParts.push({ name:state.slots[i].name, slot:i, solid:s, geom:solidToGeometry(s), decal:true }); }));
     applyPaint(false);
     refreshScene(); runChecks();
     if (tab === "paint") updatePaintSummary();
@@ -3967,6 +4585,15 @@ function refreshScene(){
   else modelGroup.quaternion.identity();
   modelGroup.position.set(t[0], t[1], t[2]);
   modelGroup.updateMatrixWorld(true);
+  // turned over on screen only (a half turn round the front-to-back axis through the middle), to see the
+  // side that prints on the bed: a picture inlaid in a case's back or a lid. Files and checks are unchanged;
+  // clicks still land right, as they go through the group's matrix. Not with the section view, which cuts by height.
+  if (viewOpts.flip && !viewOpts.section && modelParts.length){
+    const c = new THREE.Box3().setFromObject(modelGroup).getCenter(new THREE.Vector3());
+    new THREE.Matrix4().makeTranslation(c.x, c.y, c.z).multiply(new THREE.Matrix4().makeRotationZ(Math.PI)).multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z))
+      .multiply(modelGroup.matrix).decompose(modelGroup.position, modelGroup.quaternion, modelGroup.scale);
+    modelGroup.updateMatrixWorld(true);
+  }
   if (baseMesh) baseMesh.matrixWorld.copy(modelGroup.matrixWorld);   // clicks land where the model is drawn
   refreshOverlay();
   updateCrumb();
@@ -3982,7 +4609,7 @@ function refreshScene(){
 }
 
 /* ---------- 7. checks ---------- */
-let lastChecks = { list:[], rows:[], totals:{}, swaps:[] };
+let lastChecks = { list:[], rows:[], totals:{}, swaps:[], layers:null };
 /* The print frame: the model scaled, mirrored and (after Optimize) turned, standing on the bed.
    Without a turn this is exactly the old export: scale, then mirror, nothing else moves. */
 function modelMatrix(){
@@ -4015,10 +4642,12 @@ function printedParts(){
   const sc = (state.model.scale||100)/100, R = state.model.orient, M = modelMatrix(), t = printShift();
   c.list = modelParts.map(p => {
     const off = p.layout || [0,0,0];
+    // nothing painted (the model only split, ready for the brush): the original model, not the split one
+    const bare = !p.paint || p.paint.every(v => v === PAINT_LEAVE), solid = bare && p.solid0 ? p.solid0 : p.solid;
     let s;
-    if (!R){ s = C.transformSolid(p.solid, sc, off[0]*sc, off[1]*sc, off[2]*sc); if (state.model.mirror) s = C.mirrorSolid(s); }
-    else s = C.affineSolid(p.solid, M, [M[0]*off[0]+M[1]*off[1]+M[2]*off[2]+t[0], M[3]*off[0]+M[4]*off[1]+M[5]*off[2]+t[1], M[6]*off[0]+M[7]*off[1]+M[8]*off[2]+t[2]]);
-    return { name:p.name, slot:p.slot, pos:s.pos, idx:s.idx, paint:p.paint || null };
+    if (!R){ s = C.transformSolid(solid, sc, off[0]*sc, off[1]*sc, off[2]*sc); if (state.model.mirror) s = C.mirrorSolid(s); }
+    else s = C.affineSolid(solid, M, [M[0]*off[0]+M[1]*off[1]+M[2]*off[2]+t[0], M[3]*off[0]+M[4]*off[1]+M[5]*off[2]+t[1], M[6]*off[0]+M[7]*off[1]+M[8]*off[2]+t[2]]);
+    return { name:p.name, slot:p.slot, pos:s.pos, idx:s.idx, paint:bare ? null : p.paint };
   });
   c.key = key;
   return c.list;
@@ -4211,6 +4840,14 @@ function runChecks(){
     list.push({ k:"bad", t:"Bigger than the print bed", s:`${size.x.toFixed(0)} × ${size.z.toFixed(0)} × ${size.y.toFixed(0)} mm does not fit ${bed.join(" × ")} mm on the ${P.model}.` +
       (state.base.type === "jigsaw" && state.base.jigsaw.holder === "tray" ? " The tray prints beside the puzzle: make the puzzle smaller, or switch the tray off and export it separately." : "") });
   else list.push({ k:"ok", t:"Fits the bed", s:`${P.model}, ${bed[0]} × ${bed[1]} mm` });
+  // the paint switched off on the Paint tab is left out of the files too
+  if (state.paint && state.paint.on === false && Array.isArray(state.paint.ops) && state.paint.ops.length)
+    list.push({ k:"warn", t:"The paint is switched off", s:`${state.paint.ops.length} paint step${state.paint.ops.length === 1 ? " is" : "s are"} left out, so the model prints in its own colours. Tick “Use the paint” on the Paint tab to print them.` });
+  // a picture laid on the model that lands off it (in a photo frame's window, past an edge) prints nothing
+  const missed = state.items.filter(d => d.enabled !== false && Array.isArray(d.solids) && !d.solids.some(q => q && q.idx && q.idx.length));
+  if (missed.length) list.push({ k:"warn", t: missed.length === 1 ? `The picture “${missed[0].name}” misses the model` : `${missed.length} pictures miss the model`,
+    s: (state.base.type === "frame" ? "It sits in the frame's window, so none of it prints. " : "None of it lands on the model, so none of it prints. ") +
+      "Move it onto the model or make it bigger on the Art tab (Size and place)." });
 
   const usedSlots = new Set(modelParts.map(p=>p.slot));
   modelParts.forEach(p => { if (p.paint) for (const s of new Set(p.paint)) if (s !== PAINT_LEAVE && s < state.slots.length) usedSlots.add(s); });
@@ -4276,7 +4913,14 @@ function runChecks(){
   const totals = rows.reduce((a,r)=>({ cm3:a.cm3+r.cm3, grams:a.grams+r.grams, metres:a.metres+r.metres, cost:a.cost+r.cost }), {cm3:0,grams:0,metres:0,cost:0});
   const layers = Math.max(1, Math.round(size.y/(P.layer||0.12)));
   const swapsCount = Math.max(0, usedSlots.size-1);
-  const seconds = totals.cm3*1000/(P.flow||12) + layers*2.5 + (P.colors>1 ? layers*swapsCount*1.2 : swapsCount*30);
+  // colour changes layer by layer (a printer that loads several filaments): which filaments each layer
+  // uses, the changes in printing order, and the filament and time they cost
+  let layerInfo = null;
+  if (P.colors > 1 && usedSlots.size > 1){
+    const h = P.layer || 0.12, bits = C.layerSlots(printedParts(), h), cc = C.colourChanges(bits);
+    layerInfo = { bits, h, changes:cc.changes, busiest:cc.busiest, at:cc.at, grams:cc.changes*(P.purge ?? 0.4), seconds:cc.changes*(P.swap ?? 60) };
+  }
+  const seconds = totals.cm3*1000/(P.flow||12) + layers*2.5 + (P.colors>1 ? (layerInfo ? layerInfo.seconds : 0) : swapsCount*30);
   totals.minutes = seconds/60;
 
   // colour swap list, useful on a single-colour printer
@@ -4291,7 +4935,7 @@ function runChecks(){
     });
     [...zs.entries()].sort((a,b)=>a[1]-b[1]).forEach(([slot,z])=>swaps.push({ slot, z:Math.max(0,z) }));
   }
-  lastChecks = { list, rows, totals, swaps };
+  lastChecks = { list, rows, totals, swaps, layers:layerInfo };
   const worst = list.some(l=>l.k==="bad") ? "bad" : list.some(l=>l.k==="warn") ? "warn" : "ok";
   const pill = $("#checkPill");
   pill.className = "pill" + (worst === "ok" ? "" : " "+worst);
@@ -4500,7 +5144,7 @@ function symbolField(parent, get, set){
 const TABS = [["make","Make","◈"],["art","Art","✦"],["colour","Colours","◉"],["paint","Paint","🖌"],["export","Export","↓"]];
 $("#tabs").innerHTML = TABS.map(([k,l,ico])=>`<button role="tab" data-k="${k}" aria-selected="${k===tab}"><span class="ico">${ico}</span>${l}</button>`).join("");
 const APP_VERSION = (document.getElementById("verBadge")||{}).textContent || "";
-$("#tabs").querySelectorAll("button").forEach(b=>b.onclick = ()=>{ tab = b.dataset.k; renderTab(); });
+$("#tabs").querySelectorAll("button").forEach(b=>b.onclick = ()=>{ tab = b.dataset.k; if (tab !== "paint" && !paintOps().length) paintPrepared = false; renderTab(); });
 // arrow keys walk the tabs and the page icons, like any list of tabs
 function arrowNav(box, sel, vertical){
   box.addEventListener("keydown", e => {
@@ -4702,23 +5346,40 @@ const OBJECT_GROUPS = [
 ];
 // paint belongs to one model: a new object or an imported file starts unpainted (Undo brings it back)
 function clearPaintForNewModel(){
-  if (state.paint && state.paint.ops && state.paint.ops.length){ state.paint.ops = []; notify("The paint was left on the previous model. Undo brings it back."); }
+  paintPrepared = false;
+  if (state.paint && state.paint.ops && state.paint.ops.length){
+    const example = JSON.stringify(state.paint.ops) === examplePaintSig;      // an example's paint goes quietly
+    state.paint.ops = []; if (!example) notify("The paint was left on the previous model. Undo brings it back.");
+  }
 }
 function chooseObject(v){
-  if (v !== state.base.type) clearPaintForNewModel();
+  const prev = state.base.type;
+  if (v !== prev) clearPaintForNewModel();
   state.base.type = v;
   if (v === "stl" && !stlData) $("#stlInput").click();
   state.items.forEach(d=>{ d.place = defaultPlace(); d.solids = null; });
+  // a photo frame fits pictures to its border; leaving it gives them back their size unless it was changed there
+  if (v === "frame") state.items.forEach(d=>{ const w = Math.min(d.width, defaultWidth(d.aspect)); if (w < d.width){ d._frameW = [d.width, w]; d.width = w; } d.offU = d.offV = 0; });
+  else if (prev === "frame") state.items.forEach(d=>{ if (d._frameW && d.width === d._frameW[1]) d.width = d._frameW[0]; delete d._frameW; });
   tab = "make"; userMoved = false;
   $("#notice").classList.remove("show");
-  renderTab(); renderStarts(); rebuildAll(false); pushHistory();
+  renderTab(); renderStarts();
+  // with no pictures of their own, the object opens with its example (the next picture added takes its place)
+  exampleBusy++;
+  loadExample(EXAMPLE_FOR_TYPE[v], false).catch(err => { console.error(err); return false; }).then(added => {
+    exampleBusy--;
+    if (added){ renderTab(); notify(exampleNote(EXAMPLE_FOR_TYPE[v])); }
+    rebuildAll(false); pushHistory();
+  });
   logLine(`Object: ${SHAPE_LABEL[v] || v}`);
 }
 function renderStarts(){
   const body = $("#startsBody"); if (!body) return;
   body.innerHTML = `<div class="objcat">Quick start</div><div class="gallery" id="presetGallery"></div>`;
   const g = body.querySelector("#presetGallery");
-  g.innerHTML = Object.keys(PRESETS).map(k=>`<button data-k="${esc(k)}"><span class="em">${PRESET_ICONS[k]||"◻"}</span>${esc(k)}</button>`).join("");
+  const pic = (key, icon) => encHas(START_THUMBS, key) && /^data:image\/(webp|png);base64,[A-Za-z0-9+/=]+$/.test(START_THUMBS[key])
+    ? `<img src="${START_THUMBS[key]}" alt="" width="160" height="120">` : `<span class="em">${icon}</span>`;
+  g.innerHTML = Object.keys(PRESETS).map(k=>`<button data-k="${esc(k)}">${pic("preset:" + k, PRESET_ICONS[k]||"◻")}<span>${esc(k)}</span></button>`).join("");
   g.querySelectorAll("button").forEach(b=>b.onclick = ()=>{ applyPreset(b.dataset.k); renderStarts(); });
   OBJECT_GROUPS.forEach(([title, list])=>{
     body.insertAdjacentHTML("beforeend", `<div class="objcat">${esc(title)}</div>`);
@@ -4726,7 +5387,7 @@ function renderStarts(){
     list.forEach(([k, em])=>{
       const b = document.createElement("button"); b.className = "objcard";
       b.setAttribute("aria-pressed", String(state.base.type === k));
-      b.innerHTML = `<span class="em">${em}</span>${esc(SHAPE_LABEL[k]||k)}`;
+      b.innerHTML = `${pic("object:" + k, em)}<span>${esc(SHAPE_LABEL[k]||k)}</span>`;
       b.onclick = ()=>chooseObject(k);
       grid.appendChild(b);
     });
@@ -5317,7 +5978,9 @@ function sphereFields(p){
   numField(p,{ label:"Diameter (mm)", min:10,max:250,step:1, get:()=>state.base.sphere.dia, set:v=>state.base.sphere.dia=v, onChange:baseChanged });
 }
 function stlFields(p){
-  buttonRow(p, [[stlData?"Open a different model":"Choose a model file", ()=>$("#stlInput").click()]]);
+  const missing = missingModel();
+  if (missing) note(p, `This project was made with <b>${esc(missing)}</b>, which is not saved with it (the autosave, the recent list and share links leave models out; a saved project file keeps it). Open that file again and its paint and settings come back.`);
+  buttonRow(p, [[stlData?"Open a different model":missing?"Open "+missing+" again":"Choose a model file", ()=>$("#stlInput").click()]]);
   note(p, stlData ? esc(state.base.stl.name) : "STL, OBJ or 3MF. Any model works, including one made from a photo by an AI service. 3mf files from Bambu Studio or PrusaSlicer keep their painting.");
   if (stlData) note(p, "Colour it on the <b>Paint</b> tab: by height, by face, from a picture, or with a brush.");
   if (stlData) numField(p,{ label:"Scale (%)", min:5,max:400,step:1, get:()=>state.base.stl.scale, set:v=>state.base.stl.scale=v, onChange:baseChanged });
@@ -6051,11 +6714,13 @@ function tabArt(p){
     return;
   }
   normalizeItem(d);
+  if (d.example) note(p, "<b>This is an example picture.</b> Add your own above and it takes its place, with the same settings.");
   const ch = dirtyItem(d);
   // a picture that becomes the object itself (a cookie cutter, a lightbox, a puzzle…) is not
   // placed as a decal: show only the settings that object actually reads
   const E0 = state.base.enclosure, lidLogo = state.base.type === "enclosure" && E0 && E0.lid !== "none" && E0.logo && E0.logo.on;
-  const consumer = (CONSUMES_ART[state.base.type] || lidLogo) && d === (state.items[state.active] || state.items[0])
+  const P0 = state.base.phonecase, backLogo = state.base.type === "phonecase" && P0 && P0.style !== "bumper" && P0.logo && P0.logo.on;
+  const consumer = (CONSUMES_ART[state.base.type] || lidLogo || backLogo) && d === (state.items[state.active] || state.items[0])
     ? (ART_USED_BY[state.base.type] || []) : null;
   const uses = k => !consumer || consumer.includes(k);
 
@@ -6070,15 +6735,25 @@ function tabArt(p){
     drawPreview();
     return;
   }
+  if (state.base.type === "phonecase" && !backLogo){       // cases take artwork only inlaid in the back
+    if (P0 && P0.style === "bumper"){ note(p, "A bumper has no back, so it cannot carry a picture. Choose <b>Full case</b> on the Make tab for one."); drawPreview(); return; }
+    note(p, "Pictures are not stamped onto the sides of a phone case, but one can be inlaid in the back, in its own colours or engraved.");
+    buttonRow(p, [["Put it in the back", ()=>{ if (!P0.logo) P0.logo = JSON.parse(JSON.stringify(DEFAULTS().base.phonecase.logo));
+      P0.logo.on = true; tab = "make"; renderTab(); baseChanged(); pushHistory(); }]]);
+    drawPreview();
+    return;
+  }
   if (consumer){
     p.insertAdjacentHTML("beforeend", `<h2>Size and place</h2>`);
     note(p, lidLogo ? "This picture is inlaid into the lid. Its size and place are set on the Make tab, under <b>Logo on the lid</b>."
+      : backLogo ? "This picture is inlaid into the back of the case. Its size and place are set on the Make tab, under <b>Picture on the back</b>."
       : `This picture becomes the <b>${esc((SHAPE_LABEL[state.base.type]||state.base.type).toLowerCase())}</b> itself, so its size and shape are set on the Make tab.`);
     buttonRow(p, [["Open the Make tab", ()=>{ tab = "make"; renderTab(); }]]);
     if (uses("width")) numField(p,{ label:"Width (mm)", min:5,max:250,step:0.5, get:()=>d.width, set:v=>d.width=v, onChange:ch, sub:()=>`Height ${(d.width/d.aspect).toFixed(1)} mm` });
     if (uses("mirror")) checkField(p,"Mirror",()=>d.mirror, v=>{ d.mirror = v; d._imgKey = ""; ch(); });
   } else {
   p.insertAdjacentHTML("beforeend", `<h2>Size and place</h2>`);
+  if (state.base.type === "frame") note(p, "On a photo frame a picture goes on the border: it starts on the bottom edge. The window in the middle stays open.");
   numField(p,{ label:"Width (mm)", min:5,max:250,step:0.5, get:()=>d.width, set:v=>d.width=v, onChange:ch, sub:()=>`Height ${(d.width/d.aspect).toFixed(1)} mm` });
   numField(p,{ label:"Rotation (°)", min:-180,max:180,step:1, get:()=>d.rotation, set:v=>d.rotation=v, onChange:ch });
   if (FLAT[state.base.type]) segField(p,[["front","On the front"],["back","On the back"]],()=>d.side,
@@ -6268,6 +6943,7 @@ async function addFiles(files){
   const imgs = [...files].filter(f=>f.type.startsWith("image/"));
   if (!imgs.length){ notify("Those files are not images."); return; }
   const drop = $("#drop"); if (drop) drop.classList.add("loading");
+  if (dropExamples()) notify("The example picture made way for yours.");
   setBusy(true, `Loading ${imgs.length} picture${imgs.length===1?"":"s"}…`);
   for (const file of imgs){
     try {
@@ -6289,6 +6965,7 @@ async function addFiles(files){
   renderTab(); schedule(); pushHistory();
 }
 async function addTextItem(){
+  dropExamples();
   const t = { value:"Your name", font:"Manrope", weight:800 };
   await document.fonts.load('800 180px "Manrope"');
   const canvas = textCanvas(t);
@@ -6349,7 +7026,7 @@ function tabColour(p){
   const printerChanged = () => { savePrinterPref(); runChecks(); makeBed(); renderTab(); };
   selField(p,"Your printer", brands, ()=>state.printer.model, v=>{
     const pr = PRINTERS[v];
-    Object.assign(state.printer, { model:v, bed:pr.bed.slice(), nozzle:pr.nozzle, colors:pr.colors, flow:pr.flow });
+    Object.assign(state.printer, { model:v, bed:pr.bed.slice(), nozzle:pr.nozzle, colors:pr.colors, flow:pr.flow }, changeCost(v));
     printerChanged();
   });
   const P0 = state.printer, info = encHas(PRINTERS, P0.model) ? PRINTERS[P0.model] : null;
@@ -6361,6 +7038,8 @@ function tabColour(p){
     numField(g2,{ label:"Bed depth (mm)", min:80,max:600,step:5, get:()=>state.printer.bed[1], set:v=>state.printer.bed[1]=v, onChange:printerChanged });
     numField(g2,{ label:"Build height (mm)", min:80,max:600,step:5, get:()=>state.printer.bed[2] || 256, set:v=>state.printer.bed[2]=v, onChange:printerChanged });
     numField(g2,{ label:"Colours it can load", min:1,max:16,step:1, get:()=>state.printer.colors, set:v=>state.printer.colors=Math.round(v), onChange:()=>{ savePrinterPref(); runChecks(); } });
+    numField(g2,{ label:"Waste per colour change (g)", min:0, max:3, step:0.05, def:changeCost(state.printer.model).purge, get:()=>state.printer.purge ?? 0.4, set:v=>state.printer.purge=v, onChange:()=>{ savePrinterPref(); runChecks(); } });
+    numField(g2,{ label:"Time per colour change (seconds)", min:0, max:300, step:5, def:changeCost(state.printer.model).swap, get:()=>state.printer.swap ?? 60, set:v=>state.printer.swap=v, onChange:()=>{ savePrinterPref(); runChecks(); } });
     numField(g2,{ label:"Nozzle (mm)", min:0.2,max:1,step:0.05, get:()=>state.printer.nozzle, set:v=>state.printer.nozzle=v, onChange:()=>{ savePrinterPref(); runChecks(); } });
     numField(g2,{ label:"Layer height (mm)", min:0.05,max:0.4,step:0.01, get:()=>state.printer.layer, set:v=>state.printer.layer=v, onChange:()=>{ savePrinterPref(); runChecks(); } });
     selField(g2,"Units",[["mm","Millimetres"],["in","Inches"]],()=>state.view.units, v=>{ state.view.units = v; refreshScene(); renderTab(); });
@@ -6384,9 +7063,9 @@ function removeSlot(i){
   // paint that used the removed filament goes back to the part's own colour; later numbers move down
   const pk = v => v === PAINT_LEAVE ? v : v === i ? PAINT_LEAVE : v > i ? v - 1 : v, p0 = v => Math.min(pk(v) === PAINT_LEAVE ? 0 : pk(v), state.slots.length - 1);
   (state.paint && state.paint.ops || []).forEach(o => {
-    for (const k of ["slot","gap","up","side","down"]) if (typeof o[k] === "number") o[k] = pk(o[k]);
+    for (const k of ["slot","gap","up","side","down","edges","hollows","flat"]) if (typeof o[k] === "number") o[k] = pk(o[k]);
     for (const k of ["a","b","from","to"]) if (typeof o[k] === "number" && (o.k === "gradient" || o.k === "swap")) o[k] = p0(o[k]);
-    if (Array.isArray(o.slots)) o.slots = o.k === "height" ? o.slots.map(pk) : o.slots.map(pk).filter(v => v !== PAINT_LEAVE);
+    if (Array.isArray(o.slots)) o.slots = o.k === "height" || o.k === "photo" ? o.slots.map(pk) : o.slots.map(pk).filter(v => v !== PAINT_LEAVE);
   });
   if (paintUI.slot >= state.slots.length) paintUI.slot = state.slots.length - 1;
   renderTab(); schedule(); pushHistory();
@@ -6395,6 +7074,7 @@ function removeSlot(i){
 /* ---- Export ---- */
 /* ---- Paint ---- */
 const PAINT_METHODS = [
+  ["photo","From a photo of the model","Got a coloured photo of this model? Drop it here: it is lined up with the model and its colours go on, the hidden sides too."],
   ["height","Height bands","Bands of colour from the bottom up, like layers of a cake. The edges are cut straight into the model."],
   ["gradient","Colour fade","Two filaments fade into each other up the model, one layer at a time: sunsets, oceans, flames."],
   ["stripes","Stripes","A colour that repeats every few millimetres up the model, like a candy cane."],
@@ -6403,10 +7083,11 @@ const PAINT_METHODS = [
   ["regions","Smooth areas","Areas split by sharp edges get different colours, neighbours never the same where the colours allow."],
   ["picture","From a picture","Shines a picture from the Art tab through the model, like a projector, in your loaded filaments."],
   ["noise","Random blobs","Soft random patches: camouflage, marble, stone. Shuffle until you like it."],
+  ["curve","Edges and hollows","Ridges and edges in one colour, hollows and cracks in another: worn paint, stone, wood, dirt in the gaps."],
   ["swap","Swap a colour","Every part of the model in one colour changes to another. Quick recolouring after painting."]
 ];
 const PAINT_OP_NAME = { height:"Height bands", gradient:"Colour fade", swap:"Swap a colour", stripes:"Stripes", dir:"Tops and sides", shells:"Separate pieces", regions:"Smooth areas",
-  picture:"Picture", noise:"Random blobs", brush:"Brush stroke", fill:"Fill" };
+  picture:"Picture", noise:"Random blobs", brush:"Brush stroke", fill:"Fill", photo:"From a photo", area:"Box or lasso", curve:"Edges and hollows" };
 function slotChoices(withKeep){ return [...(withKeep ? [["255","Keep as it is"]] : []), ...state.slots.map((s,i)=>[String(i), `${i+1}. ${s.name}`])]; }
 function paintModelHeight(){ const B = modelBoundsOf(modelParts); return isFinite(B.mx[1]) ? Math.max(1, B.mx[1] - Math.min(0, B.mn[1])) : 50; }
 function newPaintOp(k){
@@ -6420,6 +7101,7 @@ function newPaintOp(k){
   if (k === "regions") return { k, angle:30, slots:state.slots.map((_,i)=>i) };
   if (k === "picture") return { k, item:Math.max(0, state.active), dir:"front", scale:100, dx:0, dy:0, facing:true };
   if (k === "noise") return { k, slots:sl, scale:12, seed:1 };
+  if (k === "curve") return { k, edges:Math.min(1, state.slots.length-1), hollows:state.slots.length > 2 ? 2 : PAINT_LEAVE, flat:PAINT_LEAVE, radius:4, band:1 };
   return null;
 }
 function paintOpText(o){
@@ -6429,17 +7111,21 @@ function paintOpText(o){
   if (o.k === "gradient") return `${nm(o.a)} to ${nm(o.b)}, ${o.from} to ${o.to} mm`;
   if (o.k === "swap") return `${nm(o.from)} becomes ${nm(o.to)}`;
   if (o.k === "dir") return `tops ${nm(o.up)}, sides ${nm(o.side)}, undersides ${nm(o.down)}`;
-  if (o.k === "brush") return `${o.slot === PAINT_LEAVE ? "eraser" : nm(o.slot)}, ${o.r} mm, ${o.pts.length} points${o.mirror ? ", mirrored" : ""}`;
-  if (o.k === "fill") return `${o.slot === PAINT_LEAVE ? "eraser" : nm(o.slot)}, ${o.same ? "same colour" : "smooth area"}`;
-  if (o.k === "picture") return `${(state.items[o.item]||{}).name || "missing artwork"}, from the ${o.dir}`;
+  if (o.k === "brush") return `${o.slot === PAINT_LEAVE ? "eraser" : nm(o.slot)}, ${o.r} mm, ${o.pts.length} points${o.mirror ? ", mirrored" : ""}${o.radial > 1 ? `, ${o.radial} times round` : ""}${o.edge ? ", stops at sharp edges" : ""}`;
+  if (o.k === "fill") return `${o.slot === PAINT_LEAVE ? "eraser" : nm(o.slot)}, ${o.same ? "same colour" : "smooth area"}${o.radial > 1 ? `, ${o.radial} times round` : ""}`;
+  if (o.k === "area") return `${o.slot === PAINT_LEAVE ? "rubbed out" : nm(o.slot)}, ${o.poly.length === 4 ? "a box" : "a lasso"}${o.through ? ", right through" : ", the side seen"}`;
+  if (o.k === "picture") return `${(state.items[o.item]||{}).name || "missing artwork"}, ${o.wrap === "around" ? `round the model (${o.turn || 360}°)` : o.wrap === "ball" ? `over a ball (${o.turn || 360}°)` : `from the ${o.dir}`}`;
+  if (o.k === "curve") return `edges ${nm(o.edges)}, hollows ${nm(o.hollows)}, the rest ${nm(o.flat)}`;
+  if (o.k === "photo") return `${o.views.length} photo${o.views.length === 1 ? "" : "s"}, ${o.pal.length} colours: ${[...new Set(o.slots.filter(s => s !== PAINT_LEAVE))].map(nm).join(", ")}`;
   return (o.slots||[]).map(nm).join(", ");
 }
 function updatePaintSummary(){
+  updatePhotoInfo();
   const el = document.getElementById("paintSummary"); if (!el) return;
   const tot = Object.values(paintInfo.area).reduce((a,b)=>a+b, 0);
   if (!paintOps().length){ el.innerHTML = "Nothing painted yet."; return; }
   el.innerHTML = Object.entries(paintInfo.area).sort((a,b)=>b[1]-a[1]).map(([s,a]) =>
-    `<span class="pchip"><span class="sw" style="background:${esc((state.slots[s]||{}).hex||"#888")}"></span>${esc((state.slots[s]||{}).name||"")} ${Math.round(100*a/(tot||1))}%</span>`).join("") +
+    `<span class="pchip"><span class="sw" style="${swatchStyle(+s, (state.slots[s]||{}).hex||"#888")}"></span>${esc((state.slots[s]||{}).name||"")} ${Math.round(100*a/(tot||1))}%</span>`).join("") +
     `<div class="sub">${paintInfo.tris.toLocaleString()} triangles${isFinite(paintInfo.edge) && paintInfo.edge ? `, none longer than ${paintInfo.edge.toFixed(1)} mm` : ""}${paintInfo.capped ? ". The model is big, so the detail was lowered to keep the file small." : "."}</div>`;
 }
 function paletteRow(parent){
@@ -6447,7 +7133,7 @@ function paletteRow(parent){
   state.slots.forEach((s,i)=>{
     const b = document.createElement("button"); b.className = "pswatch"; b.setAttribute("role","radio"); b.setAttribute("aria-checked", String(paintUI.slot === i));
     b.setAttribute("aria-label", `${i+1}: ${s.name}`); b.title = `${s.name} (key ${i+1})`;
-    b.innerHTML = `<span class="sw" style="background:${esc(s.hex)}"></span><span class="num">${i+1}</span>`;
+    b.innerHTML = `<span class="sw" style="${swatchStyle(i, s.hex)}"></span><span class="num">${i+1}</span>`;
     b.onclick = () => { paintUI.slot = i; if (paintUI.tool === "erase") paintUI.tool = "brush"; renderTab(); };
     row.appendChild(b);
   });
@@ -6464,7 +7150,7 @@ function slotChecks(parent, o){
   const w = document.createElement("div"); w.className = "chips";
   state.slots.forEach((s,i)=>{
     const on = (o.slots||[]).includes(i), b = document.createElement("button"); b.className = "pchip toggle"; b.setAttribute("aria-pressed", String(on));
-    b.innerHTML = `<span class="sw" style="background:${esc(s.hex)}"></span>${esc(s.name)}`;
+    b.innerHTML = `<span class="sw" style="${swatchStyle(i, s.hex)}"></span>${esc(s.name)}`;
     b.onclick = () => { o.slots = on ? o.slots.filter(x=>x!==i) : [...(o.slots||[]), i].sort((a,b)=>a-b); if (!o.slots.length) o.slots = [i]; renderTab(); paintChanged(); };
     w.appendChild(b);
   });
@@ -6517,9 +7203,27 @@ function paintOpFields(parent, o){
     slotChecks(parent, o);
     numField(parent,{ label:"Blob size (mm)", min:1, max:100, step:0.5, get:()=>o.scale, set:v=>o.scale=v, onChange:ch });
     buttonRow(parent, [["Shuffle the pattern", ()=>{ o.seed = (o.seed % 9999) + 1; ch(); }]]);
+  } else if (o.k === "curve"){
+    slotSel("Ridges and edges", () => o.edges, v => o.edges = v, true);
+    slotSel("Hollows and cracks", () => o.hollows, v => o.hollows = v, true);
+    slotSel("Everything else", () => o.flat, v => o.flat = v, true);
+    numField(parent,{ label:"Counts when it curves tighter than a radius of (mm)", min:0.5, max:50, step:0.5, def:4, get:()=>o.radius, set:v=>o.radius=v, onChange:ch,
+      sub:()=>"Smaller finds only sharp edges and deep cracks; bigger takes in gentle curves too." });
+    numField(parent,{ label:"Width of the edge colour (mm)", min:0.3, max:10, step:0.1, def:1, get:()=>o.band, set:v=>o.band=v, onChange:ch });
+    note(parent, "Tip: a light colour on the edges and a dark one in the hollows looks like worn paint or old stone.");
   } else if (o.k === "picture"){
     if (!state.items.length){ parent.insertAdjacentHTML("beforeend", `<div class="card empty">Add a picture on the <b>Art</b> tab first.</div>`); return; }
     selField(parent, "Picture", state.items.map((d,i)=>[String(i), d.name]), () => String(o.item), v => { o.item = +v; ch(); });
+    segField(parent, [["flat","Straight through"],["around","Round the model"],["ball","Over a ball"]], () => o.wrap || "flat", v => { if (v === "flat") delete o.wrap; else o.wrap = v; renderTab(); ch(); });
+    if (o.wrap === "around" || o.wrap === "ball"){
+      numField(parent,{ label:"How far round (°)", min:10, max:360, step:5, def:360, get:()=>o.turn || 360, set:v=>o.turn=v, onChange:ch,
+        sub:()=>(o.turn || 360) >= 360 ? "Once all the way round: the picture's ends meet at the back." : "Part of the way round, centred where you turn it." });
+      numField(parent,{ label:"Turn it (°)", min:-180, max:180, step:5, def:0, get:()=>o.start || 0, set:v=>o.start=v, onChange:ch, sub:()=>"0 puts the middle of the picture at the front." });
+      numField(parent,{ label:"Move up (mm)", min:-200, max:200, step:0.5, get:()=>o.dy, set:v=>o.dy=v, onChange:ch });
+      checkField(parent, "Only the outside", () => o.facing !== false, v => { o.facing = v; ch(); });
+      note(parent, o.wrap === "around" ? "Wraps the picture round the model like a label on a mug or a bottle." : "Wraps the picture over the model like a map over a globe.");
+      return;
+    }
     segField(parent, [["front","Front"],["back","Back"],["left","Left"],["right","Right"],["top","Top"]], () => o.dir, v => { o.dir = v; renderTab(); ch(); }, "five");
     numField(parent,{ label:"Size (%)", min:10, max:400, step:1, get:()=>o.scale, set:v=>o.scale=v, onChange:ch });
     numField(parent,{ label:"Move across (mm)", min:-200, max:200, step:0.5, get:()=>o.dx, set:v=>o.dx=v, onChange:ch });
@@ -6528,16 +7232,211 @@ function paintOpFields(parent, o){
     note(parent, "Colours switched off for this picture on the Art tab are left unpainted.");
   }
 }
+/* the "From a photo" card: the photos, how each lines up, the colours and the clean-up */
+// draw the panel again and put the focus back on the control that had it (found by its label)
+function renderKeepFocus(){
+  const a = document.activeElement, name = e => e.getAttribute("aria-label") || (e.labels && e.labels[0] ? e.labels[0].textContent : "") || e.textContent;
+  const inPanel = a && a.closest && a.closest("#panel"), key = inPanel ? [a.tagName, a.type, name(a)].join("|") : null;
+  renderTab();
+  if (key){ const el = [...document.querySelectorAll("#panel input, #panel button, #panel select, #panel canvas")].find(e => [e.tagName, e.type, name(e)].join("|") === key); if (el) el.focus(); }
+}
+let photoTimer = 0;
+const photoLater = (fn, ms) => { clearTimeout(photoTimer); photoTimer = setTimeout(fn, ms || 450); };
+function photoToSide(v){ const s0 = PHOTO_SIDES[photoSideOf(v)]; v.cam = { yaw:s0[0], pitch:s0[1] }; }
+function photoSideOf(v){
+  if (v.cam.pitch > 60) return "top";
+  const y = wrapYaw(v.cam.yaw); return Math.abs(y) <= 45 ? "front" : Math.abs(y) >= 135 ? "back" : y > 0 ? "right" : "left";
+}
+// the photo with the lined-up model's outline on it (a thick yellow line edged in black), or the colours
+// it reads there, each shown in the filament it prints in
+function drawPhotoPreview(cv, o, v){
+  const px = photoPixels(v.asset, 420); if (!px) return;
+  const W = px.w, H = px.h; cv.width = W; cv.height = H;
+  const x = cv.getContext("2d"), img = x.createImageData(W, H), d = img.data; d.set(px.rgba);
+  const model = photoModel();
+  if (v.fit && model){
+    const cam = photoCamOf(v), fit = photoFitNowFor(v), inside = C.photoModelMask(model, cam, fit, W, H, 0);
+    if (paintUI.photoShow === "colours" && o.pal.length){
+      const cls = C.photoView(px.rgba, W, H, model, cam, fit, o.pal, photoFigure(v, px)).cls.data;
+      for (let i=0;i<W*H;i++){
+        const c = cls[i];
+        if (c >= 0){ const s = o.slots[c], rgb = s !== PAINT_LEAVE && state.slots[s] ? C.hexToRgb(state.slots[s].hex) : o.pal[c].rgb; d[4*i] = rgb[0]; d[4*i+1] = rgb[1]; d[4*i+2] = rgb[2]; }
+        else { d[4*i] = d[4*i]*0.3 + 160; d[4*i+1] = d[4*i+1]*0.3 + 160; d[4*i+2] = d[4*i+2]*0.3 + 160; }
+        d[4*i+3] = 255;
+      }
+    }
+    const edge = new Uint8Array(W*H);
+    for (let y=0;y<H;y++) for (let i0=0;i0<W;i0++){ const i = y*W + i0; if (inside[i] && (i0 === 0 || y === 0 || i0 === W-1 || y === H-1 || !inside[i-1] || !inside[i+1] || !inside[i-W] || !inside[i+W])) edge[i] = 1; }
+    const grow = m => { const g = new Uint8Array(m); for (let y=0;y<H;y++) for (let i0=0;i0<W;i0++){ const i = y*W + i0; if (!m[i]) continue; if (i0 > 0) g[i-1] = 1; if (i0 < W-1) g[i+1] = 1; if (y > 0) g[i-W] = 1; if (y < H-1) g[i+W] = 1; } return g; };
+    const e1 = grow(edge), e2 = grow(e1);
+    for (let i=0;i<W*H;i++) if (e2[i]){ const c = e1[i] ? [255, 214, 0] : [15, 15, 15]; d[4*i] = c[0]; d[4*i+1] = c[1]; d[4*i+2] = c[2]; d[4*i+3] = 255; }
+  }
+  x.putImageData(img, 0, 0);
+}
+function photoCard(c){
+  if (!modelParts.length){ note(c, "Make or import a model first, then add a photo of it here."); return; }
+  const o = photoOpOf();
+  const drop = document.createElement("label"); drop.className = "drop"; drop.id = "photoDrop"; drop.htmlFor = "photoInput"; drop.tabIndex = 0;
+  drop.innerHTML = `<span><strong>${o ? "Add another photo" : "Add a photo of the model"}</strong><span class="hint">Click or drop a JPG or PNG: the front first, then the back or a side if you have them.</span></span>`;
+  drop.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); photoInput.click(); } });
+  ["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", e => { if (e.dataTransfer && e.dataTransfer.files.length) addPaintPhotos(e.dataTransfer.files); });
+  c.appendChild(drop);
+  if (!o){
+    note(c, "Any photo or drawing of this model in colour works: the app finds the figure, lines it up with the model's outline and picks the filaments from its colours. " +
+      "Where the photo cannot see (the back, under the arms) the nearest colour is used, so a second photo from the back makes that part right too.");
+    return;
+  }
+  const i = clamp(paintUI.photo || 0, 0, Math.max(0, o.views.length - 1)), v = o.views[i];
+  if (o.views.length > 1){
+    const row = document.createElement("div"); row.className = "chips"; row.setAttribute("role", "group"); row.setAttribute("aria-label", "Photo to adjust");
+    o.views.forEach((w, j) => { const b = document.createElement("button"); b.className = "pchip pick"; b.setAttribute("aria-pressed", String(j === i));
+      b.textContent = `${j+1}. ${w.name} (${photoSideOf(w)})`; b.onclick = () => { paintUI.photo = j; renderTab(); }; row.appendChild(b); });
+    c.appendChild(row);
+  }
+  if (!v) return;
+  const removePhoto = () => {
+    o.views.splice(i, 1); paintUI.photo = Math.max(0, i - 1);
+    if (!o.views.length){ state.paint.ops.splice(state.paint.ops.indexOf(o), 1); notify("The photo step is gone. Undo (Ctrl+Z) brings it back."); }
+    renderTab(); photoRepaint();
+  };
+  if (!assets[v.asset]){
+    c.insertAdjacentHTML("beforeend", `<div class="card empty">The photo <b>${esc(v.name)}</b> is not in this project (share links leave photos out). Add it again, then remove this one.</div>`);
+    buttonRow(c, [["Remove this photo", removePhoto]]);
+    return;
+  }
+  // the photo, lined up
+  const cv = document.createElement("canvas"); cv.className = "photoPrev"; cv.tabIndex = 0; cv.setAttribute("role", "application");
+  cv.setAttribute("aria-label", `${v.name} with the model's outline drawn on it in yellow. Drag it, or use the arrow keys to move it, plus and minus to resize and comma and full stop to turn.`);
+  c.appendChild(cv);
+  const redraw = () => { try { drawPhotoPreview(cv, o, v); } catch (err){ console.error(err); } };
+  redraw();
+  segField(c, [["photo","Photo and outline"],["colours","Colours it reads"]], () => paintUI.photoShow, k => { paintUI.photoShow = k; redraw(); c.querySelectorAll(".seg.show button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.k === k))); }, "two show");
+  const fitted = () => { photoLater(() => photoRepaint()); };
+  // nudges keep the model's middle where it is
+  const centre = () => photoBox(photoModel(), photoCamOf(v));
+  const at = (f, cu, cv0) => { const uu = f.mirror ? -cu : cu, cs = Math.cos(f.rot), sn = Math.sin(f.rot); return [f.tx + f.a*(uu*cs - cv0*sn), f.ty - f.a*(uu*sn + cv0*cs)]; };
+  const nudge = (kind, amt) => {
+    if (!v.fit) return;
+    photoBake(v);
+    const f = v.fit, [cu, cv0] = centre(), p0 = at(f, cu, cv0);
+    if (kind === "x") f.tx += amt; else if (kind === "y") f.ty += amt;
+    else { if (kind === "a") f.a *= 1 + amt; else f.rot = clamp(f.rot + amt, -0.35, 0.35); const p1 = at(f, cu, cv0); f.tx += p0[0] - p1[0]; f.ty += p0[1] - p1[1]; }
+    redraw(); fitted();
+  };
+  cv.addEventListener("keydown", e => {
+    const k = { ArrowLeft:["x",-0.005], ArrowRight:["x",0.005], ArrowUp:["y",-0.005], ArrowDown:["y",0.005], "+":["a",0.01], "=":["a",0.01], "-":["a",-0.01], ",":["rot",-Math.PI/180], ".":["rot",Math.PI/180] }[e.key];
+    if (k){ e.preventDefault(); e.stopPropagation(); nudge(k[0], k[1] * (e.shiftKey ? 5 : 1)); }
+  });
+  let drag = null;
+  cv.addEventListener("pointerdown", e => { if (!v.fit) return; photoBake(v); drag = { x:e.clientX, y:e.clientY }; cv.setPointerCapture && cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener("pointermove", e => { if (!drag) return; const r = cv.getBoundingClientRect(), s = 1 / Math.max(1, r.height);
+    v.fit.tx += (e.clientX - drag.x) * s; v.fit.ty += (e.clientY - drag.y) * s; drag = { x:e.clientX, y:e.clientY }; redraw(); });
+  const endDrag = () => { if (drag){ drag = null; fitted(); } };
+  cv.addEventListener("pointerup", endDrag); cv.addEventListener("pointercancel", endDrag);
+  const nb = document.createElement("div"); nb.className = "row nudges"; nb.setAttribute("role", "group"); nb.setAttribute("aria-label", "Move the photo");
+  [["◀","Move left","x",-0.005],["▶","Move right","x",0.005],["▲","Move up","y",-0.005],["▼","Move down","y",0.005],["−","Smaller","a",-0.01],["+","Bigger","a",0.01],["⟲","Turn left","rot",-Math.PI/180],["⟳","Turn right","rot",Math.PI/180]]
+    .forEach(([t, lbl, k, a]) => { const b = document.createElement("button"); b.className = "btn small icon"; b.textContent = t; b.title = lbl; b.setAttribute("aria-label", lbl); b.onclick = () => nudge(k, a); nb.appendChild(b); });
+  c.appendChild(nb);
+  const matchNote = document.createElement("p"); matchNote.className = "hint"; matchNote.setAttribute("aria-live", "polite"); c.appendChild(matchNote);
+  const showMatch = () => { const m = v.match || 0;
+    matchNote.textContent = !v.fit ? "This photo is not lined up yet: no figure was found in it. Change the background setting, or try a photo on a plain background."
+      : m < 0.75 ? `The outline matches the photo only ${Math.round(m*100)}%. Pick the side the photo was taken from, or drag it into place.${aiMapOf(v.ai) ? "" : " On a busy background, try Find the figure with AI below."}`
+      : `The outline matches the photo ${Math.round(m*100)}%. Drag it or use the arrows to fine-tune.`; };
+  showMatch();
+  // where it was taken from
+  segField(c, [["front","Front"],["right","Right"],["back","Back"],["left","Left"],["top","Top"]], () => photoSideOf(v), async k => {
+    const s0 = PHOTO_SIDES[k]; v.cam = { yaw:s0[0], pitch:s0[1] }; await photoFitNow(o, v, true); renderKeepFocus(); photoRepaint(); }, "five");
+  // a new angle or background: line up again at that angle (the card stays as it is, so a slider keeps the focus)
+  const refit = () => photoLater(async () => { await photoFitNow(o, v, false); redraw(); showMatch(); photoRepaint(); }, 500);
+  numField(c, { label:"Taken from (° round the model)", min:-180, max:180, step:1, get:()=>v.cam.yaw, set:x=>v.cam.yaw = Math.round(x), onChange:refit, noReset:true,
+    sub:()=>"0 is the front, 90 the right side, 180 the back." });
+  numField(c, { label:"Taken from (° above)", min:-89, max:89, step:1, get:()=>v.cam.pitch, set:x=>v.cam.pitch = Math.round(x), onChange:refit, noReset:true });
+  checkField(c, "The photo is mirrored (a selfie or a reflection)", () => !!(v.fit && v.fit.mirror), x => { if (!v.fit) v.fit = { a:0.01, tx:0.5, ty:0.9, rot:0, mirror:x }; else v.fit.mirror = x; refit(); });
+  if (aiMapOf(v.ai)){
+    note(c, "The AI figure finder found the figure in this photo.");
+    buttonRow(c, [["Find the figure by colour instead", async () => { v.ai = null; photoToSide(v); await photoFitNow(o, v, true); photoPickColours(o); renderKeepFocus(); photoRepaint(); }]]);
+  } else {
+    numField(c, { label:"Background (how different the figure is from it)", min:0, max:100, step:1, def:35, get:()=>v.tol, set:x=>v.tol = Math.round(x), onChange:refit,
+      sub:()=>"Lower it when parts of the figure go missing; raise it when the background is busy." });
+    buttonRow(c, [["Busy background? Find the figure with AI", async () => { if (await aiFindFigures(o)){ photoPickColours(o); renderKeepFocus(); photoRepaint(); } }]]);
+    note(c, aiState.session ? "The AI figure finder is ready. It looks at every photo of this step."
+      : `The AI figure finder looks at every photo of this step. It downloads once (about ${AI_FIGURE.mb} MB) and runs on this computer: your photos are not sent anywhere.`);
+  }
+  buttonRow(c, [["Line it up again", async () => { await photoFitNow(o, v, true); renderKeepFocus(); photoRepaint(); }], ["Remove this photo", removePhoto]]);
+
+  // the colours
+  c.insertAdjacentHTML("beforeend", `<h3>Colours</h3>`);
+  numField(c, { label:"Number of colours", min:2, max:MAX_SLOTS, step:1, def:clamp(Math.round(state.printer.colors || 4), 2, MAX_SLOTS), get:()=>o.colours, set:x=>o.colours = Math.round(x),
+    onChange:() => photoLater(() => { photoPickColours(o); renderKeepFocus(); photoRepaint(); }, 500) });
+  if (o.pal.length > (state.printer.colors || 4)) note(c, `Your printer is set to load ${state.printer.colors} filaments, and this uses ${o.pal.length}. Fewer colours, or colour swaps during the print, get round that.`);
+  o.pal.forEach((col, j) => {
+    const hex = C.rgbToHex(...col.rgb);
+    selField(c, `<span class="sw-inline" style="background:${esc(hex)}"></span>Photo colour ${j+1} (${esc(colourWord(col.rgb).toLowerCase())}) prints in`, slotChoices(true),
+      () => String(o.slots[j] ?? PAINT_LEAVE), x => { o.slots[j] = +x; repaint(true); renderTab(); });
+  });
+  buttonRow(c, [["Set my filaments to these colours", () => { photoSetFilaments(o); renderTab(); repaint(true); pushHistory(); }],
+    ["Use my nearest filaments", () => { photoNearestFilaments(o); renderTab(); repaint(true); pushHistory(); }],
+    ["Pick the colours again", () => { photoPickColours(o); renderTab(); photoRepaint(); }]]);
+  // clean-up
+  c.insertAdjacentHTML("beforeend", `<h3>Finishing</h3>`);
+  checkField(c, "Colour what the photos cannot see from the nearest colour", () => o.fill, x => { o.fill = x; photoRepaint(); });
+  numField(c, { label:"Clean up specks smaller than (mm²)", min:0, max:50, step:0.5, def:1, get:()=>o.speck, set:x=>o.speck = x, onChange:() => photoLater(() => photoRepaint()),
+    sub:()=>"Small spots of the wrong colour join the colour round them. Keep it small to keep eyes and buttons." });
+  checkField(c, "Smooth ragged edges between colours", () => o.smooth, x => { o.smooth = x; photoRepaint(); });
+  if ((state.paint.detail || "auto") !== "fine") note(c, "Small details such as eyes need small triangles: set <b>Paint detail</b> (the last page) to Fine to follow them more closely.");
+  const seen = document.createElement("p"); seen.className = "hint"; seen.id = "photoSeen"; seen.setAttribute("aria-live", "polite"); c.appendChild(seen);
+  updatePhotoInfo();
+}
+// how much the photos show, once the model has been coloured from them (after the card is drawn)
+function updatePhotoInfo(){
+  const el = document.getElementById("photoSeen"), o = state.paint && photoOpOf(), info = o && photoInfo.get(o);
+  if (!el || !info || !info.n) return;
+  const pct = Math.round(100 * info.seen / info.n);
+  el.textContent = `The photos show ${pct}% of the model's surface. ${o.fill ? "The rest took the nearest colour" : "The rest keeps its own colour"}` +
+    (o.views.length === 1 && pct < 70 ? ": a photo from the back makes that part right too." : ".") +
+    " Touch it up with the brush and fill below: they paint on top of this step.";
+}
+// how the colours come out layer by layer: the colour changes, what they waste, and one layer at a time
+const fmtTime = s => s < 90 ? `${Math.round(s)} seconds` : s < 5400 ? `${Math.round(s/60)} minutes` : `${(s/3600).toFixed(1)} hours`;
+function paintLayersPage(p){
+  const L = lastChecks.layers, P = state.printer;
+  const again = () => { savePrinterPref(); runChecks(); renderKeepFocus(); };
+  if (P.colors <= 1){ note(p, "Your printer is set to load one filament. The Export tab lists the heights to swap the spool by hand. Pick a printer with an AMS or a tool changer on the Colours tab to count colour changes here."); return; }
+  if (!L){ note(p, "One filament is used, so the colour never changes."); return; }
+  const n = L.bits.length, names = b => state.slots.map((s2, i) => b >> i & 1 ? s2.name : null).filter(Boolean);
+  const c = card(p); c.id = "layerSum";
+  c.innerHTML = `<b>About ${L.changes.toLocaleString()} colour change${L.changes === 1 ? "" : "s"}</b> over ${n.toLocaleString()} layers of ${L.h} mm.<br>
+    At about ${P.purge ?? 0.4} g and ${P.swap ?? 60} seconds each: about <b>${Math.round(L.grams).toLocaleString()} g of filament wasted</b> and ${fmtTime(L.seconds)} of changing.
+    <div class="sub">The busiest layer, ${(L.at * L.h + L.h/2).toFixed(1)} mm up, uses ${L.busiest} filaments: ${esc(names(L.bits[L.at]).join(", "))}.</div>`;
+  if (L.changes > n * 1.5) note(p, "Fewer changes save filament and time: keep small details to a few layers, line colour bands up with the layers (Height bands → Line up with the layers), or change a colour that barely shows into its neighbour (Recolour).");
+  if (paintUI.layerZ == null || paintUI.layerZ > n * L.h) paintUI.layerZ = +(L.at * L.h + L.h/2).toFixed(3);
+  const layerOf = z => clamp(Math.floor(z / L.h), 0, n - 1);
+  numField(p,{ label:"Look at the layer at (mm)", min:0, max:+(n * L.h).toFixed(2), step:L.h, noReset:true, get:()=>paintUI.layerZ, set:v=>paintUI.layerZ = v,
+    onChange:()=>showLayerCut(true, paintUI.layerZ),
+    sub:()=>{ const l = layerOf(paintUI.layerZ), b = L.bits[l]; return `Layer ${l + 1} of ${n}: ${names(b).join(", ") || "nothing"}.`; } });
+  const row = buttonRow(p, [["Go to the busiest layer", () => { paintUI.layerZ = +(L.at * L.h + L.h/2).toFixed(3); showLayerCut(true, paintUI.layerZ); renderKeepFocus(); }],
+    ["", () => showLayerCut(!viewOpts.section, paintUI.layerZ)]]);
+  row.lastChild.id = "layerCutBtn"; layerCutLabel();
+  numField(p,{ label:"Waste per colour change (g)", min:0, max:3, step:0.05, def:changeCost(P.model).purge, get:()=>P.purge ?? 0.4, set:v=>P.purge = v, onChange:again,
+    sub:()=>"What the printer flushes out each time it changes filament. It depends on the colours; the slicer's flushing settings give the exact figure." });
+  numField(p,{ label:"Time per colour change (seconds)", min:0, max:300, step:5, def:changeCost(P.model).swap, get:()=>P.swap ?? 60, set:v=>P.swap = v, onChange:again });
+}
 function tabPaint(p){
   if (!state.paint) state.paint = DEFAULTS().paint;
   p.insertAdjacentHTML("beforeend", `<h2>Paint</h2>`);
-  if (!modelParts.length){ p.insertAdjacentHTML("beforeend", `<div class="card empty">Make or import a model first. Then paint it here in up to eight colours.</div>`); }
+  const missing = missingModel();
+  if (missing){
+    p.insertAdjacentHTML("beforeend", `<div class="card empty">This project was painted on <b>${esc(missing)}</b>, which is not saved with it. Open that file again and its paint comes back.</div>`);
+    buttonRow(p, [["Open "+missing+" again", ()=>$("#stlInput").click()]]);
+  } else if (!modelParts.length){ p.insertAdjacentHTML("beforeend", `<div class="card empty">Make or import a model first. Then paint it here in up to eight colours.</div>`); }
   note(p, "Paint any model in up to eight filament colours, by hand or automatically. The paint goes into the 3mf files, so Bambu Studio, OrcaSlicer and PrusaSlicer print it without painting it again there.");
   paletteRow(p);
   const sum = document.createElement("div"); sum.id = "paintSummary"; sum.className = "card psum"; p.appendChild(sum);
   if (modelParts.length > 1) selField(p, "What to paint", [["-1","The whole model"], ...modelParts.map((q,i)=>[String(i), q.name])],
     () => String(state.paint.part ?? -1), v => { state.paint.part = +v; paintChanged(); });
-  checkField(p, "Show the paint", () => state.paint.on !== false, v => { state.paint.on = v; repaint(true); });
+  checkField(p, "Use the paint (untick to see and print the plain model)", () => state.paint.on !== false, v => { state.paint.on = v; repaint(true); });
   buttonRow(p, [["Remove all paint", ()=>{ if (!paintOps().length) return; state.paint.ops = []; renderTab(); paintChanged(); notify("All the paint is gone. Undo (Ctrl+Z) brings it back."); }]]);
 
   p.insertAdjacentHTML("beforeend", `<h2>Auto colour</h2>`);
@@ -6552,18 +7451,33 @@ function tabPaint(p){
   const ops = state.paint.ops, last = ops.length && ops[ops.length-1].k === paintUI.method ? ops[ops.length-1] : null;
   const m = PAINT_METHODS.find(x => x[0] === paintUI.method);
   const c2 = card(p); c2.insertAdjacentHTML("beforeend", `<b>${esc(m[1])}</b>`);
-  if (last){ paintOpFields(c2, last); note(c2, "Changes show straight away. Remove it on the Paint list page."); }
+  if (paintUI.method === "photo") photoCard(c2);
+  else if (last){ paintOpFields(c2, last); note(c2, "Changes show straight away. Remove it on the Paint list page."); }
   else buttonRow(c2, [[`Paint it: ${m[1].toLowerCase()}`, ()=>{ const o = newPaintOp(paintUI.method); if (o){ ops.push(o); renderTab(); paintChanged(); } }]]);
 
   p.insertAdjacentHTML("beforeend", `<h2>Brush and fill</h2>`);
-  segField(p, [["view","✋ Turn view"],["brush","🖌 Brush"],["fill","🪣 Fill"],["erase","⌫ Eraser"]], () => paintUI.tool, v => { paintUI.tool = v; paintControls(); renderTab(); }, "four");
+  segField(p, [["view","✋ Turn view"],["brush","🖌 Brush"],["fill","🪣 Fill"],["erase","⌫ Eraser"],["pick","💧 Pick colour"],["recolour","🔁 Recolour"],["area","⬚ Box or lasso"]], () => paintUI.tool,
+    v => { if (v === "pick" || v === "recolour"){ if (paintUI.tool === "brush" || paintUI.tool === "fill") paintUI.lastTool = paintUI.tool; } paintUI.tool = v; paintControls(); renderTab(); }, "tools");
   note(p, paintUI.tool === "view" ? "Drag to turn the view. Pick the brush, fill or eraser to paint."
     : paintUI.tool === "fill" ? "Click the model to fill an area. Right-drag (or two fingers) turns the view."
+    : paintUI.tool === "pick" ? "Click the model to take its colour for the brush (key I)."
+    : paintUI.tool === "recolour" ? "Click a colour on the model: all of it changes to the brush colour below (key R). Undo brings it back."
+    : paintUI.tool === "area" ? "Drag a box, or draw a loop, over the model: everything inside is painted (key A). Right-drag turns the view."
     : "Drag on the model to paint. Right-drag turns the view, the wheel zooms. [ and ] change the brush size.");
   paletteRow(p);
+  if (paintUI.tool === "area"){
+    segField(p, [["box","▭ Box"],["lasso","◌ Lasso"]], () => paintUI.area, v => { paintUI.area = v; renderTab(); }, "two");
+    checkField(p, "Paint right through (the far side too)", () => paintUI.through, v => { paintUI.through = v; });
+    checkField(p, "Rub out instead (back to the part's own colour)", () => paintUI.rubOut, v => { paintUI.rubOut = v; });
+  }
   numField(p,{ label:"Brush size (mm)", min:0.5, max:30, step:0.5, get:()=>paintUI.r, set:v=>paintUI.r=v, onChange:()=>{} });
   checkField(p, "Only paint the side facing me", () => paintUI.facing, v => { paintUI.facing = v; });
   checkField(p, "Mirror my strokes to the other side (left and right)", () => paintUI.mirror, v => { paintUI.mirror = v; });
+  numField(p,{ label:"Repeat round the middle (times)", min:1, max:12, step:1, def:1, get:()=>paintUI.radial, set:v=>paintUI.radial=Math.round(v), onChange:()=>{},
+    sub:()=> paintUI.radial > 1 ? `Every stroke and fill is repeated ${paintUI.radial} times round the upright middle line, like petals: vases, mandalas, wheels.` : "1 paints once. More repeats every stroke round the upright middle line." });
+  checkField(p, "Smart brush: stop at sharp edges", () => paintUI.smart, v => { paintUI.smart = v; renderTab(); });
+  if (paintUI.smart) numField(p,{ label:"An edge is sharp when it bends more than (°)", min:5, max:89, step:1, def:40, get:()=>paintUI.edge, set:v=>paintUI.edge=v, onChange:()=>{},
+    sub:()=>"The brush paints only the surface it starts on, up to edges this sharp: the rim of a face, a fold, a groove." });
   segField(p, [["smooth","Fill a smooth area"],["same","Fill the same colour"]], () => paintUI.fill, v => { paintUI.fill = v; renderTab(); }, "two");
   if (paintUI.fill === "smooth") numField(p,{ label:"Stop at edges sharper than (°)", min:5, max:89, step:1, get:()=>paintUI.angle, set:v=>paintUI.angle=v, onChange:()=>{} });
   buttonRow(p, [["Undo the last stroke", ()=>{ const i = state.paint.ops.map(o=>o.k).lastIndexOf("brush"), j = state.paint.ops.map(o=>o.k).lastIndexOf("fill");
@@ -6583,6 +7497,9 @@ function tabPaint(p){
   });
   note(p, "Steps are painted in this order, so a later step covers an earlier one.");
 
+  p.insertAdjacentHTML("beforeend", `<h2>Layers and colour changes</h2>`);
+  paintLayersPage(p);
+
   p.insertAdjacentHTML("beforeend", `<h2>Paint detail</h2>`);
   segField(p, [["auto","Automatic"],["coarse","Coarse"],["normal","Normal"],["fine","Fine"]], () => state.paint.detail || "auto", v => { state.paint.detail = v; renderTab(); paintChanged(); }, "four");
   note(p, "The brush and pictures paint whole triangles, so the model is split into small ones: finer detail follows small shapes better but makes bigger files. Automatic uses normal detail when something needs it.");
@@ -6595,7 +7512,10 @@ window.addEventListener("keydown", e => {
   const t = e.target; if (t && (t.matches("input,textarea,select") || t.isContentEditable)) return;
   if (/^[1-8]$/.test(e.key) && +e.key <= state.slots.length){ paintUI.slot = +e.key - 1; if (paintUI.tool === "erase" || paintUI.tool === "view") paintUI.tool = "brush"; paintControls(); renderTab(); e.preventDefault(); }
   else if (e.key === "[" || e.key === "]"){ paintUI.r = clamp(paintUI.r + (e.key === "]" ? 0.5 : -0.5), 0.5, 30); renderTab(); e.preventDefault(); }
-  else if ({ b:"brush", f:"fill", e:"erase", v:"view" }[e.key.toLowerCase()]){ paintUI.tool = { b:"brush", f:"fill", e:"erase", v:"view" }[e.key.toLowerCase()]; paintControls(); renderTab(); e.preventDefault(); }
+  else if ({ b:"brush", f:"fill", e:"erase", v:"view", i:"pick", r:"recolour", a:"area" }[e.key.toLowerCase()]){
+    const t = { b:"brush", f:"fill", e:"erase", v:"view", i:"pick", r:"recolour", a:"area" }[e.key.toLowerCase()];
+    if ((t === "pick" || t === "recolour") && (paintUI.tool === "brush" || paintUI.tool === "fill")) paintUI.lastTool = paintUI.tool;
+    paintUI.tool = t; paintControls(); renderTab(); e.preventDefault(); }
 });
 
 function tabExport(p){
@@ -6619,6 +7539,8 @@ function tabExport(p){
   p.appendChild(t);
   const mins = tot.minutes||0;
   note(p, `Rough print time <b>${mins<60?mins.toFixed(0)+" minutes":(mins/60).toFixed(1)+" hours"}</b>. Figures assume solid parts, so they are a worst case.`);
+  const LC = lastChecks.layers;
+  if (LC && LC.changes) note(p, `About <b>${LC.changes.toLocaleString()} colour changes</b>: about ${Math.round(LC.grams).toLocaleString()} g of filament flushed and ${fmtTime(LC.seconds)} of changing (in the time above). Paint → Layers and colour changes shows them layer by layer.`);
   if ((lastChecks.swaps||[]).length > 1) group(p,"Colour swap heights", g2 => {
     note(g2, "Your printer is set to one filament. Add a pause or an M600 at these heights and swap the spool by hand.");
     const s2 = document.createElement("table"); s2.className = "stats";
@@ -6654,7 +7576,8 @@ function tabExport(p){
       const { url, pics } = await makeShareLink(), inp = out.querySelector("input");
       inp.value = url; out.hidden = false; inp.select();
       let copied = false; try { await navigator.clipboard.writeText(url); copied = true; } catch(e){}
-      notify((copied ? "Link copied. " : "Select the link and copy it. ") + (pics ? `${pics} picture${pics === 1 ? " is" : "s are"} not in the link.` : "") +
+      notify((copied ? "Link copied. " : "Select the link and copy it. ") + (pics ? `${pics} picture${pics === 1 ? " is" : "s are"} not in the link. ` : "") +
+        (state.base.type === "stl" && stlData ? "The imported model is not in the link: send the model file too. " : "") +
         (location.protocol === "file:" ? " It points to this file on your computer: it opens for others once Maker Forge is on a website." : ""));
     }]]);
     g2.appendChild(out);
@@ -6665,7 +7588,7 @@ function tabExport(p){
       ["Open project", ()=>$("#projInput").click()],
       ["Start over", ()=>{
         if (!confirm("Start over with an empty project?")) return;
-        state = applyPrinterPref(DEFAULTS()); Object.keys(assets).forEach(k=>delete assets[k]); stlData = null;
+        state = applyPrinterPref(DEFAULTS()); Object.keys(assets).forEach(k=>delete assets[k]); stlData = null; stlPaint = null; stlCache = null; stlName = null;
         history.past.length = 0; history.future.length = 0;
         renderTab(); rebuildAll(true); pushHistory();
       }]
@@ -6773,6 +7696,7 @@ function setBusy(on, label){
 
 /* settings and about dialogs */
 function openModal(title, fill){
+  $("#modal").classList.remove("wide");
   $("#modalTitle").textContent = title;
   const body = $("#modalBody"); body.innerHTML = ""; fill(body);
   $("#modal").hidden = false;
@@ -6789,11 +7713,18 @@ $("#settingsBtn").onclick = ()=>openModal("Settings", b => {
     set:v=>state.view.maxCells=v, onChange:()=>{ dirty(); }, sub:()=>"Lower it if the app feels slow on this computer." });
   buttonRow(b, [["Clear saved work in this browser", ()=>{ try { localStorage.removeItem("makerforge.project"); localStorage.removeItem("makerforge.recent"); notify("Saved work cleared."); } catch(e){} }]]);
 });
+// the user manual: the whole of MANUAL.md, with its contents list jumping within the window
+$("#helpBtn").onclick = ()=>openModal("User manual", b => {
+  $("#modal").classList.add("wide");
+  b.innerHTML = `<div class="manual">${MANUAL_HTML}</div>`;
+  b.querySelectorAll("a[data-anchor]").forEach(a => a.onclick = e => {
+    e.preventDefault(); const t = b.querySelector("#m-" + CSS.escape(a.dataset.anchor)); if (t) t.scrollIntoView({ block:"start" }); });
+});
 $("#aboutBtn").onclick = ()=>openModal("About Maker Forge", b => {
   b.insertAdjacentHTML("beforeend", `<p class="hint"><b>Maker Forge ${esc(APP_VERSION)}</b>: a companion for 3D printing, school projects and home repairs.
     Turn names, photos, logos and measurements into multi-colour printable parts.</p>
     <p class="hint">Everything runs in your browser. Nothing is uploaded; your pictures never leave this computer.</p>
-    <p class="hint">Open source under the MIT licence. Built with three.js, earcut and JSZip. Fonts from Fontsource, served by jsDelivr.</p>
+    <p class="hint">Open source under the MIT licence. Built with three.js, earcut and JSZip. Fonts from Fontsource, built in (SIL Open Font License and Apache 2.0).</p>
     <p class="hint"><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo · <kbd>Ctrl</kbd>+<kbd>S</kbd> save ·
     <kbd>Delete</kbd> remove artwork · arrow keys nudge it · <kbd>Esc</kbd> closes dialogs</p>`);
 });
@@ -6826,10 +7757,17 @@ async function importModelFile(file){
   } else raw = C.parseSTL(await file.arrayBuffer());
   const y = new Float32Array(raw.length);
   for (let i=0;i<raw.length;i+=3){ y[i]=raw[i]; y[i+1]=raw[i+2]; y[i+2]=-raw[i+1]; }    // Z up (printers) to Y up (the view)
-  clearPaintForNewModel();
-  stlData = y; stlPaint = paint; stlCache = null; state.base.type = "stl";
-  state.base.stl = { name:`${file.name} (${(raw.length/9).toLocaleString()} triangles)`, scale:100 };
-  if (paint){
+  const name = `${file.name} (${(raw.length/9).toLocaleString()} triangles)`;
+  // the same file opened again for a project saved without it (autosave, recent list, share link):
+  // its paint steps, scale and filaments are kept
+  const again = state.base.type === "stl" && !stlData && !!state.base.stl && state.base.stl.name === name;
+  if (!again) clearPaintForNewModel();
+  dropExamples(); setViewFlags({ flip:false, layout:false });      // an example's picture would be stamped on the imported model
+  if (!again && !paint) paintUI.method = "photo";          // a plain model: colouring it from a photo comes first
+  stlData = y; stlPaint = paint; stlCache = null; stlName = name; state.base.type = "stl";
+  rememberModel(name, y, paint);
+  state.base.stl = { name, scale: again ? state.base.stl.scale : 100 };
+  if (paint && !again){
     // the file's filament colours; a filament it uses but gives no colour for still gets a filament here
     const spare = ["#ffffff","#161616","#c12e1f","#0a2989","#f0b429","#12633f","#7b4bd8","#8fb8c9"];
     let top = 0; for (let i=0;i<paint.length;i++) if (paint[i] > top) top = paint[i];
@@ -6841,7 +7779,8 @@ async function importModelFile(file){
   }
   state.items.forEach(d=>{ d.place = defaultPlace(); d.solids = null; });
   userMoved = false; renderTab(); await rebuildAll(false); pushHistory();
-  if (paint) notify(`Opened ${file.name} with its painting. Change it on the Paint tab.`);
+  if (again) notify(`Opened ${file.name} again: its paint and settings are back.`);
+  else if (paint) notify(`Opened ${file.name} with its painting. Change it on the Paint tab.`);
 }
 stlInput.onchange = async ()=>{
   const file = stlInput.files[0]; stlInput.value = ""; if (!file) return;
@@ -6871,7 +7810,18 @@ const LIMITS = {
   stripFrom:[0.2,3], stripTo:[0.6,8], stripStep:[0.05,1], labelH:[2,15], labelLine:[0.3,2], labelDepth:[0.2,5], footDepth:[0.4,3], minLine:[0,3]
 };
 // the same name means something else in these places (parent key . key): checked first
-const LIMITS_AT = { "sym.size":[0.4,3], "pic.size":[0.4,3], "outline.width":[0.2,6] };
+const LIMITS_AT = { "sym.size":[0.4,3], "pic.size":[0.4,3], "outline.width":[0.2,6],
+  // Session 15, found by fuzzing project files: out of range, these made builds run away (a negative
+  // vase wall looped for minutes, a negative plinth made 22 million triangles) or crawl. Each range is
+  // its slider's, and every quick start and default fits inside (tools-project-test.js checks).
+  "turned.dia":[15,220], "turned.h":[15,250], "turned.belly":[0.7,1.6], "turned.neck":[0.3,1.2], "turned.wall":[0.8,6],
+  "bobble.headDia":[20,90], "bobble.bodyH":[25,140], "bobble.springTurns":[2,12], "bobble.springWire":[0.5,2.5], "bobble.springCoil":[1.5,14],
+  "bobble.postH":[8,60], "bobble.bore":[3,14], "bobble.boreDepth":[4,30], "bobble.fit":[0,0.6], "bobble.gap":[0,20], "bobble.flatBottom":[0,12],
+  "bobble.hatH":[3,30], "bobble.hatBrim":[0,12], "bobble.baseR":[10,60], "bobble.waist":[6,50], "bobble.shoulder":[8,60], "bobble.neck":[4,25],
+  "bobble.plinthH":[1,15], "bobble.weightDia":[5,50], "bobble.weightDepth":[2,40], "bobble.magnetDia":[4,30], "bobble.magnetDepth":[1,10],
+  "canvas.pitch":[2,12], "canvas.tileH":[0.3,4], "canvas.thick":[0.8,6], "canvas.margin":[0,20], "canvas.radius":[0,20], "canvas.gap":[0.2,3],
+  "canvas.holeSize":[0.6,4], "canvas.hangDia":[2,8],
+  "nameplate.spacing":[-1,6], "nameplate.arc":[-120,120], "nameplate.rim":[1.2,8], "nameplate.border":[0,12] };
 // a print orientation must be a real rotation: nine numbers, orthonormal, no mirror
 function cleanRotation(m){
   if (!Array.isArray(m) || m.length !== 9 || !m.every(v => typeof v === "number" && isFinite(v))) return null;
@@ -6906,7 +7856,8 @@ function cleanPrinter(pr){
     nozzle: num(P.nozzle, 0.1, 1.2, d.nozzle), layer: num(P.layer, 0.04, 0.6, d.layer),
     colors: Math.round(num(P.colors, 1, 16, d.colors)), flow: num(P.flow, 1, 60, d.flow),
     currency: cleanStr(P.currency, 4, "").replace(/[<>&"']/g, ""),
-    overhang: num(P.overhang, 20, 80, d.overhang), bridge: num(P.bridge, 0, 60, d.bridge) };
+    overhang: num(P.overhang, 20, 80, d.overhang), bridge: num(P.bridge, 0, 60, d.bridge),
+    purge: num(P.purge, 0, 5, d.purge), swap: num(P.swap, 0, 600, d.swap) };
 }
 // paint steps from a project file: known kinds only, colours as filament numbers, points capped
 function cleanPaint(P0){
@@ -6929,11 +7880,44 @@ function cleanPaint(P0){
       case "shells": return { k:"shells", slots:slots(o.slots).filter(v => v !== PAINT_LEAVE) };
       case "regions": return { k:"regions", slots:slots(o.slots).filter(v => v !== PAINT_LEAVE), angle:num(o.angle, 1, 89, 30) };
       case "noise": return { k:"noise", slots:slots(o.slots).filter(v => v !== PAINT_LEAVE), scale:num(o.scale, 0.5, 200, 12), seed:Math.round(num(o.seed, 0, 99999, 1)) };
-      case "picture": return { k:"picture", item:Math.round(num(o.item, 0, 59, 0)), dir:one(o.dir, ["front","back","left","right","top"]), scale:num(o.scale, 10, 400, 100),
-        dx:num(o.dx, -1000, 1000, 0), dy:num(o.dy, -1000, 1000, 0), facing:o.facing !== false };
+      case "picture": { const wrap = one(o.wrap, ["flat","around","ball"]);
+        return Object.assign({ k:"picture", item:Math.round(num(o.item, 0, 59, 0)), dir:one(o.dir, ["front","back","left","right","top"]), scale:num(o.scale, 10, 400, 100),
+          dx:num(o.dx, -1000, 1000, 0), dy:num(o.dy, -1000, 1000, 0), facing:o.facing !== false },
+          wrap === "flat" ? {} : { wrap, turn:num(o.turn, 10, 360, 360), start:num(o.start, -180, 180, 0) }); }
+      case "curve": return { k:"curve", edges:slotOrKeep(o.edges), hollows:slotOrKeep(o.hollows), flat:slotOrKeep(o.flat), radius:num(o.radius, 0.5, 50, 4), band:num(o.band, 0.3, 10, 1) };
       case "brush": { const pts = (Array.isArray(o.pts) ? o.pts : []).slice(0, Math.min(5000, budget)).map(v3).filter(Boolean); budget -= pts.length;
-        return pts.length ? { k:"brush", slot:slotOrKeep(o.slot), r:num(o.r, 0.2, 50, 3), facing:v3(o.facing), pts, mirror:o.mirror === true } : null; }
-      case "fill": { const pt = v3(o.p); return pt ? { k:"fill", p:pt, slot:slotOrKeep(o.slot), same:o.same === true, angle:num(o.angle, 1, 89, 30) } : null; }
+        const radial = Math.round(num(o.radial, 1, 12, 1)), edge = num(o.edge, 0, 89, 0);
+        return pts.length ? Object.assign({ k:"brush", slot:slotOrKeep(o.slot), r:num(o.r, 0.2, 50, 3), facing:v3(o.facing), pts, mirror:o.mirror === true },
+          radial > 1 ? { radial } : {}, edge > 0 ? { edge } : {}) : null; }
+      case "area": {
+        const m = Array.isArray(o.m) && o.m.length === 16 && o.m.every(x => typeof x === "number" && isFinite(x)) ? o.m.map(x => Math.min(1e6, Math.max(-1e6, x))) : null;
+        const poly = (Array.isArray(o.poly) ? o.poly : []).slice(0, 2000).filter(q => Array.isArray(q) && q.length === 2 && q.every(x => typeof x === "number" && isFinite(x))).map(q => q.map(x => Math.min(10, Math.max(-10, x))));
+        return m && poly.length >= 3 ? { k:"area", m, poly, slot:slotOrKeep(o.slot), through:o.through === true } : null; }
+      case "fill": { const pt = v3(o.p), radial = Math.round(num(o.radial, 1, 12, 1));
+        return pt ? Object.assign({ k:"fill", p:pt, slot:slotOrKeep(o.slot), same:o.same === true, angle:num(o.angle, 1, 89, 30) }, radial > 1 ? { radial } : {}) : null; }
+      case "photo": {
+        // the photos (by picture id), where each was taken from and how it lines up; the colours as lit
+        // RGB and their Lab keys; a fit of text or of absurd size falls back to "not lined up yet"
+        const plain = x => x && typeof x === "object" && !Array.isArray(x), fin = x => typeof x === "number" && isFinite(x);
+        const views = (Array.isArray(o.views) ? o.views : []).filter(plain).slice(0, 6).map(v => {
+          const f = plain(v.fit) && fin(v.fit.a) && v.fit.a > 0 && fin(v.fit.tx) && fin(v.fit.ty) && fin(v.fit.rot) ? v.fit : null, c = plain(v.cam) ? v.cam : {};
+          return { asset:cleanStr(typeof v.asset === "string" ? v.asset : "", 40, ""), name:cleanStr(v.name, 60, "Photo"),
+            cam:{ yaw:Math.round(num(c.yaw, -180, 180, 0)), pitch:Math.round(num(c.pitch, -89, 89, 0)) },
+            fit:f ? { a:num(f.a, 1e-5, 10, 0.01), tx:num(f.tx, -5, 5, 0.5), ty:num(f.ty, -5, 5, 0.5), rot:num(f.rot, -0.35, 0.35, 0), mirror:f.mirror === true } : null,
+            tol:Math.round(num(v.tol, 0, 100, 35)), match:num(v.match, 0, 1, 0),
+            box:Array.isArray(v.box) && v.box.length === 3 && v.box.every(fin) && v.box[2] > 1e-3 ? v.box.map(x => num(x, -1e4, 1e4, 0)) : undefined,
+            ai:typeof v.ai === "string" && v.ai ? cleanStr(v.ai, 40, "") : undefined };
+        });
+        const pal = (Array.isArray(o.pal) ? o.pal : []).filter(plain).slice(0, 8).map(c => {
+          const rgb = [0,1,2].map(i => Math.round(num(Array.isArray(c.rgb) ? c.rgb[i] : 128, 0, 255, 128)));
+          const keys = (Array.isArray(c.keys) ? c.keys : []).filter(k => Array.isArray(k) && k.length === 3 && k.every(fin)).slice(0, 24)
+            .map(k => [num(k[0], -10, 60, 0), num(k[1], -200, 200, 0), num(k[2], -200, 200, 0)]);
+          return keys.length ? { rgb, keys } : { rgb };
+        });
+        const sl = slots(o.slots, 8).slice(0, pal.length); while (sl.length < pal.length) sl.push(PAINT_LEAVE);
+        return { k:"photo", views, pal, slots:sl, colours:Math.round(num(o.colours, 2, MAX_SLOTS, 4)), use:one(o.use, ["photo","mine"]),
+          fill:o.fill !== false, speck:num(o.speck, 0, 50, 1), smooth:o.smooth !== false };
+      }
       default: return null;
     }
   }).filter(Boolean);
@@ -6951,6 +7935,20 @@ function sanitizeProject(data){
   stripDangerous(data.state, 0);
   const st = data.state || {};
   const def = DEFAULTS();
+  // a setting whose default is a number must be a finite number, and a group of settings must be an
+  // object: text, null or a list in their place falls back to the default before it reaches the geometry
+  const plain = v => v && typeof v === "object" && !Array.isArray(v), copy = v => JSON.parse(JSON.stringify(v));
+  const sameShape = (o, d, depth) => {
+    if (!plain(o) || depth > 6) return;
+    for (const k of Object.keys(d)){
+      if (!Object.prototype.hasOwnProperty.call(o, k)) continue;
+      const dv = d[k], v = o[k];
+      if (typeof dv === "number"){ if (typeof v !== "number" || !isFinite(v)) o[k] = dv; }
+      else if (plain(dv)){ if (!plain(v)) o[k] = copy(dv); else sameShape(v, dv, depth + 1); }
+    }
+  };
+  if (plain(st.base)) sameShape(st.base, def.base, 0); else if (st.base !== undefined) st.base = copy(def.base);
+  for (const g of ["model", "view"]) if (st[g] !== undefined){ if (plain(st[g])) sameShape(st[g], def[g], 0); else st[g] = copy(def[g]); }
   st.slots = (Array.isArray(st.slots) ? st.slots : def.slots).slice(0, MAX_SLOTS).map((sl, i) => ({
     hex: HEX_RE.test(sl && sl.hex) ? sl.hex : "#888888",
     name: cleanStr(sl && sl.name, 40, `Filament ${i+1}`),
@@ -6968,12 +7966,18 @@ function sanitizeProject(data){
     }
     for (const k of ["width","rotation","offU","offV","height","step","minH","maxH","embed","res","smooth"])
       if (k in it) it[k] = cleanNum(it[k], undefined);
+    // the same type check as the settings: numbers must be numbers, groups objects (the picture's own
+    // aspect ratio is taken again from the picture when it loads)
+    sameShape(it, { width:40, rotation:0, aspect:1, zoom:1, rot90:0, outline:{ width:0.8, slot:1 }, adjust:{ bright:0, contrast:0, sat:0 }, pixel:{ cells:40 } }, 0);
+    if (it.width === undefined) it.width = 40;
+    if (it.rotation === undefined) it.rotation = 0;
     if (it.asset != null) it.asset = cleanStr(String(it.asset), 40, null);
     it.place = it.place && typeof it.place === "object"
       ? { c: vec3(it.place.c, [0,0,0]), n: vec3(it.place.n, [0,1,0]) } : undefined;
     it.skip = Array.isArray(it.skip) ? it.skip.filter(x => Number.isInteger(x) && x >= 0 && x < MAX_SLOTS) : [];
     if (it.forceSlot != null && !(Number.isInteger(it.forceSlot) && it.forceSlot >= 0 && it.forceSlot < MAX_SLOTS)) it.forceSlot = null;
     it.enabled = it.enabled !== false;
+    if (it.example !== true) delete it.example;
     it.mm = Array.isArray(it.mm) && it.mm.length === 2 && it.mm.every(v => typeof v === "number" && isFinite(v) && v > 0.1 && v < 5000) ? it.mm.slice() : undefined;
     return it;
   });
@@ -6983,6 +7987,7 @@ function sanitizeProject(data){
   if (st.model && typeof st.model === "object"){
     st.model.orient = cleanRotation(st.model.orient);
     st.model.brim = Math.min(15, Math.max(0, cleanNum(st.model.brim, 0)));
+    st.model.scale = Math.min(400, Math.max(20, cleanNum(st.model.scale, 100)));   // a negative scale would turn the model inside out
     st.model.mirror = st.model.mirror === true;
   }
   if (st.base && typeof st.base.type === "string" && !SHAPES.some(([k]) => k === st.base.type)) st.base.type = "nameplate";
@@ -6998,6 +8003,10 @@ function sanitizeProject(data){
     T.plateShape = one(T.plateShape, ["outline","circle","rect"]); T.plateMode = one(T.plateMode, ["raised","flush","engraved"]);
     T.colours = one(T.colours, ["one","keep"]); T.scaleFrom = one(T.scaleFrom, ["measure","paper","file"]);
     T.plateHole = one(T.plateHole, ["none","hang","loop","screws2","screws4"]); T.plateScrew = encHas(SCREWS, T.plateScrew) ? T.plateScrew : "M3"; T.plateSink = T.plateSink !== false;
+  }
+  if (st.base && "stl" in st.base){                 // the imported model's name and scale (the model itself is data.model)
+    const L = st.base.stl && typeof st.base.stl === "object" ? st.base.stl : {};
+    st.base.stl = { name: cleanStr(L.name, 300, ""), scale: Math.min(400, Math.max(5, cleanNum(L.scale, 100))) };
   }
   if (st.base && st.base.phonecase && typeof st.base.phonecase === "object"){
     const K = st.base.phonecase, one = (v, list) => list.includes(v) ? v : list[0], num = (v, lo, hi, fb) => Math.min(hi, Math.max(lo, cleanNum(v, fb)));
@@ -7045,7 +8054,22 @@ function sanitizeProject(data){
     if (typeof url === "string" && /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(url) && url.length < 12e6)
       assetsIn[cleanStr(id, 40, "a")] = url;
   }
-  return { state: st, assets: assetsIn };
+  // an imported model kept in a project file: little-endian float triangles (Y up), one paint byte each
+  let model = null;
+  const m = data.model;
+  if (m && typeof m === "object" && typeof m.tris === "string" && m.tris.length < 200e6){
+    try {
+      const bytes = unb64url(m.tris), n = bytes.length / 36;
+      if (Number.isInteger(n) && n > 0 && n <= 4e6){
+        const tris = new Float32Array(bytes.buffer, bytes.byteOffset, bytes.length / 4);
+        let ok = true;
+        for (let i = 0; i < tris.length; i++) if (!Number.isFinite(tris[i]) || Math.abs(tris[i]) > 1e6){ ok = false; break; }
+        const paint = ok && typeof m.paint === "string" ? unb64url(m.paint) : null;
+        if (ok) model = { name: cleanStr(m.name, 300, "model"), tris, paint: paint && paint.length === n ? paint : null };
+      }
+    } catch(e){}
+  }
+  return { state: st, assets: assetsIn, model };
 }
 async function loadProject(data){
   if (!data || !data.state) return false;
@@ -7060,6 +8084,9 @@ async function loadProject(data){
   state.printer = Object.assign(DEFAULTS().printer, data.state.printer||{});
   state.model = Object.assign(DEFAULTS().model, data.state.model||{});
   state.view = Object.assign(DEFAULTS().view, data.state.view||{});
+  stlData = data.model ? data.model.tris : null; stlPaint = data.model ? data.model.paint : null; stlCache = null;
+  stlName = data.model && state.base.stl ? state.base.stl.name : null;
+  if (stlName) rememberModel(stlName, stlData, stlPaint);
   Object.keys(assets).forEach(k=>delete assets[k]);
   for (const [id,url] of Object.entries(data.assets||{})){
     try { assets[id] = { dataURL:url, canvas:await dataURLToCanvas(url) }; } catch(e){}
@@ -7067,10 +8094,11 @@ async function loadProject(data){
   uid = Math.max(1, ...state.items.map(i=>i.id||0)) + 1;
   state.items.forEach(it=>{
     normalizeItem(it); it.solids = null; it._imgKey = ""; it._srcSig = "";
-    if (it.asset && assets[it.asset]){ it.src = assets[it.asset].canvas; it.thumb = assets[it.asset].dataURL; }
+    if (it.asset && assets[it.asset]){ it.src = assets[it.asset].canvas; it.thumb = assets[it.asset].dataURL; it.aspect = it.src.width/Math.max(1, it.src.height); }
   });
   applyTheme(); renderTab(); renderStarts(); await rebuildAll(true); renderTab();
   logLine("Project opened");
+  if (missingModel()) setTimeout(()=>notify(`This project was made with ${missingModel()}, which is not saved with it. Open that file again and its paint and settings come back.`), 400);
   return true;
 }
 async function offerDownload(filename, data, mime){
@@ -7096,7 +8124,9 @@ function modelName(){
 function saveProjectFile(){
   const n = modelName().replace(/\s+/g,"-").toLowerCase();
   pushRecent(modelName());
-  offerDownload(n+".json", projectPayload(), "application/json");
+  const payload = projectPayload(true);
+  offerDownload(n+".json", payload, "application/json");
+  if (state.base.type === "stl" && stlData) notify(`The imported model is saved in the project file too (${(payload.length/1e6).toFixed(1)} MB).`);
 }
 async function exportOutlineCAD(){
   if (!tracerInfo || !tracerInfo.polys.length){ notify("Trace a part first."); return; }
@@ -7188,6 +8218,78 @@ async function exportBatch(text){
 }
 
 /* ---------- presets, theme, keyboard, start ---------- */
+/* Built-in examples (Session 19, the table is in src/examples.js): a quick start or an object opens with
+   a finished example while there are no pictures of the person's own. The example's pictures are marked
+   `example`, and give way to the first picture or text added. Its filaments are only set while nobody has
+   changed them (or on a quick start, which sets things up anyway); its settings only where they are
+   still as they started. */
+const EXAMPLE_NOTE = "This is an example: add your own picture on the Art tab and it takes its place.";
+function exampleNote(key){
+  const ex = key && encHas(EXAMPLES, key) ? EXAMPLES[key] : {};
+  if (ex.paint && !ex.art) return "This is an example: its colours are painted on the Paint tab, where you can change them or start again.";
+  if (ex.note) return ex.note + " " + EXAMPLE_NOTE;
+  if (ex.view === "flip") return EXAMPLE_NOTE + " It is shown turned over so you can see the picture: the ⟳ button above the model turns it back.";
+  return EXAMPLE_NOTE;
+}
+const exampleCanvases = new Map();        // art key → { canvas, url }, drawn once per visit
+const exampleSized = new WeakSet();       // example pictures with a width of their own
+let exampleBusy = 0, exampleToken = 0, examplePaintSig = "", exampleSlotSig = "";
+const slotSig = () => state.slots.map(s => s.hex + "/" + s.name).join("|");
+const DEFAULT_SLOT_SIG = DEFAULTS().slots.map(s => s.hex + "/" + s.name).join("|");
+const canon = v => JSON.stringify(v, (k, x) => x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map(q => [q, x[q]])) : x);
+async function exampleCanvas(key){
+  if (exampleCanvases.has(key)) return exampleCanvases.get(key);
+  const art = encHas(EXAMPLE_ART, key) ? EXAMPLE_ART[key] : null; if (!art) return null;
+  const canvas = document.createElement("canvas"); canvas.width = art.w; canvas.height = art.h;
+  await art.draw(canvas.getContext("2d"), art.w, art.h);
+  const out = { canvas, url:canvas.toDataURL("image/png") };
+  exampleCanvases.set(key, out); return out;
+}
+// takes the example pictures away (and an example's paint, while it is untouched); true when there were some
+function dropExamples(){
+  const act = state.items[state.active], n = state.items.length;
+  state.items = state.items.filter(it => !it.example);
+  state.active = state.items.indexOf(act); if (state.active < 0) state.active = state.items.length - 1;
+  if (examplePaintSig && state.paint && JSON.stringify(state.paint.ops) === examplePaintSig){ state.paint.ops = []; paintPrepared = false; }
+  return state.items.length !== n;
+}
+// the settings an example changes are still as they started (or as an example left them)
+function exampleBaseFree(base){
+  const def = DEFAULTS().base;
+  return Object.entries(base).every(([k, over]) => Object.keys(over).every(f => {
+    const cur = canon((state.base[k] || {})[f]), was = (def[k] || {})[f];
+    const set = over[f] && typeof over[f] === "object" ? Object.assign(JSON.parse(JSON.stringify(was || {})), over[f]) : over[f];
+    return cur === canon(was) || cur === canon(set);
+  }));
+}
+async function loadExample(key, preset){
+  const token = ++exampleToken, ex = key && encHas(EXAMPLES, key) ? EXAMPLES[key] : null;
+  dropExamples(); setViewFlags({ flip:false, layout:false });
+  if (!ex || state.items.some(it => !it.example)) return false;
+  const art = ex.art ? await exampleCanvas(ex.art) : null;
+  if (token !== exampleToken) return false;            // another start was picked meanwhile
+  dropExamples();
+  if (state.items.some(it => !it.example) || (ex.art && !art)) return false;
+  if (ex.slots && (preset || slotSig() === DEFAULT_SLOT_SIG || slotSig() === exampleSlotSig))
+    ex.slots.forEach(([hex, name], i) => { if (state.slots[i]) Object.assign(state.slots[i], { hex, name }); });
+  if (ex.base && (preset || exampleBaseFree(ex.base)))
+    for (const [k, over] of Object.entries(ex.base)) for (const [f, v] of Object.entries(over)){
+      if (!state.base[k]) continue;
+      state.base[k][f] = v && typeof v === "object" ? Object.assign(JSON.parse(JSON.stringify(state.base[k][f] || {})), v) : v;
+    }
+  if (ex.paint){ state.paint.ops = JSON.parse(JSON.stringify(ex.paint)); state.paint.on = true; paintPrepared = false; examplePaintSig = JSON.stringify(state.paint.ops); }
+  if (art){
+    const id = "a" + (uid++); assets[id] = { canvas:art.canvas, dataURL:art.url };
+    const it = newItem("Example: " + EXAMPLE_ART[ex.art].name, art.canvas, Object.assign({ asset:id, enabled:true, example:true }, JSON.parse(JSON.stringify(ex.item || {}))));
+    if (ex.width){ it.width = ex.width; exampleSized.add(it); }
+    if (ex.place === "top" && state.base.type === "hex") it.place = { c:[0, state.base.hex.h, 0], n:[0,1,0] };
+    it.src = art.canvas; it.thumb = art.url;
+    state.items.push(it); state.active = state.items.length - 1;
+  }
+  if (ex.view) setViewFlags({ [ex.view]:true });
+  exampleSlotSig = slotSig();
+  return true;
+}
 function applyPreset(key){
   const pr = PRESETS[key], b = state.base;
   clearPaintForNewModel();
@@ -7206,13 +8308,23 @@ function applyPreset(key){
   state.items.forEach(d=>d.place = defaultPlace());
   userMoved = false;
   renderTab(); renderStarts();
-  (async ()=>{ await rebuildAll(false); await new Promise(r=>setTimeout(r,60));
-    state.items.forEach(d=>{ d.width = defaultWidth(d.aspect); d.solids = null; }); schedule(); })();
-  notify(pr.tip); pushHistory();
+  notify(pr.tip);
+  exampleBusy++;
+  (async ()=>{
+    // with no pictures of their own, the quick start opens with its example
+    let added = false;
+    try { added = await loadExample(key, true); } catch (err){ console.error(err); }
+    exampleBusy--;
+    if (added){ renderTab(); notify(pr.tip + " " + exampleNote(key)); }
+    await rebuildAll(false); await new Promise(r=>setTimeout(r,60));
+    state.items.forEach(d=>{ if (!exampleSized.has(d)) d.width = defaultWidth(d.aspect); d.solids = null; }); schedule();
+    exampleSlotSig = slotSig(); pushHistory();
+  })();
+  pushHistory();
 }
 
 /* ---- easy reading: kept in this browser for every project, not in project files ---- */
-const PREFS_DEFAULT = { ui:1, contrast:"normal", font:"normal", motion:"auto", notice:1, speak:false };
+const PREFS_DEFAULT = { ui:1, contrast:"normal", font:"normal", motion:"auto", notice:1, speak:false, patterns:false };
 let prefs = Object.assign({}, PREFS_DEFAULT);
 try { const raw = JSON.parse(localStorage.getItem("makerforge.prefs") || "null");
   if (raw && typeof raw === "object"){
@@ -7222,6 +8334,7 @@ try { const raw = JSON.parse(localStorage.getItem("makerforge.prefs") || "null")
     prefs.motion = raw.motion === "reduce" ? "reduce" : "auto";
     prefs.notice = [1, 2, 4].includes(raw.notice) ? raw.notice : 1;
     prefs.speak = raw.speak === true;
+    prefs.patterns = raw.patterns === true;
   } } catch(e){}
 function savePrefs(){ try { localStorage.setItem("makerforge.prefs", JSON.stringify(prefs)); } catch(e){} }
 function applyPrefs(){
@@ -7229,9 +8342,11 @@ function applyPrefs(){
   r.style.setProperty("--ui", String(prefs.ui));
   if (prefs.contrast === "high") r.setAttribute("data-contrast", "high"); else r.removeAttribute("data-contrast");
   if (prefs.font === "clear"){
-    r.setAttribute("data-font", "clear");           // Atkinson Hyperlegible (see fontFaceCSS): fetched on first use
+    r.setAttribute("data-font", "clear");           // Atkinson Hyperlegible, built in (see fontFaceCSS)
   } else r.removeAttribute("data-font");
   if (prefs.motion === "reduce") r.setAttribute("data-motion", "reduce"); else r.removeAttribute("data-motion");
+  patUniforms.uPat.value = prefs.patterns ? 1 : 0;
+  patUniforms.uPatScale.value = 10 * (window.devicePixelRatio || 1) * prefs.ui;
   // big text needs the room: the start sidebar steps aside on narrower screens
   if (prefs.ui >= 1.3 && window.innerWidth < 1900 && typeof setSide === "function") setSide("right", false);
 }
@@ -7268,11 +8383,14 @@ function openEasyReading(){
     segField(b, [["normal","Normal"],["high","High contrast"]], () => prefs.contrast, v => { prefs.contrast = v; savePrefs(); applyPrefs(); makeBed(); openEasyReading(); }, "two");
     b.insertAdjacentHTML("beforeend", `<h2>Letters</h2>`);
     segField(b, [["normal","Normal"],["clear","Extra clear letters"]], () => prefs.font, v => { prefs.font = v; savePrefs(); applyPrefs(); openEasyReading(); }, "two");
-    note(b, "Extra clear letters use Atkinson Hyperlegible, a font drawn for people with low vision (downloaded the first time you switch it on).");
+    note(b, "Extra clear letters use Atkinson Hyperlegible, a font drawn for people with low vision (built into the app, like all its fonts).");
     b.insertAdjacentHTML("beforeend", `<h2>Messages</h2>`);
     segField(b, [["1","Normal time"],["2","Twice as long"],["4","Until I click"]], () => String(prefs.notice), v => { prefs.notice = +v; savePrefs(); openEasyReading(); });
     checkField(b, "Read messages aloud", () => prefs.speak, v => { prefs.speak = v; savePrefs(); });
     checkField(b, "Less movement (no animations)", () => prefs.motion === "reduce", v => { prefs.motion = v ? "reduce" : "auto"; savePrefs(); applyPrefs(); });
+    b.insertAdjacentHTML("beforeend", `<h2>Colours</h2>`);
+    checkField(b, "A pattern on each filament, to tell them apart without colour", () => prefs.patterns, v => { prefs.patterns = v; savePrefs(); applyPrefs(); if (tab === "paint") renderTab(); });
+    note(b, "The first filament stays plain; the others get stripes, lines, dots, cross-hatching or checks, on the model and on the colour swatches.");
     buttonRow(b, [["🔊 Read this page aloud", () => { $("#modal").hidden = true; speakPage(); }], ["Back to normal", () => { prefs = Object.assign({}, PREFS_DEFAULT); savePrefs(); applyPrefs(); openEasyReading(); }]]);
     note(b, "Your browser's own zoom (Ctrl and +) makes everything bigger too, including the 3D view.");
   });
@@ -7293,13 +8411,17 @@ $("#themeBtn").onclick = ()=>{
   applyTheme(); notify("Theme: "+state.view.theme); pushHistory();
 };
 document.addEventListener("keydown", e => {
-  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
   const k = e.key.toLowerCase();
+  // Delete and the arrow keys act on the artwork only on the Art tab, and only when no button, tab or
+  // field has the focus (arrow keys move between tabs and pages, and a control may have used the key)
+  const onArt = tab === "art" && !typing && !e.defaultPrevented && !e.ctrlKey && !e.metaKey && !e.altKey &&
+    (e.target === document.body || e.target === document.documentElement || !!e.target.closest("#view"));
   if ((e.ctrlKey||e.metaKey) && k === "z"){ if (typing) return; e.preventDefault(); e.shiftKey ? redo() : undo(); }
   else if ((e.ctrlKey||e.metaKey) && k === "y"){ if (typing) return; e.preventDefault(); redo(); }
   else if ((e.ctrlKey||e.metaKey) && k === "s"){ e.preventDefault(); saveProjectFile(); }
-  else if (!typing && (k === "delete" || k === "backspace")){ if (state.items[state.active]){ e.preventDefault(); removeItem(); } }
-  else if (!typing && ["arrowleft","arrowright","arrowup","arrowdown"].includes(k)){
+  else if (onArt && (k === "delete" || k === "backspace")){ if (state.items[state.active]){ e.preventDefault(); removeItem(); } }
+  else if (onArt && ["arrowleft","arrowright","arrowup","arrowdown"].includes(k)){
     const d = state.items[state.active]; if (!d) return;
     e.preventDefault();
     const step = e.shiftKey ? 2 : 0.5;
@@ -7318,7 +8440,9 @@ window.MakerForge = {
   get parts(){ return modelParts; },
   get checks(){ return lastChecks; },
   get rev(){ return buildRev; },
-  get busy(){ return busy || queued; },
+  get busy(){ return busy || queued || exampleBusy > 0; },
+  thumb: modelThumb,
+  examples: { list: EXAMPLES, forType: EXAMPLE_FOR_TYPE, art: EXAMPLE_ART, canvas: exampleCanvas, load: loadExample, drop: dropExamples },
   get tracer(){ return tracerInfo; },
   get enclosure(){ return enclosureInfo; },
   get cutouts(){ return CUTOUTS; }, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
@@ -7327,12 +8451,14 @@ window.MakerForge = {
   get print(){ return printFresh() ? printInfo : null; },
   printNow: runPrintability, optimize: optimizePrint, revertOptimize, exportParts,
   // the painter, for the tests: its tool settings, a repaint now, the last result, a model import and the zip
-  paint: { ui: paintUI, repaint: () => repaint(true), get info(){ return paintInfo; }, importModel: importModelFile, buildZip,
-    hit: paintHit, get prefs(){ return prefs; }, applyPrefs, findDefault, cleanPaint },
+  paint: { ui: paintUI, repaint: () => repaint(true), changed: paintChanged, get info(){ return paintInfo; }, importModel: importModelFile, buildZip,
+    hit: paintHit, pick: paintPick, recolour: paintRecolour, colourAt, area: paintArea, previewTris, prepare: preparePaint, get previewCount(){ return previewCount; }, cleanPrinter, showLayerCut, get prefs(){ return prefs; }, applyPrefs, findDefault, cleanPaint,
+    photo: { ai: { hooks: aiHooks, find: aiFindFigures, config: AI_FIGURE, state: aiState, sha256: sha256Hex, get: aiGet, mapOf: aiMapOf },
+      add: addPaintPhotos, fit: photoFitView, colours: photoPickColours, setFilaments: photoSetFilaments, nearest: photoNearestFilaments, get op(){ return photoOpOf(); }, info: o => photoInfo.get(o), labels: photoLabels, colourWord } },
   phone: { spec: phoneSpec, get info(){ return phoneInfo; }, list: PHONES },
   get overlay(){ return overlay.children.length; },
   rebuild: rebuildAll,
-  get camera(){ return camera; }, get controls(){ return controls; }, shareLink: makeShareLink,
+  get camera(){ return camera; }, get controls(){ return controls; }, shareLink: makeShareLink, projectPayload,
   get measure(){ return measurePts.map(q => q.toArray().map(v => +v.toFixed(3))); },
   get defaults(){ return DEFAULTS().base; },
   render: renderTab,

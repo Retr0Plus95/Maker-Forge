@@ -1,11 +1,51 @@
 {
   "name": "maker-forge",
-  "version": "0.17.1",
+  "version": "0.20.0",
   "private": true,
-  "description": "Browser-based multi-colour 3D printing studio. The app needs no build tools; these are the test dependencies.",
+  "description": "Free, open-source multi-colour (multi-color) 3D print designer that runs in the browser: name keychains, patches, phone cases, lithophanes, jigsaw puzzles, cookie cutters, lightboxes, project boxes and painted models, exported as 3MF for Bambu Studio, OrcaSlicer and PrusaSlicer. This package.json only lists the test dependencies.",
+  "keywords": [
+    "3d-printing",
+    "multicolor",
+    "multi-colour",
+    "3mf",
+    "stl",
+    "obj",
+    "bambu-lab",
+    "ams",
+    "prusa",
+    "mmu3",
+    "orcaslicer",
+    "prusaslicer",
+    "bambu-studio",
+    "keychain-generator",
+    "name-tag",
+    "lithophane",
+    "jigsaw-puzzle",
+    "cookie-cutter",
+    "phone-case",
+    "enclosure-generator",
+    "image-to-stl",
+    "photo-to-stl",
+    "svg-to-stl",
+    "pcb-art",
+    "lightbox",
+    "plastic-canvas",
+    "threejs",
+    "browser",
+    "offline"
+  ],
+  "homepage": "https://github.com/Retr0Plus95/Maker-Forge#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Retr0Plus95/Maker-Forge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Retr0Plus95/Maker-Forge/issues"
+  },
   "license": "MIT",
   "scripts": {
     "build": "python3 build.py",
+    "fonts": "node tools-fonts.js",
     "test:tracer": "node tools-tracer-test.js index.html && node tools-tracer-paper-test.js index.html && node tools-tracer-logo-test.js index.html && node tools-tracer-plate-test.js index.html",
     "test:smoke": "node tools-smoke-test.js index.html",
     "test:audit": "node tools-audit.js index.html",
@@ -17,7 +57,12 @@
     "test:size": "node tools-size-check.js index.html",
     "check:browser": "node tools-browser-check.js index.html",
     "test:paint": "node tools-paint-test.js index.html",
-    "test:phonecase": "node tools-phonecase-test.js index.html"
+    "test:phonecase": "node tools-phonecase-test.js index.html",
+    "test:art": "node tools-art-test.js index.html",
+    "test:project": "node tools-project-test.js index.html",
+    "test:photo": "node tools-photo-test.js index.html",
+    "thumbs": "node tools-thumbs.js index.html",
+    "screenshots": "node tools-screenshots.js index.html"
   },
   "devDependencies": {
     "@fontsource/alfa-slab-one": "5.3.0",
@@ -58,6 +103,7 @@
     "earcut": "2.2.4",
     "jsdom": "^30.1.1",
     "jszip": "3.10.1",
+    "onnxruntime-web": "1.30.0",
     "three": "0.128.0"
   }
 }

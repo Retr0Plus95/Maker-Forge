@@ -19,9 +19,15 @@ const EXPECTED_DEAD = [
   }],
   // printability settings only act where the model has something for them to act on
   [/^Steepest overhang/, "this model has no downward faces off the bed", () => { const p = win.MakerForge.print; return p && p.overhang.area === 0 && !p.overhang.narrow && !p.flats.length; }],
-  [/^Longest bridge/, "this model has no flat ceilings", () => { const p = win.MakerForge.print; return p && !p.flats.length; }],
+  [/^Longest bridge/, "this model has no flat ceilings to bridge (at most narrow ledges)", () => { const p = win.MakerForge.print; return p && p.flats.every(f => f.kind === "ledge"); }],
+  // the Colour tab's printer settings change the bed, the checks and the print time, not the model
+  // (Session 15: each was checked to change a check or the time; the nozzle feeds the thin-wall check)
+  [/^(Bed width|Bed depth|Build height|Colours it can load|Nozzle|Layer height|Waste per colour change|Time per colour change)/, "a printer setting: it changes the bed, the checks and the print time, not the model"],
+  [/^Look at the layer at/, "shows one layer of the model (the section cut), it does not change it"],
   [/^Show problem areas/, "this model has nothing to mark", () => { const p = win.MakerForge.print; return p && !p.marks.support.length && !p.marks.fine.length && !p.thin.length; }],
   [/^Brush size/, "only sets the size of the next brush stroke"],
+  [/^(Stop at edges sharper than|Only paint the side facing me|Mirror my strokes|Repeat round the middle|Smart brush|An edge is sharp)/, "sets how the next brush stroke or fill works"],
+  [/^Use the paint/, "there is no paint to switch off", () => !(win.MakerForge.state.paint.ops || []).length],
   // Session 13: the box grows only when an opening is too big for its face
   [/^Make the box bigger when an opening does not fit/, "every opening fits, so there is nothing to grow for", () => !(win.MakerForge.enclosure && (win.MakerForge.enclosure.misfit || []).length)],
   [/^Dot size/, "the test text has no i/j dots, and the test canvas draws glyphs as boxes"],

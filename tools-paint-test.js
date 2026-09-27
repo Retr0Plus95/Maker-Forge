@@ -136,6 +136,68 @@ console.log("\nwriting and reading painted files");
   let threw = 0; try { C.parseOBJ("nothing here"); } catch (e) { threw++; } try { C.parse3MFModel("<model></model>"); } catch (e) { threw++; }
   check(threw === 2, "empty files give a clear error"); }
 
+console.log("\npainter tools (Session 18): the smart brush and strokes repeated round the middle");
+{ const b = box(-10, 0, -10, 10, 20, 10), ed = C.meshEditor(b); ed.refine(1, 1e6);
+  const s = ed.solid(), topo = C.meshTopology(s), g = C.triangleGrid(topo, 2);
+  const plain = C.brushTris(topo, g, [9, 20, 0], 3, null, 0), smart = C.brushTris(topo, g, [9, 20, 0], 3, null, 40);
+  const onTop = ts => ts.filter(t => topo.nrm[3 * t + 1] > 0.9).length;
+  check(plain.length > onTop(plain) && onTop(plain) > 0, "near an edge the plain brush runs over onto the side", `${onTop(plain)} on top, ${plain.length - onTop(plain)} on the side`);
+  check(smart.length === onTop(smart) && onTop(smart) === onTop(plain), "the smart brush stops at the edge: the same top, none of the side", `${smart.length} triangles`);
+  check(C.brushTris(topo, g, [9, 20, 0], 3, null, 89).length === smart.length && C.brushTris(topo, g, [9, 20, 0], 3, [0, -1, 0], 40).length === smart.length, "  and with the facing check as well");
+  const cp = C.symmetryCopies([[10, 5, 0]], [-1, 0, 0], false, 4), at = cp.map(c => c.pts[0].map(v => Math.round(v)).join(",")).sort();
+  check(cp.length === 4 && at.join(" ") === "-10,5,0 0,5,-10 0,5,10 10,5,0" && cp.every(c => Math.abs(Math.hypot(...c.facing) - 1) < 1e-9 && Math.abs(c.facing[0] * c.pts[0][0] + c.facing[2] * c.pts[0][2] + 10) < 1e-9),
+    "four copies round the upright middle line, each still facing the model", at.join(" "));
+  check(C.symmetryCopies([[3, 1, 2]], null, true, 3).length === 6 && C.symmetryCopies([[3, 1, 2]], null, false, 99).length === 12 && C.symmetryCopies([[3, 1, 2]], null, false, "x").length === 1,
+    "mirrored copies double them; at most 12 round; nonsense counts as once");
+  const p = new Uint8Array(topo.n).fill(255);
+  for (const c of C.symmetryCopies([[10, 10, 0]], null, false, 4)) C.paintBrush(topo, g, p, c.pts, 3, 2, c.facing, 0);
+  const side = [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]].map(n => { let a = 0; for (let t = 0; t < topo.n; t++) if (p[t] === 2 && topo.nrm[3 * t] * n[0] + topo.nrm[3 * t + 2] * n[2] > 0.9) a += topo.area[t]; return a; });
+  check(side.every(a => a > 0 && Math.abs(a - side[0]) < side[0] * 0.05), "a dab repeated four times round a cube paints the four sides alike", side.map(a => a.toFixed(1)).join(" / "));
+  // a box drawn over the left half of the screen, the camera 100 mm in front of the cube (three.js matrices)
+  const f = 1 / Math.tan(15 * Math.PI / 180), Pm = [f, 0, 0, 0, 0, f, 0, 0, 0, 0, -501 / 499, -1, 0, 0, -1000 / 499, 0];
+  const mul = (A, B) => { const r = new Array(16).fill(0); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) for (let k = 0; k < 4; k++) r[j * 4 + i] += A[k * 4 + i] * B[j * 4 + k]; return r; };
+  const M = mul(Pm, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, -10, -100, 1]), left = [[-1, -1], [0, -1], [0, 1], [-1, 1]];
+  const faces = ts => { const c = {}; for (const t of ts) { const k = [0, 1, 2].map(i => Math.round(topo.nrm[3 * t + i])).join(","); c[k] = (c[k] || 0) + 1; } return c; };
+  const seen = C.areaTris(s, M, left, false), thru = C.areaTris(s, M, left, true), fs = faces(seen);
+  let half = 0, frontArea = 0; for (const t of seen) { frontArea += topo.area[t]; if (topo.cen[3 * t] > 0.5) half++; }
+  check(Object.keys(fs).join() === "0,0,1" && half === 0 && Math.abs(frontArea - 200) < 20, "a box over the left half of the screen: the left half of the front face, nothing behind or beside it",
+    `${seen.length} triangles, ${frontArea.toFixed(0)} of 200 mm²`);
+  check(thru.length > seen.length && faces(thru)["0,0,-1"] > 0, "painting right through takes the back as well", `${thru.length} triangles`);
+  const lasso = C.areaTris(s, M, [[-0.1, -0.1], [0.1, -0.1], [0, 0.12]], false);
+  check(lasso.length > 0 && lasso.length < seen.length / 4, "a small lasso takes a small patch", lasso.length);
+  check(C.areaTris(s, M.map(() => NaN), left, false).length === 0 && C.areaTris(s, M, [[5, 5], [6, 5], [6, 6]], false).length === 0, "a broken matrix or an outline off the screen paints nothing");
+  // edges and hollows: a cube has edges and no hollows; an L-shaped block has one hollow, in its inside corner; a 10 mm ball is
+  // one smooth curve, left alone at a 5 mm limit and taken whole at 15 mm
+  const cube = C.meshEditor(b); cube.refine(0.8, 2e6); const ct = C.meshTopology(cube.solid()), cpaint = new Uint8Array(ct.n).fill(255), cr = C.paintCurvature(ct, cpaint, { edges: 1, hollows: 2, flat: 255, radius: 4, band: 1 });
+  let far = 0; for (let t = 0; t < ct.n; t++) if (cpaint[t] === 1) { const x = ct.cen[3 * t], y = ct.cen[3 * t + 1], z = ct.cen[3 * t + 2]; if ([10 - Math.abs(x), 10 - Math.abs(z), y, 20 - y].sort((a, q) => a - q)[1] > 1.6) far++; }
+  check(cr.edges > 0 && cr.hollows === 0 && far === 0, "edges and hollows on a cube: a band along the edges, no hollows", `${cr.edges} edge triangles`);
+  const L = [[0, 0], [20, 0], [20, 10], [10, 10], [10, 20], [0, 20]], le = C.meshEditor(C.extrudePolysAt([{ outer: C.area2(L) > 0 ? L : L.reverse(), holes: [] }], 0, 10)); le.refine(0.8, 2e6);
+  const lt = C.meshTopology(le.solid()), lp = new Uint8Array(lt.n).fill(255), lr = C.paintCurvature(lt, lp, { edges: 1, hollows: 2, flat: 255, radius: 4, band: 1 });
+  let hx = 0, hz = 0; for (let t = 0; t < lt.n; t++) if (lp[t] === 2) { hx += lt.cen[3 * t]; hz += lt.cen[3 * t + 2]; }
+  check(lr.hollows > 0 && Math.abs(hx / lr.hollows - 10) < 1 && Math.abs(Math.abs(hz / lr.hollows) - 10) < 1, "an L-shaped block: its inside corner is the hollow", `${lr.hollows} hollow triangles round x ${(hx / lr.hollows).toFixed(1)}`);
+  const pr = []; for (let i = 0; i <= 48; i++) { const a = -Math.PI / 2 + i / 48 * Math.PI; pr.push([Math.cos(a) * 10, 10 + Math.sin(a) * 10]); } pr[0][0] = 0; pr[48][0] = 0;
+  const be = C.meshEditor(C.revolveLoop(pr, 96)); be.refine(0.8, 2e6); const bt = C.meshTopology(be.solid());
+  const ball = r => C.paintCurvature(bt, new Uint8Array(bt.n).fill(255), { edges: 1, hollows: 2, flat: 255, radius: r, band: 1 }).edges / bt.n;
+  check(ball(5) === 0 && ball(15) > 0.95, "a 10 mm ball: left alone at a 5 mm limit, all of it at 15 mm", `${(ball(5) * 100).toFixed(0)}% and ${(ball(15) * 100).toFixed(0)}%`);
+  // a picture wrapped once round a cylinder: its left half on the viewer's left, each half on half the side, the ends untouched
+  const ce = C.meshEditor(C.revolveLoop([[0, 0], [10, 0], [10, 30], [0, 30]], 96)); ce.refine(1, 2e6); const cyl = C.meshTopology(ce.solid()), wp = new Uint8Array(cyl.n).fill(255);
+  C.paintPictureWrap(cyl, wp, { w: 2, h: 1, pix: Int16Array.from([1, 2]) }, { mode: "around", c: [0, 0, 0], turn: 360, start: 0, v0: 0, v1: 30, outside: true });
+  let w1 = 0, w2 = 0, ends = 0, wrongSide = 0; for (let t = 0; t < cyl.n; t++) { if (wp[t] === 1) { w1 += cyl.area[t]; if (cyl.cen[3 * t] > 0.01) wrongSide++; } if (wp[t] === 2) w2 += cyl.area[t]; if (wp[t] !== 255 && Math.abs(cyl.nrm[3 * t + 1]) > 0.9) ends++; }
+  check(Math.abs(w1 - 942.5) < 10 && Math.abs(w2 - 942.5) < 10 && ends === 0 && wrongSide === 0, "a picture wrapped once round a cylinder: each half on half the side, its left on the left, the ends untouched", `${w1.toFixed(0)} + ${w2.toFixed(0)} of 1885 mm²`);
+  const q = new Uint8Array(cyl.n).fill(255); C.paintPictureWrap(cyl, q, { w: 1, h: 1, pix: Int16Array.from([3]) }, { mode: "around", c: [0, 0, 0], turn: 90, start: 90, v0: 10, v1: 20, outside: true });
+  let qa = 0, qx = 0; for (let t = 0; t < cyl.n; t++) if (q[t] === 3) { qa += cyl.area[t]; qx += cyl.cen[3 * t] * cyl.area[t]; }
+  check(Math.abs(qa - 157) < 6 && qx / qa > 7, "a quarter turn, turned to the right: a 10 mm band on the right side", `${qa.toFixed(0)} of 157 mm²`);
+  // colours layer by layer: a 20 mm cube, white below 7 mm and red above; then three red rings on it
+  const lc = C.meshEditor(b); lc.cut(1, 7); const ls = lc.solid(), lt2 = C.meshTopology(ls), lp2 = new Uint8Array(lt2.n).fill(255); C.paintHeights(lt2, lp2, [7], [0, 1]);
+  const bits = C.layerSlots([{ pos: ls.pos, idx: ls.idx, paint: lp2, slot: 0 }], 0.2);
+  check(bits.length === 100 && bits.slice(0, 35).every(v => v === 1) && bits.slice(35).every(v => v === 2) && C.colourChanges(bits).changes === 1,
+    "a cube white below 7 mm and red above: one change, from white to red at 7 mm (the inside follows the outside)", `${bits.length} layers, ${C.colourChanges(bits).changes} change`);
+  const ring = C.colourChanges(Uint32Array.from([1, 1, 3, 3, 1, 1, 3, 1]));
+  check(ring.changes === 4 && ring.busiest === 2, "red rings on a white part: in and out of red, each layer's order chosen to save changes", `${ring.changes} changes`);
+  const cases = [[[1, 1, 1], 0], [[1, 1, 2, 2, 1], 2], [[3, 3, 3, 3], 4], [[7, 7, 7], 6], [[1, 3, 2], 1], [[1, 3, 1], 2], [[3, 1], 1], [[5, 6, 3], 3], [[0, 1, 0, 2], 1]];
+  const wrong = cases.filter(([a, w]) => C.colourChanges(Uint32Array.from(a)).changes !== w);
+  check(!wrong.length, "colour changes counted for layer patterns with known answers", wrong.map(([a]) => JSON.stringify(a)).join(" ") || `${cases.length} patterns`); }
+
 if (process.env.CORE) { console.log(fails ? `\n${fails} FAILED` : "\nall passed"); process.exit(fails ? 1 : 0); }
 
 // ---------- the app ----------
@@ -152,20 +214,34 @@ async function settle() {
 (async () => {
   await sleep(900);
   const MF = win.MakerForge, st = () => MF.state;
-  const choose = async v => { const s = document.querySelector("#objectSel"); s.value = v; s.dispatchEvent(new win.Event("change")); await settle(); };
+  // an object opens with its example (Session 19): the vase and the planet come painted. These tests start
+  // from the bare object, unless keep is set
+  const choose = async (v, keep) => {
+    const s = document.querySelector("#objectSel"); s.value = v; s.dispatchEvent(new win.Event("change")); await settle();
+    if (keep) return;
+    const n = st().paint.ops.length + st().items.length; MF.examples.drop();
+    if (st().paint.ops.length + st().items.length !== n) { MF.rebuild(false); await settle(); }
+  };
   const toTab = k => $$("#tabs button").find(b => b.dataset.k === k).click();
   const toPage = t => { const b = $$("#secrail button").find(b => b.dataset.title === t); if (b) b.click(); return !!b; };
   const painted = () => { const c = {}; MF.parts.forEach(p => p.paint && p.paint.forEach(v => c[v] = (c[v] || 0) + 1)); return c; };
   console.log("\nthe Paint tab");
+  await choose("turned", true);
+  {
+    const c = painted();
+    check(st().paint.ops.length >= 2 && Object.keys(c).length >= 3 && MF.parts.every(p => C.checkMesh(p.solid).open === 0), "the vase opens with its example: a fade and stripes, painted, still closed",
+      `${st().paint.ops.map(o => o.k).join(", ")}; ${JSON.stringify(c).slice(0, 80)}`);
+  }
   await choose("turned");
+  check(!st().paint.ops.length, "and the example's paint goes quietly when it is taken away", st().paint.ops.length);
   toTab("paint"); await sleep(60);
-  check($$("#secrail button").map(b => b.dataset.title).join("|") === "Paint|Auto colour|Brush and fill|Paint list|Paint detail", "five pages", $$("#secrail button").map(b => b.dataset.title).join(", "));
+  check($$("#secrail button").map(b => b.dataset.title).join("|") === "Paint|Auto colour|Brush and fill|Paint list|Layers and colour changes|Paint detail", "six pages", $$("#secrail button").map(b => b.dataset.title).join(", "));
   const vis = [...document.querySelectorAll("#panel > .section")].find(d => !d.hidden);
   check(vis.querySelectorAll(".pswatch[role=radio]").length === st().slots.length, "a big swatch per loaded filament", vis.querySelectorAll(".pswatch[role=radio]").length);
-  const methods = ["height", "gradient", "stripes", "dir", "shells", "regions", "noise", "swap"];
+  const methods = ["height", "gradient", "stripes", "dir", "shells", "regions", "noise", "curve", "swap"];
   for (const k of methods) {
     toPage("Auto colour"); await sleep(20);
-    $$(".method").find(b => b.querySelector("b").textContent === { height: "Height bands", gradient: "Colour fade", stripes: "Stripes", dir: "Tops and sides", shells: "Separate pieces", regions: "Smooth areas", noise: "Random blobs", swap: "Swap a colour" }[k]).click(); await sleep(20);
+    $$(".method").find(b => b.querySelector("b").textContent === { height: "Height bands", gradient: "Colour fade", stripes: "Stripes", dir: "Tops and sides", shells: "Separate pieces", regions: "Smooth areas", noise: "Random blobs", curve: "Edges and hollows", swap: "Swap a colour" }[k]).click(); await sleep(20);
     const go = $$("#panel button").find(b => /^Paint it/.test(b.textContent));
     go.click(); await sleep(150); await settle();
     const ops = st().paint.ops, c = painted();
@@ -206,6 +282,62 @@ async function settle() {
   // the fill tool on the base: everything that faces down, in one go
   st().paint.ops.push({ k: "fill", p: [0, 0, 0], slot: 2, same: false, angle: 30 }); MF.paint.repaint(); await settle();
   check((painted()[2] || 0) > 0, "a fill from the base paints the base", painted()[2]);
+  // Session 18: strokes repeated round the middle, the eyedropper and recolour
+  const opsBefore = JSON.parse(JSON.stringify(st().paint.ops));
+  st().paint.ops = [{ k: "brush", slot: 3, r: 4, facing: null, pts: [[20, 45, 33.5]] }]; MF.paint.repaint(); await settle();
+  const once = painted()[3] || 0; st().paint.ops[0].radial = 4; MF.paint.repaint(); await settle();
+  check(once > 0 && painted()[3] > once * 3.2 && painted()[3] < once * 4.8, "a stroke repeated four times round the vase paints about four times as much", `${once} → ${painted()[3]}`);
+  st().paint.ops[0].edge = 30; MF.paint.repaint(); await settle();
+  check(painted()[3] > 0 && painted()[3] <= once * 4.8, "the smart brush replays too", painted()[3]);
+  const part0 = MF.parts[0], t3 = Array.from(part0.paint).indexOf(3), tPlain = Array.from(part0.paint).indexOf(255);
+  MF.paint.ui.slot = 0; MF.paint.ui.tool = "pick"; MF.paint.ui.lastTool = "brush";
+  check(MF.paint.pick({ part: 0, face: t3 }) && MF.paint.ui.slot === 3 && MF.paint.ui.tool === "brush" && MF.paint.colourAt({ part: 0, face: tPlain }) === part0.slot,
+    "the eyedropper takes the colour clicked on (paint, or the part's own) and goes back to the brush", `slot ${MF.paint.ui.slot}, tool ${MF.paint.ui.tool}`);
+  MF.paint.ui.slot = 1; const nOps = st().paint.ops.length;
+  check(MF.paint.recolour({ part: 0, face: t3 }) && st().paint.ops.length === nOps + 1 && st().paint.ops[nOps].k === "swap" && st().paint.ops[nOps].from === 3 && st().paint.ops[nOps].to === 1, "recolour adds a step: that colour everywhere becomes the brush colour");
+  await settle(); check(!painted()[3] && painted()[1] > 0, "and the model has none of it left", JSON.stringify(painted()));
+  check(!MF.paint.recolour({ part: 0, face: Array.from(MF.parts[0].paint).indexOf(1) }) && st().paint.ops.length === nOps + 1, "recolouring a colour into itself adds nothing");
+  st().paint.ops = [{ k: "fill", p: [0, 0, 0], slot: 2, same: false, angle: 30, radial: 3 }]; MF.paint.repaint(); await settle();
+  check((painted()[2] || 0) > 0, "a fill repeated round the middle replays", painted()[2]);
+  // a picture wrapped round the vase: blue on its left half, yellow on its right
+  { const W = 120, H = 60, px = new Uint8ClampedArray(W * H * 4);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const o = (y * W + x) * 4, c = x < W / 2 ? [20, 60, 200] : [250, 210, 30]; px[o] = c[0]; px[o + 1] = c[1]; px[o + 2] = c[2]; px[o + 3] = 255; }
+    toTab("art"); await sleep(50);
+    const ev = new win.Event("drop", { bubbles: true, cancelable: true }); ev.dataTransfer = { files: [new win.File([boot.encodePNG(W, H, px)], "halves.png", { type: "image/png" })] };
+    document.querySelector("#drop").dispatchEvent(ev);
+    for (let i = 0; i < 100 && !st().items.some(d => d.name === "halves" && d.src); i++) await sleep(30);
+    await settle(); toTab("paint"); await sleep(50);
+    const it = st().items.findIndex(d => d.name === "halves"); st().items[it].enabled = false; st().items[it].solids = null; MF.rebuild(false); await settle();
+    st().paint.ops = [{ k: "picture", item: it, dir: "front", scale: 100, dx: 0, dy: 0, facing: true, wrap: "around", turn: 360, start: 0 }]; MF.paint.repaint(); await settle();
+    const pw = painted(), cols = Object.keys(pw).filter(k => k !== "255");
+    check(cols.length === 2 && Math.min(...cols.map(k => pw[k])) > 0.4 * Math.max(...cols.map(k => pw[k])), "a picture wrapped round the vase: both halves, about the same amount of each", JSON.stringify(pw));
+    st().paint.ops[0].wrap = "ball"; MF.paint.repaint(); await settle();
+    check(Object.keys(painted()).filter(k => k !== "255").length === 2, "and over a ball", JSON.stringify(painted()));
+    st().paint.ops = []; st().items.splice(it, 1); st().active = st().items.length - 1; MF.rebuild(false); await settle(); }
+  // the brush preview shows exactly what the stroke then paints
+  st().paint.ops = [{ k: "brush", slot: 3, r: 5, facing: null, pts: [[0, 90, 0]] }]; MF.paint.repaint(); await settle();   // refined
+  st().paint.ops = []; MF.paint.repaint(); await settle();
+  check(MF.parts[0].solid === MF.parts[0].solid0, "with nothing painted the model is its plain self again");
+  check(MF.paint.prepare() && MF.parts[0].pc && MF.parts[0].solid !== MF.parts[0].solid0 && !MF.paint.prepare(), "hovering with the brush splits the model once, ready to show what the brush will paint");
+  Object.assign(MF.paint.ui, { tool: "brush", r: 4, facing: false, mirror: false, radial: 3, smart: false, slot: 3 });
+  const pv = MF.paint.previewTris({ part: 0, p: [20, 45, 33.5], dir: [0, 0, -1] });
+  st().paint.ops = [{ k: "brush", slot: 3, r: 4, facing: null, pts: [[20, 45, 33.5]], radial: 3 }]; MF.paint.repaint(); await settle();
+  check(pv && pv.tris.length > 0 && pv.tris.length === painted()[3], "the brush preview lights up exactly the triangles the stroke paints (three times round here)", `${pv && pv.tris.length} and ${painted()[3]}`);
+  Object.assign(MF.paint.ui, { radial: 1, facing: true });
+  // a box over the whole view: the side seen, then right through
+  st().paint.ops = []; MF.paint.repaint(); await settle();
+  const all = [[-1, -1], [1, -1], [1, 1], [-1, 1]], cam = MF.camera;
+  cam.aspect = 1; cam.updateProjectionMatrix();                     // the test page has no size of its own
+  check(MF.paint.area(all, false, false) && st().paint.ops[0].k === "area" && st().paint.ops[0].m.length === 16, "the box tool adds a step with the view's matrix and the outline");
+  await settle(); const sideSeen = painted()[3] || 0;
+  st().paint.ops = []; MF.paint.area(all, true, false); await settle(); const through = painted()[3] || 0;
+  check(sideSeen > 0 && through > sideSeen * 1.5, "a box paints the side you see; right through, the back too", `${sideSeen} → ${through} triangles`);
+  MF.paint.area(all, true, true); await settle();
+  check(!painted()[3], "and rubbing out with a box puts the part's own colour back");
+  cam.aspect = NaN; cam.updateProjectionMatrix(); const nBox = st().paint.ops.length;
+  check(!MF.paint.area(all, false, false) && st().paint.ops.length === nBox, "a view that is not ready adds nothing");
+  cam.aspect = 1; cam.updateProjectionMatrix();
+  st().paint.ops = opsBefore; MF.paint.repaint(); await settle();
   // paint detail
   st().paint.detail = "coarse"; MF.paint.repaint(); await settle(); const coarse = MF.paint.info.tris;
   st().paint.detail = "fine"; MF.paint.repaint(); await settle(); const fine = MF.paint.info.tris;
@@ -213,9 +345,15 @@ async function settle() {
   st().paint.detail = "auto";
   // switching the paint off shows the model plain; removing all paint restores the original mesh
   st().paint.on = false; MF.paint.repaint(); await settle();
-  check(MF.parts.every(p => !p.paint), "Show the paint off: plain model");
+  const offWarn = MF.checks.list.find(r => /paint is switched off/.test(r.t));
+  check(MF.parts.every(p => !p.paint) && offWarn && offWarn.k === "warn", "“Use the paint” off: the plain model, and the checks say the paint is left out", offWarn && offWarn.s);
   st().paint.on = true; st().paint.ops = []; MF.paint.repaint(); await settle();
-  check(MF.parts.every(p => !p.paint) && C.checkMesh(MF.parts[0].solid).tris === 41216, "no paint: the original mesh again", C.checkMesh(MF.parts[0].solid).tris);
+  check(!MF.checks.list.some(r => /paint is switched off/.test(r.t)), "no warning once the paint is on (or gone)");
+  check(MF.exportParts().reduce((n, q) => n + q.idx.length / 3, 0) === 41216 && MF.exportParts().every(q => !q.paint), "no paint, still on the Paint tab (split for the brush): the files have the original mesh",
+    MF.exportParts().reduce((n, q) => n + q.idx.length / 3, 0));
+  toTab("make"); await sleep(30); MF.paint.repaint(); await settle();
+  check(MF.parts.every(p => !p.paint) && C.checkMesh(MF.parts[0].solid).tris === 41216, "no paint, off the Paint tab: the original mesh again", C.checkMesh(MF.parts[0].solid).tris);
+  toTab("paint"); await sleep(30);
 
   console.log("\nimporting a model");
   const objText = "v -10 -10 0\nv 10 -10 0\nv 10 10 0\nv -10 10 0\nv -10 -10 20\nv 10 -10 20\nv 10 10 20\nv -10 10 20\n" +
@@ -226,6 +364,59 @@ async function settle() {
   check(/cube\.obj \(12 triangles\)/.test(st().base.stl.name), "named with its triangle count", st().base.stl.name);
   st().paint.ops = [{ k: "dir", up: 1, side: 2, down: 255, angle: 30 }]; MF.paint.repaint(); await settle();
   check(Object.keys(painted()).length === 3, "an imported model can be painted", JSON.stringify(painted()));
+  // Session 15: an imported model is kept in a saved project file; without it the paint survives
+  // opening the same file again
+  {
+    const openPayload = async text => {
+      const f = new win.File([text], "p.json", { type: "application/json" }), inp = document.querySelector("#projInput"), r0 = MF.rev;
+      Object.defineProperty(inp, "files", { value: [f], configurable: true }); inp.dispatchEvent(new win.Event("change"));
+      for (let i = 0; i < 100 && MF.rev === r0; i++) await sleep(30);
+      await settle();
+    };
+    const before = JSON.stringify(painted()), withModel = MF.projectPayload(true), without = MF.projectPayload(false);
+    check(JSON.parse(withModel).model && !JSON.parse(without).model, "a saved project file keeps the imported model; the autosave does not", `${(withModel.length / 1024).toFixed(0)} KB vs ${(without.length / 1024).toFixed(0)} KB`);
+    await MF.paint.importModel(new win.File([objText.replace(/ 20\n/g, " 30\n")], "tall.obj")); await settle();
+    check(!st().paint.ops.length, "a different model clears the paint", st().base.stl.name);
+    await openPayload(withModel);
+    check(st().base.type === "stl" && /cube\.obj/.test(st().base.stl.name) && near(C.solidBounds(MF.parts[0].solid).size[1], 20, 1e-6) && JSON.stringify(painted()) === before,
+      "opening the project file brings back the model and its paint", JSON.stringify(painted()));
+    await openPayload(without);
+    const tabText = document.querySelector("#panel").textContent;    // the Paint tab is showing
+    check(!MF.parts.length && st().paint.ops.length === 1 && /painted on cube\.obj/.test(tabText) && [...document.querySelectorAll("#panel button")].some(b => /Open cube\.obj again/.test(b.textContent)),
+      "a project without its model says which file to open, and keeps the paint steps", MF.parts.length + " parts");
+    st().base.stl.scale = 150;
+    await openPayload(JSON.stringify(Object.assign(JSON.parse(without), { state: Object.assign(JSON.parse(without).state, { base: Object.assign(JSON.parse(without).state.base, { stl: { name: st().base.stl.name, scale: 150 } }) }) })));
+    await MF.paint.importModel(new win.File([objText], "cube.obj")); await settle();
+    check(st().paint.ops.length === 1 && st().base.stl.scale === 150 && Object.keys(painted()).length === 3, "opening the same file again keeps its paint and its scale", `${st().base.stl.scale}%, ${JSON.stringify(painted())}`);
+    st().base.stl.scale = 100; MF.rebuild(false); await settle();
+    // hostile models in a project file are dropped, never half-loaded
+    const P0 = JSON.parse(withModel), bad = [
+      ["not base64", { name: "x", tris: "%%%" }],
+      ["not whole triangles", { name: "x", tris: P0.model.tris.slice(0, 40) }],
+      ["NaN corners", { name: "x", tris: (() => { const a = new Float32Array(9).fill(NaN); let s = ""; new Uint8Array(a.buffer).forEach(b => s += String.fromCharCode(b)); return win.btoa(s); })() }],
+      ["a number instead of data", { name: "<img src=x onerror=alert(1)>", tris: 12 }],
+    ];
+    for (const [what, model] of bad) {
+      await openPayload(JSON.stringify(Object.assign({}, P0, { model })));
+      check(!MF.parts.length && !document.body.innerHTML.includes("onerror=alert"), `a model that is ${what} is left out`, MF.parts.length + " parts");
+    }
+    await openPayload(JSON.stringify(Object.assign({}, P0, { model: Object.assign({}, P0.model, { paint: "AAAA" }) })));
+    check(MF.parts.length === 1 && C.checkMesh(MF.parts[0].solid).open === 0, "paint of the wrong length is dropped, the model kept");
+    st().paint.ops = []; MF.paint.repaint(); await settle();
+    // undo after opening another model brings back the first model, not just its settings
+    await MF.paint.importModel(new win.File([objText], "cube.obj")); await settle(); await sleep(500);
+    st().paint.ops = [{ k: "dir", up: 1, side: 2, down: 255, angle: 30 }]; MF.paint.changed(); await settle(); await sleep(500);
+    const cubePaint = JSON.stringify(painted());
+    await MF.paint.importModel(new win.File([objText.replace(/ 20\n/g, " 30\n")], "tall.obj")); await settle(); await sleep(500);
+    const h = () => C.solidBounds(MF.parts[0].solid).size[1];
+    check(near(h(), 30, 1e-6) && !st().paint.ops.length, "the second model opens plain", `${h().toFixed(1)} mm`);
+    document.querySelector("#undoBtn").click(); await settle(); await sleep(100); await settle();
+    check(/cube\.obj/.test(st().base.stl.name) && near(h(), 20, 1e-6) && st().paint.ops.length === 1 && JSON.stringify(painted()) === cubePaint,
+      "Undo brings back the first model with its paint", `${st().base.stl.name}, ${h().toFixed(1)} mm, ${JSON.stringify(painted())}`);
+    document.querySelector("#redoBtn").click(); await settle(); await sleep(100); await settle();
+    check(/tall\.obj/.test(st().base.stl.name) && near(h(), 30, 1e-6) && !st().paint.ops.length, "Redo brings back the second", `${st().base.stl.name}, ${h().toFixed(1)} mm`);
+    st().paint.ops = []; MF.paint.repaint(); await settle();
+  }
   let err = ""; try { await MF.paint.importModel(new win.File(["hello"], "bad.obj")); } catch (e) { err = e.message; }
   check(/No triangles/.test(err), "a file with no triangles is refused with a message", err);
   st().paint.ops = [];
@@ -238,6 +429,17 @@ async function settle() {
   check(JSON.stringify(hostile.ops[0].slots) === "[0,255,255,255,255]" && hostile.ops[0].cuts.every(h => h >= -1000 && h <= 1000), "bad colours become 'keep', heights clamped", JSON.stringify(hostile.ops[0]));
   check(hostile.ops[1].pts.length === 5000 && hostile.ops[1].r === 50 && hostile.ops[1].facing === null, "a stroke: at most 5000 points, brush at most 50 mm, a broken direction dropped");
   check(hostile.ops[2].p[0] === 1e4 && hostile.ops[3].item === 0 && hostile.ops[3].dir === "front" && hostile.ops[3].scale === 10 && hostile.ops[4].every === 0.4, "fill point, picture and stripes clamped");
+  const h18 = MF.paint.cleanPaint({ ops: [{ k: "brush", slot: 1, r: 3, pts: [[0, 0, 0]], radial: 1e9, edge: 1e9 }, { k: "brush", slot: 1, r: 3, pts: [[0, 0, 0]], radial: "x", edge: -5 },
+    { k: "fill", p: [0, 0, 0], slot: 1, radial: 6.4 }, { k: "brush", slot: 1, r: 3, pts: [[0, 0, 0]], radial: 6, edge: 30, mirror: true }] }).ops;
+  check(h18[0].radial === 12 && h18[0].edge === 89 && !("radial" in h18[1]) && !("edge" in h18[1]) && h18[2].radial === 6 && h18[3].radial === 6 && h18[3].edge === 30,
+    "repeats round the middle at most 12, the smart brush's edge 0 to 89; ordinary strokes keep no extra settings", JSON.stringify(h18.map(o => [o.radial, o.edge])));
+  const hA = MF.paint.cleanPaint({ ops: [{ k: "area", m: Array(16).fill(1e9), poly: [[0, 0], [1e9, "x"], [1, 0], [1, 1]].concat(Array(3000).fill([0.5, 0.5])), slot: 99, through: "yes" },
+    { k: "area", m: Array(15).fill(1), poly: [[0, 0], [1, 0], [1, 1]] }, { k: "area", m: Array(16).fill(1), poly: [[0, 0], [1, 1]] }, { k: "area", m: Array(16).fill(NaN), poly: [[0, 0], [1, 0], [1, 1]] }] }).ops;
+  const hC = MF.paint.cleanPaint({ ops: [{ k: "curve", edges: 99, hollows: "x", flat: 1, radius: 1e9, band: -1 }, { k: "picture", item: 0, wrap: "sphere", turn: 1e9, start: -1e9 }, { k: "picture", item: 0, wrap: "ball", turn: -5, start: 1e9 }] }).ops;
+  check(hC[0].edges === 255 && hC[0].hollows === 255 && hC[0].flat === 1 && hC[0].radius === 50 && hC[0].band === 0.3 && !("wrap" in hC[1]) && !("turn" in hC[1]) && hC[2].wrap === "ball" && hC[2].turn === 10 && hC[2].start === 180,
+    "edges and hollows: colours and sizes clamped; a wrapped picture: a known way of wrapping, 10 to 360°", JSON.stringify(hC).slice(0, 160));
+  check(hA.length === 1 && hA[0].m.every(v => v === 1e6) && hA[0].poly.length === 1999 && hA[0].poly.every(q => q.every(v => Math.abs(v) <= 10)) && hA[0].slot === 255 && hA[0].through === false,
+    "a box or lasso: a matrix of 16 finite numbers, at most 2000 outline points, clamped; broken ones dropped", `${hA.length} kept, ${hA[0] && hA[0].poly.length} points`);
   const load = async state => {
     const f = new win.File([JSON.stringify({ app: "Maker Forge", v: 4, state })], "p.json", { type: "application/json" });
     const inp = document.querySelector("#projInput"); Object.defineProperty(inp, "files", { value: [f], configurable: true }); inp.dispatchEvent(new win.Event("change"));
@@ -255,6 +457,21 @@ async function settle() {
   check(S2.paint.ops[0].width === 1, "a paint stripe's 1 mm width is not taken for an object's width (5 mm minimum)", S2.paint.ops[0].width);
   check(S2.printer.model === "Custom" && S2.printer.bed.join(",") === "1000,50,256" && S2.printer.nozzle === 0.1 && S2.printer.layer === 0.6 && S2.printer.colors === 16 && S2.printer.flow === 1,
     "a hostile printer is clamped", JSON.stringify(S2.printer));
+  // Session 15: the imported model's name and scale, and the whole model's scale
+  const proj3 = JSON.parse(JSON.stringify(st()));
+  proj3.base.type = "stl"; proj3.base.stl = { name: 5, scale: -50 }; proj3.model = Object.assign({}, proj3.model, { scale: -100 });
+  await load(proj3);
+  const S3 = st(), errs3 = env.errors.filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
+  // text, null or a list where a number or a group of settings belongs falls back to the default
+  const proj4 = JSON.parse(JSON.stringify(st()));
+  proj4.base.type = "board"; proj4.base.board = Object.assign({}, proj4.base.board, { w: "12abc", h: null, r: [3] }); proj4.base.nameplate.sym = 5; proj4.view = "dark";
+  const e4 = env.errors.length;
+  await load(proj4);
+  const S4 = st(), D4 = MF.defaults, errs4 = env.errors.slice(e4).filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
+  check(S4.base.board.w === D4.board.w && S4.base.board.h === D4.board.h && S4.base.board.r === D4.board.r && typeof S4.base.nameplate.sym === "object" && typeof S4.view === "object" && MF.parts.length && !errs4.length,
+    "text, null or a list in a number's place, or a number in a group's place, falls back to the default", `${JSON.stringify(S4.base.board).slice(0, 80)}, ${errs4.length} errors`);
+  check(S3.base.stl.name === "" && S3.base.stl.scale === 5 && S3.model.scale === 20 && !errs3.length, "a model name that is not text and negative scales are cleaned (a negative scale turns a model inside out)",
+    `${JSON.stringify(S3.base.stl)}, model ${S3.model.scale}%, ${errs3.length} errors`);
 
   console.log("\nprinters and easy reading");
   toTab("colour"); await sleep(40); toPage("Printer"); await sleep(40);
@@ -264,6 +481,38 @@ async function settle() {
   check(st().printer.model === "Bambu X2D" && st().printer.bed.join("x") === "256x256x260" && st().printer.colors === 5, "the Bambu X2D: 256 × 256 × 260 mm, 5 filaments", st().printer.bed.join("x"));
   check(JSON.parse(win.localStorage.getItem("makerforge.printer")).model === "Bambu X2D", "your printer is remembered for new projects");
   check(sel.options.length >= 35, "at least 35 printers", sel.options.length);
+  check(st().printer.purge === 0.3 && st().printer.swap === 45, "a printer brings its own waste and time per colour change (the X2D: 0.3 g, 45 s)", `${st().printer.purge} g, ${st().printer.swap} s`);
+  sel.value = "Snapmaker U1"; sel.dispatchEvent(new win.Event("change")); await settle();
+  check(st().printer.purge === 0.05 && st().printer.swap === 15, "a tool changer wastes almost nothing", `${st().printer.purge} g`);
+  sel.value = "Bambu X2D"; sel.dispatchEvent(new win.Event("change")); await settle();
+  // colour changes on a vase in two height bands, then in stripes
+  toTab("make"); await choose("turned"); st().printer.layer = 0.2;
+  st().paint.ops = [{ k: "height", slots: [0, 1], cuts: [45] }]; MF.paint.repaint(); await settle();
+  const LC1 = MF.checks.layers;
+  check(LC1 && LC1.changes === 1 && Math.abs(LC1.grams - 0.3) < 1e-9, "a vase in two bands: one colour change, 0.3 g flushed", LC1 && `${LC1.changes} change, ${LC1.grams} g`);
+  st().paint.ops = [{ k: "stripes", slot: 1, gap: 255, from: 10, to: 80, every: 10, width: 4 }]; MF.paint.repaint(); await settle();
+  const LC2 = MF.checks.layers;
+  check(LC2 && LC2.changes === 14 && LC2.busiest === 1, "seven stripes: in and out of each, 14 changes", LC2 && `${LC2.changes} changes`);
+  toTab("paint"); await sleep(40); toPage("Layers and colour changes"); await sleep(40);
+  const layText = document.querySelector("#panel").textContent;
+  check(/About 14 colour changes/.test(layText) && /about 4 g of filament wasted/.test(layText) && /Layer \d+ of \d+/.test(layText), "the Layers page counts them, with the filament and time they cost", (layText.match(/About [^.]*\./) || [""])[0]);
+  const layerField = $$("#panel .field").find(f => /Look at the layer at/.test(f.textContent)), lin = layerField.querySelector("input[type=number]");
+  lin.value = "12"; lin.dispatchEvent(new win.Event("change")); await sleep(50);
+  check(/Layer 61 of \d+: .*Charcoal|Layer 61 of \d+: [^.]+/.test(layerField.textContent) && MF.camera && document.querySelector("#sectionBox").hidden === false, "looking at a layer cuts the model there and names its colours", layerField.querySelector(".sub").textContent);
+  $$("#panel button").find(b => /Show the whole model/.test(b.textContent)).click(); await sleep(50);
+  check(document.querySelector("#sectionBox").hidden === true, "and the whole model comes back");
+  toTab("export"); await sleep(40); toPage("Material and time"); await sleep(40);
+  check(/About 14 colour changes/.test(document.querySelector("#panel").textContent), "the Export tab mentions the colour changes");
+  const cp2 = MF.paint.cleanPrinter({ purge: 1e9, swap: -5 }), cp3 = MF.paint.cleanPrinter({});
+  check(cp2.purge === 5 && cp2.swap === 0 && cp3.purge === 0.4 && cp3.swap === 60, "waste and time per change: clamped, and the defaults for an old project", `${cp2.purge}/${cp2.swap}, ${cp3.purge}/${cp3.swap}`);
+  // patterns for telling filaments apart
+  check(MF.parts[0].geom.attributes.slotId && MF.parts[0].geom.attributes.slotId.count === MF.parts[0].geom.attributes.position.count, "the painted model knows each corner's filament, for the patterns");
+  toTab("paint"); await sleep(40); toPage("Brush and fill"); await sleep(40);
+  MF.paint.prefs.patterns = true; MF.paint.applyPrefs(); MF.render(); await sleep(40);
+  const sw = $$("#panel .pswatch .sw").map(e => e.getAttribute("style")).slice(0, st().slots.length);
+  check(!/gradient/.test(sw[0]) && sw.slice(1).every(v => /gradient/.test(v)) && new Set(sw.slice(1)).size === sw.length - 1, "with patterns on, each swatch after the first has its own pattern", `${sw.length} swatches`);
+  MF.paint.prefs.patterns = false; MF.paint.applyPrefs(); MF.render();
+  st().paint.ops = []; MF.paint.repaint(); await settle();
   const P = MF.paint.prefs; P.ui = 1.5; P.contrast = "high"; MF.paint.applyPrefs();
   check(document.documentElement.style.getPropertyValue("--ui") === "1.5" && document.documentElement.getAttribute("data-contrast") === "high", "bigger text and high contrast switch on");
   P.ui = 1; P.contrast = "normal"; MF.paint.applyPrefs();

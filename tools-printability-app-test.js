@@ -61,6 +61,7 @@ async function setFile(input, name, bytes, type) {
 
   console.log("\nflat box");
   await choose("box");
+  MF.examples.drop(); MF.rebuild(false); await settle();      // the bare box, without its example picture (Session 19)
   p = await analysed();
   check(p && p.overhang.area < 3 && !p.thin.length && !p.contact.brimWhy, "nothing to fix", p && `${p.overhang.area.toFixed(1)} mm², ${p.thin.length} thin, contact ${p.contact.area.toFixed(0)}`);
   check(MF.checks.list.filter(r => r.k !== "ok").every(r => !/support|thin|bed|Barely/i.test(r.t)), "no printability warnings", rows().filter(r => !/^ok/.test(r)).join(" | "));

@@ -8,7 +8,7 @@
  * - A software 2D canvas: paths (lines, arcs, curves), fill (nonzero / evenodd), stroke,
  *   affine transforms, drawImage (box-filtered downscaling and bilinear upscaling like a browser;
  *   nearest neighbour when imageSmoothingEnabled is false), get/putImageData,
- *   source-over and destination-out compositing, box glyphs for fillText, real PNG encode/decode
+ *   linear and radial gradients, source-over and destination-out compositing, box glyphs for fillText, real PNG encode/decode
  *   for toDataURL / Image. ctx.filter is ignored. Hard edges: no anti-aliasing.
  *   ctx._ensure() allocates the pixel buffer; ctx.data is the live RGBA buffer.
  * - WebGLRenderer is replaced by a no-op renderer; ResizeObserver, matchMedia,
@@ -96,6 +96,32 @@ const inv = m => { const d = m[0] * m[3] - m[1] * m[2]; return [m[3] / d, -m[1] 
 const ap = (m, x, y) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
 const STATE_KEYS = ["fillStyle", "strokeStyle", "lineWidth", "lineCap", "lineJoin", "globalAlpha", "globalCompositeOperation", "font", "textAlign", "textBaseline", "letterSpacing", "filter", "imageSmoothingEnabled", "imageSmoothingQuality"];
 
+// linear and radial gradients, coloured per pixel in the user space the fill was made in (as in a browser);
+// colours are mixed premultiplied and the ends are padded
+class Gradient {
+  constructor(kind, g) { this.kind = kind; this.g = g.map(Number); this.stops = []; this._color = null; }
+  addColorStop(o, c) { const col = parseColor(c); this.stops.push([Math.min(1, Math.max(0, +o)), col]); this.stops.sort((a, b) => a[0] - b[0]); this._color = this.stops[0][1]; }
+  _t(x, y) {
+    const g = this.g;
+    if (this.kind === "linear") { const dx = g[2] - g[0], dy = g[3] - g[1], L = dx * dx + dy * dy; return L > 0 ? ((x - g[0]) * dx + (y - g[1]) * dy) / L : null; }
+    const [x0, y0, r0, x1, y1, r1] = g, cx = x1 - x0, cy = y1 - y0, dr = r1 - r0, px = x - x0, py = y - y0;
+    const A = cx * cx + cy * cy - dr * dr, B = px * cx + py * cy + r0 * dr, Cc = px * px + py * py - r0 * r0;
+    const ok = t => r0 + t * dr >= 0;
+    if (Math.abs(A) < 1e-9) { if (Math.abs(B) < 1e-12) return null; const t = Cc / (2 * B); return ok(t) ? t : null; }
+    const D = B * B - A * Cc; if (D < 0) return null;
+    const s = Math.sqrt(D), t1 = (B + s) / A, t2 = (B - s) / A, hi = Math.max(t1, t2), lo = Math.min(t1, t2);
+    return ok(hi) ? hi : ok(lo) ? lo : null;
+  }
+  at(x, y) {
+    const t = this._t(x, y), S = this.stops; if (t == null) return [0, 0, 0, 0];
+    if (t <= S[0][0]) return S[0][1]; if (t >= S[S.length - 1][0]) return S[S.length - 1][1];
+    let k = 1; while (k < S.length - 1 && S[k][0] < t) k++;
+    const [o0, a] = S[k - 1], [o1, b] = S[k], f = o1 > o0 ? (t - o0) / (o1 - o0) : 1, al = a[3] + (b[3] - a[3]) * f;
+    if (al <= 0) return [0, 0, 0, 0];
+    return [0, 1, 2].map(j => (a[j] * a[3] + (b[j] * b[3] - a[j] * a[3]) * f) / al).concat(al);
+  }
+}
+
 class Ctx2D {
   constructor(canvas) {
     this.canvas = canvas; this.data = null; this._w = 0; this._h = 0;
@@ -167,11 +193,13 @@ class Ctx2D {
     return m;
   }
   _paint(mask, color) {
-    const d = this._ensure(), c = parseColor(color), a = c[3] * this.globalAlpha;
+    const d = this._ensure(), grad = color instanceof Gradient && color.stops.length ? color : null, im = grad ? inv(this._m) : null;
+    let c = parseColor(color), a = c[3] * this.globalAlpha;
     const out = this.globalCompositeOperation === "destination-out", copy = this.globalCompositeOperation === "copy";
     for (let i = 0; i < mask.length; i++) {
       if (!mask[i]) { if (copy) { d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = d[i * 4 + 3] = 0; } continue; }
       const o = i * 4;
+      if (grad) { const [ux, uy] = ap(im, (i % this._w) + 0.5, Math.floor(i / this._w) + 0.5); c = grad.at(ux, uy); a = c[3] * this.globalAlpha; if (!(a > 0) && !copy) continue; }
       if (out) { d[o + 3] = d[o + 3] * (1 - a); continue; }
       if (copy || a >= 1) { d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = a * 255; continue; }
       const da = d[o + 3] / 255, oa = a + da * (1 - a); if (oa <= 0) continue;
@@ -229,8 +257,8 @@ class Ctx2D {
     this._paint(this._cover(polys, "nonzero"), this.fillStyle);
   }
   strokeText(t, x, y) { const f = this.fillStyle; this.fillStyle = this.strokeStyle; this.fillText(t, x, y); this.fillStyle = f; }
-  createLinearGradient() { return { _color: null, addColorStop(o, c) { if (!this._color) this._color = parseColor(c); } }; }
-  createRadialGradient() { return this.createLinearGradient(); }
+  createLinearGradient(x0, y0, x1, y1) { return new Gradient("linear", [x0, y0, x1, y1]); }
+  createRadialGradient(x0, y0, r0, x1, y1, r1) { return new Gradient("radial", [x0, y0, r0, x1, y1, r1]); }
   createPattern() { return "#808080"; }
   // pixels
   createImageData(w, h) { if (w && typeof w === "object") ({ width: w, height: h } = w); return new StubImageData(new Uint8ClampedArray(w * h * 4), w, h); }

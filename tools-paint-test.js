@@ -214,12 +214,26 @@ async function settle() {
 (async () => {
   await sleep(900);
   const MF = win.MakerForge, st = () => MF.state;
-  const choose = async v => { const s = document.querySelector("#objectSel"); s.value = v; s.dispatchEvent(new win.Event("change")); await settle(); };
+  // an object opens with its example (Session 19): the vase and the planet come painted. These tests start
+  // from the bare object, unless keep is set
+  const choose = async (v, keep) => {
+    const s = document.querySelector("#objectSel"); s.value = v; s.dispatchEvent(new win.Event("change")); await settle();
+    if (keep) return;
+    const n = st().paint.ops.length + st().items.length; MF.examples.drop();
+    if (st().paint.ops.length + st().items.length !== n) { MF.rebuild(false); await settle(); }
+  };
   const toTab = k => $$("#tabs button").find(b => b.dataset.k === k).click();
   const toPage = t => { const b = $$("#secrail button").find(b => b.dataset.title === t); if (b) b.click(); return !!b; };
   const painted = () => { const c = {}; MF.parts.forEach(p => p.paint && p.paint.forEach(v => c[v] = (c[v] || 0) + 1)); return c; };
   console.log("\nthe Paint tab");
+  await choose("turned", true);
+  {
+    const c = painted();
+    check(st().paint.ops.length >= 2 && Object.keys(c).length >= 3 && MF.parts.every(p => C.checkMesh(p.solid).open === 0), "the vase opens with its example: a fade and stripes, painted, still closed",
+      `${st().paint.ops.map(o => o.k).join(", ")}; ${JSON.stringify(c).slice(0, 80)}`);
+  }
   await choose("turned");
+  check(!st().paint.ops.length, "and the example's paint goes quietly when it is taken away", st().paint.ops.length);
   toTab("paint"); await sleep(60);
   check($$("#secrail button").map(b => b.dataset.title).join("|") === "Paint|Auto colour|Brush and fill|Paint list|Layers and colour changes|Paint detail", "six pages", $$("#secrail button").map(b => b.dataset.title).join(", "));
   const vis = [...document.querySelectorAll("#panel > .section")].find(d => !d.hidden);

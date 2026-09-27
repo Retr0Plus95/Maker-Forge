@@ -52,7 +52,7 @@ async function settle() {
   ];
   for (const [type, key, val] of cases) {
     const s = document.querySelector("#objectSel"); s.value = type; s.dispatchEvent(new win.Event("change")); await settle();
-    const st = JSON.parse(JSON.stringify(MF.state)); st.base[type][key] = val;
+    const st = JSON.parse(MF.projectPayload()).state; st.base[type][key] = val;      // as saved (the live state holds pictures' canvases)
     const t0 = Date.now(), e0 = env.errors.length, done = await open(JSON.stringify({ app: "Maker Forge", v: 5, state: st })), ms = Date.now() - t0;
     const tris = MF.parts.reduce((n, p) => n + C.checkMesh(p.solid).tris, 0), errs = env.errors.slice(e0).filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
     const kept = MF.state.base[type][key];
@@ -75,6 +75,26 @@ async function settle() {
     const d = MF.state.items.find(x => x.name === "disc"), errs = env.errors.slice(e0).filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
     check(MF.parts.length && d.width === 40 && d.rotation === 0 && Math.abs(d.aspect - W / H) < 1e-9 && typeof d.adjust === "object" && typeof d.pixel === "object" && d.outline.width === 0.8 && !errs.length,
       "text, null or lists in a picture's settings fall back to defaults, and its shape comes from the picture itself", `${MF.parts.length} parts, width ${d.width}, aspect ${d.aspect}`);
+  }
+
+  console.log("\nthe example marker on a picture (Session 19)");
+  {
+    // only `true` marks an example picture (which the next picture added replaces); anything else is dropped
+    const data = JSON.parse(MF.projectPayload(true)), it = data.state.items.find(d => d.name === "disc");
+    it.example = "<img src=x onerror=alert(1)>";
+    data.state.items.push(Object.assign(JSON.parse(JSON.stringify(it)), { id: 9001, name: "marked", example: true }));
+    await open(JSON.stringify(data));
+    const a = MF.state.items.find(x => x.name === "disc"), b = MF.state.items.find(x => x.name === "marked");
+    check(a && !("example" in a) && b && b.example === true && !document.querySelector("img[src=x]"), "a marker that is not true is dropped; true is kept; nothing reaches the page",
+      `${JSON.stringify(a && a.example)}, ${JSON.stringify(b && b.example)}`);
+    // an example picture gives way to one of the person's own
+    const ev = new win.Event("drop", { bubbles: true, cancelable: true }), { encodePNG } = require("./tools-test-env.js"), px = new Uint8ClampedArray(40 * 30 * 4).fill(200);
+    $$("#tabs button").find(x => x.dataset.k === "art").click(); await sleep(50);
+    ev.dataTransfer = { files: [new win.File([encodePNG(40, 30, px)], "mine.png", { type: "image/png" })] };
+    document.querySelector("#drop").dispatchEvent(ev);
+    for (let i = 0; i < 100 && !MF.state.items.some(d => d.name === "mine" && d.src); i++) await sleep(30);
+    await settle();
+    check(!MF.state.items.some(d => d.example) && MF.state.items.some(d => d.name === "mine"), "adding a picture of your own takes the example's place", MF.state.items.map(d => d.name).join(", "));
   }
 
   const errs = env.errors.filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));

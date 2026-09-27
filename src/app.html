@@ -144,6 +144,12 @@ button,input,select,textarea{font:inherit;color:inherit}
   border-radius:16px;box-shadow:var(--shadow);padding:16px 18px 18px;animation:pop .16s ease-out}
 @keyframes pop{from{transform:scale(.96);opacity:0}to{transform:none;opacity:1}}
 .modal-card header{display:flex;align-items:center;margin-bottom:6px}
+.modal.wide .modal-card{width:min(860px,100%);max-height:90vh}
+.manual{font-size:14.5px;line-height:1.6;color:var(--ink)}
+.manual h3{font-size:18px;margin:22px 0 6px;text-transform:none;color:var(--ink)} .manual h4{font-size:15.5px;margin:16px 0 4px;color:var(--ink)}
+.manual p,.manual li{max-width:72ch} .manual ul,.manual ol{padding-left:22px}
+.manual table{border-collapse:collapse;margin:8px 0 12px;width:100%;font-size:13.5px} .manual th,.manual td{border:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
+.manual th{background:var(--field)} .manual a{color:var(--accent)} .manual code{background:var(--field);padding:0 4px;border-radius:4px}
 .modal-card header h2{flex:1;margin:0;font-size:17px;text-transform:none;color:var(--ink)}
 .drop.loading{pointer-events:none}
 .drop.loading strong::after{content:"";display:inline-block;width:12px;height:12px;margin-left:8px;border-radius:50%;
@@ -215,6 +221,9 @@ textarea.ta{resize:vertical;min-height:52px;font-size:13px}
   font-weight:600;font-size:12px;display:grid;gap:4px;justify-items:center;text-align:center;line-height:1.25}
 .gallery button:hover{border-color:var(--accent);background:var(--accent-soft)}
 .gallery .em{font-size:19px}
+#presetGallery{grid-template-columns:1fr 1fr}
+.gallery img,.objcard img{width:100%;height:auto;aspect-ratio:4/3;display:block;border-radius:7px}
+#presetGallery button:has(img),.objcard:has(img){padding:5px 5px 8px}
 .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin:9px 0;padding:4px;background:var(--panel);
   border:1px solid var(--line);border-radius:10px}
 .seg.two{grid-template-columns:repeat(2,1fr)}
@@ -380,6 +389,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
     <button class="rail-icon" id="easyBtn" title="Easy reading: bigger text, stronger contrast" aria-label="Easy reading: text size and contrast"><b style="font-size:15px">Aa</b></button>
     <button class="rail-icon" id="themeBtn" title="Light or dark" aria-label="Theme">◐</button>
     <button class="rail-icon" id="settingsBtn" title="Settings" aria-label="Settings">⚙</button>
+    <button class="rail-icon" id="helpBtn" title="User manual: how everything works" aria-label="User manual"><b style="font-size:16px">?</b></button>
     <button class="rail-icon" id="aboutBtn" title="About Maker Forge" aria-label="About">ⓘ</button>
     <button class="btn primary" id="dockExport">Download files</button>
     <div class="progress" id="progress" aria-hidden="true"><span></span></div>
@@ -408,6 +418,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
       <button id="vLeft" title="From the left">◧</button>
       <button id="vRight" title="From the right">◨</button>
       <button id="vBottom" title="From below">⊟</button>
+      <button id="vFlip" aria-pressed="false" title="Turn over: see the side that prints on the bed">⟳</button>
       <span class="sep"></span>
       <button id="vWire" aria-pressed="false" title="Wireframe">◇</button>
       <button id="vLayout" aria-pressed="false" title="Lay the parts out as they print">⊞</button>
@@ -504,6 +515,12 @@ const FONTS = [
    the page never downloads a font. Licences: fonts/LICENSES.md. One rule per alphabet with its
    unicode-range: the browser only decodes a file when it draws a letter in that range. */
 const FONT_FILES = /*FONTS*/{};
+/* Pictures of each quick start and object as its example looks, for the Start sidebar: rendered by
+   tools-thumbs.js (npm run thumbs) into examples/start-thumbs.json and packed in by build.py. A button
+   without one shows its icon. */
+const START_THUMBS = /*THUMBS*/{};
+// the user manual (MANUAL.md, turned into HTML by build.py) for the Help window
+const MANUAL_HTML = /*MANUAL*/"";
 const FONT_RANGES = {
   "latin":"U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
   "latin-ext":"U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF",
@@ -653,6 +670,7 @@ const PRESETS = {
   "Phone case":{ base:{ type:"phonecase" }, slots:[{ hex:"#2b2d42", name:"Black TPU" }],
     tip:"Pick your phone, print the fit test rim first, then the case. Print it in TPU so it snaps on." }
 };
+/*EXAMPLES*/
 
 /* Phones for the case maker. Height, width and thickness are the makers' published figures (checked
    September 2026). Corner radius, the camera cut-out (seen from the back: from the left edge and the top,
@@ -839,7 +857,7 @@ function rememberModel(name, data, paint){
   let bytes = 0; for (const m of openedModels.values()) bytes += m.data.byteLength;
   for (const [k, m] of openedModels){ if (bytes <= 150e6 || k === name) break; bytes -= m.data.byteLength; openedModels.delete(k); }
 }
-let viewOpts = { explode:0, wire:false, layout:false, showPrint:false, rulers:true, measure:false, section:false, cut:50 };
+let viewOpts = { explode:0, wire:false, layout:false, showPrint:false, rulers:true, measure:false, section:false, cut:50, flip:false };
 
 function newItem(name, canvas, extra){
   const aspect = canvas.width/canvas.height;
@@ -2592,7 +2610,9 @@ function buildLightbox(){
     state.slots.forEach((sl,i)=>{
       if (i === diffSlot) return;
       const m = C.maskOfSlot(cm, i); if (!m) return;
-      const polys = C.maskToPolys(m, gx, gy, opt); if (!polys.length) return;
+      // closed along the picture's edge: the whole photo is the panel, so a sky or a field that reaches
+      // the edge is part of it (a decal would drop such a region as background)
+      const polys = C.maskToPolys(m, gx, gy, { ...opt, closeEdges:true }); if (!polys.length) return;
       const rgb = C.hexToRgb(sl.hex), dark = 1 - C.luma(rgb[0], rgb[1], rgb[2]);
       const h = L.lightAware ? L.colourH*(0.5 + dark*1.5) : L.colourH;
       const s2 = C.extrudePolysAt(polys, Math.max(0,L.panelThick-0.2), L.panelThick + h);
@@ -3160,8 +3180,12 @@ async function buildNamePlate(){
   const pic0 = np.pic || { on:false }, picItem = pic0.on && state.items.length ? (state.items[clamp(pic0.item,0,state.items.length-1)] || state.items[0]) : null;
   const picSrc = picItem ? sourceCanvas(picItem) : null;
   const picPad = picSrc ? (pic0.gap||0)*PLATE_PX + inkH*(pic0.size||1)*(picSrc.width/Math.max(1,picSrc.height)) : 0;
-  const pad = Math.ceil(np.border*PLATE_PX + tabR*2 + endR*2.4 + arcPad + symPad + picPad + 8*PLATE_PX);
-  const W = Math.ceil(inkW+pad*2), H = Math.ceil(inkH+pad*2+arcPad);
+  // charms and a picture need room across; up and down only as far as they stand taller than the letters
+  // (both used to pad every side, which made the canvas four times taller than needed)
+  const picH = picSrc ? inkH*(pic0.size||1) : 0;
+  const padX = Math.ceil(np.border*PLATE_PX + tabR*2 + endR*2.4 + arcPad + symPad + picPad + 8*PLATE_PX);
+  const padY = Math.ceil(np.border*PLATE_PX + tabR*2 + endR*2.4 + arcPad + Math.max(0, picH/2 - inkH/2, symR*1.1 - inkH/2) + 8*PLATE_PX);
+  const W = Math.ceil(inkW+padX*2), H = Math.ceil(inkH+padY*2+arcPad);
   if (W*H > 30e6) throw new Error("that name is too long at this letter height");
 
   const cvs = document.createElement("canvas"); cvs.width = W; cvs.height = H;
@@ -3174,7 +3198,7 @@ async function buildNamePlate(){
     let cx = x;
     for (const ch of text2){ ctx.fillText(ch, cx, y); cx += ctx.measureText(ch).width + spacePx; }
   };
-  const baseY = pad + metrics[0].actualBoundingBoxAscent + arcPad;
+  const baseY = padY + metrics[0].actualBoundingBoxAscent + arcPad;
   if (np.arc && lines.length === 1){                 // bend the name along an arc
     const total = metrics[0].width, sweep = np.arc*Math.PI/180;
     const radius = Math.abs(total/(sweep||0.001));
@@ -3247,7 +3271,7 @@ async function buildNamePlate(){
   }
 
   // a picture beside the name: its silhouette joins the plate, its colours print on top
-  let picParts = [];
+  let picParts = [], letterMask = null;
   const pic = pic0;
   if (picSrc){
     const item = picItem, psrc = picSrc;
@@ -3261,6 +3285,7 @@ async function buildNamePlate(){
       pctx.drawImage(pic.cutout !== false ? cutoutCanvas(psrc, pic.tolerance||28) : psrc, cx-pw/2, cy-ph/2, pw, ph);
       const pdata = pctx.getImageData(0,0,W,H);
       const picField = C.coverageField(pdata.data, W, H);
+      if (pic.colour) letterMask = mask.slice();         // the top layer covers the letters, not a picture in its own colours
       for (let i=0;i<mask.length;i++) if (picField[i] >= 0.5) mask[i] = 1;
       if (pic.colour){
         const cm2 = C.buildCellMap({ data:pdata.data, width:W, height:H },
@@ -3335,7 +3360,7 @@ async function buildNamePlate(){
       // the top layer is the letters shrunk by the border left showing; where a stroke is only a
       // little wider than twice that, a sliver thinner than the nozzle would be left: open the
       // shape (shrink by just over half a nozzle more, then grow back) so those slivers go
-      const sdf = C.signedDistanceField(mask, W, H), inset = np.accentInset*PLATE_PX;
+      const sdf = C.signedDistanceField(letterMask || mask, W, H), inset = np.accentInset*PLATE_PX;
       const rOpen = (state.printer.nozzle || 0.4)*0.55*PLATE_PX;
       let accPolys;
       if (rOpen >= 1){
@@ -3347,8 +3372,17 @@ async function buildNamePlate(){
         solid:C.extrudePolysAt(accPolys, np.thick+np.nameH-Math.min(0.3,np.nameH*0.5), np.thick+np.nameH+np.accentH) });
     }
   }
+  // each colour of the picture traced in a window round the picture only (a full-plate distance field each is slow)
+  const tracePart = m => {
+    const bb = maskBounds(m, W, H); if (bb.maxX < 0) return [];
+    const x0 = Math.max(0, bb.minX - 4), y0 = Math.max(0, bb.minY - 4), cw = Math.min(W, bb.maxX + 5) - x0, ch = Math.min(H, bb.maxY + 5) - y0;
+    const sub = new Uint8Array(cw*ch);
+    for (let y=0;y<ch;y++) for (let x=0;x<cw;x++) sub[y*cw + x] = m[(y0 + y)*W + x0 + x];
+    const dx = (x0 + cw/2 - W/2)*mmPerPx, dy = (H/2 - (y0 + ch/2))*mmPerPx, mv = L => L.map(([x, y]) => [x + dx, y + dy]);
+    return C.fieldToPolys(C.signedDistanceField(sub, cw, ch), cw, ch, sopt).map(q => ({ outer:mv(q.outer), holes:q.holes.map(mv) }));
+  };
   picParts.forEach(pp => {
-    const polys = C.fieldToPolys(C.signedDistanceField(pp.mask, W, H), W, H, sopt);
+    const polys = tracePart(pp.mask);
     const sol = polys.length ? C.extrudePolysAt(polys, Math.max(0,np.thick-0.3), np.thick+np.nameH) : null;
     if (sol) parts.push({ name:`Picture (${state.slots[pp.slot].name})`, slot:pp.slot, solid:sol });
   });
@@ -3583,7 +3617,38 @@ $("#vBottom").onclick = ()=>frameCamera(lastSize,"bottom");
 $("#vAngle").onclick = ()=>frameCamera(lastSize,"angle");
 $("#vWire").onclick = e => { viewOpts.wire = !viewOpts.wire; e.currentTarget.setAttribute("aria-pressed", viewOpts.wire); refreshScene(); };
 $("#vLayout").onclick = e => { viewOpts.layout = !viewOpts.layout; e.currentTarget.setAttribute("aria-pressed", viewOpts.layout); refreshScene(); };
+$("#vFlip").onclick = () => { setViewFlags({ flip:!viewOpts.flip }); userMoved = false; refreshScene(); };
+// the view's switches that an example may set: turned over (to see a picture on the underside) and laid out
+function setViewFlags(f){
+  if ("flip" in f){ viewOpts.flip = !!f.flip; $("#vFlip").setAttribute("aria-pressed", viewOpts.flip); }
+  if ("layout" in f){ viewOpts.layout = !!f.layout; $("#vLayout").setAttribute("aria-pressed", viewOpts.layout); }
+}
 $("#vRuler").onclick = e => { viewOpts.rulers = !viewOpts.rulers; e.currentTarget.setAttribute("aria-pressed", viewOpts.rulers); makeBed(); };
+// the model alone on a clear background (no bed, rulers or measurements), seen from the usual angle and
+// fitted into w × h: the pictures on the Start sidebar's buttons (tools-thumbs.js)
+function modelThumb(w, h){
+  const hide = [bedHelper, overlay, measureGroup].filter(o => o && o.visible);
+  hide.forEach(o => o.visible = false);
+  const keep = { pos:camera.position.clone(), target:controls.target.clone() };
+  const box = new THREE.Box3().setFromObject(modelGroup), c = box.getCenter(new THREE.Vector3()), r = Math.max(5, box.getSize(new THREE.Vector3()).length()/2);
+  const half = Math.min(camera.fov/2, Math.atan(Math.tan(camera.fov*Math.PI/360)*Math.max(0.2, camera.aspect))*180/Math.PI);
+  const k = r/Math.sin(half*Math.PI/180)*1.02/Math.hypot(0.3, 0.62, 0.72);
+  camera.position.set(c.x + 0.3*k, c.y + 0.62*k, c.z + 0.72*k); controls.target.copy(c); camera.lookAt(c); camera.updateMatrixWorld();
+  renderer.render(scene, camera);
+  const src = renderer.domElement, cv = document.createElement("canvas"); cv.width = src.width; cv.height = src.height;
+  const x = cv.getContext("2d"); x.drawImage(src, 0, 0);
+  const d = x.getImageData(0, 0, cv.width, cv.height).data;
+  let x0 = cv.width, y0 = cv.height, x1 = -1, y1 = -1;
+  for (let j = 0; j < cv.height; j++) for (let i = 0; i < cv.width; i++) if (d[(j*cv.width + i)*4 + 3] > 12){ if (i < x0) x0 = i; if (i > x1) x1 = i; if (j < y0) y0 = j; if (j > y1) y1 = j; }
+  hide.forEach(o => o.visible = true);
+  camera.position.copy(keep.pos); controls.target.copy(keep.target); controls.update(); renderer.render(scene, camera);
+  const out = document.createElement("canvas"); out.width = w; out.height = h;
+  if (x1 >= x0){
+    const bw = x1 - x0 + 1, bh = y1 - y0 + 1, s = Math.min(w*0.94/bw, h*0.94/bh), o = out.getContext("2d");
+    o.imageSmoothingQuality = "high"; o.drawImage(cv, x0, y0, bw, bh, (w - bw*s)/2, (h - bh*s)/2, bw*s, bh*s);
+  }
+  return out.toDataURL("image/webp", 0.8);
+}
 $("#vShot").onclick = ()=>{
   renderer.render(scene,camera);
   renderer.domElement.toBlob(b => offerDownload("maker-forge.png", b), "image/png");
@@ -4506,6 +4571,15 @@ function refreshScene(){
   else modelGroup.quaternion.identity();
   modelGroup.position.set(t[0], t[1], t[2]);
   modelGroup.updateMatrixWorld(true);
+  // turned over on screen only (a half turn round the front-to-back axis through the middle), to see the
+  // side that prints on the bed: a picture inlaid in a case's back or a lid. Files and checks are unchanged;
+  // clicks still land right, as they go through the group's matrix. Not with the section view, which cuts by height.
+  if (viewOpts.flip && !viewOpts.section && modelParts.length){
+    const c = new THREE.Box3().setFromObject(modelGroup).getCenter(new THREE.Vector3());
+    new THREE.Matrix4().makeTranslation(c.x, c.y, c.z).multiply(new THREE.Matrix4().makeRotationZ(Math.PI)).multiply(new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z))
+      .multiply(modelGroup.matrix).decompose(modelGroup.position, modelGroup.quaternion, modelGroup.scale);
+    modelGroup.updateMatrixWorld(true);
+  }
   if (baseMesh) baseMesh.matrixWorld.copy(modelGroup.matrixWorld);   // clicks land where the model is drawn
   refreshOverlay();
   updateCrumb();
@@ -5259,7 +5333,10 @@ const OBJECT_GROUPS = [
 // paint belongs to one model: a new object or an imported file starts unpainted (Undo brings it back)
 function clearPaintForNewModel(){
   paintPrepared = false;
-  if (state.paint && state.paint.ops && state.paint.ops.length){ state.paint.ops = []; notify("The paint was left on the previous model. Undo brings it back."); }
+  if (state.paint && state.paint.ops && state.paint.ops.length){
+    const example = JSON.stringify(state.paint.ops) === examplePaintSig;      // an example's paint goes quietly
+    state.paint.ops = []; if (!example) notify("The paint was left on the previous model. Undo brings it back.");
+  }
 }
 function chooseObject(v){
   const prev = state.base.type;
@@ -5272,14 +5349,23 @@ function chooseObject(v){
   else if (prev === "frame") state.items.forEach(d=>{ if (d._frameW && d.width === d._frameW[1]) d.width = d._frameW[0]; delete d._frameW; });
   tab = "make"; userMoved = false;
   $("#notice").classList.remove("show");
-  renderTab(); renderStarts(); rebuildAll(false); pushHistory();
+  renderTab(); renderStarts();
+  // with no pictures of their own, the object opens with its example (the next picture added takes its place)
+  exampleBusy++;
+  loadExample(EXAMPLE_FOR_TYPE[v], false).catch(err => { console.error(err); return false; }).then(added => {
+    exampleBusy--;
+    if (added){ renderTab(); notify(exampleNote(EXAMPLE_FOR_TYPE[v])); }
+    rebuildAll(false); pushHistory();
+  });
   logLine(`Object: ${SHAPE_LABEL[v] || v}`);
 }
 function renderStarts(){
   const body = $("#startsBody"); if (!body) return;
   body.innerHTML = `<div class="objcat">Quick start</div><div class="gallery" id="presetGallery"></div>`;
   const g = body.querySelector("#presetGallery");
-  g.innerHTML = Object.keys(PRESETS).map(k=>`<button data-k="${esc(k)}"><span class="em">${PRESET_ICONS[k]||"◻"}</span>${esc(k)}</button>`).join("");
+  const pic = (key, icon) => encHas(START_THUMBS, key) && /^data:image\/(webp|png);base64,[A-Za-z0-9+/=]+$/.test(START_THUMBS[key])
+    ? `<img src="${START_THUMBS[key]}" alt="" width="160" height="120">` : `<span class="em">${icon}</span>`;
+  g.innerHTML = Object.keys(PRESETS).map(k=>`<button data-k="${esc(k)}">${pic("preset:" + k, PRESET_ICONS[k]||"◻")}<span>${esc(k)}</span></button>`).join("");
   g.querySelectorAll("button").forEach(b=>b.onclick = ()=>{ applyPreset(b.dataset.k); renderStarts(); });
   OBJECT_GROUPS.forEach(([title, list])=>{
     body.insertAdjacentHTML("beforeend", `<div class="objcat">${esc(title)}</div>`);
@@ -5287,7 +5373,7 @@ function renderStarts(){
     list.forEach(([k, em])=>{
       const b = document.createElement("button"); b.className = "objcard";
       b.setAttribute("aria-pressed", String(state.base.type === k));
-      b.innerHTML = `<span class="em">${em}</span>${esc(SHAPE_LABEL[k]||k)}`;
+      b.innerHTML = `${pic("object:" + k, em)}<span>${esc(SHAPE_LABEL[k]||k)}</span>`;
       b.onclick = ()=>chooseObject(k);
       grid.appendChild(b);
     });
@@ -6614,6 +6700,7 @@ function tabArt(p){
     return;
   }
   normalizeItem(d);
+  if (d.example) note(p, "<b>This is an example picture.</b> Add your own above and it takes its place, with the same settings.");
   const ch = dirtyItem(d);
   // a picture that becomes the object itself (a cookie cutter, a lightbox, a puzzle…) is not
   // placed as a decal: show only the settings that object actually reads
@@ -6842,6 +6929,7 @@ async function addFiles(files){
   const imgs = [...files].filter(f=>f.type.startsWith("image/"));
   if (!imgs.length){ notify("Those files are not images."); return; }
   const drop = $("#drop"); if (drop) drop.classList.add("loading");
+  if (dropExamples()) notify("The example picture made way for yours.");
   setBusy(true, `Loading ${imgs.length} picture${imgs.length===1?"":"s"}…`);
   for (const file of imgs){
     try {
@@ -6863,6 +6951,7 @@ async function addFiles(files){
   renderTab(); schedule(); pushHistory();
 }
 async function addTextItem(){
+  dropExamples();
   const t = { value:"Your name", font:"Manrope", weight:800 };
   await document.fonts.load('800 180px "Manrope"');
   const canvas = textCanvas(t);
@@ -7593,6 +7682,7 @@ function setBusy(on, label){
 
 /* settings and about dialogs */
 function openModal(title, fill){
+  $("#modal").classList.remove("wide");
   $("#modalTitle").textContent = title;
   const body = $("#modalBody"); body.innerHTML = ""; fill(body);
   $("#modal").hidden = false;
@@ -7608,6 +7698,13 @@ $("#settingsBtn").onclick = ()=>openModal("Settings", b => {
   numField(b, { label:"Maximum preview detail (cells)", min:200, max:900, step:50, get:()=>state.view.maxCells||700,
     set:v=>state.view.maxCells=v, onChange:()=>{ dirty(); }, sub:()=>"Lower it if the app feels slow on this computer." });
   buttonRow(b, [["Clear saved work in this browser", ()=>{ try { localStorage.removeItem("makerforge.project"); localStorage.removeItem("makerforge.recent"); notify("Saved work cleared."); } catch(e){} }]]);
+});
+// the user manual: the whole of MANUAL.md, with its contents list jumping within the window
+$("#helpBtn").onclick = ()=>openModal("User manual", b => {
+  $("#modal").classList.add("wide");
+  b.innerHTML = `<div class="manual">${MANUAL_HTML}</div>`;
+  b.querySelectorAll("a[data-anchor]").forEach(a => a.onclick = e => {
+    e.preventDefault(); const t = b.querySelector("#m-" + CSS.escape(a.dataset.anchor)); if (t) t.scrollIntoView({ block:"start" }); });
 });
 $("#aboutBtn").onclick = ()=>openModal("About Maker Forge", b => {
   b.insertAdjacentHTML("beforeend", `<p class="hint"><b>Maker Forge ${esc(APP_VERSION)}</b>: a companion for 3D printing, school projects and home repairs.
@@ -7865,6 +7962,7 @@ function sanitizeProject(data){
     it.skip = Array.isArray(it.skip) ? it.skip.filter(x => Number.isInteger(x) && x >= 0 && x < MAX_SLOTS) : [];
     if (it.forceSlot != null && !(Number.isInteger(it.forceSlot) && it.forceSlot >= 0 && it.forceSlot < MAX_SLOTS)) it.forceSlot = null;
     it.enabled = it.enabled !== false;
+    if (it.example !== true) delete it.example;
     it.mm = Array.isArray(it.mm) && it.mm.length === 2 && it.mm.every(v => typeof v === "number" && isFinite(v) && v > 0.1 && v < 5000) ? it.mm.slice() : undefined;
     return it;
   });
@@ -8105,6 +8203,78 @@ async function exportBatch(text){
 }
 
 /* ---------- presets, theme, keyboard, start ---------- */
+/* Built-in examples (Session 19, the table is in src/examples.js): a quick start or an object opens with
+   a finished example while there are no pictures of the person's own. The example's pictures are marked
+   `example`, and give way to the first picture or text added. Its filaments are only set while nobody has
+   changed them (or on a quick start, which sets things up anyway); its settings only where they are
+   still as they started. */
+const EXAMPLE_NOTE = "This is an example: add your own picture on the Art tab and it takes its place.";
+function exampleNote(key){
+  const ex = key && encHas(EXAMPLES, key) ? EXAMPLES[key] : {};
+  if (ex.paint && !ex.art) return "This is an example: its colours are painted on the Paint tab, where you can change them or start again.";
+  if (ex.note) return ex.note + " " + EXAMPLE_NOTE;
+  if (ex.view === "flip") return EXAMPLE_NOTE + " It is shown turned over so you can see the picture: the ⟳ button above the model turns it back.";
+  return EXAMPLE_NOTE;
+}
+const exampleCanvases = new Map();        // art key → { canvas, url }, drawn once per visit
+const exampleSized = new WeakSet();       // example pictures with a width of their own
+let exampleBusy = 0, exampleToken = 0, examplePaintSig = "", exampleSlotSig = "";
+const slotSig = () => state.slots.map(s => s.hex + "/" + s.name).join("|");
+const DEFAULT_SLOT_SIG = DEFAULTS().slots.map(s => s.hex + "/" + s.name).join("|");
+const canon = v => JSON.stringify(v, (k, x) => x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map(q => [q, x[q]])) : x);
+async function exampleCanvas(key){
+  if (exampleCanvases.has(key)) return exampleCanvases.get(key);
+  const art = encHas(EXAMPLE_ART, key) ? EXAMPLE_ART[key] : null; if (!art) return null;
+  const canvas = document.createElement("canvas"); canvas.width = art.w; canvas.height = art.h;
+  await art.draw(canvas.getContext("2d"), art.w, art.h);
+  const out = { canvas, url:canvas.toDataURL("image/png") };
+  exampleCanvases.set(key, out); return out;
+}
+// takes the example pictures away (and an example's paint, while it is untouched); true when there were some
+function dropExamples(){
+  const act = state.items[state.active], n = state.items.length;
+  state.items = state.items.filter(it => !it.example);
+  state.active = state.items.indexOf(act); if (state.active < 0) state.active = state.items.length - 1;
+  if (examplePaintSig && state.paint && JSON.stringify(state.paint.ops) === examplePaintSig){ state.paint.ops = []; paintPrepared = false; }
+  return state.items.length !== n;
+}
+// the settings an example changes are still as they started (or as an example left them)
+function exampleBaseFree(base){
+  const def = DEFAULTS().base;
+  return Object.entries(base).every(([k, over]) => Object.keys(over).every(f => {
+    const cur = canon((state.base[k] || {})[f]), was = (def[k] || {})[f];
+    const set = over[f] && typeof over[f] === "object" ? Object.assign(JSON.parse(JSON.stringify(was || {})), over[f]) : over[f];
+    return cur === canon(was) || cur === canon(set);
+  }));
+}
+async function loadExample(key, preset){
+  const token = ++exampleToken, ex = key && encHas(EXAMPLES, key) ? EXAMPLES[key] : null;
+  dropExamples(); setViewFlags({ flip:false, layout:false });
+  if (!ex || state.items.some(it => !it.example)) return false;
+  const art = ex.art ? await exampleCanvas(ex.art) : null;
+  if (token !== exampleToken) return false;            // another start was picked meanwhile
+  dropExamples();
+  if (state.items.some(it => !it.example) || (ex.art && !art)) return false;
+  if (ex.slots && (preset || slotSig() === DEFAULT_SLOT_SIG || slotSig() === exampleSlotSig))
+    ex.slots.forEach(([hex, name], i) => { if (state.slots[i]) Object.assign(state.slots[i], { hex, name }); });
+  if (ex.base && (preset || exampleBaseFree(ex.base)))
+    for (const [k, over] of Object.entries(ex.base)) for (const [f, v] of Object.entries(over)){
+      if (!state.base[k]) continue;
+      state.base[k][f] = v && typeof v === "object" ? Object.assign(JSON.parse(JSON.stringify(state.base[k][f] || {})), v) : v;
+    }
+  if (ex.paint){ state.paint.ops = JSON.parse(JSON.stringify(ex.paint)); state.paint.on = true; paintPrepared = false; examplePaintSig = JSON.stringify(state.paint.ops); }
+  if (art){
+    const id = "a" + (uid++); assets[id] = { canvas:art.canvas, dataURL:art.url };
+    const it = newItem("Example: " + EXAMPLE_ART[ex.art].name, art.canvas, Object.assign({ asset:id, enabled:true, example:true }, JSON.parse(JSON.stringify(ex.item || {}))));
+    if (ex.width){ it.width = ex.width; exampleSized.add(it); }
+    if (ex.place === "top" && state.base.type === "hex") it.place = { c:[0, state.base.hex.h, 0], n:[0,1,0] };
+    it.src = art.canvas; it.thumb = art.url;
+    state.items.push(it); state.active = state.items.length - 1;
+  }
+  if (ex.view) setViewFlags({ [ex.view]:true });
+  exampleSlotSig = slotSig();
+  return true;
+}
 function applyPreset(key){
   const pr = PRESETS[key], b = state.base;
   clearPaintForNewModel();
@@ -8123,9 +8293,19 @@ function applyPreset(key){
   state.items.forEach(d=>d.place = defaultPlace());
   userMoved = false;
   renderTab(); renderStarts();
-  (async ()=>{ await rebuildAll(false); await new Promise(r=>setTimeout(r,60));
-    state.items.forEach(d=>{ d.width = defaultWidth(d.aspect); d.solids = null; }); schedule(); })();
-  notify(pr.tip); pushHistory();
+  notify(pr.tip);
+  exampleBusy++;
+  (async ()=>{
+    // with no pictures of their own, the quick start opens with its example
+    let added = false;
+    try { added = await loadExample(key, true); } catch (err){ console.error(err); }
+    exampleBusy--;
+    if (added){ renderTab(); notify(pr.tip + " " + exampleNote(key)); }
+    await rebuildAll(false); await new Promise(r=>setTimeout(r,60));
+    state.items.forEach(d=>{ if (!exampleSized.has(d)) d.width = defaultWidth(d.aspect); d.solids = null; }); schedule();
+    exampleSlotSig = slotSig(); pushHistory();
+  })();
+  pushHistory();
 }
 
 /* ---- easy reading: kept in this browser for every project, not in project files ---- */
@@ -8245,7 +8425,9 @@ window.MakerForge = {
   get parts(){ return modelParts; },
   get checks(){ return lastChecks; },
   get rev(){ return buildRev; },
-  get busy(){ return busy || queued; },
+  get busy(){ return busy || queued || exampleBusy > 0; },
+  thumb: modelThumb,
+  examples: { list: EXAMPLES, forType: EXAMPLE_FOR_TYPE, art: EXAMPLE_ART, canvas: exampleCanvas, load: loadExample, drop: dropExamples },
   get tracer(){ return tracerInfo; },
   get enclosure(){ return enclosureInfo; },
   get cutouts(){ return CUTOUTS; }, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },

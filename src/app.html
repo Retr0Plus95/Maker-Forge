@@ -3656,7 +3656,7 @@ function paintCuts(ops){
   }
   return [...cuts].filter(isFinite).sort((a,b)=>a-b).slice(0, 600);
 }
-const paintNeedsFine = ops => ops.some(o => ["brush","picture","noise","fill","photo","area"].includes(o.k));
+const paintNeedsFine = ops => ops.some(o => ["brush","picture","noise","fill","photo","area","curve"].includes(o.k));
 // the brush wants small triangles before it paints (to show what it will paint): set while a brush-type
 // tool is used on the Paint tab, dropped when leaving it or opening another model with nothing painted
 let paintPrepared = false;
@@ -4015,6 +4015,13 @@ function pictureBox(o, pic, B){
   const s = clamp(+o.scale || 100, 10, 400)/100; w *= s; h *= s;
   return [cu-w/2, cv-h/2, cu+w/2, cv+h/2];
 }
+// a wrapped picture: round the model's upright middle line (its width once round at 360°), or over a ball
+// at the model's middle; its height follows the picture's shape at the model's widest
+function pictureWrap(o, pic, B){
+  const c = [(B.mn[0]+B.mx[0])/2, (B.mn[1]+B.mx[1])/2, (B.mn[2]+B.mx[2])/2], R = Math.max(1, (B.mx[0]-B.mn[0])/2, (B.mx[2]-B.mn[2])/2);
+  const turn = clamp(+o.turn || 360, 10, 360), h = 2*Math.PI*R*turn/360 / pic.aspect, mid = c[1] + (+o.dy || 0);
+  return { mode:o.wrap, c:o.wrap === "ball" ? [c[0], mid, c[2]] : c, turn, start:+o.start || 0, v0:mid - h/2, v1:mid + h/2, outside:o.facing !== false };
+}
 // replay every step on one part
 function runPaintOps(p, pc, ops, B){
   const topo = pc.topo, paint = new Uint8Array(topo.n).fill(PAINT_LEAVE);
@@ -4029,7 +4036,18 @@ function runPaintOps(p, pc, ops, B){
     else if (o.k === "shells") C.paintShells(topo, paint, (o.slots||[]).map(S));
     else if (o.k === "regions") C.paintRegions(topo, paint, { angle:o.angle, slots:(o.slots||[]).map(S), minArea:4 });
     else if (o.k === "noise") C.paintNoise(topo, paint, { slots:(o.slots||[]).map(S), scale:o.scale, seed:o.seed });
-    else if (o.k === "picture"){ const pic = paintPicture(o); if (pic) C.paintPicture(topo, paint, pic, o.dir, pictureBox(o, pic, B), o.facing !== false); }
+    else if (o.k === "picture"){
+      const pic = paintPicture(o);
+      if (pic && (o.wrap === "around" || o.wrap === "ball")) C.paintPictureWrap(topo, paint, pic, pictureWrap(o, pic, B));
+      else if (pic) C.paintPicture(topo, paint, pic, o.dir, pictureBox(o, pic, B), o.facing !== false);
+    }
+    else if (o.k === "curve"){
+      // which triangles are ridges or hollows is kept with the refined mesh (it takes a moment on big models)
+      const key = [o.radius, o.band].join("|"); if (!pc.curve) pc.curve = new Map();
+      let cls = pc.curve.get(key); if (!cls){ cls = C.curvatureClasses(topo, o.radius, o.band); pc.curve.set(key, cls); if (pc.curve.size > 4) pc.curve.delete(pc.curve.keys().next().value); }
+      const e = S(o.edges), h = S(o.hollows), f = S(o.flat);
+      for (let t=0;t<topo.n;t++){ const s = cls[t] > 0 ? e : cls[t] < 0 ? h : f; if (s !== PAINT_LEAVE) paint[t] = s; }
+    }
     else if (o.k === "photo" && !p.decal){
       const r = photoLabels(pc, o), sl = (o.slots || []).map(s => s === PAINT_LEAVE ? s : S(s));
       for (let t=0;t<topo.n;t++){ const c = r.lab[t]; if (c >= 0 && sl[c] != null && sl[c] !== PAINT_LEAVE) paint[t] = sl[c]; }
@@ -6875,7 +6893,7 @@ function removeSlot(i){
   // paint that used the removed filament goes back to the part's own colour; later numbers move down
   const pk = v => v === PAINT_LEAVE ? v : v === i ? PAINT_LEAVE : v > i ? v - 1 : v, p0 = v => Math.min(pk(v) === PAINT_LEAVE ? 0 : pk(v), state.slots.length - 1);
   (state.paint && state.paint.ops || []).forEach(o => {
-    for (const k of ["slot","gap","up","side","down"]) if (typeof o[k] === "number") o[k] = pk(o[k]);
+    for (const k of ["slot","gap","up","side","down","edges","hollows","flat"]) if (typeof o[k] === "number") o[k] = pk(o[k]);
     for (const k of ["a","b","from","to"]) if (typeof o[k] === "number" && (o.k === "gradient" || o.k === "swap")) o[k] = p0(o[k]);
     if (Array.isArray(o.slots)) o.slots = o.k === "height" || o.k === "photo" ? o.slots.map(pk) : o.slots.map(pk).filter(v => v !== PAINT_LEAVE);
   });
@@ -6895,10 +6913,11 @@ const PAINT_METHODS = [
   ["regions","Smooth areas","Areas split by sharp edges get different colours, neighbours never the same where the colours allow."],
   ["picture","From a picture","Shines a picture from the Art tab through the model, like a projector, in your loaded filaments."],
   ["noise","Random blobs","Soft random patches: camouflage, marble, stone. Shuffle until you like it."],
+  ["curve","Edges and hollows","Ridges and edges in one colour, hollows and cracks in another: worn paint, stone, wood, dirt in the gaps."],
   ["swap","Swap a colour","Every part of the model in one colour changes to another. Quick recolouring after painting."]
 ];
 const PAINT_OP_NAME = { height:"Height bands", gradient:"Colour fade", swap:"Swap a colour", stripes:"Stripes", dir:"Tops and sides", shells:"Separate pieces", regions:"Smooth areas",
-  picture:"Picture", noise:"Random blobs", brush:"Brush stroke", fill:"Fill", photo:"From a photo", area:"Box or lasso" };
+  picture:"Picture", noise:"Random blobs", brush:"Brush stroke", fill:"Fill", photo:"From a photo", area:"Box or lasso", curve:"Edges and hollows" };
 function slotChoices(withKeep){ return [...(withKeep ? [["255","Keep as it is"]] : []), ...state.slots.map((s,i)=>[String(i), `${i+1}. ${s.name}`])]; }
 function paintModelHeight(){ const B = modelBoundsOf(modelParts); return isFinite(B.mx[1]) ? Math.max(1, B.mx[1] - Math.min(0, B.mn[1])) : 50; }
 function newPaintOp(k){
@@ -6912,6 +6931,7 @@ function newPaintOp(k){
   if (k === "regions") return { k, angle:30, slots:state.slots.map((_,i)=>i) };
   if (k === "picture") return { k, item:Math.max(0, state.active), dir:"front", scale:100, dx:0, dy:0, facing:true };
   if (k === "noise") return { k, slots:sl, scale:12, seed:1 };
+  if (k === "curve") return { k, edges:Math.min(1, state.slots.length-1), hollows:state.slots.length > 2 ? 2 : PAINT_LEAVE, flat:PAINT_LEAVE, radius:4, band:1 };
   return null;
 }
 function paintOpText(o){
@@ -6924,7 +6944,8 @@ function paintOpText(o){
   if (o.k === "brush") return `${o.slot === PAINT_LEAVE ? "eraser" : nm(o.slot)}, ${o.r} mm, ${o.pts.length} points${o.mirror ? ", mirrored" : ""}${o.radial > 1 ? `, ${o.radial} times round` : ""}${o.edge ? ", stops at sharp edges" : ""}`;
   if (o.k === "fill") return `${o.slot === PAINT_LEAVE ? "eraser" : nm(o.slot)}, ${o.same ? "same colour" : "smooth area"}${o.radial > 1 ? `, ${o.radial} times round` : ""}`;
   if (o.k === "area") return `${o.slot === PAINT_LEAVE ? "rubbed out" : nm(o.slot)}, ${o.poly.length === 4 ? "a box" : "a lasso"}${o.through ? ", right through" : ", the side seen"}`;
-  if (o.k === "picture") return `${(state.items[o.item]||{}).name || "missing artwork"}, from the ${o.dir}`;
+  if (o.k === "picture") return `${(state.items[o.item]||{}).name || "missing artwork"}, ${o.wrap === "around" ? `round the model (${o.turn || 360}°)` : o.wrap === "ball" ? `over a ball (${o.turn || 360}°)` : `from the ${o.dir}`}`;
+  if (o.k === "curve") return `edges ${nm(o.edges)}, hollows ${nm(o.hollows)}, the rest ${nm(o.flat)}`;
   if (o.k === "photo") return `${o.views.length} photo${o.views.length === 1 ? "" : "s"}, ${o.pal.length} colours: ${[...new Set(o.slots.filter(s => s !== PAINT_LEAVE))].map(nm).join(", ")}`;
   return (o.slots||[]).map(nm).join(", ");
 }
@@ -7012,9 +7033,27 @@ function paintOpFields(parent, o){
     slotChecks(parent, o);
     numField(parent,{ label:"Blob size (mm)", min:1, max:100, step:0.5, get:()=>o.scale, set:v=>o.scale=v, onChange:ch });
     buttonRow(parent, [["Shuffle the pattern", ()=>{ o.seed = (o.seed % 9999) + 1; ch(); }]]);
+  } else if (o.k === "curve"){
+    slotSel("Ridges and edges", () => o.edges, v => o.edges = v, true);
+    slotSel("Hollows and cracks", () => o.hollows, v => o.hollows = v, true);
+    slotSel("Everything else", () => o.flat, v => o.flat = v, true);
+    numField(parent,{ label:"Counts when it curves tighter than a radius of (mm)", min:0.5, max:50, step:0.5, def:4, get:()=>o.radius, set:v=>o.radius=v, onChange:ch,
+      sub:()=>"Smaller finds only sharp edges and deep cracks; bigger takes in gentle curves too." });
+    numField(parent,{ label:"Width of the edge colour (mm)", min:0.3, max:10, step:0.1, def:1, get:()=>o.band, set:v=>o.band=v, onChange:ch });
+    note(parent, "Tip: a light colour on the edges and a dark one in the hollows looks like worn paint or old stone.");
   } else if (o.k === "picture"){
     if (!state.items.length){ parent.insertAdjacentHTML("beforeend", `<div class="card empty">Add a picture on the <b>Art</b> tab first.</div>`); return; }
     selField(parent, "Picture", state.items.map((d,i)=>[String(i), d.name]), () => String(o.item), v => { o.item = +v; ch(); });
+    segField(parent, [["flat","Straight through"],["around","Round the model"],["ball","Over a ball"]], () => o.wrap || "flat", v => { if (v === "flat") delete o.wrap; else o.wrap = v; renderTab(); ch(); });
+    if (o.wrap === "around" || o.wrap === "ball"){
+      numField(parent,{ label:"How far round (°)", min:10, max:360, step:5, def:360, get:()=>o.turn || 360, set:v=>o.turn=v, onChange:ch,
+        sub:()=>(o.turn || 360) >= 360 ? "Once all the way round: the picture's ends meet at the back." : "Part of the way round, centred where you turn it." });
+      numField(parent,{ label:"Turn it (°)", min:-180, max:180, step:5, def:0, get:()=>o.start || 0, set:v=>o.start=v, onChange:ch, sub:()=>"0 puts the middle of the picture at the front." });
+      numField(parent,{ label:"Move up (mm)", min:-200, max:200, step:0.5, get:()=>o.dy, set:v=>o.dy=v, onChange:ch });
+      checkField(parent, "Only the outside", () => o.facing !== false, v => { o.facing = v; ch(); });
+      note(parent, o.wrap === "around" ? "Wraps the picture round the model like a label on a mug or a bottle." : "Wraps the picture over the model like a map over a globe.");
+      return;
+    }
     segField(parent, [["front","Front"],["back","Back"],["left","Left"],["right","Right"],["top","Top"]], () => o.dir, v => { o.dir = v; renderTab(); ch(); }, "five");
     numField(parent,{ label:"Size (%)", min:10, max:400, step:1, get:()=>o.scale, set:v=>o.scale=v, onChange:ch });
     numField(parent,{ label:"Move across (mm)", min:-200, max:200, step:0.5, get:()=>o.dx, set:v=>o.dx=v, onChange:ch });
@@ -7631,8 +7670,11 @@ function cleanPaint(P0){
       case "shells": return { k:"shells", slots:slots(o.slots).filter(v => v !== PAINT_LEAVE) };
       case "regions": return { k:"regions", slots:slots(o.slots).filter(v => v !== PAINT_LEAVE), angle:num(o.angle, 1, 89, 30) };
       case "noise": return { k:"noise", slots:slots(o.slots).filter(v => v !== PAINT_LEAVE), scale:num(o.scale, 0.5, 200, 12), seed:Math.round(num(o.seed, 0, 99999, 1)) };
-      case "picture": return { k:"picture", item:Math.round(num(o.item, 0, 59, 0)), dir:one(o.dir, ["front","back","left","right","top"]), scale:num(o.scale, 10, 400, 100),
-        dx:num(o.dx, -1000, 1000, 0), dy:num(o.dy, -1000, 1000, 0), facing:o.facing !== false };
+      case "picture": { const wrap = one(o.wrap, ["flat","around","ball"]);
+        return Object.assign({ k:"picture", item:Math.round(num(o.item, 0, 59, 0)), dir:one(o.dir, ["front","back","left","right","top"]), scale:num(o.scale, 10, 400, 100),
+          dx:num(o.dx, -1000, 1000, 0), dy:num(o.dy, -1000, 1000, 0), facing:o.facing !== false },
+          wrap === "flat" ? {} : { wrap, turn:num(o.turn, 10, 360, 360), start:num(o.start, -180, 180, 0) }); }
+      case "curve": return { k:"curve", edges:slotOrKeep(o.edges), hollows:slotOrKeep(o.hollows), flat:slotOrKeep(o.flat), radius:num(o.radius, 0.5, 50, 4), band:num(o.band, 0.3, 10, 1) };
       case "brush": { const pts = (Array.isArray(o.pts) ? o.pts : []).slice(0, Math.min(5000, budget)).map(v3).filter(Boolean); budget -= pts.length;
         const radial = Math.round(num(o.radial, 1, 12, 1)), edge = num(o.edge, 0, 89, 0);
         return pts.length ? Object.assign({ k:"brush", slot:slotOrKeep(o.slot), r:num(o.r, 0.2, 50, 3), facing:v3(o.facing), pts, mirror:o.mirror === true },

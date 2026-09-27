@@ -165,7 +165,28 @@ console.log("\npainter tools (Session 18): the smart brush and strokes repeated 
   check(thru.length > seen.length && faces(thru)["0,0,-1"] > 0, "painting right through takes the back as well", `${thru.length} triangles`);
   const lasso = C.areaTris(s, M, [[-0.1, -0.1], [0.1, -0.1], [0, 0.12]], false);
   check(lasso.length > 0 && lasso.length < seen.length / 4, "a small lasso takes a small patch", lasso.length);
-  check(C.areaTris(s, M.map(() => NaN), left, false).length === 0 && C.areaTris(s, M, [[5, 5], [6, 5], [6, 6]], false).length === 0, "a broken matrix or an outline off the screen paints nothing"); }
+  check(C.areaTris(s, M.map(() => NaN), left, false).length === 0 && C.areaTris(s, M, [[5, 5], [6, 5], [6, 6]], false).length === 0, "a broken matrix or an outline off the screen paints nothing");
+  // edges and hollows: a cube has edges and no hollows; an L-shaped block has one hollow, in its inside corner; a 10 mm ball is
+  // one smooth curve, left alone at a 5 mm limit and taken whole at 15 mm
+  const cube = C.meshEditor(b); cube.refine(0.8, 2e6); const ct = C.meshTopology(cube.solid()), cpaint = new Uint8Array(ct.n).fill(255), cr = C.paintCurvature(ct, cpaint, { edges: 1, hollows: 2, flat: 255, radius: 4, band: 1 });
+  let far = 0; for (let t = 0; t < ct.n; t++) if (cpaint[t] === 1) { const x = ct.cen[3 * t], y = ct.cen[3 * t + 1], z = ct.cen[3 * t + 2]; if ([10 - Math.abs(x), 10 - Math.abs(z), y, 20 - y].sort((a, q) => a - q)[1] > 1.6) far++; }
+  check(cr.edges > 0 && cr.hollows === 0 && far === 0, "edges and hollows on a cube: a band along the edges, no hollows", `${cr.edges} edge triangles`);
+  const L = [[0, 0], [20, 0], [20, 10], [10, 10], [10, 20], [0, 20]], le = C.meshEditor(C.extrudePolysAt([{ outer: C.area2(L) > 0 ? L : L.reverse(), holes: [] }], 0, 10)); le.refine(0.8, 2e6);
+  const lt = C.meshTopology(le.solid()), lp = new Uint8Array(lt.n).fill(255), lr = C.paintCurvature(lt, lp, { edges: 1, hollows: 2, flat: 255, radius: 4, band: 1 });
+  let hx = 0, hz = 0; for (let t = 0; t < lt.n; t++) if (lp[t] === 2) { hx += lt.cen[3 * t]; hz += lt.cen[3 * t + 2]; }
+  check(lr.hollows > 0 && Math.abs(hx / lr.hollows - 10) < 1 && Math.abs(Math.abs(hz / lr.hollows) - 10) < 1, "an L-shaped block: its inside corner is the hollow", `${lr.hollows} hollow triangles round x ${(hx / lr.hollows).toFixed(1)}`);
+  const pr = []; for (let i = 0; i <= 48; i++) { const a = -Math.PI / 2 + i / 48 * Math.PI; pr.push([Math.cos(a) * 10, 10 + Math.sin(a) * 10]); } pr[0][0] = 0; pr[48][0] = 0;
+  const be = C.meshEditor(C.revolveLoop(pr, 96)); be.refine(0.8, 2e6); const bt = C.meshTopology(be.solid());
+  const ball = r => C.paintCurvature(bt, new Uint8Array(bt.n).fill(255), { edges: 1, hollows: 2, flat: 255, radius: r, band: 1 }).edges / bt.n;
+  check(ball(5) === 0 && ball(15) > 0.95, "a 10 mm ball: left alone at a 5 mm limit, all of it at 15 mm", `${(ball(5) * 100).toFixed(0)}% and ${(ball(15) * 100).toFixed(0)}%`);
+  // a picture wrapped once round a cylinder: its left half on the viewer's left, each half on half the side, the ends untouched
+  const ce = C.meshEditor(C.revolveLoop([[0, 0], [10, 0], [10, 30], [0, 30]], 96)); ce.refine(1, 2e6); const cyl = C.meshTopology(ce.solid()), wp = new Uint8Array(cyl.n).fill(255);
+  C.paintPictureWrap(cyl, wp, { w: 2, h: 1, pix: Int16Array.from([1, 2]) }, { mode: "around", c: [0, 0, 0], turn: 360, start: 0, v0: 0, v1: 30, outside: true });
+  let w1 = 0, w2 = 0, ends = 0, wrongSide = 0; for (let t = 0; t < cyl.n; t++) { if (wp[t] === 1) { w1 += cyl.area[t]; if (cyl.cen[3 * t] > 0.01) wrongSide++; } if (wp[t] === 2) w2 += cyl.area[t]; if (wp[t] !== 255 && Math.abs(cyl.nrm[3 * t + 1]) > 0.9) ends++; }
+  check(Math.abs(w1 - 942.5) < 10 && Math.abs(w2 - 942.5) < 10 && ends === 0 && wrongSide === 0, "a picture wrapped once round a cylinder: each half on half the side, its left on the left, the ends untouched", `${w1.toFixed(0)} + ${w2.toFixed(0)} of 1885 mm²`);
+  const q = new Uint8Array(cyl.n).fill(255); C.paintPictureWrap(cyl, q, { w: 1, h: 1, pix: Int16Array.from([3]) }, { mode: "around", c: [0, 0, 0], turn: 90, start: 90, v0: 10, v1: 20, outside: true });
+  let qa = 0, qx = 0; for (let t = 0; t < cyl.n; t++) if (q[t] === 3) { qa += cyl.area[t]; qx += cyl.cen[3 * t] * cyl.area[t]; }
+  check(Math.abs(qa - 157) < 6 && qx / qa > 7, "a quarter turn, turned to the right: a 10 mm band on the right side", `${qa.toFixed(0)} of 157 mm²`); }
 
 if (process.env.CORE) { console.log(fails ? `\n${fails} FAILED` : "\nall passed"); process.exit(fails ? 1 : 0); }
 
@@ -193,10 +214,10 @@ async function settle() {
   check($$("#secrail button").map(b => b.dataset.title).join("|") === "Paint|Auto colour|Brush and fill|Paint list|Paint detail", "five pages", $$("#secrail button").map(b => b.dataset.title).join(", "));
   const vis = [...document.querySelectorAll("#panel > .section")].find(d => !d.hidden);
   check(vis.querySelectorAll(".pswatch[role=radio]").length === st().slots.length, "a big swatch per loaded filament", vis.querySelectorAll(".pswatch[role=radio]").length);
-  const methods = ["height", "gradient", "stripes", "dir", "shells", "regions", "noise", "swap"];
+  const methods = ["height", "gradient", "stripes", "dir", "shells", "regions", "noise", "curve", "swap"];
   for (const k of methods) {
     toPage("Auto colour"); await sleep(20);
-    $$(".method").find(b => b.querySelector("b").textContent === { height: "Height bands", gradient: "Colour fade", stripes: "Stripes", dir: "Tops and sides", shells: "Separate pieces", regions: "Smooth areas", noise: "Random blobs", swap: "Swap a colour" }[k]).click(); await sleep(20);
+    $$(".method").find(b => b.querySelector("b").textContent === { height: "Height bands", gradient: "Colour fade", stripes: "Stripes", dir: "Tops and sides", shells: "Separate pieces", regions: "Smooth areas", noise: "Random blobs", curve: "Edges and hollows", swap: "Swap a colour" }[k]).click(); await sleep(20);
     const go = $$("#panel button").find(b => /^Paint it/.test(b.textContent));
     go.click(); await sleep(150); await settle();
     const ops = st().paint.ops, c = painted();
@@ -254,6 +275,21 @@ async function settle() {
   check(!MF.paint.recolour({ part: 0, face: Array.from(MF.parts[0].paint).indexOf(1) }) && st().paint.ops.length === nOps + 1, "recolouring a colour into itself adds nothing");
   st().paint.ops = [{ k: "fill", p: [0, 0, 0], slot: 2, same: false, angle: 30, radial: 3 }]; MF.paint.repaint(); await settle();
   check((painted()[2] || 0) > 0, "a fill repeated round the middle replays", painted()[2]);
+  // a picture wrapped round the vase: blue on its left half, yellow on its right
+  { const W = 120, H = 60, px = new Uint8ClampedArray(W * H * 4);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const o = (y * W + x) * 4, c = x < W / 2 ? [20, 60, 200] : [250, 210, 30]; px[o] = c[0]; px[o + 1] = c[1]; px[o + 2] = c[2]; px[o + 3] = 255; }
+    toTab("art"); await sleep(50);
+    const ev = new win.Event("drop", { bubbles: true, cancelable: true }); ev.dataTransfer = { files: [new win.File([boot.encodePNG(W, H, px)], "halves.png", { type: "image/png" })] };
+    document.querySelector("#drop").dispatchEvent(ev);
+    for (let i = 0; i < 100 && !st().items.some(d => d.name === "halves" && d.src); i++) await sleep(30);
+    await settle(); toTab("paint"); await sleep(50);
+    const it = st().items.findIndex(d => d.name === "halves"); st().items[it].enabled = false; st().items[it].solids = null; MF.rebuild(false); await settle();
+    st().paint.ops = [{ k: "picture", item: it, dir: "front", scale: 100, dx: 0, dy: 0, facing: true, wrap: "around", turn: 360, start: 0 }]; MF.paint.repaint(); await settle();
+    const pw = painted(), cols = Object.keys(pw).filter(k => k !== "255");
+    check(cols.length === 2 && Math.min(...cols.map(k => pw[k])) > 0.4 * Math.max(...cols.map(k => pw[k])), "a picture wrapped round the vase: both halves, about the same amount of each", JSON.stringify(pw));
+    st().paint.ops[0].wrap = "ball"; MF.paint.repaint(); await settle();
+    check(Object.keys(painted()).filter(k => k !== "255").length === 2, "and over a ball", JSON.stringify(painted()));
+    st().paint.ops = []; st().items.splice(it, 1); st().active = st().items.length - 1; MF.rebuild(false); await settle(); }
   // the brush preview shows exactly what the stroke then paints
   st().paint.ops = [{ k: "brush", slot: 3, r: 5, facing: null, pts: [[0, 90, 0]] }]; MF.paint.repaint(); await settle();   // refined
   st().paint.ops = []; MF.paint.repaint(); await settle();
@@ -375,6 +411,9 @@ async function settle() {
     "repeats round the middle at most 12, the smart brush's edge 0 to 89; ordinary strokes keep no extra settings", JSON.stringify(h18.map(o => [o.radial, o.edge])));
   const hA = MF.paint.cleanPaint({ ops: [{ k: "area", m: Array(16).fill(1e9), poly: [[0, 0], [1e9, "x"], [1, 0], [1, 1]].concat(Array(3000).fill([0.5, 0.5])), slot: 99, through: "yes" },
     { k: "area", m: Array(15).fill(1), poly: [[0, 0], [1, 0], [1, 1]] }, { k: "area", m: Array(16).fill(1), poly: [[0, 0], [1, 1]] }, { k: "area", m: Array(16).fill(NaN), poly: [[0, 0], [1, 0], [1, 1]] }] }).ops;
+  const hC = MF.paint.cleanPaint({ ops: [{ k: "curve", edges: 99, hollows: "x", flat: 1, radius: 1e9, band: -1 }, { k: "picture", item: 0, wrap: "sphere", turn: 1e9, start: -1e9 }, { k: "picture", item: 0, wrap: "ball", turn: -5, start: 1e9 }] }).ops;
+  check(hC[0].edges === 255 && hC[0].hollows === 255 && hC[0].flat === 1 && hC[0].radius === 50 && hC[0].band === 0.3 && !("wrap" in hC[1]) && !("turn" in hC[1]) && hC[2].wrap === "ball" && hC[2].turn === 10 && hC[2].start === 180,
+    "edges and hollows: colours and sizes clamped; a wrapped picture: a known way of wrapping, 10 to 360°", JSON.stringify(hC).slice(0, 160));
   check(hA.length === 1 && hA[0].m.every(v => v === 1e6) && hA[0].poly.length === 1999 && hA[0].poly.every(q => q.every(v => Math.abs(v) <= 10)) && hA[0].slot === 255 && hA[0].through === false,
     "a box or lasso: a matrix of 16 finite numbers, at most 2000 outline points, clamped; broken ones dropped", `${hA.length} kept, ${hA[0] && hA[0].poly.length} points`);
   const load = async state => {

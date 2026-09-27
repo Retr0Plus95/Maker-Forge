@@ -2952,6 +2952,68 @@
       if (s >= 0 && s !== LEAVE) paint[t] = s;
     }
   }
+  // a picture wrapped round the model (Session 18): "around" an upright axis through c (the picture's
+  // width going round, its height up the model) or over a "ball" centred on c (its width round, its
+  // height from the bottom to the top). o: { mode, c:[x,y,z], turn (degrees the width covers), start
+  // (degrees round where its middle lands, 0 = the front), v0, v1 (heights, mm, for "around"), outside }
+  function paintPictureWrap(topo, paint, pic, o) {
+    const c = o.c || [0, 0, 0], turn = Math.max(1, Math.min(360, +o.turn || 360)) * Math.PI / 180, mid = (+o.start || 0) * Math.PI / 180;
+    const ball = o.mode === "ball", vt = ball ? turn / (pic.w / pic.h) : 0;   // a ball: the picture's height spans its share of the half turn
+    let n = 0;
+    for (let t = 0; t < topo.n; t++) {
+      const x = topo.cen[3 * t] - c[0], y = topo.cen[3 * t + 1] - c[1], z = topo.cen[3 * t + 2] - c[2], r = Math.hypot(x, z);
+      if (o.outside) {                                   // only faces turned away from the axis (or the centre)
+        const d = ball ? (topo.nrm[3 * t] * x + topo.nrm[3 * t + 1] * y + topo.nrm[3 * t + 2] * z) / (Math.hypot(r, y) || 1) : (topo.nrm[3 * t] * x + topo.nrm[3 * t + 2] * z) / (r || 1);
+        if (d < 0.05) continue;
+      }
+      let a = Math.atan2(x, z) - mid; a = ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+      const fu = a / turn + 0.5;
+      let fv;
+      if (ball) fv = 0.5 - Math.atan2(y, r) / vt;
+      else fv = (o.v1 - (topo.cen[3 * t + 1])) / ((o.v1 - o.v0) || 1);
+      if (!(fu >= 0 && fu < 1 && fv >= 0 && fv < 1)) continue;
+      const s = pic.pix[Math.floor(fv * pic.h) * pic.w + Math.floor(fu * pic.w)];
+      if (s >= 0 && s !== LEAVE) { paint[t] = s; n++; }
+    }
+    return n;
+  }
+  // colour by curvature (Session 18): ridges and edges one colour, hollows another, for worn, stone and wood
+  // looks. Each triangle's bend (the signed angle to each neighbour over the distance between their middles,
+  // about 1/radius on a smooth curve) is averaged over `band` mm; tighter than a `radius` mm curve counts.
+  // o: { edges, hollows, flat (filament or 255 to keep), radius, band }; returns { edges, hollows } counts
+  function paintCurvature(topo, paint, o) {
+    const cls = curvatureClasses(topo, o.radius, o.band), out = { edges: 0, hollows: 0 };
+    for (let t = 0; t < topo.n; t++) {
+      const slot = cls[t] > 0 ? o.edges : cls[t] < 0 ? o.hollows : o.flat;
+      if (slot != null && slot !== LEAVE) { paint[t] = slot; if (cls[t] > 0) out.edges++; else if (cls[t] < 0) out.hollows++; }
+    }
+    return out;
+  }
+  // each triangle: 1 a ridge or edge, -1 a hollow, 0 neither
+  function curvatureClasses(topo, radius, band0) {
+    const n = topo.n, k = new Float32Array(n), band = Math.max(0.2, Math.min(50, +band0 || 1)), lim = 1 / Math.max(0.1, Math.min(1000, +radius || 4));
+    const N = topo.nrm, P = topo.cen;
+    for (let t = 0; t < n; t++) {
+      let s = 0;
+      for (let e = 0; e < 3; e++) {
+        const u = topo.nbr[3 * t + e]; if (u < 0) continue;
+        const dx = P[3 * u] - P[3 * t], dy = P[3 * u + 1] - P[3 * t + 1], dz = P[3 * u + 2] - P[3 * t + 2], d = Math.hypot(dx, dy, dz) || 1e-9;
+        const cos = Math.max(-1, Math.min(1, N[3 * t] * N[3 * u] + N[3 * t + 1] * N[3 * u + 1] + N[3 * t + 2] * N[3 * u + 2]));
+        // the neighbour dips below this face's plane: a ridge (convex); rises above it: a hollow
+        const sign = dx * N[3 * t] + dy * N[3 * t + 1] + dz * N[3 * t + 2] < 0 ? 1 : -1;
+        s += sign * Math.acos(cos) / d;
+      }
+      k[t] = s / 3;
+    }
+    const grid = triangleGrid(topo, band), cls = new Int8Array(n);
+    for (let t = 0; t < n; t++) {
+      let sum = 0, w = 0;
+      grid.near(P[3 * t], P[3 * t + 1], P[3 * t + 2], band, u => { sum += k[u] * topo.area[u]; w += topo.area[u]; });
+      const m = w ? sum / w : 0;
+      cls[t] = m > lim ? 1 : m < -lim ? -1 : 0;
+    }
+    return cls;
+  }
   // ---- colour from photos ----
   // A plain model and a coloured photo of the same model: the photo is lined up with the model's
   // outline, its colours are grouped into the filaments, and every triangle takes the colour the photos
@@ -3489,7 +3551,7 @@
     seededRandom, jigsawGrid, jigsawCut, jigsawEdge, jigsawPiece, jigsawSVG, jigsawCutLines, ringField, ringDistance, outlineBand, strokeText,
     gridAround, heightSheet,
     meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, gradientCuts, gradientLayers, paintGradient, paintSwap, meshShells, paintShells,
-    meshRegions, paintRegions, paintNoise, paintBrush, brushTris, symmetryCopies, areaTris, paintFill, paintPicture, parseOBJ, parse3MFModel,
+    meshRegions, paintRegions, paintNoise, paintPictureWrap, paintCurvature, curvatureClasses, paintBrush, brushTris, symmetryCopies, areaTris, paintFill, paintPicture, parseOBJ, parse3MFModel,
     PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, paintFromPhotos,
     photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure
   };

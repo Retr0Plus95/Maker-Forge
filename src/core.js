@@ -2841,6 +2841,72 @@
     for (const p of pts) for (const t of brushTris(topo, grid, p, r, facing, edge)) if (paint[t] !== slot) { paint[t] = slot; n++; }
     return n;
   }
+  // everything inside an outline drawn on the screen: M (16 numbers, column-major like three.js) takes the
+  // model's own coordinates to the screen (-1..1 both ways, z -1 near to 1 far), poly is the box or lasso in
+  // those screen units. Only what can be seen from there (a depth test at up to 1024 pixels over the
+  // outline), or everything inside when `through`. Returns the triangles.
+  function areaTris(solid, M, poly, through) {
+    const P = solid.pos, I = solid.idx, nv = P.length / 3, n = I.length / 3;
+    const X = new Float32Array(nv), Y = new Float32Array(nv), Z = new Float32Array(nv), ok = new Uint8Array(nv);
+    for (let i = 0; i < nv; i++) {
+      const x = P[3 * i], y = P[3 * i + 1], z = P[3 * i + 2], w = M[3] * x + M[7] * y + M[11] * z + M[15];
+      if (!(w > 1e-9)) continue;
+      X[i] = (M[0] * x + M[4] * y + M[8] * z + M[12]) / w; Y[i] = (M[1] * x + M[5] * y + M[9] * z + M[13]) / w; Z[i] = (M[2] * x + M[6] * y + M[10] * z + M[14]) / w; ok[i] = 1;
+    }
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const q of poly) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); }
+    const inside = (x, y) => {
+      if (x < x0 || x > x1 || y < y0 || y > y1) return false;
+      let c = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const a = poly[i], b = poly[j];
+        if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c;
+      }
+      return c;
+    };
+    // a closed model is only seen from outside: a face turned away (clockwise on the screen) is never the
+    // nearest thing, so it is neither painted nor drawn into the depth test unless painting right through
+    const front = t => { const a = I[3 * t], b = I[3 * t + 1], c = I[3 * t + 2]; return (X[b] - X[a]) * (Y[c] - Y[a]) - (X[c] - X[a]) * (Y[b] - Y[a]) > 0; };
+    const out = [], cand = [];
+    for (let t = 0; t < n; t++) {
+      const a = I[3 * t], b = I[3 * t + 1], c = I[3 * t + 2];
+      if (!ok[a] || !ok[b] || !ok[c] || (!through && !front(t))) continue;
+      if (inside((X[a] + X[b] + X[c]) / 3, (Y[a] + Y[b] + Y[c]) / 3)) cand.push(t);
+    }
+    if (through || !cand.length || !(x1 > x0) || !(y1 > y0)) return through ? cand : out;
+    // what the eye sees over the outline's box: a depth buffer of triangle ids
+    const R = 1024, sc = R / Math.max(x1 - x0, y1 - y0), W = Math.max(1, Math.ceil((x1 - x0) * sc)), H = Math.max(1, Math.ceil((y1 - y0) * sc));
+    const id = new Int32Array(W * H).fill(-1), depth = new Float32Array(W * H).fill(Infinity);
+    const px = i => (X[i] - x0) * sc, py = i => (y1 - Y[i]) * sc;
+    for (let t = 0; t < n; t++) {
+      const a = I[3 * t], b = I[3 * t + 1], c = I[3 * t + 2];
+      if (!ok[a] || !ok[b] || !ok[c] || !front(t)) continue;
+      const ax = px(a), ay = py(a), bx = px(b), by = py(b), cx = px(c), cy = py(c);
+      const area = (bx - ax) * (cy - ay) - (cx - ax) * (by - ay);
+      if (Math.abs(area) < 1e-12) continue;
+      const mnx = Math.max(0, Math.floor(Math.min(ax, bx, cx))), mxx = Math.min(W - 1, Math.ceil(Math.max(ax, bx, cx)));
+      const mny = Math.max(0, Math.floor(Math.min(ay, by, cy))), mxy = Math.min(H - 1, Math.ceil(Math.max(ay, by, cy)));
+      for (let yy = mny; yy <= mxy; yy++) for (let xx = mnx; xx <= mxx; xx++) {
+        const sx = xx + 0.5, sy = yy + 0.5;
+        const w0 = ((bx - sx) * (cy - sy) - (cx - sx) * (by - sy)) / area, w1 = ((cx - sx) * (ay - sy) - (ax - sx) * (cy - sy)) / area, w2 = 1 - w0 - w1;
+        if (w0 < 0 || w1 < 0 || w2 < 0) continue;
+        const z = w0 * Z[a] + w1 * Z[b] + w2 * Z[c], k = yy * W + xx;
+        if (z < depth[k]) { depth[k] = z; id[k] = t; }
+      }
+    }
+    const seen = new Uint8Array(n);
+    for (let k = 0; k < W * H; k++) if (id[k] >= 0) seen[id[k]] = 1;
+    for (const t of cand) {
+      if (seen[t]) { out.push(t); continue; }
+      // smaller than a pixel: its middle, if nothing clearly nearer covers it
+      const a = I[3 * t], b = I[3 * t + 1], c = I[3 * t + 2];
+      const xx = Math.floor((px(a) + px(b) + px(c)) / 3), yy = Math.floor((py(a) + py(b) + py(c)) / 3);
+      if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
+      const z = (Z[a] + Z[b] + Z[c]) / 3, k = yy * W + xx;
+      if (id[k] < 0 || z <= depth[k] + 2e-4) out.push(t);
+    }
+    return out;
+  }
   // a stroke and its copies: `radial` times round the vertical axis through the middle (x = z = 0), each
   // also mirrored across x = 0 when `mirror`; returns [{ pts, facing }] with the stroke itself first
   function symmetryCopies(pts, facing, mirror, radial) {
@@ -3423,7 +3489,7 @@
     seededRandom, jigsawGrid, jigsawCut, jigsawEdge, jigsawPiece, jigsawSVG, jigsawCutLines, ringField, ringDistance, outlineBand, strokeText,
     gridAround, heightSheet,
     meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, gradientCuts, gradientLayers, paintGradient, paintSwap, meshShells, paintShells,
-    meshRegions, paintRegions, paintNoise, paintBrush, brushTris, symmetryCopies, paintFill, paintPicture, parseOBJ, parse3MFModel,
+    meshRegions, paintRegions, paintNoise, paintBrush, brushTris, symmetryCopies, areaTris, paintFill, paintPicture, parseOBJ, parse3MFModel,
     PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, paintFromPhotos,
     photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure
   };

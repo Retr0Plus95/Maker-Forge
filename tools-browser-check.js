@@ -329,6 +329,27 @@ function pageCoverage() {
     const brushed = await page.evaluate(() => { const o = window.MakerForge.state.paint.ops; return { n:o.length, k:o[o.length - 1].k, pts:(o[o.length - 1].pts || []).length }; });
     await shot(page, "paint-brush", "Paint tab: height bands and a brush stroke made with the mouse");
     if (!(brushed.n === s.ops + 1 && brushed.k === "brush" && brushed.pts >= 3)) findings.push({ where:"paint brush", what:`dragging on the model left ${JSON.stringify(brushed)}` });
+    // Session 18: the brush preview under the pointer, then a box and a lasso drawn with the mouse
+    await page.mouse.move(s.x + 5, s.y - 20); await page.waitForTimeout(150); await page.mouse.move(s.x + 6, s.y - 22); await page.waitForTimeout(150);
+    const pv = await page.evaluate(() => window.MakerForge.paint.previewCount);
+    await shot(page, "paint-brush-preview", "Paint tab: the brush preview lights up what the brush will paint");
+    if (!(pv > 0)) findings.push({ where:"brush preview", what:`hovering with the brush lit up ${pv} triangles` });
+    const area = async (shape, pts) => {
+      await page.evaluate(sh => { const MF = window.MakerForge; MF.paint.ui.tool = "area"; MF.paint.ui.area = sh; MF.paint.ui.slot = 3; MF.render(); }, shape);
+      const n0 = await page.evaluate(() => window.MakerForge.state.paint.ops.length);
+      await page.mouse.move(pts[0][0], pts[0][1]); await page.mouse.down();
+      for (const q of pts.slice(1)) await page.mouse.move(q[0], q[1], { steps: 4 });
+      await page.mouse.up(); await settle(page);
+      return page.evaluate(n0 => { const MF = window.MakerForge, o = MF.state.paint.ops; let c = 0; MF.parts.forEach(p => p.paint && p.paint.forEach(v => { if (v === 3) c++; }));
+        return { added: o.length - n0, k: o.length ? o[o.length - 1].k : "", points: o.length ? (o[o.length - 1].poly || []).length : 0, painted: c }; }, n0);
+    };
+    const bx = await area("box", [[s.x - 60, s.y - 60], [s.x + 60, s.y + 40]]);
+    await shot(page, "paint-box", "Paint tab: a box drawn over the model paints the side you see");
+    const lz = await area("lasso", [[s.x - 40, s.y + 60], [s.x + 40, s.y + 70], [s.x + 50, s.y + 120], [s.x, s.y + 140], [s.x - 50, s.y + 110]]);
+    if (!(bx.added === 1 && bx.k === "area" && bx.points === 4 && bx.painted > 0)) findings.push({ where:"box select", what:JSON.stringify(bx) });
+    if (!(lz.added === 1 && lz.k === "area" && lz.points >= 5 && lz.painted > bx.painted)) findings.push({ where:"lasso select", what:JSON.stringify(lz) });
+    notes.push(`painter tools: the brush preview lit ${pv} triangles; a box painted ${bx.painted} triangles, then a lasso of ${lz.points} points took it to ${lz.painted}`);
+    await page.evaluate(() => { const MF = window.MakerForge; MF.paint.ui.tool = "brush"; MF.render(); });
     const exp = await page.evaluate(async () => {
       const MF = window.MakerForge, parts = MF.exportParts(), zip = await MF.paint.buildZip(parts, "vase"), u8 = await zip.file("model-bambu.3mf").async("uint8array");
       // the filament each triangle in the file prints in: its paint, or its part's own filament (a brim too)

@@ -303,6 +303,11 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
 .oprow small{color:var(--muted)}
 .seg.five{grid-template-columns:repeat(5,1fr)}
 .seg.tools{grid-template-columns:repeat(3,1fr)}
+/* the box or lasso being drawn over the view: white over a dark edge, seen on any model */
+.areaSel{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.areaSel path{fill:none;stroke-linejoin:round}
+.areaSel .under{stroke:#111;stroke-width:5}
+.areaSel .over{stroke:#fff;stroke-width:2.5;stroke-dasharray:8 5;fill:rgba(255,255,255,.12)}
 /* colour from a photo: the photo with the model's outline on it, and the buttons that move it */
 .photoPrev{display:block;width:100%;height:auto;max-height:420px;object-fit:contain;margin:10px 0 4px;border-radius:10px;border:1px solid var(--line);background:var(--field);cursor:grab;touch-action:none}
 .photoPrev:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
@@ -3635,7 +3640,8 @@ renderer.domElement.addEventListener("pointerup", e => {
    slic3rpe:mmu_segmentation for PrusaSlicer); the OBJ groups faces by colour. */
 const PAINT_MAX_TRIS = 900000, PAINT_LEAVE = 255;
 const PAINT_DETAIL = { coarse:2.5, normal:1.2, fine:0.6 };
-const paintUI = { slot:1, tool:"brush", r:3, facing:true, fill:"smooth", angle:30, method:"height", mirror:false, photo:0, photoShow:"photo", radial:1, smart:false, edge:40, lastTool:"brush" };
+const paintUI = { slot:1, tool:"brush", r:3, facing:true, fill:"smooth", angle:30, method:"height", mirror:false, photo:0, photoShow:"photo", radial:1, smart:false, edge:40, lastTool:"brush",
+  area:"box", through:false, rubOut:false };
 const paintCache = new WeakMap();                  // original solid -> refined mesh, topology, brush grid
 let paintInfo = { tris:0, painted:0, edge:0, capped:false, area:{} };
 const paintOps = () => (state.paint && state.paint.on !== false && Array.isArray(state.paint.ops)) ? state.paint.ops : [];
@@ -3650,10 +3656,18 @@ function paintCuts(ops){
   }
   return [...cuts].filter(isFinite).sort((a,b)=>a-b).slice(0, 600);
 }
-const paintNeedsFine = ops => ops.some(o => ["brush","picture","noise","fill","photo"].includes(o.k));
+const paintNeedsFine = ops => ops.some(o => ["brush","picture","noise","fill","photo","area"].includes(o.k));
+// the brush wants small triangles before it paints (to show what it will paint): set while a brush-type
+// tool is used on the Paint tab, dropped when leaving it or opening another model with nothing painted
+let paintPrepared = false;
+function preparePaint(){
+  if (paintPrepared && modelParts.some(p => p.pc)) return false;
+  paintPrepared = true; applyPaint(true); refreshScene();
+  return true;
+}
 function paintEdgeFor(parts, ops){
   const d = state.paint.detail || "auto";
-  if (d === "auto" && !paintNeedsFine(ops)) return Infinity;
+  if (d === "auto" && !paintNeedsFine(ops) && !paintPrepared) return Infinity;
   let want = PAINT_DETAIL[d] || PAINT_DETAIL.normal, area = 0;
   parts.forEach(p => { const s = p.solid0 || p.solid, P = s.pos, I = s.idx;
     for (let i=0;i<I.length;i+=3){ const a=I[i]*3,b=I[i+1]*3,c=I[i+2]*3;
@@ -4028,6 +4042,13 @@ function runPaintOps(p, pc, ops, B){
       // the stroke, its copies round the middle and mirrored across it (x = 0), for figures, faces and vases
       for (const c of C.symmetryCopies(o.pts || [], o.facing || null, o.mirror, o.radial)) C.paintBrush(topo, pc.grid, paint, c.pts, o.r || 3, sl, c.facing, o.edge || 0);
     }
+    else if (o.k === "area"){
+      // a box or lasso drawn on the screen: which triangles it takes is kept with the refined mesh
+      const key = JSON.stringify([o.m, o.poly, o.through]); if (!pc.area) pc.area = new Map();
+      let tris = pc.area.get(key); if (!tris){ tris = C.areaTris(pc.solid, o.m, o.poly, o.through); pc.area.set(key, tris); if (pc.area.size > 40) pc.area.delete(pc.area.keys().next().value); }
+      const sl = o.slot === PAINT_LEAVE ? PAINT_LEAVE : S(o.slot);
+      for (const t of tris) paint[t] = sl;
+    }
     else if (o.k === "fill"){
       for (const c of C.symmetryCopies([o.p], null, false, o.radial)){ const t0 = nearestTri(pc, c.pts[0]); if (t0 >= 0) C.paintFill(topo, paint, t0, o.slot === PAINT_LEAVE ? PAINT_LEAVE : S(o.slot), o.same ? -1 : (o.angle ?? 30), p.slot); }
     }
@@ -4050,7 +4071,7 @@ function applyPaint(repaintOnly){
   const ops = paintOps(); paintRev++;
   const targets = paintTargets();
   modelParts.forEach(p => { if (!p.solid0) p.solid0 = p.solid; });
-  if (!ops.length && !modelParts.some(p => p.importPaint)){
+  if (!ops.length && !modelParts.some(p => p.importPaint) && !(paintPrepared && state.paint.on !== false)){
     let changed = false;
     modelParts.forEach(p => { if (p.paint){ p.solid = p.solid0; p.paint = null; if (p.geom && p.geom !== baseGeom) p.geom.dispose(); p.geom = solidToGeometry(p.solid); changed = true; } });
     paintInfo = { tris:0, painted:0, edge:0, capped:false, area:{} };
@@ -4135,7 +4156,7 @@ function paintControls(){
   controls.mouseButtons = on ? { LEFT:-1, MIDDLE:THREE.MOUSE.DOLLY, RIGHT:THREE.MOUSE.ROTATE } : { LEFT:THREE.MOUSE.ROTATE, MIDDLE:THREE.MOUSE.DOLLY, RIGHT:THREE.MOUSE.PAN };
   controls.touches = on ? { ONE:-1, TWO:THREE.TOUCH.DOLLY_PAN } : { ONE:THREE.TOUCH.ROTATE, TWO:THREE.TOUCH.DOLLY_PAN };
   renderer.domElement.style.cursor = on ? "crosshair" : "";
-  if (!on) brushRing.visible = false;
+  if (!on){ brushRing.visible = false; brushPreview.visible = false; }
 }
 function paintHit(e){
   const r = renderer.domElement.getBoundingClientRect();
@@ -4171,8 +4192,62 @@ function paintRecolour(h){
   notify(`Everything in ${state.slots[c].name} is now ${state.slots[to].name}. Undo (Ctrl+Z) brings it back.`);
   return true;
 }
+// what the brush would paint where the pointer is: those triangles lit up in the brush colour
+const brushPreview = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.55, depthWrite:false,
+  polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2, side:THREE.DoubleSide }));
+brushPreview.renderOrder = 7; brushPreview.visible = false;
+let previewCount = 0;
+function previewTris(h){
+  const p = h && modelParts[h.part];
+  if (!p || !p.pc || !p.paint || !paintTargets().includes(p)) return null;
+  if (!p.pc.grid) p.pc.grid = C.triangleGrid(p.pc.topo, Math.max(1, paintUI.r));
+  const set = new Set(), facing = paintUI.facing ? h.dir : null;
+  for (const c of C.symmetryCopies([h.p], facing, paintUI.mirror, paintUI.radial)) for (const t of C.brushTris(p.pc.topo, p.pc.grid, c.pts[0], paintUI.r, c.facing, paintUI.smart ? paintUI.edge : 0)) set.add(t);
+  return { part:p, tris:[...set] };
+}
+function showPreview(h){
+  if (h && !stroke && (paintUI.tool === "brush" || paintUI.tool === "erase") && !modelParts[h.part]?.pc && preparePaint()) return;   // shown from the next move
+  const r = !stroke && (paintUI.tool === "brush" || paintUI.tool === "erase") ? previewTris(h) : null;
+  previewCount = r ? r.tris.length : 0;
+  if (!r || !r.tris.length){ brushPreview.visible = false; return; }
+  const P = r.part.solid.pos, I = r.part.solid.idx, pos = new Float32Array(r.tris.length * 9);
+  r.tris.forEach((t, j) => { for (let k=0;k<3;k++){ const v = I[3*t+k]*3; pos[9*j+3*k] = P[v]; pos[9*j+3*k+1] = P[v+1]; pos[9*j+3*k+2] = P[v+2]; } });
+  brushPreview.geometry.dispose(); brushPreview.geometry = new THREE.BufferGeometry(); brushPreview.geometry.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  // the brush colour moved a third of the way to white (or, for a light colour, to black): it shows even
+  // over paint of the same colour
+  const col = new THREE.Color(paintUI.tool === "erase" ? "#ffffff" : (state.slots[paintUI.slot] || {}).hex || "#ffffff"), light = 0.2126*col.r + 0.7152*col.g + 0.0722*col.b;
+  brushPreview.material.color.copy(col).lerp(new THREE.Color(light > 0.6 ? 0x000000 : 0xffffff), 0.35);
+  const mesh = modelGroup.children.find(m => m.userData.part === h.part);
+  if (mesh && brushPreview.parent !== mesh) mesh.add(brushPreview);
+  brushPreview.visible = !!mesh;
+}
+// the box or lasso being drawn, over the view
+const areaSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+areaSvg.setAttribute("class", "areaSel"); areaSvg.setAttribute("aria-hidden", "true");
+areaSvg.innerHTML = `<path class="under"/><path class="over"/>`;
+view.appendChild(areaSvg);
+let areaDraw = null;
+function areaPath(){
+  const d = areaDraw ? "M" + areaDraw.pts.map(q => q.join(",")).join("L") + (areaDraw.pts.length > 2 ? "Z" : "") : "";
+  areaSvg.querySelectorAll("path").forEach(pa => pa.setAttribute("d", d));
+}
+function areaPoints(e){ const r = renderer.domElement.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top, r.width, r.height]; }
+// a finished outline: the screen matrix of the whole model and the outline in screen units (-1..1)
+function paintArea(polyNdc, through, rubOut){
+  if (!polyNdc || polyNdc.length < 3) return false;
+  camera.updateMatrixWorld(); modelGroup.updateMatrixWorld(true);
+  const M = new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse).multiply(modelGroup.matrixWorld);
+  if (!M.elements.every(v => isFinite(v))){ notify("The view is not ready yet: try again in a moment."); return false; }
+  if (state.paint.on === false) state.paint.on = true;
+  state.paint.ops.push({ k:"area", m:M.elements.map(v => +v.toPrecision(9)), poly:polyNdc.map(q => [+q[0].toFixed(5), +q[1].toFixed(5)]),
+    slot:rubOut ? PAINT_LEAVE : paintUI.slot, through:!!through });
+  if (!modelParts.some(p => p.pc) || !isFinite(paintInfo.edge)){ applyPaint(true); refreshScene(); }
+  repaint(true); pushHistory();
+  return true;
+}
 function showBrush(h){
-  if (!h || ["fill","pick","recolour"].includes(paintUI.tool)){ brushRing.visible = false; return; }
+  showPreview(h);
+  if (!h || ["fill","pick","recolour","area"].includes(paintUI.tool)){ brushRing.visible = false; return; }
   const sc = (state.model.scale||100)/100;
   brushRing.visible = true; brushRing.position.copy(h.world).addScaledVector(h.wn, 0.05);
   brushRing.lookAt(h.world.clone().add(h.wn)); brushRing.scale.setScalar(paintUI.r*sc);
@@ -4199,6 +4274,7 @@ renderer.domElement.addEventListener("pointerdown", e => {
   const h = paintHit(e); if (!h) return;
   e.preventDefault();
   if (paintUI.tool === "pick"){ paintPick(h); return; }
+  if (paintUI.tool === "area") return;                  // handled below: it may start off the model
   if (paintUI.tool === "recolour"){ paintRecolour(h); return; }
   if (state.paint.on === false){ state.paint.on = true; }
   const radial = paintUI.radial > 1 ? { radial:paintUI.radial } : {};
@@ -4218,9 +4294,31 @@ renderer.domElement.addEventListener("pointerdown", e => {
 });
 renderer.domElement.addEventListener("pointermove", e => {
   if (!painting()) return;
+  if (areaDraw){
+    const [x, y] = areaPoints(e);
+    if (paintUI.area === "box") areaDraw.pts = [areaDraw.pts[0], [x, areaDraw.pts[0][1]], [x, y], [areaDraw.pts[0][0], y]];
+    else { const l = areaDraw.pts[areaDraw.pts.length - 1]; if (Math.hypot(x - l[0], y - l[1]) > 4 && areaDraw.pts.length < 2000) areaDraw.pts.push([x, y]); }
+    areaPath(); return;
+  }
   const h = paintHit(e); showBrush(h);
   if (stroke && h) strokeAt(h);
 });
+// the area tool: press, drag a box or a loop, let go
+renderer.domElement.addEventListener("pointerdown", e => {
+  if (!painting() || e.button !== 0 || paintUI.tool !== "area") return;
+  e.preventDefault(); const [x, y] = areaPoints(e);
+  areaDraw = { pts:[[x, y]] }; areaPath();
+  try { renderer.domElement.setPointerCapture(e.pointerId); } catch(err){}
+});
+const endArea = e => {
+  if (!areaDraw) return;
+  const r = renderer.domElement.getBoundingClientRect(), pts = areaDraw.pts; areaDraw = null; areaPath();
+  const bw = Math.max(...pts.map(q => q[0])) - Math.min(...pts.map(q => q[0])), bh = Math.max(...pts.map(q => q[1])) - Math.min(...pts.map(q => q[1]));
+  if (pts.length < 3 || bw < 4 || bh < 4) return;
+  paintArea(pts.map(q => [q[0] / r.width * 2 - 1, -(q[1] / r.height * 2 - 1)]), paintUI.through, paintUI.rubOut);
+};
+renderer.domElement.addEventListener("pointerup", endArea);
+renderer.domElement.addEventListener("pointercancel", () => { areaDraw = null; areaPath(); });
 const endStroke = () => {
   if (!stroke) return;
   const op = stroke.op; stroke = null;
@@ -4229,7 +4327,7 @@ const endStroke = () => {
 };
 renderer.domElement.addEventListener("pointerup", endStroke);
 renderer.domElement.addEventListener("pointercancel", endStroke);
-renderer.domElement.addEventListener("pointerleave", () => { brushRing.visible = false; });
+renderer.domElement.addEventListener("pointerleave", () => { brushRing.visible = false; brushPreview.visible = false; });
 
 let timer = 0, busy = false, queued = false, buildRev = 0;
 function schedule(){ clearTimeout(timer); timer = setTimeout(()=>rebuildAll(false), 130); }
@@ -4380,10 +4478,12 @@ function printedParts(){
   const sc = (state.model.scale||100)/100, R = state.model.orient, M = modelMatrix(), t = printShift();
   c.list = modelParts.map(p => {
     const off = p.layout || [0,0,0];
+    // nothing painted (the model only split, ready for the brush): the original model, not the split one
+    const bare = !p.paint || p.paint.every(v => v === PAINT_LEAVE), solid = bare && p.solid0 ? p.solid0 : p.solid;
     let s;
-    if (!R){ s = C.transformSolid(p.solid, sc, off[0]*sc, off[1]*sc, off[2]*sc); if (state.model.mirror) s = C.mirrorSolid(s); }
-    else s = C.affineSolid(p.solid, M, [M[0]*off[0]+M[1]*off[1]+M[2]*off[2]+t[0], M[3]*off[0]+M[4]*off[1]+M[5]*off[2]+t[1], M[6]*off[0]+M[7]*off[1]+M[8]*off[2]+t[2]]);
-    return { name:p.name, slot:p.slot, pos:s.pos, idx:s.idx, paint:p.paint || null };
+    if (!R){ s = C.transformSolid(solid, sc, off[0]*sc, off[1]*sc, off[2]*sc); if (state.model.mirror) s = C.mirrorSolid(s); }
+    else s = C.affineSolid(solid, M, [M[0]*off[0]+M[1]*off[1]+M[2]*off[2]+t[0], M[3]*off[0]+M[4]*off[1]+M[5]*off[2]+t[1], M[6]*off[0]+M[7]*off[1]+M[8]*off[2]+t[2]]);
+    return { name:p.name, slot:p.slot, pos:s.pos, idx:s.idx, paint:bare ? null : p.paint };
   });
   c.key = key;
   return c.list;
@@ -4873,7 +4973,7 @@ function symbolField(parent, get, set){
 const TABS = [["make","Make","◈"],["art","Art","✦"],["colour","Colours","◉"],["paint","Paint","🖌"],["export","Export","↓"]];
 $("#tabs").innerHTML = TABS.map(([k,l,ico])=>`<button role="tab" data-k="${k}" aria-selected="${k===tab}"><span class="ico">${ico}</span>${l}</button>`).join("");
 const APP_VERSION = (document.getElementById("verBadge")||{}).textContent || "";
-$("#tabs").querySelectorAll("button").forEach(b=>b.onclick = ()=>{ tab = b.dataset.k; renderTab(); });
+$("#tabs").querySelectorAll("button").forEach(b=>b.onclick = ()=>{ tab = b.dataset.k; if (tab !== "paint" && !paintOps().length) paintPrepared = false; renderTab(); });
 // arrow keys walk the tabs and the page icons, like any list of tabs
 function arrowNav(box, sel, vertical){
   box.addEventListener("keydown", e => {
@@ -5075,6 +5175,7 @@ const OBJECT_GROUPS = [
 ];
 // paint belongs to one model: a new object or an imported file starts unpainted (Undo brings it back)
 function clearPaintForNewModel(){
+  paintPrepared = false;
   if (state.paint && state.paint.ops && state.paint.ops.length){ state.paint.ops = []; notify("The paint was left on the previous model. Undo brings it back."); }
 }
 function chooseObject(v){
@@ -6797,7 +6898,7 @@ const PAINT_METHODS = [
   ["swap","Swap a colour","Every part of the model in one colour changes to another. Quick recolouring after painting."]
 ];
 const PAINT_OP_NAME = { height:"Height bands", gradient:"Colour fade", swap:"Swap a colour", stripes:"Stripes", dir:"Tops and sides", shells:"Separate pieces", regions:"Smooth areas",
-  picture:"Picture", noise:"Random blobs", brush:"Brush stroke", fill:"Fill", photo:"From a photo" };
+  picture:"Picture", noise:"Random blobs", brush:"Brush stroke", fill:"Fill", photo:"From a photo", area:"Box or lasso" };
 function slotChoices(withKeep){ return [...(withKeep ? [["255","Keep as it is"]] : []), ...state.slots.map((s,i)=>[String(i), `${i+1}. ${s.name}`])]; }
 function paintModelHeight(){ const B = modelBoundsOf(modelParts); return isFinite(B.mx[1]) ? Math.max(1, B.mx[1] - Math.min(0, B.mn[1])) : 50; }
 function newPaintOp(k){
@@ -6822,6 +6923,7 @@ function paintOpText(o){
   if (o.k === "dir") return `tops ${nm(o.up)}, sides ${nm(o.side)}, undersides ${nm(o.down)}`;
   if (o.k === "brush") return `${o.slot === PAINT_LEAVE ? "eraser" : nm(o.slot)}, ${o.r} mm, ${o.pts.length} points${o.mirror ? ", mirrored" : ""}${o.radial > 1 ? `, ${o.radial} times round` : ""}${o.edge ? ", stops at sharp edges" : ""}`;
   if (o.k === "fill") return `${o.slot === PAINT_LEAVE ? "eraser" : nm(o.slot)}, ${o.same ? "same colour" : "smooth area"}${o.radial > 1 ? `, ${o.radial} times round` : ""}`;
+  if (o.k === "area") return `${o.slot === PAINT_LEAVE ? "rubbed out" : nm(o.slot)}, ${o.poly.length === 4 ? "a box" : "a lasso"}${o.through ? ", right through" : ", the side seen"}`;
   if (o.k === "picture") return `${(state.items[o.item]||{}).name || "missing artwork"}, from the ${o.dir}`;
   if (o.k === "photo") return `${o.views.length} photo${o.views.length === 1 ? "" : "s"}, ${o.pal.length} colours: ${[...new Set(o.slots.filter(s => s !== PAINT_LEAVE))].map(nm).join(", ")}`;
   return (o.slots||[]).map(nm).join(", ");
@@ -7120,14 +7222,20 @@ function tabPaint(p){
   else buttonRow(c2, [[`Paint it: ${m[1].toLowerCase()}`, ()=>{ const o = newPaintOp(paintUI.method); if (o){ ops.push(o); renderTab(); paintChanged(); } }]]);
 
   p.insertAdjacentHTML("beforeend", `<h2>Brush and fill</h2>`);
-  segField(p, [["view","✋ Turn view"],["brush","🖌 Brush"],["fill","🪣 Fill"],["erase","⌫ Eraser"],["pick","💧 Pick colour"],["recolour","🔁 Recolour"]], () => paintUI.tool,
+  segField(p, [["view","✋ Turn view"],["brush","🖌 Brush"],["fill","🪣 Fill"],["erase","⌫ Eraser"],["pick","💧 Pick colour"],["recolour","🔁 Recolour"],["area","⬚ Box or lasso"]], () => paintUI.tool,
     v => { if (v === "pick" || v === "recolour"){ if (paintUI.tool === "brush" || paintUI.tool === "fill") paintUI.lastTool = paintUI.tool; } paintUI.tool = v; paintControls(); renderTab(); }, "tools");
   note(p, paintUI.tool === "view" ? "Drag to turn the view. Pick the brush, fill or eraser to paint."
     : paintUI.tool === "fill" ? "Click the model to fill an area. Right-drag (or two fingers) turns the view."
     : paintUI.tool === "pick" ? "Click the model to take its colour for the brush (key I)."
     : paintUI.tool === "recolour" ? "Click a colour on the model: all of it changes to the brush colour below (key R). Undo brings it back."
+    : paintUI.tool === "area" ? "Drag a box, or draw a loop, over the model: everything inside is painted (key A). Right-drag turns the view."
     : "Drag on the model to paint. Right-drag turns the view, the wheel zooms. [ and ] change the brush size.");
   paletteRow(p);
+  if (paintUI.tool === "area"){
+    segField(p, [["box","▭ Box"],["lasso","◌ Lasso"]], () => paintUI.area, v => { paintUI.area = v; renderTab(); }, "two");
+    checkField(p, "Paint right through (the far side too)", () => paintUI.through, v => { paintUI.through = v; });
+    checkField(p, "Rub out instead (back to the part's own colour)", () => paintUI.rubOut, v => { paintUI.rubOut = v; });
+  }
   numField(p,{ label:"Brush size (mm)", min:0.5, max:30, step:0.5, get:()=>paintUI.r, set:v=>paintUI.r=v, onChange:()=>{} });
   checkField(p, "Only paint the side facing me", () => paintUI.facing, v => { paintUI.facing = v; });
   checkField(p, "Mirror my strokes to the other side (left and right)", () => paintUI.mirror, v => { paintUI.mirror = v; });
@@ -7167,8 +7275,8 @@ window.addEventListener("keydown", e => {
   const t = e.target; if (t && (t.matches("input,textarea,select") || t.isContentEditable)) return;
   if (/^[1-8]$/.test(e.key) && +e.key <= state.slots.length){ paintUI.slot = +e.key - 1; if (paintUI.tool === "erase" || paintUI.tool === "view") paintUI.tool = "brush"; paintControls(); renderTab(); e.preventDefault(); }
   else if (e.key === "[" || e.key === "]"){ paintUI.r = clamp(paintUI.r + (e.key === "]" ? 0.5 : -0.5), 0.5, 30); renderTab(); e.preventDefault(); }
-  else if ({ b:"brush", f:"fill", e:"erase", v:"view", i:"pick", r:"recolour" }[e.key.toLowerCase()]){
-    const t = { b:"brush", f:"fill", e:"erase", v:"view", i:"pick", r:"recolour" }[e.key.toLowerCase()];
+  else if ({ b:"brush", f:"fill", e:"erase", v:"view", i:"pick", r:"recolour", a:"area" }[e.key.toLowerCase()]){
+    const t = { b:"brush", f:"fill", e:"erase", v:"view", i:"pick", r:"recolour", a:"area" }[e.key.toLowerCase()];
     if ((t === "pick" || t === "recolour") && (paintUI.tool === "brush" || paintUI.tool === "fill")) paintUI.lastTool = paintUI.tool;
     paintUI.tool = t; paintControls(); renderTab(); e.preventDefault(); }
 });
@@ -7529,6 +7637,10 @@ function cleanPaint(P0){
         const radial = Math.round(num(o.radial, 1, 12, 1)), edge = num(o.edge, 0, 89, 0);
         return pts.length ? Object.assign({ k:"brush", slot:slotOrKeep(o.slot), r:num(o.r, 0.2, 50, 3), facing:v3(o.facing), pts, mirror:o.mirror === true },
           radial > 1 ? { radial } : {}, edge > 0 ? { edge } : {}) : null; }
+      case "area": {
+        const m = Array.isArray(o.m) && o.m.length === 16 && o.m.every(x => typeof x === "number" && isFinite(x)) ? o.m.map(x => Math.min(1e6, Math.max(-1e6, x))) : null;
+        const poly = (Array.isArray(o.poly) ? o.poly : []).slice(0, 2000).filter(q => Array.isArray(q) && q.length === 2 && q.every(x => typeof x === "number" && isFinite(x))).map(q => q.map(x => Math.min(10, Math.max(-10, x))));
+        return m && poly.length >= 3 ? { k:"area", m, poly, slot:slotOrKeep(o.slot), through:o.through === true } : null; }
       case "fill": { const pt = v3(o.p), radial = Math.round(num(o.radial, 1, 12, 1));
         return pt ? Object.assign({ k:"fill", p:pt, slot:slotOrKeep(o.slot), same:o.same === true, angle:num(o.angle, 1, 89, 30) }, radial > 1 ? { radial } : {}) : null; }
       case "photo": {
@@ -7997,7 +8109,7 @@ window.MakerForge = {
   printNow: runPrintability, optimize: optimizePrint, revertOptimize, exportParts,
   // the painter, for the tests: its tool settings, a repaint now, the last result, a model import and the zip
   paint: { ui: paintUI, repaint: () => repaint(true), changed: paintChanged, get info(){ return paintInfo; }, importModel: importModelFile, buildZip,
-    hit: paintHit, pick: paintPick, recolour: paintRecolour, colourAt, get prefs(){ return prefs; }, applyPrefs, findDefault, cleanPaint,
+    hit: paintHit, pick: paintPick, recolour: paintRecolour, colourAt, area: paintArea, previewTris, prepare: preparePaint, get previewCount(){ return previewCount; }, get prefs(){ return prefs; }, applyPrefs, findDefault, cleanPaint,
     photo: { ai: { hooks: aiHooks, find: aiFindFigures, config: AI_FIGURE, state: aiState, sha256: sha256Hex, get: aiGet, mapOf: aiMapOf },
       add: addPaintPhotos, fit: photoFitView, colours: photoPickColours, setFilaments: photoSetFilaments, nearest: photoNearestFilaments, get op(){ return photoOpOf(); }, info: o => photoInfo.get(o), labels: photoLabels, colourWord } },
   phone: { spec: phoneSpec, get info(){ return phoneInfo; }, list: PHONES },

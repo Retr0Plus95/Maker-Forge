@@ -152,7 +152,20 @@ console.log("\npainter tools (Session 18): the smart brush and strokes repeated 
   const p = new Uint8Array(topo.n).fill(255);
   for (const c of C.symmetryCopies([[10, 10, 0]], null, false, 4)) C.paintBrush(topo, g, p, c.pts, 3, 2, c.facing, 0);
   const side = [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]].map(n => { let a = 0; for (let t = 0; t < topo.n; t++) if (p[t] === 2 && topo.nrm[3 * t] * n[0] + topo.nrm[3 * t + 2] * n[2] > 0.9) a += topo.area[t]; return a; });
-  check(side.every(a => a > 0 && Math.abs(a - side[0]) < side[0] * 0.05), "a dab repeated four times round a cube paints the four sides alike", side.map(a => a.toFixed(1)).join(" / ")); }
+  check(side.every(a => a > 0 && Math.abs(a - side[0]) < side[0] * 0.05), "a dab repeated four times round a cube paints the four sides alike", side.map(a => a.toFixed(1)).join(" / "));
+  // a box drawn over the left half of the screen, the camera 100 mm in front of the cube (three.js matrices)
+  const f = 1 / Math.tan(15 * Math.PI / 180), Pm = [f, 0, 0, 0, 0, f, 0, 0, 0, 0, -501 / 499, -1, 0, 0, -1000 / 499, 0];
+  const mul = (A, B) => { const r = new Array(16).fill(0); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) for (let k = 0; k < 4; k++) r[j * 4 + i] += A[k * 4 + i] * B[j * 4 + k]; return r; };
+  const M = mul(Pm, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, -10, -100, 1]), left = [[-1, -1], [0, -1], [0, 1], [-1, 1]];
+  const faces = ts => { const c = {}; for (const t of ts) { const k = [0, 1, 2].map(i => Math.round(topo.nrm[3 * t + i])).join(","); c[k] = (c[k] || 0) + 1; } return c; };
+  const seen = C.areaTris(s, M, left, false), thru = C.areaTris(s, M, left, true), fs = faces(seen);
+  let half = 0, frontArea = 0; for (const t of seen) { frontArea += topo.area[t]; if (topo.cen[3 * t] > 0.5) half++; }
+  check(Object.keys(fs).join() === "0,0,1" && half === 0 && Math.abs(frontArea - 200) < 20, "a box over the left half of the screen: the left half of the front face, nothing behind or beside it",
+    `${seen.length} triangles, ${frontArea.toFixed(0)} of 200 mm²`);
+  check(thru.length > seen.length && faces(thru)["0,0,-1"] > 0, "painting right through takes the back as well", `${thru.length} triangles`);
+  const lasso = C.areaTris(s, M, [[-0.1, -0.1], [0.1, -0.1], [0, 0.12]], false);
+  check(lasso.length > 0 && lasso.length < seen.length / 4, "a small lasso takes a small patch", lasso.length);
+  check(C.areaTris(s, M.map(() => NaN), left, false).length === 0 && C.areaTris(s, M, [[5, 5], [6, 5], [6, 6]], false).length === 0, "a broken matrix or an outline off the screen paints nothing"); }
 
 if (process.env.CORE) { console.log(fails ? `\n${fails} FAILED` : "\nall passed"); process.exit(fails ? 1 : 0); }
 
@@ -225,6 +238,7 @@ async function settle() {
   st().paint.ops.push({ k: "fill", p: [0, 0, 0], slot: 2, same: false, angle: 30 }); MF.paint.repaint(); await settle();
   check((painted()[2] || 0) > 0, "a fill from the base paints the base", painted()[2]);
   // Session 18: strokes repeated round the middle, the eyedropper and recolour
+  const opsBefore = JSON.parse(JSON.stringify(st().paint.ops));
   st().paint.ops = [{ k: "brush", slot: 3, r: 4, facing: null, pts: [[20, 45, 33.5]] }]; MF.paint.repaint(); await settle();
   const once = painted()[3] || 0; st().paint.ops[0].radial = 4; MF.paint.repaint(); await settle();
   check(once > 0 && painted()[3] > once * 3.2 && painted()[3] < once * 4.8, "a stroke repeated four times round the vase paints about four times as much", `${once} → ${painted()[3]}`);
@@ -240,6 +254,30 @@ async function settle() {
   check(!MF.paint.recolour({ part: 0, face: Array.from(MF.parts[0].paint).indexOf(1) }) && st().paint.ops.length === nOps + 1, "recolouring a colour into itself adds nothing");
   st().paint.ops = [{ k: "fill", p: [0, 0, 0], slot: 2, same: false, angle: 30, radial: 3 }]; MF.paint.repaint(); await settle();
   check((painted()[2] || 0) > 0, "a fill repeated round the middle replays", painted()[2]);
+  // the brush preview shows exactly what the stroke then paints
+  st().paint.ops = [{ k: "brush", slot: 3, r: 5, facing: null, pts: [[0, 90, 0]] }]; MF.paint.repaint(); await settle();   // refined
+  st().paint.ops = []; MF.paint.repaint(); await settle();
+  check(MF.parts[0].solid === MF.parts[0].solid0, "with nothing painted the model is its plain self again");
+  check(MF.paint.prepare() && MF.parts[0].pc && MF.parts[0].solid !== MF.parts[0].solid0 && !MF.paint.prepare(), "hovering with the brush splits the model once, ready to show what the brush will paint");
+  Object.assign(MF.paint.ui, { tool: "brush", r: 4, facing: false, mirror: false, radial: 3, smart: false, slot: 3 });
+  const pv = MF.paint.previewTris({ part: 0, p: [20, 45, 33.5], dir: [0, 0, -1] });
+  st().paint.ops = [{ k: "brush", slot: 3, r: 4, facing: null, pts: [[20, 45, 33.5]], radial: 3 }]; MF.paint.repaint(); await settle();
+  check(pv && pv.tris.length > 0 && pv.tris.length === painted()[3], "the brush preview lights up exactly the triangles the stroke paints (three times round here)", `${pv && pv.tris.length} and ${painted()[3]}`);
+  Object.assign(MF.paint.ui, { radial: 1, facing: true });
+  // a box over the whole view: the side seen, then right through
+  st().paint.ops = []; MF.paint.repaint(); await settle();
+  const all = [[-1, -1], [1, -1], [1, 1], [-1, 1]], cam = MF.camera;
+  cam.aspect = 1; cam.updateProjectionMatrix();                     // the test page has no size of its own
+  check(MF.paint.area(all, false, false) && st().paint.ops[0].k === "area" && st().paint.ops[0].m.length === 16, "the box tool adds a step with the view's matrix and the outline");
+  await settle(); const sideSeen = painted()[3] || 0;
+  st().paint.ops = []; MF.paint.area(all, true, false); await settle(); const through = painted()[3] || 0;
+  check(sideSeen > 0 && through > sideSeen * 1.5, "a box paints the side you see; right through, the back too", `${sideSeen} → ${through} triangles`);
+  MF.paint.area(all, true, true); await settle();
+  check(!painted()[3], "and rubbing out with a box puts the part's own colour back");
+  cam.aspect = NaN; cam.updateProjectionMatrix(); const nBox = st().paint.ops.length;
+  check(!MF.paint.area(all, false, false) && st().paint.ops.length === nBox, "a view that is not ready adds nothing");
+  cam.aspect = 1; cam.updateProjectionMatrix();
+  st().paint.ops = opsBefore; MF.paint.repaint(); await settle();
   // paint detail
   st().paint.detail = "coarse"; MF.paint.repaint(); await settle(); const coarse = MF.paint.info.tris;
   st().paint.detail = "fine"; MF.paint.repaint(); await settle(); const fine = MF.paint.info.tris;
@@ -251,7 +289,11 @@ async function settle() {
   check(MF.parts.every(p => !p.paint) && offWarn && offWarn.k === "warn", "“Use the paint” off: the plain model, and the checks say the paint is left out", offWarn && offWarn.s);
   st().paint.on = true; st().paint.ops = []; MF.paint.repaint(); await settle();
   check(!MF.checks.list.some(r => /paint is switched off/.test(r.t)), "no warning once the paint is on (or gone)");
-  check(MF.parts.every(p => !p.paint) && C.checkMesh(MF.parts[0].solid).tris === 41216, "no paint: the original mesh again", C.checkMesh(MF.parts[0].solid).tris);
+  check(MF.exportParts().reduce((n, q) => n + q.idx.length / 3, 0) === 41216 && MF.exportParts().every(q => !q.paint), "no paint, still on the Paint tab (split for the brush): the files have the original mesh",
+    MF.exportParts().reduce((n, q) => n + q.idx.length / 3, 0));
+  toTab("make"); await sleep(30); MF.paint.repaint(); await settle();
+  check(MF.parts.every(p => !p.paint) && C.checkMesh(MF.parts[0].solid).tris === 41216, "no paint, off the Paint tab: the original mesh again", C.checkMesh(MF.parts[0].solid).tris);
+  toTab("paint"); await sleep(30);
 
   console.log("\nimporting a model");
   const objText = "v -10 -10 0\nv 10 -10 0\nv 10 10 0\nv -10 10 0\nv -10 -10 20\nv 10 -10 20\nv 10 10 20\nv -10 10 20\n" +
@@ -331,6 +373,10 @@ async function settle() {
     { k: "fill", p: [0, 0, 0], slot: 1, radial: 6.4 }, { k: "brush", slot: 1, r: 3, pts: [[0, 0, 0]], radial: 6, edge: 30, mirror: true }] }).ops;
   check(h18[0].radial === 12 && h18[0].edge === 89 && !("radial" in h18[1]) && !("edge" in h18[1]) && h18[2].radial === 6 && h18[3].radial === 6 && h18[3].edge === 30,
     "repeats round the middle at most 12, the smart brush's edge 0 to 89; ordinary strokes keep no extra settings", JSON.stringify(h18.map(o => [o.radial, o.edge])));
+  const hA = MF.paint.cleanPaint({ ops: [{ k: "area", m: Array(16).fill(1e9), poly: [[0, 0], [1e9, "x"], [1, 0], [1, 1]].concat(Array(3000).fill([0.5, 0.5])), slot: 99, through: "yes" },
+    { k: "area", m: Array(15).fill(1), poly: [[0, 0], [1, 0], [1, 1]] }, { k: "area", m: Array(16).fill(1), poly: [[0, 0], [1, 1]] }, { k: "area", m: Array(16).fill(NaN), poly: [[0, 0], [1, 0], [1, 1]] }] }).ops;
+  check(hA.length === 1 && hA[0].m.every(v => v === 1e6) && hA[0].poly.length === 1999 && hA[0].poly.every(q => q.every(v => Math.abs(v) <= 10)) && hA[0].slot === 255 && hA[0].through === false,
+    "a box or lasso: a matrix of 16 finite numbers, at most 2000 outline points, clamped; broken ones dropped", `${hA.length} kept, ${hA[0] && hA[0].poly.length} points`);
   const load = async state => {
     const f = new win.File([JSON.stringify({ app: "Maker Forge", v: 4, state })], "p.json", { type: "application/json" });
     const inp = document.querySelector("#projInput"); Object.defineProperty(inp, "files", { value: [f], configurable: true }); inp.dispatchEvent(new win.Event("change"));

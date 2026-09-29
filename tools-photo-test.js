@@ -340,6 +340,23 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
     $$("#panel button").find(x => /Clear my fixes/.test(x.textContent)).click(); await sleep(900); await settle();
     check(afterUndo === fixN - 1 && !MF.paint.photo.op.views[0].fix && !$$("#panel button").some(x => /Clear my fixes/.test(x.textContent)),
       "Undo the last fix takes one stroke off; Clear my fixes takes them all", `${fixN} → ${afterUndo} → 0`);
+    // while a stroke grows the preview draws only its new part: frame by frame it must match drawing every fix afresh
+    {
+      await pass(/Take away/, 0.03, 0, 0.05, dOut);                          // some strokes to draw on top of
+      await sleep(900); await settle(); tool(/Take away/).click(); await sleep(120);
+      cv = document.querySelector("canvas.photoPrev"); cv.getBoundingClientRect = () => ({ left: 0, top: 0, width: cv.width, height: cv.height, right: cv.width, bottom: cv.height });
+      ev("pointerdown", 0.05, 0.3); await sleep(40);
+      for (let i = 1; i <= 8; i++) { ev("pointermove", 0.05 + i * 0.03, 0.3 + (i % 2) * 0.02); await sleep(40); }
+      ev("pointerup", 0.3, 0.3); await sleep(80);
+      cv.dispatchEvent(new win.PointerEvent("pointerleave", { pointerId: 1 })); await sleep(40);   // the brush ring goes with the pointer
+      const grab = c => Array.from(c.getContext("2d").getImageData(0, 0, c.width, c.height).data);
+      const inc = grab(cv), n = MF.paint.photo.op.views[0].fix.length;
+      tool(/Take away/).click(); await sleep(120);                          // a new card: its preview draws every fix afresh
+      const fresh = grab(document.querySelector("canvas.photoPrev"));
+      let diff = 0; for (let i = 0; i < inc.length; i += 4) if (inc[i] !== fresh[i] || inc[i + 1] !== fresh[i + 1] || inc[i + 2] !== fresh[i + 2]) diff++;
+      check(diff === 0 && n > 1 && inc.length === fresh.length, "a stroke drawn a bit at a time looks exactly like all the fixes drawn afresh", `${n} strokes, ${diff} pixels differ`);
+      $$("#panel button").find(x => /Clear my fixes/.test(x.textContent)).click(); await sleep(900); await settle();
+    }
     tool(/Move the photo/).click(); await sleep(60);
   }
 

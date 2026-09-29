@@ -75,6 +75,7 @@ tests accept `CORE=1` for the fast geometry-only part.
 - UI text is plain and friendly, written for makers rather than engineers.
 - Bump `version` in `package.json` for each release and add a "Session N" section to `HANDOFF.md`
   describing what changed, what was tested and anything left unfinished.
+- Open a new pull request for every version release (the owner asked for this in Session 20).
 - Updating ONNX Runtime Web or the model means new SHA-256 values in `AI_FIGURE` (`src/app.html`) and in `models/LICENSE.md`.
 - Tests run headlessly only; say clearly when something still needs checking in a real browser,
   slicer or on a real print.

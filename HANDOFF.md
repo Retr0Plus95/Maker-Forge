@@ -700,6 +700,7 @@ Asked for: "Add the AI now", then "Do all the AI sections first" (the roadmap's 
   - The view choice gains **Figure it found**, which darkens the background to navy. The outline and the figure-as-found are cached per canvas (`photoPrevCache`), so a stroke redraws quickly.
   - **What dragging on the photo does**: Move the photo, Add to the figure, or Take away. The brush size runs from 0.5 to 20% of the photo's height, with a ring cursor (`drawPhotoRing`).
   - **Undo the last fix** and **Clear my fixes**.
+  - While a stroke grows, the preview keeps its fix map (`pc.fixMap`, `pc.fixDone`) and draws only the new part on top (`photoFixMap(…, out)`), so a frame costs the same after hundreds of strokes. An undo or a new card draws afresh; the test checks the two match pixel for pixel.
   - The pointer is mapped through the preview's letterbox (`object-fit: contain`). Strokes redraw once a frame, and the colours are read again 0.6 s after the brush rests. The fixes do not move the line-up by themselves: **Line it up again** does.
 - `cleanPhotoFix`: at most 2000 strokes and 100 000 numbers, points clamped to the photo, r between 0.002 and 0.25, `add` a boolean.
 - Tested in `tools-photo-test.js` (section 7b2). On the bookshelf photo without the AI, pointer strokes (big ones across the background, then a 1% and a 0.5% brush near the edges; 446 strokes) took the figure from 45% to 91% like the true one. Line it up again then gave: size off 0.6%, place off 0.59%, and 81.9% of the surface right instead of 53.6%, about what the AI gets. Also tested: the round trip, undo and clear, and hostile fixes.
@@ -732,7 +733,7 @@ The angle search from the front can still miss a 20° turn on a close-up (the ex
 **Verified**:
 - `test:aimodel`, `test:photo` (with the real network in Node), `test:paint`, `test:project`, and the smoke test.
 - In Chromium (`tools-browser-check.js`, new this session): a mouse stroke with Take away lands where it was aimed (through the letterbox); the AI cut-out runs in the browser on the bookshelf photo; a GLB with a PNG picture (decoded by the browser, not the test stub) opens in its six colours at 102 mm.
-- New README screenshots: `docs/images/model-colours.jpg` and `docs/images/photo-fix.jpg` (`tools-screenshots.js` scenes `modelcolours` and `photofix`).
+- New README screenshots: `docs/images/model-colours.jpg` and `docs/images/photo-fix.jpg` (`tools-screenshots.js` scenes `modelcolours` and `photofix`). The `photofix` scene sends the test's 446 strokes as pointer events inside the page (3 minutes). Sending them as separate Playwright mouse moves, about 26 000, went past 50 minutes in software-rendered Chromium, and the cause was not pinned down; the browser check covers a real mouse stroke.
 
 **Not checked**: real AI-made models from Meshy, Tripo or Rodin (only models written by the test); KTX2 or Basis pictures (refused); the cut-out on real photos; the hand-fix brush on a touch screen; any print.
 

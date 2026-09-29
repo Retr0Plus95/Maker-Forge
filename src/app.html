@@ -7357,7 +7357,22 @@ function drawPhotoPreview(cv, o, v){
   if (show === "figure"){
     const k = [v.asset, v.ai || "", v.tol, W, H].join();
     if (pc.figKey !== k){ pc.fig = photoFound(v, px); pc.figKey = k; }
-    const fig = v.fix && v.fix.length ? C.photoFixMask(pc.fig, W, H, v.fix) : pc.fig;
+    let fig = pc.fig; const f = v.fix || [];
+    if (f.length){
+      // the hand fixes, kept between drawings: while a stroke grows only its new part is drawn on top.
+      // Only the last stroke drawn can grow and new ones come after it; anything else (an undo) draws afresh.
+      const done = pc.fixDone || [];
+      let ok = pc.fixMap && pc.fixSize === W + "x" + H && pc.fixList === f && done.length <= f.length;
+      for (let i = 0; ok && i < done.length; i++) if (done[i][0] !== f[i] || (i < done.length - 1 && done[i][1] !== f[i].p.length)) ok = false;
+      if (!ok){ pc.fixMap = new Uint8Array(W*H); pc.fixDone = []; pc.fixList = f; pc.fixSize = W + "x" + H; }
+      for (let i = Math.max(0, pc.fixDone.length - 1); i < f.length; i++){
+        const q = f[i], from = pc.fixDone[i] ? pc.fixDone[i][1] : 0;
+        if (from < q.p.length) C.photoFixMap([{ add:q.add, r:q.r, p:q.p.slice(Math.max(0, from - 2)) }], W, H, pc.fixMap);
+        pc.fixDone[i] = [q, q.p.length];
+      }
+      const fm = pc.fixMap; fig = new Uint8Array(pc.fig);
+      for (let i=0;i<W*H;i++) if (fm[i]) fig[i] = fm[i] === 1 ? 1 : 0;
+    }
     for (let i=0;i<W*H;i++) if (!fig[i]){ d[4*i] = d[4*i]*0.2 + 14; d[4*i+1] = d[4*i+1]*0.2 + 26; d[4*i+2] = d[4*i+2]*0.2 + 60; }
   }
   if (v.fit && model){

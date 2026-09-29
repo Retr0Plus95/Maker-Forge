@@ -3171,8 +3171,9 @@
   // fit the photo at any size. Returns 0 (as found), 1 (figure) or 2 (background) for every pixel.
   // Real strokes cost a few times the photo's pixels; a file of huge brushes flung across the photo would cost
   // far more, so the work stops at 60 times the photo's pixels (the same strokes at any size of the photo).
-  function photoFixMap(fix, W, H) {
-    const out = new Uint8Array(W * H); let budget = 60 * W * H;
+  // out: a map to draw on top of (the preview keeps one while a stroke grows)
+  function photoFixMap(fix, W, H, out) {
+    out = out || new Uint8Array(W * H); let budget = 60 * W * H;
     for (const s of fix || []) {
       const p = s && s.p; if (!p || p.length < 2) continue;
       const val = s.add ? 1 : 2, r = Math.max(0.5, (+s.r || 0) * H), r2 = r * r;

@@ -478,6 +478,9 @@ function pageCoverage() {
     // ---------- Session 20: the figure fixed by hand, with a real mouse ----------
     let fixR = null;
     {
+      // back to the photo card (the layers page is showing), then the Take away brush
+      await page.evaluate(() => { const b = [...document.querySelectorAll("#secrail button")].find(b => b.dataset.title === "Auto colour"); if (b) b.click(); });
+      await page.waitForTimeout(300);
       await page.evaluate(() => { const b = [...document.querySelectorAll("#panel .seg.tool button")].find(b => /Take away/.test(b.textContent)); if (b) b.click(); });
       await page.waitForTimeout(300);
       await page.evaluate(() => document.querySelector("canvas.photoPrev") && document.querySelector("canvas.photoPrev").scrollIntoView({ block: "center" }));
@@ -535,7 +538,7 @@ function pageCoverage() {
       const mc = await page.evaluate(() => { const MF = window.MakerForge, o = MF.state.paint.ops.find(o => o.k === "model"), p = MF.parts[0], c = MF.model.colour;
         const box = p && PRCore.solidBounds(p.solid);
         return { op: !!o, pal: o ? o.pal.map(q => PRCore.rgbToHex(...q.rgb)) : [], tex: c && c.tex ? c.tex.length : 0, painted: p && p.paint ? p.paint.filter(s => s !== 255).length / p.paint.length : 0,
-          slots: MF.state.slots.map(s => s.name).join(", "), tall: box ? +(box.mx[2] - box.mn[2]).toFixed(1) : 0 }; });
+          slots: MF.state.slots.map(s => s.name).join(", "), tall: box ? +(box.mx[1] - box.mn[1]).toFixed(1) : 0 }; });   // parts are Y up inside the app
       await shot(page, "paint-model-colours", "Paint tab: a GLB with a colour picture, as AI model makers give, opened in its own colours");
       const nearPal = Object.values(F.PAL).map(rgb => Math.min(...mc.pal.map(h => { const q = PC.hexToRgb(h); return Math.hypot(q[0] - rgb[0], q[1] - rgb[1], q[2] - rgb[2]); })));
       if (!(mc.op && mc.tex === 1 && mc.pal.length === 6 && nearPal.every(d => d < 12) && mc.painted > 0.999 && Math.abs(mc.tall - 102) < 1)) findings.push({ where: "model with its own colours", what: JSON.stringify(mc) });

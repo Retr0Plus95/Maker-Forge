@@ -77,10 +77,10 @@ const figureKit = () => { globalThis.earcut = globalThis.earcut || require("earc
       await page.evaluate(() => { const MF = window.MakerForge; MF.state.items.length = 0; MF.state.active = -1; MF.state.printer.colors = 6; document.querySelector("#objectSel").value = "stl"; });
       await page.setInputFiles("#stlInput", f);
       await page.waitForFunction(() => window.MakerForge.model.colour && window.MakerForge.state.paint.ops.some(o => o.k === "model"), null, { timeout: 180000 });
-      await idle(page); await tab(page, "paint"); await idle(page);
+      await idle(page); await tab(page, "paint"); await page.evaluate(() => { const b = document.querySelector('#secrail button[data-title="Auto colour"]'); if (b) b.click(); }); await idle(page);
       await shot(page, path.join(IMAGES, "model-colours.jpg")); fs.unlinkSync(f); await ctx.close();
     },
-    // Session 20: a photo on a bookshelf, the figure fixed by hand with mouse strokes, then lined up again
+    // Session 20: a photo on a bookshelf, the figure fixed by hand with brush strokes, then lined up again
     async photofix() {
       const { F, PC } = figureKit(), fig = F.figure(), topo = PC.meshTopology(fig.solid), cls = F.truth(topo, fig.partOf), W = 600, H = 800;
       const shelf = F.onShelfBackground(F.render(fig.solid, topo, cls, "front", { a: 6.3 / H, tx: 310 / H, ty: 760 / H, rot: 0.04, mirror: false }, W, H, 1), W, H, 11);
@@ -102,18 +102,29 @@ const figureKit = () => { globalThis.earcut = globalThis.earcut || require("earc
       await page.setInputFiles("#photoInput", fPhoto);
       await page.waitForFunction(() => { const o = window.MakerForge.paint.photo.op; return o && o.views.length === 1 && window.MakerForge.paint.photo.info(o); }, null, { timeout: 240000 });
       await idle(page);
+      // the photo card is on the Auto colour page (the Paint tab opens on the brush)
+      await page.evaluate(() => { const b = document.querySelector('#secrail button[data-title="Auto colour"]'); if (b) b.click(); }); await page.waitForTimeout(300);
       const pass = async (re, r, gap, step, far) => {
         await page.evaluate(([src, r]) => { window.MakerForge.paint.ui.photoFixR = r * 100; const b = [...document.querySelectorAll("#panel .seg.tool button")].find(b => new RegExp(src).test(b.textContent)); b.click(); }, [re, r]);
         await page.waitForTimeout(300);
         await page.evaluate(() => document.querySelector("canvas.photoPrev").scrollIntoView({ block: "center" }));
-        const b = await page.evaluate(() => { const c = document.querySelector("canvas.photoPrev"), q = c.getBoundingClientRect(), k = Math.min(q.width / c.width, q.height / c.height);
-          return { x: q.left + (q.width - c.width * k) / 2, y: q.top + (q.height - c.height * k) / 2, w: c.width * k, h: c.height * k }; });
-        for (let fy = step / 2; fy < 1; fy += step) { let on = false;
-          for (let fx = 0; fx <= 1.0001; fx += 0.02) { const i = Math.min(H - 1, Math.round(fy * H)) * W + Math.min(W - 1, Math.round(fx * W)), ok = far[i] > (r + gap) * H;
-            if (ok) { await page.mouse.move(b.x + fx * b.w, b.y + fy * b.h); if (!on) { await page.mouse.down(); on = true; } } else if (on) { await page.mouse.up(); on = false; } }
-          if (on) await page.mouse.up(); }
+        // the strokes as the test paints them, sent as pointer events inside the page (thousands of separate mouse
+        // moves take most of an hour in software-rendered Chromium; tools-browser-check.js checks a real mouse stroke)
+        const strokes = [];
+        for (let fy = step / 2; fy < 1; fy += step) { let cur = null;
+          for (let fx = 0; fx <= 1.0001; fx += 0.01) { const i = Math.min(H - 1, Math.round(fy * H)) * W + Math.min(W - 1, Math.round(fx * W)), ok = far[i] > (r + gap) * H;
+            if (ok) { if (!cur) strokes.push(cur = []); cur.push([fx, fy]); } else cur = null; } }
+        await page.evaluate(async strokes => {
+          const c = document.querySelector("canvas.photoPrev"), q = c.getBoundingClientRect(), k = Math.min(q.width / c.width, q.height / c.height);
+          const x0 = q.left + (q.width - c.width * k) / 2, y0 = q.top + (q.height - c.height * k) / 2, w = c.width * k, h = c.height * k;
+          const ev = (type, [fx, fy]) => c.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 1, pointerType: "mouse", clientX: x0 + fx * w, clientY: y0 + fy * h }));
+          for (const st of strokes) { ev("pointerdown", st[0]); for (const pt of st.slice(1)) ev("pointermove", pt); ev("pointerup", st[st.length - 1]); await new Promise(r => requestAnimationFrame(r)); }
+        }, strokes);
       };
-      await pass("Take away", 0.04, 0.015, 0.05, dOut); await pass("Add to the figure", 0.02, 0.01, 0.025, dIn);
+      // big strokes first, then a small brush near the edges (as tools-photo-test.js does)
+      await pass("Take away", 0.04, 0.015, 0.05, dOut); await pass("Take away", 0.01, 0.005, 0.01, dOut);
+      await pass("Add to the figure", 0.02, 0.01, 0.025, dIn); await pass("Add to the figure", 0.005, 0.003, 0.006, dIn);
+      const nFix = await page.evaluate(() => (window.MakerForge.paint.photo.op.views[0].fix || []).length); console.log(`  ${nFix} strokes painted on the photo`);
       await page.waitForTimeout(1200); await idle(page);
       await page.evaluate(() => [...document.querySelectorAll("#panel button")].find(b => /Line it up again/.test(b.textContent)).click());
       await page.waitForTimeout(500); await idle(page);

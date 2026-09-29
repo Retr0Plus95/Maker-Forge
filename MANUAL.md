@@ -235,7 +235,11 @@ The buttons above the model:
 | ✂ Section | Cuts the model open at a height, to look inside |
 | ◎ Save a picture | Downloads a PNG of the view |
 
+On a narrow screen the seven view buttons fold into one, **◱▾**, which opens them.
+
 The **Explode** slider pulls a model with several parts apart.
+
+The view is only drawn again when something changes, so an open Maker Forge left alone does not keep your computer's or phone's graphics busy. Clicking or brushing on a big model is quick however many triangles it has, and the printability check works in the background while you carry on.
 
 ## 9. Saving, opening and sharing
 

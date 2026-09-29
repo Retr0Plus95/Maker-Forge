@@ -25,6 +25,9 @@ const LIBS = [
 const ONLY = process.env.ONLY ? process.env.ONLY.split(",") : null;
 const MANUAL = path.join(__dirname, "docs/manual"), IMAGES = path.join(__dirname, "docs/images");
 fs.mkdirSync(MANUAL, { recursive: true }); fs.mkdirSync(IMAGES, { recursive: true });
+// the photo test's figure, its photos and its GLB (Session 20), made here and handed to the page as files
+const { encodePNG } = require("./tools-test-env.js"), TMP = fs.mkdtempSync(path.join(require("os").tmpdir(), "mf-shots-"));
+const figureKit = () => { globalThis.earcut = globalThis.earcut || require("earcut"); require(path.join(__dirname, "src", "core.js")); const PC = globalThis.PRCore; return { PC, F: require("./tools-photo-figure.js")(PC) }; };
 
 (async () => {
   const browser = await chromium.launch().catch(() => chromium.launch({ executablePath: "/opt/pw-browsers/chromium" }));
@@ -66,6 +69,93 @@ fs.mkdirSync(MANUAL, { recursive: true }); fs.mkdirSync(IMAGES, { recursive: tru
     async export() { const { ctx, page } = await open(); await preset(page, "Car badge"); await tab(page, "export"); await idle(page); await shot(page, path.join(MANUAL, "export-tab.jpg")); await ctx.close(); },
     async help() { const { ctx, page } = await open(); await preset(page, "Lithophane"); await page.click("#helpBtn"); await page.waitForTimeout(500);
       await shot(page, path.join(MANUAL, "help.jpg")); await ctx.close(); },
+    // Session 21: three phone screens side by side: the patch with its settings, Start from, the More menu
+    async phone() {
+      const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: "light" });
+      const page = await ctx.newPage();
+      await page.route("**/*", r => { const u = r.request().url(); for (const [re, f] of LIBS) if (re.test(u)) return r.fulfill({ path: path.join(NM, f), contentType: "application/javascript" }); r.continue(); });
+      await page.goto("file://" + FILE);
+      await page.waitForFunction(() => window.MakerForge && !MakerForge.busy, null, { timeout: 120000 });
+      await page.evaluate(() => document.querySelector('#presetGallery button[data-k="Iron-on patch"]').click()); await idle(page);
+      const pics = [];
+      const grab = async () => { await quiet(page); await page.waitForTimeout(300); pics.push((await page.screenshot({ type: "jpeg", quality: 88 })).toString("base64")); };
+      await grab();
+      await page.tap("#startBtn"); await page.waitForTimeout(400); await grab(); await page.tap("#startsToggle"); await page.waitForTimeout(300);
+      await page.tap("#moreBtn"); await page.waitForTimeout(300); await grab();
+      await ctx.close();
+      const c2 = await browser.newContext({ viewport: { width: 1300, height: 900 } }), p2 = await c2.newPage();     // a blank page, not the app
+      await p2.setContent(`<body style="margin:0;background:#eef1f4;font:600 17px system-ui,sans-serif;color:#22303c">
+        <div style="display:flex;gap:26px;padding:22px;width:1260px;box-sizing:border-box;justify-content:center">${pics.map((b, i) =>
+        `<figure style="margin:0;text-align:center"><img src="data:image/jpeg;base64,${b}" style="width:390px;display:block;border-radius:26px;border:8px solid #1d2733;box-shadow:0 8px 24px rgba(0,0,0,.18)">
+         <figcaption style="margin-top:10px">${["The model on top, the settings below", "Start from opens over the page", "Less-used buttons in the ⋯ menu"][i]}</figcaption></figure>`).join("")}</div></body>`);
+      await p2.waitForTimeout(400);
+      const el = await p2.$("div"); await el.screenshot({ path: path.join(IMAGES, "phone.jpg"), type: "jpeg", quality: 84 });
+      console.log("  docs/images/phone.jpg"); await c2.close();
+    },
+    // Session 20: the test figure as a GLB with a colour picture (what AI model makers give), opened in its colours
+    async modelcolours() {
+      const { F, PC } = figureKit(), small = F.figure(2.5), cls = F.truth(PC.meshTopology(small.solid), small.partOf), f = path.join(TMP, "footballer.glb");
+      fs.writeFileSync(f, F.figureGLB(small.solid, cls, encodePNG));
+      const { ctx, page } = await open();
+      await page.evaluate(() => { const MF = window.MakerForge; MF.state.items.length = 0; MF.state.active = -1; MF.state.printer.colors = 6; document.querySelector("#objectSel").value = "stl"; });
+      await page.setInputFiles("#stlInput", f);
+      await page.waitForFunction(() => window.MakerForge.model.colour && window.MakerForge.state.paint.ops.some(o => o.k === "model"), null, { timeout: 180000 });
+      await idle(page); await tab(page, "paint"); await page.evaluate(() => { const b = document.querySelector('#secrail button[data-title="Auto colour"]'); if (b) b.click(); }); await idle(page);
+      await shot(page, path.join(IMAGES, "model-colours.jpg")); fs.unlinkSync(f); await ctx.close();
+    },
+    // Session 20: a photo on a bookshelf, the figure fixed by hand with brush strokes, then lined up again
+    async photofix() {
+      const { F, PC } = figureKit(), fig = F.figure(), topo = PC.meshTopology(fig.solid), cls = F.truth(topo, fig.partOf), W = 600, H = 800;
+      const shelf = F.onShelfBackground(F.render(fig.solid, topo, cls, "front", { a: 6.3 / H, tx: 310 / H, ty: 760 / H, rot: 0.04, mirror: false }, W, H, 1), W, H, 11);
+      const fPhoto = path.join(TMP, "shelf.png"), fObj = path.join(TMP, "footballer.obj"), raw = fig.raw, lines = [];
+      fs.writeFileSync(fPhoto, encodePNG(W, H, shelf.rgba));
+      for (let i = 0; i < raw.pos.length; i += 3) lines.push(`v ${raw.pos[i]} ${-raw.pos[i + 2]} ${raw.pos[i + 1]}`);
+      for (let i = 0; i < raw.idx.length; i += 3) lines.push(`f ${raw.idx[i] + 1} ${raw.idx[i + 1] + 1} ${raw.idx[i + 2] + 1}`);
+      fs.writeFileSync(fObj, lines.join("\n"));
+      // how far each pixel is from the figure and from the background, for strokes that keep clear of the other
+      const dist = inside => { const d = new Float32Array(W * H).fill(1e9), q = []; for (let i = 0; i < W * H; i++) if (inside(i)) { d[i] = 0; q.push(i); }
+        for (let h = 0; h < q.length; h++) { const i = q[h], x = i % W, y = (i - x) / W; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const X = x + dx, Y = y + dy, j = Y * W + X;
+          if (X >= 0 && Y >= 0 && X < W && Y < H && d[j] > d[i] + 1) { d[j] = d[i] + 1; q.push(j); } } } return d; };
+      const dOut = dist(i => shelf.mask[i]), dIn = dist(i => !shelf.mask[i]);
+      const { ctx, page } = await open(1440, 1000);
+      await page.evaluate(() => { const MF = window.MakerForge; MF.state.items.length = 0; MF.state.active = -1; MF.state.printer.colors = 6; document.querySelector("#objectSel").value = "stl"; });
+      await page.setInputFiles("#stlInput", fObj);
+      await page.waitForFunction(() => /^footballer\.obj/.test((window.MakerForge.state.base.stl || {}).name || ""), null, { timeout: 180000 });
+      await idle(page); await tab(page, "paint");
+      await page.setInputFiles("#photoInput", fPhoto);
+      await page.waitForFunction(() => { const o = window.MakerForge.paint.photo.op; return o && o.views.length === 1 && window.MakerForge.paint.photo.info(o); }, null, { timeout: 240000 });
+      await idle(page);
+      // the photo card is on the Auto colour page (the Paint tab opens on the brush)
+      await page.evaluate(() => { const b = document.querySelector('#secrail button[data-title="Auto colour"]'); if (b) b.click(); }); await page.waitForTimeout(300);
+      const pass = async (re, r, gap, step, far) => {
+        await page.evaluate(([src, r]) => { window.MakerForge.paint.ui.photoFixR = r * 100; const b = [...document.querySelectorAll("#panel .seg.tool button")].find(b => new RegExp(src).test(b.textContent)); b.click(); }, [re, r]);
+        await page.waitForTimeout(300);
+        await page.evaluate(() => document.querySelector("canvas.photoPrev").scrollIntoView({ block: "center" }));
+        // the strokes as the test paints them, sent as pointer events inside the page (thousands of separate mouse
+        // moves take most of an hour in software-rendered Chromium; tools-browser-check.js checks a real mouse stroke)
+        const strokes = [];
+        for (let fy = step / 2; fy < 1; fy += step) { let cur = null;
+          for (let fx = 0; fx <= 1.0001; fx += 0.01) { const i = Math.min(H - 1, Math.round(fy * H)) * W + Math.min(W - 1, Math.round(fx * W)), ok = far[i] > (r + gap) * H;
+            if (ok) { if (!cur) strokes.push(cur = []); cur.push([fx, fy]); } else cur = null; } }
+        await page.evaluate(async strokes => {
+          const c = document.querySelector("canvas.photoPrev"), q = c.getBoundingClientRect(), k = Math.min(q.width / c.width, q.height / c.height);
+          const x0 = q.left + (q.width - c.width * k) / 2, y0 = q.top + (q.height - c.height * k) / 2, w = c.width * k, h = c.height * k;
+          const ev = (type, [fx, fy]) => c.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 1, pointerType: "mouse", clientX: x0 + fx * w, clientY: y0 + fy * h }));
+          for (const st of strokes) { ev("pointerdown", st[0]); for (const pt of st.slice(1)) ev("pointermove", pt); ev("pointerup", st[st.length - 1]); await new Promise(r => requestAnimationFrame(r)); }
+        }, strokes);
+      };
+      // big strokes first, then a small brush near the edges (as tools-photo-test.js does)
+      await pass("Take away", 0.04, 0.015, 0.05, dOut); await pass("Take away", 0.01, 0.005, 0.01, dOut);
+      await pass("Add to the figure", 0.02, 0.01, 0.025, dIn); await pass("Add to the figure", 0.005, 0.003, 0.006, dIn);
+      const nFix = await page.evaluate(() => (window.MakerForge.paint.photo.op.views[0].fix || []).length); console.log(`  ${nFix} strokes painted on the photo`);
+      await page.waitForTimeout(1200); await idle(page);
+      await page.evaluate(() => [...document.querySelectorAll("#panel button")].find(b => /Line it up again/.test(b.textContent)).click());
+      await page.waitForTimeout(500); await idle(page);
+      await page.evaluate(() => document.querySelector("canvas.photoPrev").scrollIntoView({ block: "start" }));
+      await page.waitForTimeout(300);
+      await shot(page, path.join(IMAGES, "photo-fix.jpg"));
+      [fPhoto, fObj].forEach(f => fs.unlinkSync(f)); await ctx.close();
+    },
     async tracer() { const { ctx, page } = await open(); await preset(page, "Trace a part"); await shot(page, path.join(IMAGES, "tracer-example.jpg")); await ctx.close(); },
     async lightbox() { const { ctx, page } = await open(); await preset(page, "Lightbox"); await shot(page, path.join(IMAGES, "lightbox-example.jpg")); await ctx.close(); },
     // a gallery of examples, rendered large on a clear background and set out in a grid with their names
@@ -92,5 +182,5 @@ fs.mkdirSync(MANUAL, { recursive: true }); fs.mkdirSync(IMAGES, { recursive: tru
     },
   };
   for (const [name, fn] of Object.entries(scenes)) if (!ONLY || ONLY.includes(name)) { console.log(name); await fn(); }
-  await browser.close();
+  await browser.close(); fs.rmSync(TMP, { recursive: true, force: true });
 })().catch(e => { console.error(e); process.exit(1); });

@@ -277,6 +277,141 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
   check(bKept.includes(bv.ai) && bv2.ai === bv.ai && MF.paint.photo.ai.mapOf(bv2.ai) && MF.parts[0].paint.every((s, t) => s === bPaint[t]),
     "saved and opened again without the AI: its outline is in the file and the paint is the same", `${bKept.length} pictures in the file`);
 
+  // ---- 7b2. the figure fixed by hand (Session 20): the bookshelf photo again, without the AI. A careful but
+  // quick maker: big "Take away" strokes across the background that keep clear of the figure, then smaller
+  // "Add to the figure" strokes down its middle, then Line it up again ----
+  console.log("\nthe figure fixed by hand");
+  {
+    MF.state.paint.ops.length = 0; MF.paint.repaint(); await settle();
+    await MF.paint.photo.add([png(busyFront, "shelf.png")]); await settle();
+    const fop = MF.paint.photo.op, fv = fop.views[0], acc0 = accuracy(MF.parts[0], 1).acc, match0 = fv.match;
+    const tool = re => $$("#panel .seg.tool button").find(b => re.test(b.textContent));
+    tool(/Take away/).click(); await sleep(80);
+    let cv = document.querySelector("canvas.photoPrev");
+    const navy = c => { const q = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < q.length; i += 4) if (q[i + 2] >= 60 && q[i + 2] <= 112 && q[i] <= 66 && q[i] >= 14) n++; return n / (q.length / 4); };
+    const dark0 = navy(cv);
+    check(MF.paint.ui.photoTool === "cut" && MF.paint.ui.photoShow === "figure" && cv.classList.contains("fixing") && $$("#panel .field label").some(l => /Brush size/.test(l.textContent)) && dark0 > 0.2,
+      "Take away: a brush with its size, and the photo shows the figure it found, the rest darkened", `${(dark0 * 100).toFixed(0)}% of the preview darkened`);
+    // how far every pixel is from the true figure (dOut) and from the background (dIn), in pixels
+    const dist = inside => { const d = new Float32Array(W * H).fill(1e9), q = []; for (let i = 0; i < W * H; i++) if (inside(i)) { d[i] = 0; q.push(i); }
+      for (let h = 0; h < q.length; h++) { const i = q[h], x = i % W, y = (i - x) / W; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const X = x + dx, Y = y + dy, j = Y * W + X;
+        if (X >= 0 && Y >= 0 && X < W && Y < H && d[j] > d[i] + 1) { d[j] = d[i] + 1; q.push(j); } } } return d; };
+    const dOut = dist(i => busyFront.mask[i]), dIn = dist(i => !busyFront.mask[i]);
+    cv.getBoundingClientRect = () => ({ left: 0, top: 0, width: cv.width, height: cv.height, right: cv.width, bottom: cv.height });
+    const ev = (type, fx, fy) => cv.dispatchEvent(new win.PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 1, clientX: fx * cv.width, clientY: fy * cv.height }));
+    // strokes along rows, broken wherever the brush would come within `gap` of the other side
+    const rows = (r, gap, step, far) => { let n = 0;
+      for (let fy = step / 2; fy < 1; fy += step) { let on = false;
+        for (let fx = 0; fx <= 1.0001; fx += 0.01) { const i = Math.min(H - 1, Math.round(fy * H)) * W + Math.min(W - 1, Math.round(fx * W)), ok = far[i] > (r + gap) * H;
+          if (ok && !on) { ev("pointerdown", fx, fy); on = true; n++; } else if (ok) ev("pointermove", fx, fy); else if (on) { ev("pointerup", fx, fy); on = false; } }
+        if (on) ev("pointerup", 1, fy); }
+      return n; };
+    // a pass: pick the tool and the brush, then the strokes
+    const pass = async (re, r, gap, step, far) => {
+      MF.paint.ui.photoFixR = r * 100; tool(re).click(); await sleep(80); cv = document.querySelector("canvas.photoPrev");
+      cv.getBoundingClientRect = () => ({ left: 0, top: 0, width: cv.width, height: cv.height, right: cv.width, bottom: cv.height });
+      return rows(r, gap, step, far); };
+    // big strokes first, then (seeing what is still wrong in the darkened photo) a small brush near the edges
+    const nCut = await pass(/Take away/, 0.04, 0.015, 0.05, dOut) + await pass(/Take away/, 0.01, 0.005, 0.01, dOut);
+    const nAdd = await pass(/Add to the figure/, 0.02, 0.01, 0.025, dIn) + await pass(/Add to the figure/, 0.005, 0.003, 0.006, dIn);
+    for (let i = 0; i < 100 && !/fixes by hand/.test(document.querySelector("#panel").textContent); i++) await sleep(50);
+    await sleep(300); await settle();
+    // the figure it finds now, against the true one
+    const maskNow = MF.paint.photo.figure(fv, W, H); let a = 0, b = 0, a0 = 0, b0 = 0; const found0 = C.photoMask(busyFront.rgba, W, H, fv.tol);
+    for (let i = 0; i < W * H; i++) { const t = busyFront.mask[i]; if (maskNow[i] && t) a++; if (maskNow[i] || t) b++; if (found0[i] && t) a0++; if (found0[i] || t) b0++; }
+    check(fv.fix && fv.fix.length === nCut + nAdd && a / b > 0.8 && a / b > a0 / b0 + 0.2 && /fixes by hand/.test(document.querySelector("#panel").textContent),
+      "strokes on the photo fix the figure it found", `${nCut} strokes taken away, ${nAdd} added; the figure ${(a0 / b0 * 100).toFixed(0)}% → ${(a / b * 100).toFixed(0)}% like the true one`);
+    $$("#panel button").find(x => /Line it up again/.test(x.textContent)).click();
+    for (let i = 0; i < 200 && fv.match === match0; i++) await sleep(50);
+    await sleep(300); await settle();
+    const accFix = accuracy(MF.parts[0], 1).acc, sizeOff = Math.abs(fv.fit.a / trueFront.a - 1), placeOff = Math.hypot(fv.fit.tx - trueFront.tx, fv.fit.ty - trueFront.ty);
+    check(fv.match > 0.75 && sizeOff < 0.03 && placeOff < 0.01 && accFix > 0.78 && accFix > acc0 + 0.15,
+      "Line it up again: with the fixes the photo lines up and colours the figure about as well as the AI does",
+      `outline ${(match0 * 100).toFixed(0)}% → ${(fv.match * 100).toFixed(0)}%, size off ${(sizeOff * 100).toFixed(1)}%, place off ${(placeOff * 100).toFixed(2)}%, ${(acc0 * 100).toFixed(1)}% → ${(accFix * 100).toFixed(1)}% of the surface right`);
+    // saved and opened again: the fixes are in the file and the paint is the same
+    const fPaint = Array.from(MF.parts[0].paint), fSaved = MF.projectPayload(true), fixN = fv.fix.length;
+    await open(fSaved);
+    const fv2 = MF.paint.photo.op.views[0];
+    check(fv2 !== fv && fv2.fix && fv2.fix.length === fixN && JSON.stringify(fv2.fix) === JSON.stringify(fv.fix) && MF.parts[0].paint.every((s, t) => s === fPaint[t]),
+      "saved and opened again: the fixes come back and the paint is the same", `${fixN} strokes, ${(fSaved.length / 1024).toFixed(0)} KB`);
+    $$("#tabs button").find(x => x.dataset.k === "paint").click(); await sleep(80);
+    $$("#panel button").find(x => /Undo the last fix/.test(x.textContent)).click(); await sleep(80);
+    const afterUndo = (MF.paint.photo.op.views[0].fix || []).length;
+    $$("#panel button").find(x => /Clear my fixes/.test(x.textContent)).click(); await sleep(900); await settle();
+    check(afterUndo === fixN - 1 && !MF.paint.photo.op.views[0].fix && !$$("#panel button").some(x => /Clear my fixes/.test(x.textContent)),
+      "Undo the last fix takes one stroke off; Clear my fixes takes them all", `${fixN} → ${afterUndo} → 0`);
+    // while a stroke grows the preview draws only its new part: frame by frame it must match drawing every fix afresh
+    {
+      await pass(/Take away/, 0.03, 0, 0.05, dOut);                          // some strokes to draw on top of
+      await sleep(900); await settle(); tool(/Take away/).click(); await sleep(120);
+      cv = document.querySelector("canvas.photoPrev"); cv.getBoundingClientRect = () => ({ left: 0, top: 0, width: cv.width, height: cv.height, right: cv.width, bottom: cv.height });
+      ev("pointerdown", 0.05, 0.3); await sleep(40);
+      for (let i = 1; i <= 8; i++) { ev("pointermove", 0.05 + i * 0.03, 0.3 + (i % 2) * 0.02); await sleep(40); }
+      ev("pointerup", 0.3, 0.3); await sleep(80);
+      cv.dispatchEvent(new win.PointerEvent("pointerleave", { pointerId: 1 })); await sleep(40);   // the brush ring goes with the pointer
+      const grab = c => Array.from(c.getContext("2d").getImageData(0, 0, c.width, c.height).data);
+      const inc = grab(cv), n = MF.paint.photo.op.views[0].fix.length;
+      tool(/Take away/).click(); await sleep(120);                          // a new card: its preview draws every fix afresh
+      const fresh = grab(document.querySelector("canvas.photoPrev"));
+      let diff = 0; for (let i = 0; i < inc.length; i += 4) if (inc[i] !== fresh[i] || inc[i + 1] !== fresh[i + 1] || inc[i + 2] !== fresh[i + 2]) diff++;
+      check(diff === 0 && n > 1 && inc.length === fresh.length, "a stroke drawn a bit at a time looks exactly like all the fixes drawn afresh", `${n} strokes, ${diff} pixels differ`);
+      $$("#panel button").find(x => /Clear my fixes/.test(x.textContent)).click(); await sleep(900); await settle();
+    }
+    tool(/Move the photo/).click(); await sleep(60);
+  }
+
+  // ---- 7c. the AI cut-out on the Art tab (Session 20): the same bookshelf photo as a picture ----
+  console.log("\nthe AI cut-out: a picture's background taken away");
+  {
+    const sel = document.querySelector("#objectSel"); sel.value = "board"; sel.dispatchEvent(new win.Event("change")); await settle();
+    $$("#tabs button").find(b => b.dataset.k === "art").click(); await sleep(60);
+    const ev = new win.Event("drop", { bubbles: true, cancelable: true }); ev.dataTransfer = { files: [png(busyFront, "shelf.png")] };
+    document.querySelector("#drop").dispatchEvent(ev);
+    for (let i = 0; i < 200 && !MF.state.items.some(d => d.name === "shelf" && d.src); i++) await sleep(30);
+    await settle();
+    const d = MF.state.items.find(x => x.name === "shelf"), cutBtn = () => $$("#panel button").find(b => /Cut out the subject with AI/.test(b.textContent));
+    check(d && !MF.state.items.some(x => x.example) && MF.art.hasBackground(d) && cutBtn(), "a photo on the Art tab (it replaced the example): the AI cut-out is offered", d && d.name);
+    let calls = 0; MF.paint.photo.ai.hooks.run = async (input, S) => { calls++; return netRaw(input, S); };
+    const orig = d.asset; cutBtn().click();
+    for (let i = 0; i < 600 && !d.uncut; i++) await sleep(50);
+    await settle();
+    const cv = d.src, px = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data;
+    let a = 0, b = 0; for (let i = 0; i < W * H; i++) { const on = px[4 * i + 3] > 127, t = busyFront.mask[i]; if (on && t) a++; if (on || t) b++; }
+    check(calls === 1 && d.uncut === orig && d.asset !== orig && d.crop === true && cv.width === W && a / b > 0.8 && !MF.art.hasBackground(d),
+      "Cut out the subject with AI: the figure stays, the bookshelf goes, and the picture is trimmed to it", `outline ${(a / b * 100).toFixed(1)}% of the true figure`);
+    check(MF.parts.length > 1 && MF.parts.every(q => C.checkMesh(q.solid).open === 0) && $$("#panel button").some(x => /Put the background back/.test(x.textContent)),
+      "the cut-out prints on the board, every part closed, and the background can be put back", `${MF.parts.length} parts`);
+    // saved and opened again: both pictures travel in the file
+    MF.paint.photo.ai.hooks.run = null;
+    const saved = MF.projectPayload(true), keptIds = Object.keys(JSON.parse(saved).assets || {});
+    await open(saved);
+    const d2 = MF.state.items.find(x => x.name === "shelf");
+    check(keptIds.includes(d.asset) && keptIds.includes(d.uncut) && d2 && d2.uncut === d.uncut && d2.asset === d.asset && !MF.art.hasBackground(d2), "saved and opened again: the cut-out and the original are both in the file", `${keptIds.length} pictures`);
+    $$("#tabs button").find(x => x.dataset.k === "art").click(); await sleep(60);
+    $$("#panel button").find(x => /Put the background back/.test(x.textContent)).click(); await settle();
+    const d3 = MF.state.items.find(x => x.name === "shelf");
+    check(d3.asset === orig && !d3.uncut && d3.crop === false && MF.art.hasBackground(d3), "Put the background back: the original picture again");
+    // beside a name on a keychain: the same button, and the colour cut-out is switched off once the AI has cut it
+    sel.value = "nameplate"; sel.dispatchEvent(new win.Event("change")); await settle();
+    const np = MF.state.base.nameplate; np.pic.on = true; np.pic.item = MF.state.items.indexOf(d3); np.pic.cutout = true;
+    $$("#tabs button").find(x => x.dataset.k === "make").click(); await sleep(60); MF.render(); await sleep(60);
+    const kBtn = $$("#panel button").find(x => /Cut out the subject with AI/.test(x.textContent));
+    MF.paint.photo.ai.hooks.run = async (input, S) => netRaw(input, S);
+    if (kBtn) kBtn.click();
+    for (let i = 0; i < 600 && !d3.uncut; i++) await sleep(50);
+    await settle(); MF.paint.photo.ai.hooks.run = null;
+    check(kBtn && d3.uncut && np.pic.cutout === false && MF.parts.every(q => C.checkMesh(q.solid).open === 0), "beside a name on a keychain: cut out with AI, the colour cut-out switched off, every part closed", `${MF.parts.length} parts`);
+    // a picture without a background (a cut-out logo) is not offered the AI
+    const logo = { rgba: new Uint8ClampedArray(W * H * 4), mask: null };
+    for (let i = 0; i < W * H; i++) { const x = i % W, y = (i - x) / W; if (Math.hypot(x - W / 2, y - H / 2) < 150) { logo.rgba.set([200, 40, 40, 255], 4 * i); } }
+    $$("#tabs button").find(x => x.dataset.k === "art").click(); await sleep(60);
+    const ev2 = new win.Event("drop", { bubbles: true, cancelable: true }); ev2.dataTransfer = { files: [png(logo, "logo.png")] };
+    document.querySelector("#drop").dispatchEvent(ev2);
+    for (let i = 0; i < 200 && !MF.state.items.some(x => x.name === "logo" && x.src); i++) await sleep(30);
+    await settle();
+    check(!$$("#panel button").some(x => /Cut out the subject with AI/.test(x.textContent)), "a logo on a clear background is not offered the AI cut-out");
+  }
+
   // ---- 8. a hostile project file ----
   console.log("\na photo step in a hostile project file");
   const data = JSON.parse(payload), hv = data.state.paint.ops.find(o => o.k === "photo");
@@ -285,6 +420,11 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
   hv.pal = Array.from({ length: 100 }, () => ({ rgb: [1e9, "x", -4], keys: [[NaN, 0, 0], [1e9, -1e9, 3], "k"] }));
   hv.slots = [99, -1, "2", 255]; hv.colours = 1e6; hv.speck = 1e9; hv.fill = "no"; hv.use = "<script>";
   hv.views[3].ai = "<img src=x onerror=alert(1)>"; hv.views[4].ai = { evil: 1 }; hv.views[5].ai = "x".repeat(500);
+  hv.views[0].fix = Array.from({ length: 3000 }, (_, i) => ({ add: i % 2 === 0, r: 0.03, p: Array.from({ length: 100 }, (_, j) => (j % 7) / 7) }));
+  hv.views[3].fix = Array.from({ length: 1000 }, () => ({ add: true, r: 5, p: Array.from({ length: 100 }, (_, j) => j % 2) }));   // huge brushes flung corner to corner
+  hv.views[1].fix = "<img src=x onerror=alert(1)>";
+  hv.views[2].fix = [{ add: "yes", r: 1e9, p: [NaN, 5, -3, 0.5, 0.2, "x"] }, { p: "x" }, null, { add: true, r: -4, p: [0.5] }, { add: true, p: Array(9000).fill(0.5) }];
+  data.state.items = (data.state.items || []).concat([{ evil: 1 }, "<img src=x onerror=alert(1)>", "y".repeat(500), 7].map((u, i) => ({ id: 900 + i, name: "hostile " + i, uncut: u, width: 20 })));
   t0 = Date.now(); const e0 = env.errors.length; await open(JSON.stringify(data)); const hostileMs = Date.now() - t0;
   const ho = MF.state.paint.ops.find(o => o.k === "photo"), herr = env.errors.slice(e0).filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
   check(ho && ho.views.length === 6 && ho.pal.length === 8 && ho.slots.length === 8 && ho.views[0].fit.a <= 10 && ho.views[1].fit === null && Math.abs(ho.views[2].fit.tx) <= 5 &&
@@ -292,6 +432,14 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
     ho.views[4].ai === undefined && ho.views[5].ai.length === 40 && !MF.paint.photo.ai.mapOf(ho.views[3].ai) &&
     ho.pal.every(p => p.rgb.every(c => c >= 0 && c <= 255) && p.keys.every(k => k.every(Number.isFinite))) && ho.colours === 8 && ho.speck === 50 && ho.use === "photo",
     "at most six photos and eight colours, numbers clamped, a broken fit dropped", ho && `${ho.views.length} photos, ${ho.pal.length} colours, a ${ho.views[0].fit.a}, slots ${ho.slots.join(",")}`);
+  const hf = ho && ho.views.map(v => v.fix), hfN = hf && hf[0] ? hf[0].reduce((n, q) => n + q.p.length, 0) : 0;
+  const tFix = Date.now(), bigFix = ho && MF.paint.photo.figure({ asset: ho.views[0].asset, tol: 35, fix: ho.views[3].fix }, 480, 480), fixMs = Date.now() - tFix;
+  check(hf && hf[0].length === 1000 && hfN === 100000 && bigFix && fixMs < 1500 && hf[0].every(q => q.p.every(x => x >= 0 && x <= 1) && q.r >= 0.002 && q.r <= 0.25 && typeof q.add === "boolean") &&
+    hf[1] === undefined && hf[2].length === 2 && JSON.stringify(hf[2][0]) === JSON.stringify({ add: false, r: 0.25, p: [1, 0, 0.5, 0.2] }) && hf[2][1].p.length === 4000,
+    "hand fixes on a photo: at most 2000 strokes and 100 000 numbers, every point on the photo, the brush size clamped, and huge brushes cannot stall it",
+    hf && `${hf[0].length} strokes, ${hfN} numbers; ${JSON.stringify(hf[2] && hf[2][0])}; huge brushes ${fixMs} ms`);
+  const hu = MF.state.items.filter(x => /^hostile/.test(x.name)).map(x => x.uncut);
+  check(hu.length === 4 && hu[0] === undefined && hu[3] === undefined && hu[1].length <= 40 && hu[2].length === 40, "a picture's original (before an AI cut-out) is only ever a short name", JSON.stringify(hu).slice(0, 80));
   check(hostileMs < 20000 && !herr.length && !document.querySelector("#panel b b") && !document.querySelector("#panel img[src=x]"), "it opens quickly without errors and no markup gets in",
     `${hostileMs} ms${herr.length ? ", " + herr[0].split("\n")[0] : ""}`);
 

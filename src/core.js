@@ -3091,6 +3091,34 @@
     const uu = fit.mirror ? -u : u, c = Math.cos(fit.rot || 0), s = Math.sin(fit.rot || 0);
     return [(fit.tx + fit.a * (uu * c - v * s)) * H, (fit.ty - fit.a * (uu * s + v * c)) * H];
   }
+  // close-up photos (Session 20): a camera near the model makes its near parts bigger. fit.k is how close
+  // it was: the model's height seen from the camera over the camera's distance from the model's middle
+  // (0: far away, what a zoomed-in photo is like; 0.5: a phone twice the model's height away). fit.ref is
+  // that middle in the camera's (u, v, depth) and the height, [cu, cv, cz, h]: the whole model's, so every
+  // part of it is seen from the same camera (photoRef; worked out from the solid when it is missing).
+  function photoRef(solid, cam) {
+    const C = photoCam(cam), P = solid.pos; let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (let i = 0; i < P.length; i += 3) {
+      const x = P[i], y = P[i + 1], z = P[i + 2], u = x * C.r[0] + y * C.r[1] + z * C.r[2], v = x * C.up[0] + y * C.up[1] + z * C.up[2], w = x * C.c[0] + y * C.c[1] + z * C.c[2];
+      if (u < u0) u0 = u; if (u > u1) u1 = u; if (v < v0) v0 = v; if (v > v1) v1 = v; if (w < z0) z0 = w; if (w > z1) z1 = w;
+    }
+    return [(u0 + u1) / 2, (v0 + v1) / 2, (z0 + z1) / 2, Math.max(1e-6, v1 - v0)];
+  }
+  const PHOTO_K_MAX = 1.2;
+  // every corner of the solid as the camera sees it: U, V (mm, with a close camera's enlargement) and depth Z
+  function photoUV(solid, cam, fit) {
+    const C = photoCam(cam), P = solid.pos, nv = P.length / 3, U = new Float64Array(nv), V = new Float64Array(nv), Z = new Float64Array(nv);
+    const k = fit && fit.k > 0 ? Math.min(PHOTO_K_MAX, +fit.k) : 0, ref = k ? (Array.isArray(fit.ref) && fit.ref.length === 4 ? fit.ref : photoRef(solid, cam)) : null;
+    const D = k ? ref[3] / k : 0;
+    for (let i = 0; i < nv; i++) {
+      const x = P[3 * i], y = P[3 * i + 1], z = P[3 * i + 2];
+      let u = x * C.r[0] + y * C.r[1] + z * C.r[2], v = x * C.up[0] + y * C.up[1] + z * C.up[2]; const w = x * C.c[0] + y * C.c[1] + z * C.c[2];
+      // nearer the camera than the middle (w above cz): bigger, round the line of sight through the middle
+      if (k) { const s = D / Math.max(0.1 * D, D - (w - ref[2])); u = ref[0] + (u - ref[0]) * s; v = ref[1] + (v - ref[1]) * s; }
+      U[i] = u; V[i] = v; Z[i] = w;
+    }
+    return { U, V, Z };
+  }
   function srgbToLab(r, g, b) {
     const f = x => { x /= 255; return x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
     const R = f(r), G = f(g), B = f(b);
@@ -3120,6 +3148,58 @@
       for (let i = 0; i < n; i++) mask[i] = bg[i] ? 0 : 1;
     }
     return keepFigure(mask, w, h);
+  }
+  // the AI cut-out (Session 20): a picture's background made clear from the figure finder's map. The
+  // subject is what photoMaskFromMap keeps (the map smoothly enlarged, cut at th, dust dropped); every
+  // other pixel becomes transparent, and a pixel already transparent stays so. Returns new RGBA.
+  function cutoutWithMap(rgba, W, H, map, mw, mh, th) {
+    const m = photoMaskFromMap(map, mw, mh, W, H, th), out = new Uint8ClampedArray(rgba);
+    for (let i = 0; i < W * H; i++) if (!m[i]) out[4 * i + 3] = 0;
+    return out;
+  }
+  // how much of a picture's edge is opaque (0..1): a photo is about 1, a cut-out logo or drawing near 0
+  function edgeOpacity(rgba, W, H) {
+    let n = 0, on = 0;
+    const at = (x, y) => { n++; if (rgba[4 * (y * W + x) + 3] > 127) on++; };
+    for (let x = 0; x < W; x++) { at(x, 0); if (H > 1) at(x, H - 1); }
+    for (let y = 1; y < H - 1; y++) { at(0, y); if (W > 1) at(W - 1, y); }
+    return n ? on / n : 0;
+  }
+  // a figure outline fixed by hand (Session 20): strokes painted over a photo, each adding to the figure or
+  // taking away from it, later strokes over earlier ones. A stroke is { add, r, p:[x0, y0, x1, y1, …] } with
+  // x in parts of the photo's width, y and the brush radius r in parts of its height, so the same strokes
+  // fit the photo at any size. Returns 0 (as found), 1 (figure) or 2 (background) for every pixel.
+  // Real strokes cost a few times the photo's pixels; a file of huge brushes flung across the photo would cost
+  // far more, so the work stops at 60 times the photo's pixels (the same strokes at any size of the photo).
+  // out: a map to draw on top of (the preview keeps one while a stroke grows)
+  function photoFixMap(fix, W, H, out) {
+    out = out || new Uint8Array(W * H); let budget = 60 * W * H;
+    for (const s of fix || []) {
+      const p = s && s.p; if (!p || p.length < 2) continue;
+      const val = s.add ? 1 : 2, r = Math.max(0.5, (+s.r || 0) * H), r2 = r * r;
+      for (let i = 0; i + 1 < p.length; i += 2) {
+        // a capsule from the previous point to this one (a dot for the first)
+        const bx = p[i] * W, by = p[i + 1] * H, ax = i >= 2 ? p[i - 2] * W : bx, ay = i >= 2 ? p[i - 1] * H : by;
+        if (!isFinite(ax + ay + bx + by)) continue;
+        const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+        const x0 = Math.max(0, Math.floor(Math.min(ax, bx) - r)), x1 = Math.min(W - 1, Math.ceil(Math.max(ax, bx) + r));
+        const y0 = Math.max(0, Math.floor(Math.min(ay, by) - r)), y1 = Math.min(H - 1, Math.ceil(Math.max(ay, by) + r));
+        if ((budget -= Math.max(0, x1 - x0 + 1) * Math.max(0, y1 - y0 + 1)) < 0) return out;
+        for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+          const px = x + 0.5 - ax, py = y + 0.5 - ay, t = L2 ? Math.max(0, Math.min(1, (px * dx + py * dy) / L2)) : 0;
+          const ex = px - t * dx, ey = py - t * dy;
+          if (ex * ex + ey * ey <= r2) out[y * W + x] = val;
+        }
+      }
+    }
+    return out;
+  }
+  // a figure mask with the hand fixes applied (a new mask; the one given is left as it was)
+  function photoFixMask(mask, W, H, fix) {
+    const out = new Uint8Array(mask); if (!fix || !fix.length) return out;
+    const f = photoFixMap(fix, W, H);
+    for (let i = 0; i < W * H; i++) if (f[i]) out[i] = f[i] === 1 ? 1 : 0;
+    return out;
   }
   // keep the figure, drop dust: the biggest piece and the pieces at least 2% of its size
   function keepFigure(mask, w, h) {
@@ -3265,13 +3345,9 @@
   }
   // which triangle each pixel of a W x H picture sees (-1 none) and how near it is (the largest w)
   function photoRaster(solid, cam, fit, W, H) {
-    const C = photoCam(cam), P = solid.pos, I = solid.idx, nv = P.length / 3;
-    const X = new Float32Array(nv), Y = new Float32Array(nv), Z = new Float32Array(nv);
-    for (let i = 0; i < nv; i++) {
-      const x = P[3 * i], y = P[3 * i + 1], z = P[3 * i + 2];
-      const u = x * C.r[0] + y * C.r[1] + z * C.r[2], v = x * C.up[0] + y * C.up[1] + z * C.up[2];
-      const q = photoXY(u, v, fit, H); X[i] = q[0]; Y[i] = q[1]; Z[i] = x * C.c[0] + y * C.c[1] + z * C.c[2];
-    }
+    const I = solid.idx, uv = photoUV(solid, cam, fit), U = uv.U, V = uv.V, Z = Float32Array.from(uv.Z), nv = U.length;
+    const X = new Float32Array(nv), Y = new Float32Array(nv);
+    for (let i = 0; i < nv; i++) { const q = photoXY(U[i], V[i], fit, H); X[i] = q[0]; Y[i] = q[1]; }
     const id = new Int32Array(W * H).fill(-1), depth = new Float32Array(W * H).fill(-Infinity);
     for (let t = 0; t < I.length / 3; t++) {
       const a = I[3 * t], b = I[3 * t + 1], c = I[3 * t + 2];
@@ -3316,14 +3392,12 @@
   function photoFit(solid, cam, mask, W, H, mirror, angles, quick, opt) {
     if (angles) return photoFitAngles(solid, cam, mask, W, H, mirror, angles, opt);
     const extra = opt && opt.extra != null ? Math.max(0.05, Math.min(1, +opt.extra)) : 1;
-    const C = photoCam(cam), P = solid.pos, I = solid.idx, nv = P.length / 3;
-    const U = new Float32Array(nv), V = new Float32Array(nv);
+    // how close the camera was (opt.k: see photoUV), round the middle of the solid given (the whole model);
+    // the fit found keeps it
+    const k = opt && opt.k > 0 ? Math.min(PHOTO_K_MAX, +opt.k) : 0, persp = k ? { k, ref: photoRef(solid, cam) } : null;
+    const I = solid.idx, { U, V } = photoUV(solid, cam, persp), nv = U.length;
     let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
-    for (let i = 0; i < nv; i++) {
-      const x = P[3 * i], y = P[3 * i + 1], z = P[3 * i + 2];
-      U[i] = x * C.r[0] + y * C.r[1] + z * C.r[2]; V[i] = x * C.up[0] + y * C.up[1] + z * C.up[2];
-      u0 = Math.min(u0, U[i]); u1 = Math.max(u1, U[i]); v0 = Math.min(v0, V[i]); v1 = Math.max(v1, V[i]);
-    }
+    for (let i = 0; i < nv; i++) { u0 = Math.min(u0, U[i]); u1 = Math.max(u1, U[i]); v0 = Math.min(v0, V[i]); v1 = Math.max(v1, V[i]); }
     // the model's outline once, in its own (u, v) space
     const G = 256, cell = Math.max(u1 - u0, v1 - v0) / (G - 2) || 1, gw = Math.ceil((u1 - u0) / cell) + 2, gh = Math.ceil((v1 - v0) / cell) + 2, S = new Uint8Array(gw * gh);
     const gx = u => (u - u0) / cell + 1, gy = v => (v1 - v) / cell + 1;
@@ -3343,18 +3417,20 @@
         if (w0 >= -1e-9 && w1 >= -1e-9 && w0 + w1 <= 1 + 1e-9) S[py * gw + px] = 1;
       }
     }
-    // the photo's figure, at most 200 pixels on its long side
-    const f = Math.max(1, Math.max(W, H) / (quick ? 100 : 200)), pw = Math.max(1, Math.round(W / f)), ph = Math.max(1, Math.round(H / f)), PM = new Uint8Array(pw * ph);
-    let pn = 0, bx0 = Infinity, bx1 = -Infinity, by0 = Infinity, by1 = -Infinity;
-    for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
-      let s = 0, c = 0;
-      for (let yy = Math.floor(y * f); yy < Math.min(H, Math.floor((y + 1) * f)); yy++) for (let xx = Math.floor(x * f); xx < Math.min(W, Math.floor((x + 1) * f)); xx++) { s += mask[yy * W + xx]; c++; }
-      if (c && s * 2 >= c) { PM[y * pw + x] = 1; pn++; bx0 = Math.min(bx0, x); bx1 = Math.max(bx1, x); by0 = Math.min(by0, y); by1 = Math.max(by1, y); }
-    }
-    if (!pn) return null;
-    // work in the small picture's pixels, then express in photo heights
-    const iou = (fit) => {
-      const cs = Math.cos(fit.rot), sn = Math.sin(fit.rot); let inter = 0, model = 0;
+    // the photo's figure, at most n pixels on its long side
+    const atSize = n => {
+      const f = Math.max(1, Math.max(W, H) / n), pw = Math.max(1, Math.round(W / f)), ph = Math.max(1, Math.round(H / f)), PM = new Uint8Array(pw * ph);
+      let pn = 0, bx0 = Infinity, bx1 = -Infinity, by0 = Infinity, by1 = -Infinity;
+      for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
+        let s = 0, c = 0;
+        for (let yy = Math.floor(y * f); yy < Math.min(H, Math.floor((y + 1) * f)); yy++) for (let xx = Math.floor(x * f); xx < Math.min(W, Math.floor((x + 1) * f)); xx++) { s += mask[yy * W + xx]; c++; }
+        if (c && s * 2 >= c) { PM[y * pw + x] = 1; pn++; bx0 = Math.min(bx0, x); bx1 = Math.max(bx1, x); by0 = Math.min(by0, y); by1 = Math.max(by1, y); }
+      }
+      return { f, pw, ph, PM, pn, bx0, bx1, by0, by1 };
+    };
+    // work in that small picture's pixels, then express in photo heights
+    const iou = (g, fit) => {
+      const cs = Math.cos(fit.rot), sn = Math.sin(fit.rot), { pw, ph, PM } = g; let inter = 0, model = 0;
       for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
         const dx = (x + 0.5 - fit.tx) / fit.a, dy = -(y + 0.5 - fit.ty) / fit.a;
         let u = dx * cs + dy * sn; const v = -dx * sn + dy * cs; if (fit.mirror) u = -u;
@@ -3362,28 +3438,63 @@
         const m = ix >= 0 && iy >= 0 && ix < gw && iy < gh ? S[iy * gw + ix] : 0;
         if (m) { model++; if (PM[y * pw + x]) inter++; }
       }
-      return inter / (inter + (model - inter) + extra * (pn - inter));
+      return inter / (inter + (model - inter) + extra * (g.pn - inter));
     };
-    const best = { score: -1, fit: null };
-    for (const mir of mirror === "auto" ? [false, true] : [!!mirror]) {
-      const a0 = (by1 - by0 + 1) / (v1 - v0), cu = (u0 + u1) / 2 * (mir ? -1 : 1), cv = (v0 + v1) / 2;
-      let fit = { a: a0, tx: (bx0 + bx1 + 1) / 2 - a0 * cu, ty: (by0 + by1 + 1) / 2 + a0 * cv, rot: 0, mirror: mir }, score = iou(fit);
-      const steps = { a: 0.08, tx: (bx1 - bx0 + 1) * 0.04, ty: (by1 - by0 + 1) * 0.04, rot: 0.06 };
+    // step each of size, place and turn while the overlap grows, halving the steps when none does
+    const search = (g, fit, steps, minA) => {
+      let score = iou(g, fit); const mx = (g.bx0 + g.bx1 + 1) / 2, my = (g.by0 + g.by1 + 1) / 2;
       for (let it = 0; it < 60; it++) {
         let moved = false;
         for (const key of ["tx", "ty", "a", "rot"]) for (const sgn of [1, -1]) {
           const f2 = Object.assign({}, fit);
-          if (key === "a") { f2.a = fit.a * (1 + sgn * steps.a); const s = f2.a / fit.a; f2.tx = (fit.tx - (bx0 + bx1 + 1) / 2) * s + (bx0 + bx1 + 1) / 2; f2.ty = (fit.ty - (by0 + by1 + 1) / 2) * s + (by0 + by1 + 1) / 2; }
+          if (key === "a") { f2.a = fit.a * (1 + sgn * steps.a); const s = f2.a / fit.a; f2.tx = (fit.tx - mx) * s + mx; f2.ty = (fit.ty - my) * s + my; }
           else if (key === "rot") { f2.rot = Math.max(-0.35, Math.min(0.35, fit.rot + sgn * steps.rot)); }
           else f2[key] = fit[key] + sgn * steps[key];
-          const s2 = iou(f2); if (s2 > score + 1e-6) { fit = f2; score = s2; moved = true; }
+          const s2 = iou(g, f2); if (s2 > score + 1e-6) { fit = f2; score = s2; moved = true; }
         }
-        if (!moved) { for (const k2 in steps) steps[k2] /= 2; if (steps.a < (quick ? 0.01 : 0.002)) break; }
+        if (!moved) { for (const k2 in steps) steps[k2] /= 2; if (steps.a < minA) break; }
       }
-      if (score > best.score) { best.score = score; best.fit = fit; }
+      return { fit, score };
+    };
+    const mid = quick === "mid"; if (mid) quick = false;
+    const g1 = atSize(quick ? 100 : 200);
+    if (!g1.pn) return null;
+    let best = { score: -1, fit: null }, g = g1;
+    for (const mir of mirror === "auto" ? [false, true] : [!!mirror]) {
+      const { bx0, bx1, by0, by1 } = g1, a0 = (by1 - by0 + 1) / (v1 - v0), cu = (u0 + u1) / 2 * (mir ? -1 : 1), cv = (v0 + v1) / 2;
+      const fit = { a: a0, tx: (bx0 + bx1 + 1) / 2 - a0 * cu, ty: (by0 + by1 + 1) / 2 + a0 * cv, rot: 0, mirror: mir };
+      const r = search(g1, fit, { a: 0.08, tx: (bx1 - bx0 + 1) * 0.04, ty: (by1 - by0 + 1) * 0.04, rot: 0.06 }, quick ? 0.01 : 0.002);
+      if (r.score > best.score) best = r;
     }
-    const F = best.fit;
-    return { fit: { a: F.a * f / H, tx: F.tx * f / H, ty: F.ty * f / H, rot: F.rot, mirror: F.mirror }, iou: best.score };
+    // then, for a close camera, finely on a picture twice the size (a close-up from above is thrown by a
+    // pixel or a degree); the searches over angles and closeness compare at the usual size ("mid") and only
+    // refine the best. A photo from far away is lined up as before.
+    if (!quick && !mid && persp) {
+      const g2 = atSize(400);
+      if (g2.pn && g2.f < g1.f - 1e-9) {
+        const s = g1.f / g2.f, F0 = best.fit;
+        best = search(g2, { a: F0.a * s, tx: F0.tx * s, ty: F0.ty * s, rot: F0.rot, mirror: F0.mirror }, { a: 0.004, tx: 1, ty: 1, rot: 0.004 }, 0.0005); g = g2;
+      }
+    }
+    const F = best.fit, out = { a: F.a * g.f / H, tx: F.tx * g.f / H, ty: F.ty * g.f / H, rot: F.rot, mirror: F.mirror };
+    if (persp) out.k = k;
+    return { fit: out, iou: best.score };
+  }
+  // how close the camera was, found from the outline: a close camera enlarges the near parts, which a fit
+  // from far away cannot match. Tries far away and 0.3, 0.6, 0.9 of the model's height per distance, then
+  // finer round the best; a closer camera has to fit clearly better (2 points of overlap per 1 of k), so a
+  // photo from far away stays far away. Returns photoFit's result for the best, or null.
+  function photoFitCloseness(solid, cam, mask, W, H, mirror, opt) {
+    const at = new Map(), fitAt = k => {
+      k = Math.round(Math.max(0, Math.min(PHOTO_K_MAX, k)) * 1000) / 1000;
+      if (!at.has(k)) { const r = photoFit(solid, cam, mask, W, H, mirror, null, "mid", Object.assign({}, opt, { k })); at.set(k, r && Object.assign(r, { score: r.iou - 0.02 * k })); }
+      return at.get(k);
+    };
+    let best = null;
+    const tryK = k => { const r = fitAt(k); if (r && (!best || r.score > best.score + 1e-9)) best = r; };
+    for (const k of [0, 0.3, 0.6, 0.9]) tryK(k);
+    for (const step of [0.15, 0.075, 0.04]) { const k0 = best ? best.fit.k || 0 : 0; tryK(k0 - step); tryK(k0 + step); }
+    return best && photoFit(solid, cam, mask, W, H, mirror, null, false, Object.assign({}, opt, { k: best.fit.k || 0 }));
   }
   // the same, also turning the camera: angles.yaw / angles.pitch are how far to look either side of cam
   // (degrees); a coarse search every 15°, then finer; returns { fit, iou, cam: { yaw, pitch } }
@@ -3404,7 +3515,7 @@
     const cands = round.slice(0, 2).concat(...round.slice(0, 2).map(r => ps.map(dp => quickAt(r.cam.yaw, base[1] + dp)).filter(Boolean)));
     cands.sort((a, b) => b.score - a.score);
     if (!cands.length) return null;
-    const tryAt = (yaw, pitch) => { const r = photoFit(solid, { yaw, pitch }, mask, W, H, mirror, null, false, opt); if (r) { r.score = r.iou - prior(yaw, pitch); if (!best || r.score > best.score) best = Object.assign(r, { cam: { yaw, pitch } }); } };
+    const tryAt = (yaw, pitch) => { const r = photoFit(solid, { yaw, pitch }, mask, W, H, mirror, null, "mid", opt); if (r) { r.score = r.iou - prior(yaw, pitch); if (!best || r.score > best.score) best = Object.assign(r, { cam: { yaw, pitch } }); } };
     tryAt(cands[0].cam.yaw, cands[0].cam.pitch);
     for (const step of [8, 4, 2]) {
       const c = best.cam;
@@ -3413,7 +3524,8 @@
         if (Math.abs(yaw - base[0]) <= ry + 1e-9 && Math.abs(pitch - base[1]) <= rp + 1e-9) tryAt(yaw, pitch);
       }
     }
-    return best;
+    const fine = opt && opt.k > 0 ? photoFit(solid, best.cam, mask, W, H, mirror, null, false, opt) : null;
+    return fine ? Object.assign(fine, { cam: best.cam, score: best.score }) : best;
   }
   // colour the model from one or more lined-up photos: views [{ cam, fit, cls:{ w, h, data } }], every
   // class c goes to slots[c]; o.fill paints what no photo sees from the nearest seen colour (not across
@@ -3512,6 +3624,240 @@
     if (!out.length) throw new Error("No triangles found in that OBJ file.");
     return new Float32Array(out);
   }
+  // ---- models with their own colours (Session 20): what AI model generators export ----
+  // Both readers return triangles Z up like an STL (so the importer treats every file alike), with, per
+  // triangle: cc, the colour of each corner (sRGB bytes: material colour × vertex colour, white when the
+  // file has none); uv, each corner's place on its picture (u right, v down, 0..1) when textured; texOf,
+  // which picture (-1: none); and the pictures themselves for the app to decode.
+  const linToS = v => { v = v < 0 ? 0 : v > 1 ? 1 : v; return Math.round(255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055)); };
+  const sToLin = b => { const v = b / 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  function base64Bytes(t) {
+    if (typeof atob === "function") { const s = atob(t); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
+    return new Uint8Array(Buffer.from(t, "base64"));
+  }
+  function parseGLB(buf) {
+    const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf), dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+    if (u8.length < 12 || dv.getUint32(0, true) !== 0x46546C67) return parseGLTF(JSON.parse(new TextDecoder().decode(u8)), null);   // a .gltf text file
+    const cutShort = new Error("That GLB file is cut short. Download or export it again.");
+    const len = dv.getUint32(8, true); if (len > u8.length) throw cutShort;
+    let o = 12, json = null, bin = null;
+    while (o + 8 <= len) {
+      const cl = dv.getUint32(o, true), ct = dv.getUint32(o + 4, true), start = o + 8; if (start + cl > len) throw cutShort;
+      if (ct === 0x4E4F534A) json = JSON.parse(new TextDecoder().decode(u8.subarray(start, start + cl)));
+      else if (ct === 0x004E4942 && !bin) bin = u8.subarray(start, start + cl);
+      o = start + cl;
+    }
+    if (!json) throw new Error("That GLB file has no model description in it.");
+    return parseGLTF(json, bin);
+  }
+  function parseGLTF(g, bin) {
+    if (!g || typeof g !== "object" || !g.asset || String(g.asset.version || "").split(".")[0] !== "2") throw new Error("Only glTF 2.0 models can be opened.");
+    const req = Array.isArray(g.extensionsRequired) ? g.extensionsRequired : [];
+    if (req.some(e => /draco|meshopt|basisu/i.test(e))) throw new Error("That model is compressed (Draco, meshopt or Basis). Export it again without compression.");
+    const arr = k => Array.isArray(g[k]) ? g[k] : [];
+    const buffers = arr("buffers").map((b, i) => {
+      if (!b || b.uri === undefined) return i === 0 ? bin : null;
+      const m = /^data:[^,]*;base64,(.*)$/.exec(String(b.uri)); return m ? base64Bytes(m[1]) : null;
+    });
+    const views = arr("bufferViews"), accs = arr("accessors");
+    const COMP = { 5120: [1, "getInt8", 127], 5121: [1, "getUint8", 255], 5122: [2, "getInt16", 32767], 5123: [2, "getUint16", 65535], 5125: [4, "getUint32", 0], 5126: [4, "getFloat32", 0] };
+    const NUM = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
+    const accessor = i => {
+      const a = accs[i]; if (!a) return null;
+      const n = NUM[a.type], ct = COMP[a.componentType], count = Math.max(0, Math.min(a.count | 0, 2e7));
+      if (!n || !ct) return null;
+      const out = new Float32Array(count * n);
+      if (a.bufferView === undefined) return { d: out, n };
+      const v = views[a.bufferView], buf = v && buffers[v.buffer];
+      if (!buf) throw new Error("This model keeps its data in a separate file: export it as one .glb file.");
+      const base = (v.byteOffset || 0) + (a.byteOffset || 0), st = v.byteStride || ct[0] * n, dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+      if (base + (count - 1) * st + ct[0] * n > buf.byteLength) throw new Error("That model file is damaged (its data runs past the end).");
+      for (let k = 0; k < count; k++) for (let c = 0; c < n; c++) {
+        let x = dv[ct[1]](base + k * st + c * ct[0], true);
+        if (a.normalized && ct[2]) x = Math.max(-1, x / ct[2]);
+        out[k * n + c] = x;
+      }
+      return { d: out, n };
+    };
+    // the pictures: each texture's image (a WebP one through its extension)
+    const images = arr("images").map(im => {
+      if (!im) return null;
+      if (im.bufferView !== undefined) { const v = views[im.bufferView], b = v && buffers[v.buffer]; return b ? { bytes: b.subarray(v.byteOffset || 0, (v.byteOffset || 0) + v.byteLength), mime: im.mimeType || "image/png" } : null; }
+      const m = /^data:(image\/[a-z]+);base64,(.*)$/i.exec(String(im.uri || "")); return m ? { bytes: base64Bytes(m[2]), mime: m[1] } : null;
+    });
+    const texImage = ti => { const t = arr("textures")[ti]; if (!t) return -1; const e = t.extensions || {}; const s = t.source ?? (e.EXT_texture_webp && e.EXT_texture_webp.source); return s != null && images[s] ? s : -1; };
+    const material = mi => {
+      const m = arr("materials")[mi] || {}, pbr = m.pbrMetallicRoughness || {}, sg = (m.extensions || {}).KHR_materials_pbrSpecularGlossiness;
+      const f = (pbr.baseColorFactor || (sg && sg.diffuseFactor) || [1, 1, 1, 1]).map(Number), tex = pbr.baseColorTexture || (sg && sg.diffuseTexture);
+      return { f: [0, 1, 2].map(k => Number.isFinite(f[k]) ? f[k] : 1), img: tex ? texImage(tex.index) : -1, set: tex && tex.texCoord ? tex.texCoord : 0 };
+    };
+    const tris = [], uvs = [], cols = [], texOf = [];
+    let anyTex = false, anyCol = false;
+    const mul = (a, b) => { const r = new Array(16).fill(0); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) for (let k = 0; k < 4; k++) r[j * 4 + i] += a[k * 4 + i] * b[j * 4 + k]; return r; };
+    const localOf = nd => {
+      if (Array.isArray(nd.matrix) && nd.matrix.length === 16) return nd.matrix.map(Number);
+      const [tx, ty, tz] = nd.translation || [0, 0, 0], [x, y, z, w] = nd.rotation || [0, 0, 0, 1], [sx, sy, sz] = nd.scale || [1, 1, 1];
+      return [(1 - 2 * (y * y + z * z)) * sx, 2 * (x * y + z * w) * sx, 2 * (x * z - y * w) * sx, 0,
+              2 * (x * y - z * w) * sy, (1 - 2 * (x * x + z * z)) * sy, 2 * (y * z + x * w) * sy, 0,
+              2 * (x * z + y * w) * sz, 2 * (y * z - x * w) * sz, (1 - 2 * (x * x + y * y)) * sz, 0, tx, ty, tz, 1];
+    };
+    const addMesh = (mi, M) => {
+      const mesh = arr("meshes")[mi]; if (!mesh) return;
+      const det = M[0] * (M[5] * M[10] - M[9] * M[6]) - M[4] * (M[1] * M[10] - M[9] * M[2]) + M[8] * (M[1] * M[6] - M[5] * M[2]);
+      for (const pr of mesh.primitives || []) {
+        const mode = pr.mode == null ? 4 : pr.mode; if (mode < 4 || mode > 6) continue;
+        const at = pr.attributes || {}, P = accessor(at.POSITION); if (!P || P.n !== 3) continue;
+        const mat = material(pr.material), T = mat.img >= 0 ? accessor(at["TEXCOORD_" + mat.set]) : null, K = accessor(at.COLOR_0);
+        const nv = P.d.length / 3, I = pr.indices !== undefined ? accessor(pr.indices) : null, idx = I ? I.d : Float32Array.from({ length: nv }, (_, i) => i);
+        const corner = [];
+        const push = (a, b, c) => {
+          if (tris.length > 9 * 4e6) throw new Error("That model has more than four million triangles.");
+          const vs = det < 0 ? [a, c, b] : [a, b, c];
+          if (vs.some(v => !(v >= 0 && v < nv))) return;
+          for (const v of vs) {
+            const x = P.d[3 * v], y = P.d[3 * v + 1], z = P.d[3 * v + 2];
+            const X = M[0] * x + M[4] * y + M[8] * z + M[12], Y = M[1] * x + M[5] * y + M[9] * z + M[13], Z = M[2] * x + M[6] * y + M[10] * z + M[14];
+            tris.push(X, -Z, Y);                                   // glTF is Y up: Z up like an STL
+            uvs.push(T ? T.d[T.n * v] : 0, T ? T.d[T.n * v + 1] : 0);
+            const vc = K ? [K.d[K.n * v], K.d[K.n * v + 1], K.d[K.n * v + 2]] : [1, 1, 1];
+            cols.push(linToS(vc[0] * mat.f[0]), linToS(vc[1] * mat.f[1]), linToS(vc[2] * mat.f[2]));
+          }
+          texOf.push(T ? mat.img : -1);
+        };
+        if (T) anyTex = true;
+        if (K || mat.f.some(v => Math.abs(v - 1) > 1e-3)) anyCol = true;
+        if (mode === 4) for (let i = 0; i + 2 < idx.length; i += 3) push(idx[i], idx[i + 1], idx[i + 2]);
+        else if (mode === 5) for (let i = 0; i + 2 < idx.length; i++) i % 2 ? push(idx[i + 1], idx[i], idx[i + 2]) : push(idx[i], idx[i + 1], idx[i + 2]);
+        else for (let i = 1; i + 1 < idx.length; i++) push(idx[0], idx[i], idx[i + 1]);
+      }
+    };
+    const nodes = arr("nodes"), seen = new Set();
+    const walk = (ni, M, depth) => {
+      const nd = nodes[ni]; if (!nd || depth > 64 || seen.has(ni)) return; seen.add(ni);
+      const W = mul(M, localOf(nd));
+      if (nd.mesh !== undefined) addMesh(nd.mesh, W);
+      for (const c of nd.children || []) walk(c, W, depth + 1);
+    };
+    const I4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], scenes = arr("scenes");
+    if (scenes.length) for (const r of (scenes[g.scene || 0] || scenes[0]).nodes || []) walk(r, I4, 0);
+    else if (nodes.length) { const kids = new Set(nodes.flatMap(n => (n && n.children) || [])); nodes.forEach((_, i) => { if (!kids.has(i)) walk(i, I4, 0); }); }
+    else arr("meshes").forEach((_, i) => addMesh(i, I4));
+    if (!tris.length) throw new Error("No triangles found in that model.");
+    return { tris: new Float32Array(tris), cc: anyCol || anyTex ? Uint8Array.from(cols) : null, uv: anyTex ? new Float32Array(uvs) : null,
+      texOf: anyTex ? Int16Array.from(texOf) : null, images: images.map(im => im || null), units: "m" };
+  }
+  // an OBJ with its colours: vertex colours ("v x y z r g b"), the MTL file's colours (Kd) and pictures
+  // (map_Kd, named: the app matches them to the files dropped with it). Same triangles as parseOBJ.
+  function parseMTL(text) {
+    const mats = {}; let cur = null;
+    for (const line of String(text || "").split(/\r?\n/)) {
+      const p = line.trim().split(/\s+/);
+      if (p[0] === "newmtl") { cur = mats[p.slice(1).join(" ")] = { kd: null, map: null }; }
+      else if (cur && p[0] === "Kd" && p.length >= 4) cur.kd = [+p[1], +p[2], +p[3]].map(v => Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1);
+      else if (cur && p[0] === "map_Kd" && p.length >= 2) cur.map = p[p.length - 1].split(/[\\/]/).pop();
+    }
+    return mats;
+  }
+  function parseOBJColours(text, mtlText) {
+    const V = [], VC = [], VT = [], tris = [], uvs = [], cols = [], texOf = [], mats = parseMTL(mtlText), names = [];
+    let cur = null, anyTex = false, anyCol = false;
+    for (const line of String(text).split(/\r?\n/)) {
+      const s = line.trim(); if (!s || s[0] === "#") continue;
+      const p = s.split(/\s+/);
+      if (p[0] === "v" && p.length >= 4) {
+        V.push([+p[1], +p[2], +p[3]]);
+        if (p.length >= 7) { let c = [+p[4], +p[5], +p[6]]; if (c.some(v => v > 1)) c = c.map(v => v / 255); VC.push(c.map(v => Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1)); anyCol = true; }
+        else VC.push(null);
+      } else if (p[0] === "vt" && p.length >= 3) VT.push([+p[1], 1 - +p[2]]);
+      else if (p[0] === "usemtl") cur = mats[p.slice(1).join(" ")] || null;
+      else if (p[0] === "f" && p.length >= 4) {
+        const ref = p.slice(1).map(q => { const [a, b] = q.split("/"); let i = parseInt(a, 10), t = parseInt(b, 10); i = i < 0 ? V.length + i : i - 1; t = Number.isFinite(t) ? (t < 0 ? VT.length + t : t - 1) : -1; return [i, t]; });
+        if (ref.some(([i]) => !(i >= 0 && i < V.length))) continue;
+        let img = -1;
+        if (cur && cur.map) { img = names.indexOf(cur.map); if (img < 0) { names.push(cur.map); img = names.length - 1; } }
+        const kd = cur && cur.kd ? cur.kd : [1, 1, 1];
+        if (cur && cur.kd && cur.kd.some(v => Math.abs(v - 1) > 1e-3)) anyCol = true;
+        for (let k = 1; k + 1 < ref.length; k++) {
+          const tri = [ref[0], ref[k], ref[k + 1]], hasUV = tri.every(([, t]) => t >= 0 && t < VT.length);
+          for (const [i, t] of tri) {
+            tris.push(V[i][0], V[i][1], V[i][2]);
+            uvs.push(hasUV ? VT[t][0] : 0, hasUV ? VT[t][1] : 0);
+            const vc = VC[i] || [1, 1, 1];                        // OBJ colours are written as they look (sRGB)
+            cols.push(...[0, 1, 2].map(c => Math.round(255 * vc[c] * kd[c])));
+          }
+          texOf.push(hasUV ? img : -1); if (hasUV) anyTex = true;
+        }
+      }
+      if (tris.length > 9 * 4e6) throw new Error("That model has more than four million triangles.");
+    }
+    if (!tris.length) throw new Error("No triangles found in that OBJ file.");
+    return { tris: new Float32Array(tris), cc: anyCol || anyTex ? Uint8Array.from(cols) : null, uv: anyTex ? new Float32Array(uvs) : null,
+      texOf: anyTex ? Int16Array.from(texOf) : null, images: names.map(name => ({ name })), units: "file" };
+  }
+  // the colour of every triangle of a mesh from its source model's colours: src maps each triangle to the
+  // source solid's triangle (identity when it is the source itself); the colour at the triangle's middle,
+  // found in its source triangle, from the picture (bilinear, repeating) times the corner colours, or from
+  // the corner colours alone. mc: { cc, uv, texOf, tex: [{ w, h, data } or null] } per source triangle.
+  function modelTriColours(solid, src, source, mc) {
+    const I = solid.idx, P = solid.pos, n = I.length / 3, out = new Uint8Array(3 * n);
+    const SI = source.idx, SP = source.pos, cc = mc.cc, uv = mc.uv, texOf = mc.texOf, tex = mc.tex || [];
+    const sample = (T, u, v, o) => {
+      u = (u % 1 + 1) % 1; v = (v % 1 + 1) % 1;
+      const x = u * T.w - 0.5, y = v * T.h - 0.5, x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0, D = T.data;
+      const at = (xx, yy) => 4 * (((yy % T.h) + T.h) % T.h * T.w + ((xx % T.w) + T.w) % T.w);
+      const a = at(x0, y0), b = at(x0 + 1, y0), c = at(x0, y0 + 1), d = at(x0 + 1, y0 + 1);
+      for (let k = 0; k < 3; k++) o[k] = (D[a + k] * (1 - fx) + D[b + k] * fx) * (1 - fy) + (D[c + k] * (1 - fx) + D[d + k] * fx) * fy;
+    };
+    const px = [0, 0, 0];
+    for (let t = 0; t < n; t++) {
+      const s = src ? src[t] : t, a = 3 * SI[3 * s], b = 3 * SI[3 * s + 1], c = 3 * SI[3 * s + 2];
+      // the middle of this triangle, and where it lies in the source triangle (barycentric)
+      const m = [0, 1, 2].map(k => (P[3 * I[3 * t] + k] + P[3 * I[3 * t + 1] + k] + P[3 * I[3 * t + 2] + k]) / 3);
+      const e0 = [SP[b] - SP[a], SP[b + 1] - SP[a + 1], SP[b + 2] - SP[a + 2]], e1 = [SP[c] - SP[a], SP[c + 1] - SP[a + 1], SP[c + 2] - SP[a + 2]], e2 = [m[0] - SP[a], m[1] - SP[a + 1], m[2] - SP[a + 2]];
+      const d00 = e0[0] * e0[0] + e0[1] * e0[1] + e0[2] * e0[2], d01 = e0[0] * e1[0] + e0[1] * e1[1] + e0[2] * e1[2], d11 = e1[0] * e1[0] + e1[1] * e1[1] + e1[2] * e1[2];
+      const d20 = e2[0] * e0[0] + e2[1] * e0[1] + e2[2] * e0[2], d21 = e2[0] * e1[0] + e2[1] * e1[1] + e2[2] * e1[2], den = d00 * d11 - d01 * d01;
+      let v = den > 1e-18 ? (d11 * d20 - d01 * d21) / den : 1 / 3, w = den > 1e-18 ? (d00 * d21 - d01 * d20) / den : 1 / 3;
+      v = Math.min(1, Math.max(0, v)); w = Math.min(1 - v, Math.max(0, w)); const u = 1 - v - w;
+      const T = texOf && texOf[s] >= 0 ? tex[texOf[s]] : null;
+      for (let k = 0; k < 3; k++) px[k] = cc ? u * cc[9 * s + k] + v * cc[9 * s + 3 + k] + w * cc[9 * s + 6 + k] : 255;
+      if (T && uv) {
+        const tc = [0, 0, 0]; sample(T, u * uv[6 * s] + v * uv[6 * s + 2] + w * uv[6 * s + 4], u * uv[6 * s + 1] + v * uv[6 * s + 3] + w * uv[6 * s + 5], tc);
+        for (let k = 0; k < 3; k++) px[k] = linToS(sToLin(tc[k]) * sToLin(px[k]));
+      }
+      out[3 * t] = px[0]; out[3 * t + 1] = px[1]; out[3 * t + 2] = px[2];
+    }
+    return out;
+  }
+  // the model's main colours (as photoPalette: light and shade one colour), from its triangles' colours
+  // weighted by their area: rgb, 3 bytes per triangle
+  function modelPalette(topo, rgb, k, seed) {
+    const n = topo.n, m = Math.min(40000, n * 4), rnd = seededRandom(seed || 3), cum = new Float64Array(n);
+    let tot = 0; for (let t = 0; t < n; t++) { tot += topo.area[t]; cum[t] = tot; }
+    const rgba = new Uint8ClampedArray(4 * m), mask = new Uint8Array(m).fill(1);
+    for (let j = 0; j < m; j++) {
+      const r = rnd() * tot; let lo = 0, hi = n - 1; while (lo < hi) { const mid = (lo + hi) >> 1; if (cum[mid] < r) lo = mid + 1; else hi = mid; }
+      rgba[4 * j] = rgb[3 * lo]; rgba[4 * j + 1] = rgb[3 * lo + 1]; rgba[4 * j + 2] = rgb[3 * lo + 2]; rgba[4 * j + 3] = 255;
+    }
+    return photoPalette(rgba, mask, m, 1, k);
+  }
+  // which palette colour each triangle takes, then passes of "the colour most of its neighbours have"
+  // (by area) to clear single stray triangles
+  function modelColourLabels(topo, rgb, pal, passes) {
+    const n = topo.n, rgba = new Uint8ClampedArray(4 * n), mask = new Uint8Array(n).fill(1);
+    for (let t = 0; t < n; t++) { rgba[4 * t] = rgb[3 * t]; rgba[4 * t + 1] = rgb[3 * t + 1]; rgba[4 * t + 2] = rgb[3 * t + 2]; rgba[4 * t + 3] = 255; }
+    let lab = Int16Array.from(photoClasses(rgba, mask, n, 1, pal));
+    for (let it = 0; it < (passes || 0); it++) {
+      const next = lab.slice(), w = new Float64Array(pal.length);
+      for (let t = 0; t < n; t++) {
+        w.fill(0); w[lab[t]] += topo.area[t] * 1.01;
+        for (let e = 0; e < 3; e++) { const q = topo.nbr[3 * t + e]; if (q >= 0) w[lab[q]] += topo.area[q]; }
+        let best = lab[t]; for (let c = 0; c < w.length; c++) if (w[c] > w[best]) best = c;
+        next[t] = best;
+      }
+      lab = next;
+    }
+    return lab;
+  }
   // a 3MF model file (the XML inside the zip): every mesh, placed by its build items and components;
   // returns triangles, and the painted filament per triangle when the file has slicer painting
   // cfg (optional): the slicer's settings files, { bambu: Metadata/model_settings.config, prusa:
@@ -3599,7 +3945,8 @@
     gridAround, heightSheet,
     meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, gradientCuts, gradientLayers, paintGradient, paintSwap, meshShells, paintShells,
     meshRegions, paintRegions, paintNoise, paintPictureWrap, paintCurvature, curvatureClasses, layerSlots, colourChanges, paintBrush, brushTris, symmetryCopies, areaTris, paintFill, paintPicture, parseOBJ, parse3MFModel,
-    PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, paintFromPhotos,
-    photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure
+    PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, photoRef, photoUV, PHOTO_K_MAX, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, photoFitCloseness, paintFromPhotos,
+    photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure, cutoutWithMap, edgeOpacity, photoFixMap, photoFixMask,
+    parseGLB, parseGLTF, parseMTL, parseOBJColours, modelTriColours, modelPalette, modelColourLabels
   };
 })(typeof window !== "undefined" ? window : globalThis);

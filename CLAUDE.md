@@ -47,6 +47,9 @@ Plus, depending on what changed:
 - colour from a photo (the `photo*` functions in `src/core.js`, the Paint tab's photo step) or the AI figure finder
   (`AI_FIGURE`, `models/`) → `npm run test:photo` (`CORE=1` for the engine only; the test figure and its photos are in
   `tools-photo-figure.js`; the model runs in Node through the `onnxruntime-web` dev dependency)
+- opening models with their own colours (GLB/glTF, OBJ with vertex colours or an MTL picture: `parseGLB`, `parseGLTF`,
+  `parseOBJColours`, `modelTriColours`, the Paint tab's "model" step) or the AI cut-out → `npm run test:aimodel` for
+  the models (`CORE=1` for the readers only) and `npm run test:photo` for the cut-out
 - new settings, `sanitizeProject`, `LIMITS` / `LIMITS_AT`, or `DEFAULTS` → `npm run test:project` (every quick start and object
   must come back unchanged from a saved project, and out-of-range values must not make a build run away)
 - after any generator change → `node tools-print-survey.js index.html` (look for new warnings)
@@ -72,6 +75,7 @@ tests accept `CORE=1` for the fast geometry-only part.
 - UI text is plain and friendly, written for makers rather than engineers.
 - Bump `version` in `package.json` for each release and add a "Session N" section to `HANDOFF.md`
   describing what changed, what was tested and anything left unfinished.
+- Open a new pull request for every version release (the owner asked for this in Session 20).
 - Updating ONNX Runtime Web or the model means new SHA-256 values in `AI_FIGURE` (`src/app.html`) and in `models/LICENSE.md`.
 - Tests run headlessly only; say clearly when something still needs checking in a real browser,
   slicer or on a real print.

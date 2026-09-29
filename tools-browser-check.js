@@ -58,6 +58,18 @@ function pageLayout() {
   const name = el => (el.id ? "#" + el.id : el.tagName.toLowerCase() + (el.className && typeof el.className === "string" ? "." + el.className.trim().split(/\s+/).join(".") : "")) +
     (el.textContent.trim() ? ` "${el.textContent.trim().replace(/\s+/g, " ").slice(0, 40)}"` : "");
   if (de.scrollWidth > vw + 1 && getComputedStyle(document.body).overflowX !== "hidden") out.push(`page scrolls sideways (${de.scrollWidth} px in a ${vw} px window)`);
+  // the app bar (Session 21): every button on the screen (a Download button past the edge cannot be pressed)
+  for (const b of document.querySelectorAll(".appbar button")) {
+    if (!vis(b)) continue; const r = b.getBoundingClientRect();
+    if (r.right > vw + 1 || r.left < -1) out.push(`off the screen: ${name(b)}`);
+  }
+  // the settings: all of them within reach, scrolling when they do not fit
+  const sheet = document.querySelector(".sheet"), pnl = document.querySelector("#panel");
+  if (sheet && vis(sheet)) {
+    const oy = el => getComputedStyle(el).overflowY;
+    if (sheet.scrollHeight > sheet.clientHeight + 1 && !/auto|scroll/.test(oy(sheet))) out.push(`the settings do not fit and cannot be scrolled (${sheet.scrollHeight} px in ${sheet.clientHeight})`);
+    if (pnl && pnl.scrollHeight > pnl.clientHeight + 1 && oy(pnl) === "hidden") out.push(`the settings are cut off (${pnl.scrollHeight} px in ${pnl.clientHeight})`);
+  }
   const panel = document.querySelector("#panel");
   if (panel && vis(panel)) {
     const pr = panel.getBoundingClientRect();
@@ -474,7 +486,77 @@ function pageCoverage() {
     await page.evaluate(() => document.querySelector("canvas.photoPrev") && document.querySelector("canvas.photoPrev").scrollIntoView({ block: "center" }));
     await shot(page, "paint-photo-ai", "Paint tab: a photo in front of a bookshelf, the figure found by the AI figure finder");
     if (!(ai.ai && ai.ready && ai.text && ai.match > 0.75 && Math.abs(ai.yaw) <= 10 && sizeOff < 0.03 && ai.painted > 0.999)) findings.push({ where: "AI figure finder", what: JSON.stringify(ai) });
+
+    // ---------- Session 20: the figure fixed by hand, with a real mouse ----------
+    let fixR = null;
+    {
+      // back to the photo card (the layers page is showing), then the Take away brush
+      await page.evaluate(() => { const b = [...document.querySelectorAll("#secrail button")].find(b => b.dataset.title === "Auto colour"); if (b) b.click(); });
+      await page.waitForTimeout(300);
+      await page.evaluate(() => { const b = [...document.querySelectorAll("#panel .seg.tool button")].find(b => /Take away/.test(b.textContent)); if (b) b.click(); });
+      await page.waitForTimeout(300);
+      await page.evaluate(() => document.querySelector("canvas.photoPrev") && document.querySelector("canvas.photoPrev").scrollIntoView({ block: "center" }));
+      const b = await page.evaluate(() => { const c = document.querySelector("canvas.photoPrev"), r = c.getBoundingClientRect(), k = Math.min(r.width / c.width, r.height / c.height);
+        return { x: r.left + (r.width - c.width * k) / 2, y: r.top + (r.height - c.height * k) / 2, w: c.width * k, h: c.height * k, fixing: c.classList.contains("fixing") }; });
+      // across the top of the bookshelf, well above the figure's head
+      const before = await page.evaluate(() => { const MF = window.MakerForge, v = MF.paint.photo.op.views[0], m = MF.paint.photo.figure(v, 600, 800); let n = 0; for (let y = 0; y < 60; y++) for (let x = 0; x < 600; x++) n += m[y * 600 + x]; return n; });
+      await page.mouse.move(b.x + 0.1 * b.w, b.y + 0.04 * b.h); await page.mouse.down();
+      for (let i = 1; i <= 16; i++) await page.mouse.move(b.x + (0.1 + i * 0.05) * b.w, b.y + 0.04 * b.h);
+      await page.mouse.up(); await page.waitForTimeout(1200); await settle(page);
+      fixR = await page.evaluate(() => { const MF = window.MakerForge, v = MF.paint.photo.op.views[0], m = MF.paint.photo.figure(v, 600, 800); let n = 0; for (let y = 0; y < 60; y++) for (let x = 0; x < 600; x++) n += m[y * 600 + x];
+        const f = v.fix || []; return { strokes: f.length, points: f[0] ? f[0].p.length / 2 : 0, add: f[0] && f[0].add, x0: f[0] && f[0].p[0], y0: f[0] && f[0].p[1], after: n, show: MF.paint.ui.photoShow,
+          note: /fix by hand/.test(document.querySelector("#panel").textContent) }; });
+      fixR.before = before; fixR.fixing = b.fixing;
+      await shot(page, "paint-photo-fix", "Paint tab: Take away, one stroke painted with the mouse across the bookshelf (the darkened part is background)");
+      if (!(b.fixing && fixR.strokes === 1 && fixR.points >= 8 && fixR.add === false && Math.abs(fixR.x0 - 0.1) < 0.02 && Math.abs(fixR.y0 - 0.04) < 0.02 && fixR.show === "figure" && fixR.note && fixR.after <= fixR.before))
+        findings.push({ where: "figure fixed by hand", what: JSON.stringify(fixR) });
+      await page.evaluate(() => { const b = [...document.querySelectorAll("#panel button")].find(b => /Clear my fixes/.test(b.textContent)); if (b) b.click(); });
+      await page.waitForTimeout(900); await settle(page);
+      await page.evaluate(() => { const b = [...document.querySelectorAll("#panel .seg.tool button")].find(b => /Move the photo/.test(b.textContent)); if (b) b.click(); });
+      notes.push(`figure fixed by hand: a mouse stroke of ${fixR.points} points started at (${(fixR.x0 || 0).toFixed(3)}, ${(fixR.y0 || 0).toFixed(3)}) of the photo (0.1, 0.04 aimed at)`);
+    }
+
+    // ---------- Session 20: the AI cut-out on the Art tab, run in the browser ----------
+    {
+      await page.evaluate(() => { const sel = document.querySelector("#objectSel"); sel.value = "board"; sel.dispatchEvent(new Event("change")); });
+      await settle(page);
+      await page.evaluate(() => { [...document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "art").click(); });
+      await page.waitForTimeout(200);
+      await page.setInputFiles("#fileInput", fShelf);
+      await page.waitForFunction(() => window.MakerForge.state.items.some(d => d.name === "photo-shelf" && d.src), null, { timeout: 60000 }).catch(() => {});
+      await settle(page);
+      const offered = await page.evaluate(() => { const b = [...document.querySelectorAll("#panel button")].find(b => /Cut out the subject with AI/.test(b.textContent)); if (b) b.click(); return !!b; });
+      await page.waitForFunction(() => { const d = window.MakerForge.state.items.find(d => d.name === "photo-shelf"); return d && d.uncut; }, null, { timeout: 120000 }).catch(() => {});
+      await settle(page);
+      const cut = await page.evaluate(() => { const MF = window.MakerForge, d = MF.state.items.find(d => d.name === "photo-shelf"); if (!d) return null;
+        const c = d.src, px = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; let clear = 0; for (let i = 3; i < px.length; i += 4) if (px[i] < 128) clear++;
+        return { uncut: !!d.uncut, crop: d.crop, clear: clear / (px.length / 4), w: c.width, h: c.height, parts: MF.parts.length, back: [...document.querySelectorAll("#panel button")].some(b => /Put the background back/.test(b.textContent)) }; });
+      await shot(page, "art-ai-cutout", "Art tab: the bookshelf photo cut out with AI, only the figure prints on the board");
+      if (!(offered && cut && cut.uncut && cut.crop && cut.clear > 0.3 && cut.back)) findings.push({ where: "AI cut-out", what: JSON.stringify({ offered, cut }) });
+      notes.push(`AI cut-out in the browser: ${cut ? `${Math.round(cut.clear * 100)}% of the picture made clear, ${cut.parts} parts on the board` : "did not run"}`);
+    }
     fs.unlinkSync(fShelf);
+
+    // ---------- Session 20: a model with its own colours (a GLB with a picture, as AI model makers give) ----------
+    {
+      const small = F.figure(2.5), stopo = PC.meshTopology(small.solid), scls = F.truth(stopo, small.partOf);
+      const fGlb = path.join(OUT, "figure.glb"); fs.writeFileSync(fGlb, F.figureGLB(small.solid, scls, encodePNG));
+      await page.evaluate(() => { const MF = window.MakerForge; MF.state.items.length = 0; MF.state.active = -1; MF.state.paint.ops.length = 0; MF.state.printer.colors = 6; const sel = document.querySelector("#objectSel"); sel.value = "stl"; });
+      await page.setInputFiles("#stlInput", fGlb);
+      await page.waitForFunction(() => { const MF = window.MakerForge; return /^figure\.glb/.test((MF.state.base.stl || {}).name || "") && MF.model.colour && MF.state.paint.ops.some(o => o.k === "model"); }, null, { timeout: 180000 }).catch(() => {});
+      await settle(page);
+      await page.evaluate(() => { [...document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "paint").click(); });
+      await page.waitForTimeout(300); await settle(page);
+      const mc = await page.evaluate(() => { const MF = window.MakerForge, o = MF.state.paint.ops.find(o => o.k === "model"), p = MF.parts[0], c = MF.model.colour;
+        const box = p && PRCore.solidBounds(p.solid);
+        return { op: !!o, pal: o ? o.pal.map(q => PRCore.rgbToHex(...q.rgb)) : [], tex: c && c.tex ? c.tex.length : 0, painted: p && p.paint ? p.paint.filter(s => s !== 255).length / p.paint.length : 0,
+          slots: MF.state.slots.map(s => s.name).join(", "), tall: box ? +(box.mx[1] - box.mn[1]).toFixed(1) : 0 }; });   // parts are Y up inside the app
+      await shot(page, "paint-model-colours", "Paint tab: a GLB with a colour picture, as AI model makers give, opened in its own colours");
+      const nearPal = Object.values(F.PAL).map(rgb => Math.min(...mc.pal.map(h => { const q = PC.hexToRgb(h); return Math.hypot(q[0] - rgb[0], q[1] - rgb[1], q[2] - rgb[2]); })));
+      if (!(mc.op && mc.tex === 1 && mc.pal.length === 6 && nearPal.every(d => d < 12) && mc.painted > 0.999 && Math.abs(mc.tall - 102) < 1)) findings.push({ where: "model with its own colours", what: JSON.stringify(mc) });
+      fs.unlinkSync(fGlb);
+      notes.push(`a GLB with a colour picture opened in Chromium: ${mc.pal.length} colours (${mc.slots}), ${(mc.painted * 100).toFixed(1)}% painted, ${mc.tall} mm tall`);
+    }
     notes.push(`AI figure finder: a wrong model file ${refused.ai ? "WAS NOT" : "was"} refused; the real one found the figure in ${aiMs} ms with the download (outline ${Math.round(ai.match * 100)}%, ${ai.yaw}° round, size off ${(sizeOff * 100).toFixed(1)}%)`);
   }
   await page.context().close();
@@ -491,7 +573,42 @@ function pageCoverage() {
       const layout = await ph.evaluate(pageLayout); layout.forEach(t => findings.push({ where: "phone " + obj, what: t }));
       shots.push({ file, caption: `Phone: ${obj}`, layout, ...info });
     }
+    // Session 21: what a phone needs: Start from as a drawer, the More menu, the views folded, the settings scrolling
+    const ev = f => ph.evaluate(f);
+    const layoutMode = await ev(() => document.documentElement.dataset.layout);
+    await ph.click("#startBtn"); await ph.waitForTimeout(300);
+    const drawer = await ev(() => { const b = document.querySelector("#starts").getBoundingClientRect(); return { open: document.querySelector(".app").classList.contains("starts-open"), left: Math.round(b.left), w: Math.round(b.width) }; });
+    await shot(ph, "phone-drawer", "Phone: Start from opens over the page");
+    await ph.click('#presetGallery button[data-k="Iron-on patch"]'); await settle(ph);
+    const chosen = await ev(() => ({ open: document.querySelector(".app").classList.contains("starts-open"), type: MakerForge.state.base.type }));
+    await ph.click("#moreBtn"); await ph.waitForTimeout(200);
+    const more = await ev(() => { const m = document.querySelector("#barMore"), b = m.getBoundingClientRect(); return { shown: getComputedStyle(m).display !== "none", inside: b.left >= 0 && b.right <= innerWidth, labels: [...m.querySelectorAll(".lbl")].filter(l => l.offsetWidth).length }; });
+    await shot(ph, "phone-more", "Phone: the More menu");
+    await ph.click("#themeBtn"); await ph.waitForTimeout(200);
+    const moreClosed = await ev(() => !document.querySelector(".appbar").classList.contains("more-open"));
+    await ev(() => { const b = document.querySelector("#themeBtn"); b.click(); b.click(); });            // back to the theme it had
+    const tools = await ev(() => { const t = document.querySelector(".viewtools"), b = t.getBoundingClientRect(); return { compact: t.classList.contains("compact"), h: Math.round(b.height), right: Math.round(b.right) }; });
+    const sb = await ev(() => { const b = document.querySelector(".sheet").getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
+    await ph.mouse.move(sb.x, sb.y); await ph.mouse.wheel(0, 700); await ph.waitForTimeout(300);
+    const scrolled = await ev(() => document.querySelector(".sheet").scrollTop + document.querySelector("#panel").scrollTop);
+    await ph.click("#sheetToggle"); await ph.waitForTimeout(400);
+    const closedH = await ev(() => Math.round(document.querySelector(".stage").getBoundingClientRect().height));
+    await ph.click("#secrail button >> nth=0"); await ph.waitForTimeout(400);
+    const back = await ev(() => Math.round(document.querySelector(".sheet").getBoundingClientRect().height));
+    const ok = layoutMode === "phone" && drawer.open && drawer.left === 0 && drawer.w === 390 && !chosen.open && chosen.type === "board" && more.shown && more.inside && more.labels === 6 && moreClosed &&
+      tools.compact && tools.h < 60 && tools.right <= 390 && scrolled > 100 && closedH > 600 && back > 200;
+    if (!ok) findings.push({ where: "phone", what: JSON.stringify({ layoutMode, drawer, chosen, more, moreClosed, tools, scrolled, closedH, back }) });
+    notes.push(`phone: layout "${layoutMode}", Start from ${drawer.w} px wide, the More menu with ${more.labels} labels, the settings scrolled ${scrolled} px, ${closedH} px of model with the panel closed`);
     await ph.context().close();
+    // a phone on its side and two tablets: side by side, everything on the screen
+    for (const [w, h, what] of [[844, 390, "phone on its side"], [768, 1024, "tablet upright"], [1024, 768, "tablet on its side"]]) {
+      const tp = await openPage({ width: w, height: h }, what);
+      await settle(tp);
+      const mode = await tp.evaluate(() => document.documentElement.dataset.layout);
+      if (mode !== "narrow") findings.push({ where: what, what: `layout "${mode}", expected "narrow"` });
+      await shot(tp, what, `${what} (${w} × ${h})`);
+      await tp.context().close();
+    }
   }
   await browser.close();
 

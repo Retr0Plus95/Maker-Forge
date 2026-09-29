@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Maker Forge: free multi-colour 3D print designer</title>
 <meta name="description" content="Free multi-colour (multi-color) 3D print designer in your browser. Make name keychains, patches, car badges, phone cases, lithophanes, jigsaw puzzles, cookie cutters, lightboxes, project boxes and painted models from names, photos and logos, and export 3MF for Bambu Studio, OrcaSlicer and PrusaSlicer. No install, no account, no uploads.">
-<meta name="keywords" content="multi-colour 3D printing, multicolor 3D print, 3MF, image to STL, photo to STL, SVG to STL, keychain generator, name tag, lithophane maker, jigsaw puzzle generator, cookie cutter generator, phone case generator, project box generator, electronics enclosure, PCB art, lightbox, plastic canvas, Bambu Lab AMS, Prusa MMU3, OrcaSlicer, PrusaSlicer, Bambu Studio">
+<meta name="keywords" content="multi-colour 3D printing, multicolor 3D print, 3MF, image to STL, photo to STL, SVG to STL, keychain generator, name tag, lithophane maker, jigsaw puzzle generator, cookie cutter generator, phone case generator, project box generator, electronics enclosure, PCB art, lightbox, plastic canvas, Bambu Lab AMS, Prusa MMU3, OrcaSlicer, PrusaSlicer, Bambu Studio, GLB to 3MF, glTF, AI 3D model printing, remove background">
 <meta name="application-name" content="Maker Forge">
 <meta name="theme-color" content="#1f6f8b">
 <meta property="og:type" content="website">
@@ -329,6 +329,7 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
 .areaSel .over{stroke:#fff;stroke-width:2.5;stroke-dasharray:8 5;fill:rgba(255,255,255,.12)}
 /* colour from a photo: the photo with the model's outline on it, and the buttons that move it */
 .photoPrev{display:block;width:100%;height:auto;max-height:420px;object-fit:contain;margin:10px 0 4px;border-radius:10px;border:1px solid var(--line);background:var(--field);cursor:grab;touch-action:none}
+.photoPrev.fixing{cursor:crosshair}
 .photoPrev:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .nudges{flex-wrap:wrap;gap:4px}
 .nudges .btn{min-width:40px;min-height:36px;font-size:16px;padding:4px 8px}
@@ -390,7 +391,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.20.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.21.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -858,12 +859,15 @@ const DEFAULTS = () => ({
 let state = DEFAULTS();
 const assets = {};
 let stlData = null, stlPaint = null, stlCache = null, uid = 1, tab = "make";
+// an imported model's own colours (Session 20: GLB / glTF, OBJ with colours or a picture), per triangle of stlData:
+// { cc: corner colours, 9 bytes, uv: 6 floats or null, texOf: picture index or -1, tex: [asset ids] }
+let stlColour = null;
 // the models opened in this tab, by name, so undo and redo bring back the right one (up to ~150 MB);
 // stlName is the name of the one in stlData
 const openedModels = new Map();
 let stlName = null;
-function rememberModel(name, data, paint){
-  openedModels.delete(name); openedModels.set(name, { data, paint });
+function rememberModel(name, data, paint, colour){
+  openedModels.delete(name); openedModels.set(name, { data, paint, colour:colour || null });
   let bytes = 0; for (const m of openedModels.values()) bytes += m.data.byteLength;
   for (const [k, m] of openedModels){ if (bytes <= 150e6 || k === name) break; bytes -= m.data.byteLength; openedModels.delete(k); }
 }
@@ -898,7 +902,7 @@ function applySnapshot(json){
   state = JSON.parse(json);
   // an imported model is not in the snapshot: take the one it was made with, if this tab still has it
   const want = state.base.type === "stl" && state.base.stl ? state.base.stl.name : null;
-  if (want && want !== stlName){ const m = openedModels.get(want); stlData = m ? m.data : null; stlPaint = m ? m.paint : null; stlName = m ? want : null; stlCache = null; }
+  if (want && want !== stlName){ const m = openedModels.get(want); stlData = m ? m.data : null; stlPaint = m ? m.paint : null; stlColour = m ? m.colour : null; stlName = m ? want : null; stlCache = null; }
   state.items.forEach(it => { it.solids = null; it._imgKey = ""; it._srcSig = ""; });
   applyTheme(); renderTab(); rebuildAll(true);
 }
@@ -911,13 +915,16 @@ function missingModel(){ return state.base.type === "stl" && !stlData && state.b
 // the autosave, the recent list and share links leave it out and ask for the file again
 function projectPayload(withModel){
   const model = withModel && state.base.type === "stl" && stlData ? { name:state.base.stl.name,
-    tris:b64url(new Uint8Array(stlData.buffer, stlData.byteOffset, stlData.byteLength)), paint:stlPaint ? b64url(stlPaint) : null } : undefined;
+    tris:b64url(new Uint8Array(stlData.buffer, stlData.byteOffset, stlData.byteLength)), paint:stlPaint ? b64url(stlPaint) : null,
+    colour:stlColour ? { cc:b64url(stlColour.cc), uv:stlColour.uv ? b64url(new Uint8Array(stlColour.uv.buffer, stlColour.uv.byteOffset, stlColour.uv.byteLength)) : null,
+      texOf:stlColour.texOf ? b64url(new Uint8Array(stlColour.texOf.buffer, stlColour.texOf.byteOffset, stlColour.texOf.byteLength)) : null, tex:stlColour.tex.slice() } : undefined } : undefined;
   return JSON.stringify({ app:"Maker Forge", v:5, saved:new Date().toISOString(),
     state:JSON.parse(serialize()), assets:Object.fromEntries(Object.entries(assets).filter(([k]) => usedAssets().has(k)).map(([k,v])=>[k,v.dataURL])), model });
 }
 function usedAssets(){
-  const used = new Set(state.items.map(it => it.asset).filter(Boolean));
+  const used = new Set(state.items.flatMap(it => [it.asset, it.uncut]).filter(Boolean));      // uncut: a picture's original, before an AI cut-out
   ((state.paint && state.paint.ops) || []).forEach(o => { if (o.k === "photo") o.views.forEach(v => { used.add(v.asset); if (v.ai) used.add(v.ai); }); });
+  if (state.base.type === "stl" && stlColour) stlColour.tex.forEach(id => id && used.add(id));        // an imported model's pictures
   return used;
 }
 /* Share link: the project, pictures left out, deflated into the part of the address after "#p=".
@@ -1243,8 +1250,8 @@ function buildSimpleObject(){
   else if (b.type === "sphere") g = new THREE.SphereGeometry(b.sphere.dia/2,160,80).translate(0,b.sphere.dia/2,0);
   else if (b.type === "stl" && stlData){
     // welding a big model takes a while: keep the result until the file or the scale changes
-    if (stlCache && stlCache.data === stlData && stlCache.scale === b.stl.scale)
-      return [{ name:"Object", slot, solid:stlCache.solid, importPaint:stlCache.paint }];
+    if (stlCache && stlCache.data === stlData && stlCache.scale === b.stl.scale && stlCache.colourOf === stlColour)
+      return [{ name:"Object", slot, solid:stlCache.solid, importPaint:stlCache.paint, importColour:stlCache.colour }];
     const s = b.stl.scale/100, p = new Float32Array(stlData.length);
     for (let i=0;i<p.length;i++) p[i] = stlData[i]*s;
     g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(p,3));
@@ -1252,9 +1259,9 @@ function buildSimpleObject(){
     g.translate(-(bb.min.x+bb.max.x)/2, -bb.min.y, -(bb.min.z+bb.max.z)/2);
     const w = C.weldSoup(g.attributes.position.array, null, true);
     const paint = stlPaint ? Uint8Array.from(w.src, t => stlPaint[t] || 0) : null;
-    stlCache = { data:stlData, scale:b.stl.scale, solid:{ pos:w.pos, idx:w.idx }, paint };
+    stlCache = { data:stlData, scale:b.stl.scale, solid:{ pos:w.pos, idx:w.idx }, paint, colourOf:stlColour, colour:stlColour ? modelColourFor(stlColour, w.src) : null };
     g.dispose();
-    return [{ name:"Object", slot, solid:stlCache.solid, importPaint:paint }];
+    return [{ name:"Object", slot, solid:stlCache.solid, importPaint:paint, importColour:stlCache.colour }];
   }
   if (!g) return [];
   const solid = C.weldSoup(g.attributes.position.array, g.index ? g.index.array : null);
@@ -3776,7 +3783,7 @@ renderer.domElement.addEventListener("pointerup", e => {
    slic3rpe:mmu_segmentation for PrusaSlicer); the OBJ groups faces by colour. */
 const PAINT_MAX_TRIS = 900000, PAINT_LEAVE = 255;
 const PAINT_DETAIL = { coarse:2.5, normal:1.2, fine:0.6 };
-const paintUI = { slot:1, tool:"brush", r:3, facing:true, fill:"smooth", angle:30, method:"height", mirror:false, photo:0, photoShow:"photo", radial:1, smart:false, edge:40, lastTool:"brush",
+const paintUI = { slot:1, tool:"brush", r:3, facing:true, fill:"smooth", angle:30, method:"height", mirror:false, photo:0, photoShow:"photo", photoTool:"move", photoFixR:4, radial:1, smart:false, edge:40, lastTool:"brush",
   area:"box", through:false, rubOut:false };
 const paintCache = new WeakMap();                  // original solid -> refined mesh, topology, brush grid
 let paintInfo = { tris:0, painted:0, edge:0, capped:false, area:{} };
@@ -3792,7 +3799,7 @@ function paintCuts(ops){
   }
   return [...cuts].filter(isFinite).sort((a,b)=>a-b).slice(0, 600);
 }
-const paintNeedsFine = ops => ops.some(o => ["brush","picture","noise","fill","photo","area","curve"].includes(o.k));
+const paintNeedsFine = ops => ops.some(o => ["brush","picture","noise","fill","photo","area","curve","model"].includes(o.k));
 // the brush wants small triangles before it paints (to show what it will paint): set while a brush-type
 // tool is used on the Paint tab, dropped when leaving it or opening another model with nothing painted
 let paintPrepared = false;
@@ -3965,10 +3972,22 @@ function aiMapOf(id){
     for (let i=0;i<v.length;i++) v[i] = d[4*i]; m = { w:c.width, h:c.height, v }; aiMapCache.set(a.canvas, m); }
   return m;
 }
-// the figure in a photo (px: its pixels at some size): the AI's outline when it has one, else by colour
-function photoFigure(v, px){
+// the figure in a photo (px: its pixels at some size): the AI's outline when it has one, else by colour,
+// then the parts added or taken away by hand
+function photoFound(v, px){
   const m = aiMapOf(v.ai);
   return m ? C.photoMaskFromMap(m.v, m.w, m.h, px.w, px.h) : C.photoMask(px.rgba, px.w, px.h, v.tol);
+}
+function photoFigure(v, px){
+  const f = photoFound(v, px);
+  return v.fix && v.fix.length ? C.photoFixMask(f, px.w, px.h, v.fix) : f;
+}
+// a short key for a photo's hand fixes, for the caches
+function photoFixKey(v){
+  const f = v.fix; if (!f || !f.length) return "";
+  let h = 2166136261; for (const s of f){ h = Math.imul(h ^ (s.add ? 1 : 2), 16777619); h = Math.imul(h ^ Math.round(s.r * 1e4), 16777619);
+    for (const x of s.p) h = Math.imul(h ^ Math.round(x * 1e4), 16777619); }
+  return f.length + ":" + (h >>> 0).toString(36);
 }
 // find the figure with the AI in every photo of a step that does not have it yet, then line them up again
 async function aiFindFigures(o, only){
@@ -3983,9 +4002,7 @@ async function aiFindFigures(o, only){
       v.ai = aiMapAsset(await aiFigureMap(assets[v.asset].canvas), AI_FIGURE.size);
     }
   } catch (err){
-    setBusy(false); console.warn(err);
-    notify(err.unexpected ? "A file of the AI figure finder was not the one it should be, so it was not used (it may have been changed on the way). Nothing was run. Try again later."
-      : `The AI figure finder could not be loaded (${err.message}). Check the internet connection. On your own website, put the models folder next to index.html.`);
+    setBusy(false); aiFailed(err);
     return false;
   }
   setBusy(false);
@@ -3993,6 +4010,63 @@ async function aiFindFigures(o, only){
   for (const v of todo){ photoToSide(v); await photoFitNow(o, v, true); }
   notify(`The AI figure finder found the figure in ${todo.length === 1 ? "the photo" : `${todo.length} photos`}.`);
   return true;
+}
+function aiFailed(err){
+  console.warn(err);
+  notify(err.unexpected ? "A file of the AI figure finder was not the one it should be, so it was not used (it may have been changed on the way). Nothing was run. Try again later."
+    : `The AI figure finder could not be loaded (${err.message}). Check the internet connection. On your own website, put the models folder next to index.html.`);
+}
+/* ---- the AI cut-out (Session 20) ----
+   The same figure finder takes a picture's background away: the subject stays, the rest turns clear, and
+   the picture is trimmed to it. The cut-out is a new picture; the original is kept (d.uncut) so the
+   background can be put back. Both are saved in a project file. */
+function pictureHasBackground(d){
+  const a = d && !d.text && d.asset && assets[d.asset]; if (!a || !a.canvas) return false;
+  const c = a.canvas, k = Math.min(1, 256/Math.max(c.width, c.height)), img = resample(c, Math.max(2, Math.round(c.width*k)), Math.max(2, Math.round(c.height*k)), false);
+  return C.edgeOpacity(img.data, img.width, img.height) > 0.5;
+}
+async function aiCutout(d){
+  const a = d && !d.text && d.asset && assets[d.asset]; if (!a || !a.canvas) return false;
+  const src = a.canvas, W = src.width, H = src.height;
+  try {
+    setBusy(true, aiState.session || aiHooks.run ? "Finding the subject…" : `Downloading the AI figure finder (about ${AI_FIGURE.mb} MB)…`);
+    await new Promise(r => setTimeout(r, 30));
+    if (!aiHooks.run) await aiLoad();
+    setBusy(true, "Cutting out the subject…"); await new Promise(r => setTimeout(r, 20));
+    const map = await aiFigureMap(src);
+    const rgba = C.cutoutWithMap(src.getContext("2d", { willReadFrequently:true }).getImageData(0, 0, W, H).data, W, H, map, AI_FIGURE.size, AI_FIGURE.size);
+    let kept = 0; for (let i = 3; i < rgba.length; i += 4) if (rgba[i] > 127) kept++;
+    setBusy(false);
+    if (kept < W*H*0.01){ notify("The AI found no clear subject in this picture, so it was left as it was."); return false; }
+    const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    const x = cv.getContext("2d"), img = x.createImageData(W, H); img.data.set(rgba); x.putImageData(img, 0, 0);
+    const id = "a"+(uid++); assets[id] = { canvas:cv, dataURL:cv.toDataURL("image/png") };
+    if (!d.uncut) d.uncut = d.asset;
+    d.asset = id; d.src = cv; d.thumb = assets[id].dataURL; d.crop = true;
+    d._srcSig = ""; d._srcCv = null; d._imgKey = ""; d.solids = null;
+    return true;
+  } catch (err){ setBusy(false); aiFailed(err); return false; }
+}
+function aiUncut(d){
+  if (!d || !d.uncut || !assets[d.uncut]) return false;
+  d.asset = d.uncut; delete d.uncut; d.crop = false;
+  d.src = assets[d.asset].canvas; d.thumb = assets[d.asset].dataURL; d._srcSig = ""; d._srcCv = null; d._imgKey = ""; d.solids = null;
+  return true;
+}
+// the buttons, on the Art tab and beside a keychain's picture; after: what else to do once it is cut out
+function aiCutoutRow(p, d, after){
+  if (!d || d.text) return;
+  if (d.uncut && assets[d.uncut]){
+    note(p, "<b>Cut out with AI.</b> Only the subject prints; the background was taken away.");
+    buttonRow(p, [["Put the background back", () => { aiUncut(d); if (after) after(false); schedule(); pushHistory(); renderTab(); }]]);
+  } else if (pictureHasBackground(d)){
+    buttonRow(p, [["✨ Cut out the subject with AI", async () => {
+      if (!await aiCutout(d)) return;
+      if (after) after(true);
+      notify("The background is gone: only the subject prints, trimmed to its edges. If the AI took too much or too little, put the background back on the Art tab.");
+      schedule(); pushHistory(); renderTab(); }]]);
+    note(p, `Takes the background away from a photo, even a busy one. The first time it downloads the AI figure finder (about ${AI_FIGURE.mb} MB, checked before it runs); the picture never leaves this computer.`);
+  }
 }
 // line a photo up with the model; search: also look for the angle it was taken from (±45° round, ±20° up)
 function photoFitView(v, search){
@@ -4024,6 +4098,7 @@ function photoPickColours(o){
     // would otherwise read the background round the figure as colours of its own
     const f = v.fit && model ? photoFitNowFor(v) : null, rim = f ? Math.max(2, Math.round(0.02 * f.a * photoBox(model, photoCamOf(v))[2] * px.h)) : 0;
     const m = f ? C.photoModelMask(model, photoCamOf(v), f, px.w, px.h, rim) : photoFigure(v, px);
+    if (f && v.fix && v.fix.length){ const fm = C.photoFixMap(v.fix, px.w, px.h); for (let i=0;i<m.length;i++) if (fm[i] === 2) m[i] = 0; }
     parts.push([px.rgba, m]);
   }
   const n = parts.reduce((s, q) => s + q[1].length, 0);
@@ -4058,7 +4133,7 @@ function photoSetFilaments(o){
     if (state.slots[i]) Object.assign(state.slots[i], { hex, name });
     else state.slots.push({ hex, name, mat:"PLA", price:22 });
   });
-  o.slots = o.pal.map((_, i) => Math.min(i, MAX_SLOTS - 1)); o.use = "photo";
+  o.slots = o.pal.map((_, i) => Math.min(i, MAX_SLOTS - 1)); o.use = o.k === "model" ? "model" : "photo";
 }
 // or each colour prints in the loaded filament closest to it
 function photoNearestFilaments(o){
@@ -4071,7 +4146,7 @@ function photoNearestFilaments(o){
 const photoInfo = new WeakMap();                     // step -> what the last colouring saw
 function photoLabels(pc, o){
   const fits = o.views.map(photoFitNowFor);
-  const key = JSON.stringify([o.views.map((v, i) => [v.asset, v.cam, fits[i], v.tol, v.ai || ""]), o.pal, o.fill, o.speck, o.smooth]);
+  const key = JSON.stringify([o.views.map((v, i) => [v.asset, v.cam, fits[i], v.tol, v.ai || "", photoFixKey(v)]), o.pal, o.fill, o.speck, o.smooth]);
   if (!pc.photo) pc.photo = new Map();
   let r = pc.photo.get(key); if (r) return r;
   const B = C.solidBounds(pc.solid), D = Math.hypot(B.mx[0]-B.mn[0], B.mx[1]-B.mn[1], B.mx[2]-B.mn[2]) || 1, views = [];
@@ -4183,6 +4258,10 @@ function runPaintOps(p, pc, ops, B){
       let cls = pc.curve.get(key); if (!cls){ cls = C.curvatureClasses(topo, o.radius, o.band); pc.curve.set(key, cls); if (pc.curve.size > 4) pc.curve.delete(pc.curve.keys().next().value); }
       const e = S(o.edges), h = S(o.hollows), f = S(o.flat);
       for (let t=0;t<topo.n;t++){ const s = cls[t] > 0 ? e : cls[t] < 0 ? h : f; if (s !== PAINT_LEAVE) paint[t] = s; }
+    }
+    else if (o.k === "model" && p.importColour && o.pal && o.pal.length){
+      const lab = modelLabels(pc, o, p), sl = (o.slots || []).map(s => s === PAINT_LEAVE ? s : S(s));
+      for (let t=0;t<topo.n;t++){ const c = lab[t]; if (c >= 0 && sl[c] != null && sl[c] !== PAINT_LEAVE) paint[t] = sl[c]; }
     }
     else if (o.k === "photo" && !p.decal){
       const r = photoLabels(pc, o), sl = (o.slots || []).map(s => s === PAINT_LEAVE ? s : S(s));
@@ -5981,7 +6060,7 @@ function stlFields(p){
   const missing = missingModel();
   if (missing) note(p, `This project was made with <b>${esc(missing)}</b>, which is not saved with it (the autosave, the recent list and share links leave models out; a saved project file keeps it). Open that file again and its paint and settings come back.`);
   buttonRow(p, [[stlData?"Open a different model":missing?"Open "+missing+" again":"Choose a model file", ()=>$("#stlInput").click()]]);
-  note(p, stlData ? esc(state.base.stl.name) : "STL, OBJ or 3MF. Any model works, including one made from a photo by an AI service. 3mf files from Bambu Studio or PrusaSlicer keep their painting.");
+  note(p, stlData ? esc(state.base.stl.name) + (stlColour ? " · with its own colours" : "") : "STL, OBJ, 3MF, GLB or glTF. Models from AI model makers keep their colours (GLB, or an OBJ chosen together with its MTL file and pictures). 3mf files from Bambu Studio or PrusaSlicer keep their painting.");
   if (stlData) note(p, "Colour it on the <b>Paint</b> tab: by height, by face, from a picture, or with a brush.");
   if (stlData) numField(p,{ label:"Scale (%)", min:5,max:400,step:1, get:()=>state.base.stl.scale, set:v=>state.base.stl.scale=v, onChange:baseChanged });
 }
@@ -6065,8 +6144,10 @@ function nameplateFields(p){
       numField(g2,{ label:"Picture size", min:0.4,max:3,step:0.05, get:()=>np.pic.size, set:v=>np.pic.size=v, onChange:baseChanged });
       numField(g2,{ label:"Gap from the name (mm)", min:0,max:15,step:0.5, get:()=>np.pic.gap, set:v=>np.pic.gap=v, onChange:baseChanged });
       checkField(g2,"Print it in its own colours",()=>np.pic.colour, v=>{ np.pic.colour = v; baseChanged(); });
-      checkField(g2,"Remove the photo's background",()=>np.pic.cutout !== false, v=>{ np.pic.cutout = v; renderTab(); baseChanged(); });
-      if (np.pic.cutout !== false) numField(g2,{ label:"Background tolerance", min:4,max:90,step:1,
+      const picD = state.items[clamp(np.pic.item,0,state.items.length-1)];
+      aiCutoutRow(g2, picD, cut => { np.pic.cutout = !cut; baseChanged(); });
+      if (!(picD && picD.uncut)) checkField(g2,"Remove the photo's background (by its colour)",()=>np.pic.cutout !== false, v=>{ np.pic.cutout = v; renderTab(); baseChanged(); });
+      if (np.pic.cutout !== false && !(picD && picD.uncut)) numField(g2,{ label:"Background tolerance", min:4,max:90,step:1,
         get:()=>np.pic.tolerance||28, set:v=>np.pic.tolerance=v, onChange:baseChanged,
         sub:()=>"Raise it if bits of background survive, lower it if the picture gets eaten." });
       note(g2, "The plate grows around the picture, so name and picture come out as one piece.");
@@ -6727,6 +6808,7 @@ function tabArt(p){
   segField(p,[["original","Photo"],["colours","Colours"],["split","Split"]],()=>d.previewMode, v=>{ d.previewMode = v; drawPreview(); });
   p.insertAdjacentHTML("beforeend", `<div class="preview-wrap"><canvas id="preview"></canvas></div>`);
   note(p, d.text ? "This is how the text will print." : "Click a colour in the preview to leave it out of the print.");
+  aiCutoutRow(p, d);
 
   if (state.base.type === "enclosure" && !lidLogo){       // boxes take artwork only as a logo on the lid
     note(p, "Artwork is not stamped onto the walls of a project box, but it can go on the lid: inlaid in its own colours or engraved.");
@@ -7074,6 +7156,7 @@ function removeSlot(i){
 /* ---- Export ---- */
 /* ---- Paint ---- */
 const PAINT_METHODS = [
+  ["model","The model's own colours","For a model that comes with colours, like one from an AI model maker (a GLB, or an OBJ with its colours or pictures): its colours, in your filaments."],
   ["photo","From a photo of the model","Got a coloured photo of this model? Drop it here: it is lined up with the model and its colours go on, the hidden sides too."],
   ["height","Height bands","Bands of colour from the bottom up, like layers of a cake. The edges are cut straight into the model."],
   ["gradient","Colour fade","Two filaments fade into each other up the model, one layer at a time: sunsets, oceans, flames."],
@@ -7087,11 +7170,12 @@ const PAINT_METHODS = [
   ["swap","Swap a colour","Every part of the model in one colour changes to another. Quick recolouring after painting."]
 ];
 const PAINT_OP_NAME = { height:"Height bands", gradient:"Colour fade", swap:"Swap a colour", stripes:"Stripes", dir:"Tops and sides", shells:"Separate pieces", regions:"Smooth areas",
-  picture:"Picture", noise:"Random blobs", brush:"Brush stroke", fill:"Fill", photo:"From a photo", area:"Box or lasso", curve:"Edges and hollows" };
+  picture:"Picture", noise:"Random blobs", brush:"Brush stroke", fill:"Fill", photo:"From a photo", area:"Box or lasso", curve:"Edges and hollows", model:"The model's own colours" };
 function slotChoices(withKeep){ return [...(withKeep ? [["255","Keep as it is"]] : []), ...state.slots.map((s,i)=>[String(i), `${i+1}. ${s.name}`])]; }
 function paintModelHeight(){ const B = modelBoundsOf(modelParts); return isFinite(B.mx[1]) ? Math.max(1, B.mx[1] - Math.min(0, B.mn[1])) : 50; }
 function newPaintOp(k){
   const H = paintModelHeight(), n = Math.min(3, state.slots.length), sl = [...Array(Math.max(2, n)).keys()].map(i => Math.min(i, state.slots.length-1));
+  if (k === "model"){ const o = { k, colours:clamp(Math.round(state.printer.colors || 4), 2, MAX_SLOTS), pal:[], slots:[], use:"model", smooth:true }; modelPickColours(o); return o.pal.length ? o : null; }
   if (k === "height") return { k, slots:sl, cuts:sl.slice(1).map((_,i) => +(H*(i+1)/sl.length).toFixed(1)) };
   if (k === "gradient") return { k, a:0, b:Math.min(1, state.slots.length-1), from:+(H*0.25).toFixed(1), to:+(H*0.75).toFixed(1), ends:true };
   if (k === "swap") return { k, from:0, to:Math.min(1, state.slots.length-1) };
@@ -7117,6 +7201,7 @@ function paintOpText(o){
   if (o.k === "picture") return `${(state.items[o.item]||{}).name || "missing artwork"}, ${o.wrap === "around" ? `round the model (${o.turn || 360}°)` : o.wrap === "ball" ? `over a ball (${o.turn || 360}°)` : `from the ${o.dir}`}`;
   if (o.k === "curve") return `edges ${nm(o.edges)}, hollows ${nm(o.hollows)}, the rest ${nm(o.flat)}`;
   if (o.k === "photo") return `${o.views.length} photo${o.views.length === 1 ? "" : "s"}, ${o.pal.length} colours: ${[...new Set(o.slots.filter(s => s !== PAINT_LEAVE))].map(nm).join(", ")}`;
+  if (o.k === "model") return `${o.pal.length} colours from the model: ${[...new Set(o.slots.filter(s => s !== PAINT_LEAVE))].map(nm).join(", ")}`;
   return (o.slots||[]).map(nm).join(", ");
 }
 function updatePaintSummary(){
@@ -7158,6 +7243,17 @@ function slotChecks(parent, o){
 }
 function paintOpFields(parent, o){
   const H = paintModelHeight(), ch = () => paintChanged();
+  if (o.k === "model"){
+    numField(parent,{ label:"Number of colours", min:2, max:MAX_SLOTS, step:1, get:()=>o.colours, set:v=>{ o.colours = Math.round(v); modelPickColours(o); }, onChange:()=>{ renderTab(); ch(); },
+      sub:()=>`Your printer loads ${state.printer.colors || 1}. Fewer colours: fewer filament changes.` });
+    segField(parent, [["model","Set my filaments to its colours"],["mine","Use my loaded filaments"]], () => o.use === "mine" ? "mine" : "model", v => {
+      o.use = v; if (v === "mine") photoNearestFilaments(o); else photoSetFilaments(o); renderTab(); ch(); }, "two");
+    const w = document.createElement("div"); w.className = "chips"; parent.appendChild(w);
+    o.pal.forEach((c, i) => { const s = o.slots[i]; w.insertAdjacentHTML("beforeend", `<span class="chip"><span class="sw" style="background:${C.rgbToHex(...c.rgb)}"></span>→ ${esc(s === PAINT_LEAVE ? "keep" : ((state.slots[s]||{}).name || "filament " + (s+1)))}</span>`); });
+    checkField(parent, "Tidy single stray triangles", () => o.smooth !== false, v => { o.smooth = v; ch(); });
+    if (o.use === "mine") o.pal.forEach((c, i) => selField(parent, `Colour ${i+1} prints in`, slotChoices(true), () => String(o.slots[i]), v => { o.slots[i] = +v; renderTab(); ch(); }));
+    return;
+  }
   const slotSel = (label, get, set, keep) => selField(parent, label, slotChoices(keep), () => String(get()), v => { set(+v); ch(); });
   if (o.k === "height"){
     numField(parent,{ label:"Number of bands", min:2, max:8, step:1, get:()=>o.slots.length, set:v=>{
@@ -7247,16 +7343,26 @@ function photoSideOf(v){
   if (v.cam.pitch > 60) return "top";
   const y = wrapYaw(v.cam.yaw); return Math.abs(y) <= 45 ? "front" : Math.abs(y) >= 135 ? "back" : y > 0 ? "right" : "left";
 }
-// the photo with the lined-up model's outline on it (a thick yellow line edged in black), or the colours
-// it reads there, each shown in the filament it prints in
+// the photo with the lined-up model's outline on it (a thick yellow line edged in black); with "figure" the
+// background it found darkened, so the figure stands out; with "colours" the colours it reads there, each
+// shown in the filament it prints in. The outline and the figure as found are kept between drawings, so a
+// hand fix redraws quickly while the brush moves.
+const photoPrevCache = new WeakMap();
 function drawPhotoPreview(cv, o, v){
   const px = photoPixels(v.asset, 420); if (!px) return;
-  const W = px.w, H = px.h; cv.width = W; cv.height = H;
+  const W = px.w, H = px.h; if (cv.width !== W) cv.width = W; if (cv.height !== H) cv.height = H;
   const x = cv.getContext("2d"), img = x.createImageData(W, H), d = img.data; d.set(px.rgba);
-  const model = photoModel();
+  const model = photoModel(), show = paintUI.photoShow;
+  let pc = photoPrevCache.get(cv); if (!pc){ pc = {}; photoPrevCache.set(cv, pc); }
+  if (show === "figure"){
+    const k = [v.asset, v.ai || "", v.tol, W, H].join();
+    if (pc.figKey !== k){ pc.fig = photoFound(v, px); pc.figKey = k; }
+    const fig = v.fix && v.fix.length ? C.photoFixMask(pc.fig, W, H, v.fix) : pc.fig;
+    for (let i=0;i<W*H;i++) if (!fig[i]){ d[4*i] = d[4*i]*0.2 + 14; d[4*i+1] = d[4*i+1]*0.2 + 26; d[4*i+2] = d[4*i+2]*0.2 + 60; }
+  }
   if (v.fit && model){
-    const cam = photoCamOf(v), fit = photoFitNowFor(v), inside = C.photoModelMask(model, cam, fit, W, H, 0);
-    if (paintUI.photoShow === "colours" && o.pal.length){
+    const cam = photoCamOf(v), fit = photoFitNowFor(v);
+    if (show === "colours" && o.pal.length){
       const cls = C.photoView(px.rgba, W, H, model, cam, fit, o.pal, photoFigure(v, px)).cls.data;
       for (let i=0;i<W*H;i++){
         const c = cls[i];
@@ -7265,13 +7371,28 @@ function drawPhotoPreview(cv, o, v){
         d[4*i+3] = 255;
       }
     }
-    const edge = new Uint8Array(W*H);
-    for (let y=0;y<H;y++) for (let i0=0;i0<W;i0++){ const i = y*W + i0; if (inside[i] && (i0 === 0 || y === 0 || i0 === W-1 || y === H-1 || !inside[i-1] || !inside[i+1] || !inside[i-W] || !inside[i+W])) edge[i] = 1; }
-    const grow = m => { const g = new Uint8Array(m); for (let y=0;y<H;y++) for (let i0=0;i0<W;i0++){ const i = y*W + i0; if (!m[i]) continue; if (i0 > 0) g[i-1] = 1; if (i0 < W-1) g[i+1] = 1; if (y > 0) g[i-W] = 1; if (y < H-1) g[i+W] = 1; } return g; };
-    const e1 = grow(edge), e2 = grow(e1);
+    const k = JSON.stringify([cam, fit, W, H]);
+    if (pc.lineKey !== k || pc.model !== model){
+      const inside = C.photoModelMask(model, cam, fit, W, H, 0), edge = new Uint8Array(W*H);
+      for (let y=0;y<H;y++) for (let i0=0;i0<W;i0++){ const i = y*W + i0; if (inside[i] && (i0 === 0 || y === 0 || i0 === W-1 || y === H-1 || !inside[i-1] || !inside[i+1] || !inside[i-W] || !inside[i+W])) edge[i] = 1; }
+      const grow = m => { const g = new Uint8Array(m); for (let y=0;y<H;y++) for (let i0=0;i0<W;i0++){ const i = y*W + i0; if (!m[i]) continue; if (i0 > 0) g[i-1] = 1; if (i0 < W-1) g[i+1] = 1; if (y > 0) g[i-W] = 1; if (y < H-1) g[i+W] = 1; } return g; };
+      pc.e1 = grow(edge); pc.e2 = grow(pc.e1); pc.lineKey = k; pc.model = model;
+    }
+    const e1 = pc.e1, e2 = pc.e2;
     for (let i=0;i<W*H;i++) if (e2[i]){ const c = e1[i] ? [255, 214, 0] : [15, 15, 15]; d[4*i] = c[0]; d[4*i+1] = c[1]; d[4*i+2] = c[2]; d[4*i+3] = 255; }
   }
-  x.putImageData(img, 0, 0);
+  x.putImageData(img, 0, 0); pc.img = img;
+}
+// the fix brush over the preview: a ring the size of the brush, dark edged so it shows on any photo
+function drawPhotoRing(cv, fx, fy, r, add){
+  const pc = photoPrevCache.get(cv); if (!pc || !pc.img) return;
+  const x = cv.getContext("2d"); x.putImageData(pc.img, 0, 0);
+  if (!x.arc || !x.stroke) return;
+  const R = Math.max(2, r * cv.height), X = fx * cv.width, Y = fy * cv.height;
+  x.beginPath(); x.arc(X, Y, R, 0, 2*Math.PI); x.lineWidth = 4; x.strokeStyle = "#101010"; x.stroke();
+  x.beginPath(); x.arc(X, Y, R, 0, 2*Math.PI); x.lineWidth = 2; x.strokeStyle = add ? "#7dff9a" : "#ff8a8a"; x.stroke();
+  const t = Math.min(R * 0.6, 8); x.beginPath(); x.moveTo(X - t, Y); x.lineTo(X + t, Y); if (add){ x.moveTo(X, Y - t); x.lineTo(X, Y + t); }
+  x.lineWidth = 4; x.strokeStyle = "#101010"; x.stroke(); x.lineWidth = 2; x.strokeStyle = "#ffffff"; x.stroke();
 }
 function photoCard(c){
   if (!modelParts.length){ note(c, "Make or import a model first, then add a photo of it here."); return; }
@@ -7308,11 +7429,16 @@ function photoCard(c){
   }
   // the photo, lined up
   const cv = document.createElement("canvas"); cv.className = "photoPrev"; cv.tabIndex = 0; cv.setAttribute("role", "application");
-  cv.setAttribute("aria-label", `${v.name} with the model's outline drawn on it in yellow. Drag it, or use the arrow keys to move it, plus and minus to resize and comma and full stop to turn.`);
+  const fixTool = () => paintUI.photoTool === "add" || paintUI.photoTool === "cut";
+  cv.setAttribute("aria-label", `${v.name} with the model's outline drawn on it in yellow. ` + (fixTool()
+    ? `Drag over the photo to ${paintUI.photoTool === "add" ? "add to the figure" : "take away from the figure"}. The arrow keys still move the photo.`
+    : "Drag it, or use the arrow keys to move it, plus and minus to resize and comma and full stop to turn."));
+  if (fixTool()) cv.classList.add("fixing");
   c.appendChild(cv);
   const redraw = () => { try { drawPhotoPreview(cv, o, v); } catch (err){ console.error(err); } };
   redraw();
-  segField(c, [["photo","Photo and outline"],["colours","Colours it reads"]], () => paintUI.photoShow, k => { paintUI.photoShow = k; redraw(); c.querySelectorAll(".seg.show button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.k === k))); }, "two show");
+  const showSeg = k => { paintUI.photoShow = k; redraw(); c.querySelectorAll(".seg.show button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.k === k))); };
+  segField(c, [["photo","Photo and outline"],["figure","Figure it found"],["colours","Colours it reads"]], () => paintUI.photoShow, showSeg, "show");
   const fitted = () => { photoLater(() => photoRepaint()); };
   // nudges keep the model's middle where it is
   const centre = () => photoBox(photoModel(), photoCamOf(v));
@@ -7329,16 +7455,59 @@ function photoCard(c){
     const k = { ArrowLeft:["x",-0.005], ArrowRight:["x",0.005], ArrowUp:["y",-0.005], ArrowDown:["y",0.005], "+":["a",0.01], "=":["a",0.01], "-":["a",-0.01], ",":["rot",-Math.PI/180], ".":["rot",Math.PI/180] }[e.key];
     if (k){ e.preventDefault(); e.stopPropagation(); nudge(k[0], k[1] * (e.shiftKey ? 5 : 1)); }
   });
-  let drag = null;
-  cv.addEventListener("pointerdown", e => { if (!v.fit) return; photoBake(v); drag = { x:e.clientX, y:e.clientY }; cv.setPointerCapture && cv.setPointerCapture(e.pointerId); });
-  cv.addEventListener("pointermove", e => { if (!drag) return; const r = cv.getBoundingClientRect(), s = 1 / Math.max(1, r.height);
+  let drag = null, stroke = null, frame = 0, ring = null;
+  // strokes redraw once a frame, with the brush ring where the pointer is
+  const later = () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; redraw(); if (ring) drawPhotoRing(cv, ring[0], ring[1], fixR(), paintUI.photoTool === "add"); }); };
+  // where the pointer is on the photo, in parts of its width and height
+  // (the preview keeps the photo's shape inside its box, so a tall photo has bands at the sides)
+  const photoAt = e => { const r = cv.getBoundingClientRect(), k = Math.min(r.width / cv.width, r.height / cv.height) || 1, w = Math.max(1, cv.width * k), h = Math.max(1, cv.height * k);
+    return [clamp((e.clientX - r.left - (r.width - w) / 2) / w, 0, 1), clamp((e.clientY - r.top - (r.height - h) / 2) / h, 0, 1)]; };
+  const fixR = () => clamp(paintUI.photoFixR || 4, 0.5, 20) / 100;
+  const fixNumbers = () => (v.fix || []).reduce((n, q) => n + q.p.length, 0);
+  // after a fix: the colours are read again and the model painted again, once the brush rests
+  const fixed = () => photoLater(() => { photoPickColours(o); renderKeepFocus(); photoRepaint(); }, 600);
+  cv.addEventListener("pointerdown", e => {
+    if (fixTool()){
+      e.preventDefault(); clearTimeout(photoTimer);
+      if ((v.fix || []).length >= PHOTO_FIX_MAX.strokes || fixNumbers() >= PHOTO_FIX_MAX.numbers - 2){ notify("This photo has as many fixes as it can keep. Clear them, or undo some, to fix more."); return; }
+      const [fx, fy] = photoAt(e); stroke = { add:paintUI.photoTool === "add", r:+fixR().toFixed(4), p:[+fx.toFixed(4), +fy.toFixed(4)] };
+      (v.fix || (v.fix = [])).push(stroke); cv.setPointerCapture && cv.setPointerCapture(e.pointerId); ring = [fx, fy]; later(); return;
+    }
+    if (!v.fit) return; photoBake(v); drag = { x:e.clientX, y:e.clientY }; cv.setPointerCapture && cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener("pointermove", e => {
+    if (stroke){
+      const [fx, fy] = photoAt(e), p = stroke.p, n = p.length, asp = cv.width / Math.max(1, cv.height);
+      if (Math.hypot((fx - p[n-2]) * asp, fy - p[n-1]) < stroke.r / 3 || n >= PHOTO_FIX_MAX.perStroke || fixNumbers() >= PHOTO_FIX_MAX.numbers) return;
+      p.push(+fx.toFixed(4), +fy.toFixed(4)); ring = [fx, fy]; later();
+      return;
+    }
+    if (fixTool()){ const [fx, fy] = photoAt(e); drawPhotoRing(cv, fx, fy, fixR(), paintUI.photoTool === "add"); return; }
+    if (!drag) return; const r = cv.getBoundingClientRect(), s = 1 / Math.max(1, r.height);
     v.fit.tx += (e.clientX - drag.x) * s; v.fit.ty += (e.clientY - drag.y) * s; drag = { x:e.clientX, y:e.clientY }; redraw(); });
-  const endDrag = () => { if (drag){ drag = null; fitted(); } };
+  const endDrag = () => {
+    if (stroke){ stroke = null; later(); fixed(); return; }
+    if (drag){ drag = null; fitted(); } };
   cv.addEventListener("pointerup", endDrag); cv.addEventListener("pointercancel", endDrag);
+  cv.addEventListener("pointerleave", () => { if (!stroke && fixTool()){ ring = null; redraw(); } });
   const nb = document.createElement("div"); nb.className = "row nudges"; nb.setAttribute("role", "group"); nb.setAttribute("aria-label", "Move the photo");
   [["◀","Move left","x",-0.005],["▶","Move right","x",0.005],["▲","Move up","y",-0.005],["▼","Move down","y",0.005],["−","Smaller","a",-0.01],["+","Bigger","a",0.01],["⟲","Turn left","rot",-Math.PI/180],["⟳","Turn right","rot",Math.PI/180]]
     .forEach(([t, lbl, k, a]) => { const b = document.createElement("button"); b.className = "btn small icon"; b.textContent = t; b.title = lbl; b.setAttribute("aria-label", lbl); b.onclick = () => nudge(k, a); nb.appendChild(b); });
   c.appendChild(nb);
+  // fixing the figure by hand, where the app (or the AI) took in some background or missed a part
+  c.insertAdjacentHTML("beforeend", `<p class="hint">What dragging on the photo does:</p>`);
+  segField(c, [["move","Move the photo"],["add","Add to the figure"],["cut","Take away"]], () => paintUI.photoTool || "move", k => {
+    paintUI.photoTool = k; if (k !== "move" && paintUI.photoShow === "photo") paintUI.photoShow = "figure"; renderKeepFocus(); }, "tool");
+  if (fixTool()){
+    numField(c, { label:"Brush size (% of the photo's height)", min:0.5, max:20, step:0.5, def:4, get:()=>paintUI.photoFixR || 4, set:x=>paintUI.photoFixR = Math.round(x * 2) / 2, noReset:true });
+    note(c, paintUI.photoTool === "add"
+      ? "Paint over parts of the figure the app missed. The darkened part is what it takes for background."
+      : "Paint over background the app took for the figure. The darkened part is what it takes for background.");
+  }
+  if (v.fix && v.fix.length){
+    note(c, `${v.fix.length} ${v.fix.length === 1 ? "fix" : "fixes"} by hand on this photo. The colours use them straight away; <b>Line it up again</b> uses them to line the photo up too.`);
+    buttonRow(c, [["Undo the last fix", () => { v.fix.pop(); if (!v.fix.length) delete v.fix; redraw(); fixed(); renderKeepFocus(); }],
+      ["Clear my fixes", () => { delete v.fix; redraw(); fixed(); renderKeepFocus(); }]]);
+  }
   const matchNote = document.createElement("p"); matchNote.className = "hint"; matchNote.setAttribute("aria-live", "polite"); c.appendChild(matchNote);
   const showMatch = () => { const m = v.match || 0;
     matchNote.textContent = !v.fit ? "This photo is not lined up yet: no figure was found in it. Change the background setting, or try a photo on a plain background."
@@ -7452,6 +7621,7 @@ function tabPaint(p){
   const m = PAINT_METHODS.find(x => x[0] === paintUI.method);
   const c2 = card(p); c2.insertAdjacentHTML("beforeend", `<b>${esc(m[1])}</b>`);
   if (paintUI.method === "photo") photoCard(c2);
+  else if (paintUI.method === "model" && !colouredPart()) note(c2, "This model has no colours of its own. Open a GLB or glTF with colours, or an OBJ chosen together with its MTL file and pictures, and its colours are painted on by themselves.");
   else if (last){ paintOpFields(c2, last); note(c2, "Changes show straight away. Remove it on the Paint list page."); }
   else buttonRow(c2, [[`Paint it: ${m[1].toLowerCase()}`, ()=>{ const o = newPaintOp(paintUI.method); if (o){ ops.push(o); renderTab(); paintChanged(); } }]]);
 
@@ -7588,7 +7758,7 @@ function tabExport(p){
       ["Open project", ()=>$("#projInput").click()],
       ["Start over", ()=>{
         if (!confirm("Start over with an empty project?")) return;
-        state = applyPrinterPref(DEFAULTS()); Object.keys(assets).forEach(k=>delete assets[k]); stlData = null; stlPaint = null; stlCache = null; stlName = null;
+        state = applyPrinterPref(DEFAULTS()); Object.keys(assets).forEach(k=>delete assets[k]); stlData = null; stlPaint = null; stlColour = null; stlCache = null; stlName = null;
         history.past.length = 0; history.future.length = 0;
         renderTab(); rebuildAll(true); pushHistory();
       }]
@@ -7730,14 +7900,92 @@ $("#aboutBtn").onclick = ()=>openModal("About Maker Forge", b => {
 });
 
 /* ---------- 9. import and export ---------- */
-const stlInput = Object.assign(document.createElement("input"), { type:"file", accept:".stl,.obj,.3mf", id:"stlInput", className:"vh" });
+const stlInput = Object.assign(document.createElement("input"), { type:"file", accept:".stl,.obj,.3mf,.glb,.gltf,.mtl,.png,.jpg,.jpeg,.webp", multiple:true, id:"stlInput", className:"vh" });
 document.body.appendChild(stlInput);
-// STL, OBJ or 3MF (including Bambu Studio and PrusaSlicer files, with their painting and colours)
-async function importModelFile(file){
+/* ---- models with their own colours (Session 20) ----
+   AI model makers (and many other tools) export GLB with a colour picture, or OBJ with vertex colours or an
+   MTL file and pictures. The colours are kept per triangle corner, with each corner's place on its picture,
+   and painted on by the "model" paint step in as many filaments as asked. */
+function bytesToCanvas(bytes, mime){
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(new Blob([bytes], { type:mime || "image/png" })), img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); res(toCanvas(img, 2048)); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("a picture in the model could not be read")); };
+    img.src = url;
+  });
+}
+async function modelColourIn(r, others, notes){
+  const tex = [], files = others.filter(f => /\.(png|jpe?g|webp)$/i.test(f.name));
+  for (const im of r.images){
+    let cv = null;
+    try {
+      if (im && im.bytes) cv = await bytesToCanvas(im.bytes, im.mime);
+      else if (im && im.name){ const f = files.find(x => x.name.toLowerCase() === im.name.toLowerCase()) || (files.length === 1 ? files[0] : null); if (f) cv = toCanvas(await loadImageFile(f), 2048); }
+    } catch(e){}
+    if (cv){ const id = "a"+(uid++); assets[id] = { canvas:cv, dataURL:cv.toDataURL("image/png") }; tex.push(id); }
+    else tex.push(null);
+  }
+  let texOf = r.texOf;
+  // an OBJ with picture places but no MTL file: the one picture chosen with it
+  if (r.uv && !r.images.length && files.length === 1){
+    const cv = toCanvas(await loadImageFile(files[0]), 2048), id = "a"+(uid++); assets[id] = { canvas:cv, dataURL:cv.toDataURL("image/png") }; tex.push(id);
+    texOf = Int16Array.from(texOf, () => 0);
+  }
+  if (texOf){
+    const missing = r.images.filter((im, i) => !tex[i] && im && im.name).map(im => im.name);
+    if (missing.length) notes.push(`Its picture${missing.length > 1 ? "s" : ""} (${missing.slice(0, 3).join(", ")}) did not come with it: choose the model and its pictures together to get those colours.`);
+    texOf = Int16Array.from(texOf, t => t >= 0 && tex[t] ? t : -1);
+  }
+  const hasTex = !!(texOf && texOf.some(t => t >= 0));
+  return { cc:r.cc, uv:hasTex ? r.uv : null, texOf:hasTex ? texOf : null, tex:hasTex ? tex : [] };
+}
+// the colours for the welded triangles of the part (w.src: each welded triangle's triangle in the file)
+function modelColourFor(c, src){
+  const n = src.length, cc = new Uint8Array(n*9), uv = c.uv ? new Float32Array(n*6) : null, texOf = c.texOf ? new Int16Array(n) : null;
+  for (let t=0;t<n;t++){ const s = src[t]; cc.set(c.cc.subarray(9*s, 9*s + 9), 9*t); if (uv) uv.set(c.uv.subarray(6*s, 6*s + 6), 6*t); if (texOf) texOf[t] = c.texOf[s]; }
+  return { cc, uv, texOf, tex:c.tex };
+}
+const modelTexCache = new WeakMap();
+function modelColourData(ic){
+  return { cc:ic.cc, uv:ic.uv, texOf:ic.texOf, tex:ic.tex.map(id => {
+    const cv = id && assets[id] && assets[id].canvas; if (!cv) return null;
+    let d = modelTexCache.get(cv); if (!d){ d = { w:cv.width, h:cv.height, data:cv.getContext("2d", { willReadFrequently:true }).getImageData(0, 0, cv.width, cv.height).data }; modelTexCache.set(cv, d); }
+    return d; }) };
+}
+const colouredPart = () => modelParts.find(q => q.importColour);
+// the colours the step uses: the model's main colours, found from its triangles by area
+function modelPickColours(o){
+  const p = colouredPart(); if (!p){ o.pal = []; o.slots = []; return; }
+  const src = p.solid0 || p.solid, ic = p.importColour;
+  if (!ic._rgb || ic._rgbOf !== src){ ic._rgb = C.modelTriColours(src, null, src, modelColourData(ic)); ic._rgbOf = src; ic._topo = C.meshTopology(src); }
+  o.pal = C.modelPalette(ic._topo, ic._rgb, o.colours).map(c => ({ rgb:c.rgb, keys:c.keys.map(k => k.map(x => +x.toFixed(2))) }));
+  if (o.use === "mine") photoNearestFilaments(o); else photoSetFilaments(o);
+}
+// which of the step's colours each triangle of a part's refined mesh gets, kept with the mesh
+function modelLabels(pc, o, p){
+  const key = JSON.stringify([o.pal, o.smooth !== false]); if (!pc.model) pc.model = new Map();
+  let lab = pc.model.get(key);
+  if (!lab){
+    if (!pc.modelRgb) pc.modelRgb = C.modelTriColours(pc.solid, pc.src, p.solid0 || p.solid, modelColourData(p.importColour));
+    lab = C.modelColourLabels(pc.topo, pc.modelRgb, o.pal, o.smooth !== false ? 2 : 0);
+    pc.model.set(key, lab); if (pc.model.size > 3) pc.model.delete(pc.model.keys().next().value);
+  }
+  return lab;
+}
+// STL, OBJ, 3MF, GLB or glTF (including Bambu Studio and PrusaSlicer files, with their painting and colours)
+async function importModelFile(file, others){
   const ext = (file.name.match(/\.(\w+)$/) || [])[1] ? file.name.match(/\.(\w+)$/)[1].toLowerCase() : "";
   if (file.size > 400e6) throw new Error("That file is over 400 MB: too big to open in a browser tab.");
-  let raw, paint = null, colours = null;
-  if (ext === "obj") raw = C.parseOBJ(await file.text());
+  others = [...(others || [])].filter(f => f !== file);
+  let raw, paint = null, colours = null, own = null, metres = false, notes = [];
+  if (ext === "obj"){
+    // an OBJ can carry colours: per vertex, from its MTL file, or a picture (drop them together)
+    const mtl = others.find(f => /\.mtl$/i.test(f.name)), r = C.parseOBJColours(await file.text(), mtl ? await mtl.text() : "");
+    raw = r.tris; if (r.cc) own = await modelColourIn(r, others, notes);
+  } else if (ext === "glb" || ext === "gltf"){
+    const r = C.parseGLB(new Uint8Array(await file.arrayBuffer()));
+    raw = r.tris; metres = true; if (r.cc) own = await modelColourIn(r, others, notes);
+  }
   else if (ext === "3mf"){
     const zip = await JSZip.loadAsync(await file.arrayBuffer()), files = {};
     const names = Object.keys(zip.files).filter(n => /\.model$/i.test(n)).slice(0, 400);
@@ -7755,6 +8003,14 @@ async function importModelFile(file){
     else if (pe){ const line = k => ((new RegExp("^; " + k + " = (.*)$", "m").exec(pe) || [])[1] || "").split(";"); const ex = hexes(line("extruder_colour")), fi = hexes(line("filament_colour")); colours = ex.length ? ex : fi; }
     if (!colours || !colours.length){ const m = files[main] || ""; colours = hexes([...m.matchAll(/<base\b[^>]*displaycolor="(#[0-9a-f]{6})/gi)].map(x => x[1])); }
   } else raw = C.parseSTL(await file.arrayBuffer());
+  // glTF is in metres; models from AI makers come at any size: a size that makes no sense as a print
+  // (under 10 mm or over 500 mm across) is made 80 mm across instead
+  { let lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+    for (let i=0;i<raw.length;i+=3) for (let k=0;k<3;k++){ if (raw[i+k] < lo[k]) lo[k] = raw[i+k]; if (raw[i+k] > hi[k]) hi[k] = raw[i+k]; }
+    const across = Math.max(hi[0]-lo[0], hi[1]-lo[1], hi[2]-lo[2]) * (metres ? 1000 : 1);
+    let k = metres ? 1000 : 1;
+    if ((metres || own) && across > 0 && (across < 10 || across > 500)){ k = k * 80 / across; notes.push("It was made 80 mm across: change its size with Scale on the Make tab."); }
+    if (k !== 1){ raw = Float32Array.from(raw); for (let i=0;i<raw.length;i++) raw[i] *= k; } }
   const y = new Float32Array(raw.length);
   for (let i=0;i<raw.length;i+=3){ y[i]=raw[i]; y[i+1]=raw[i+2]; y[i+2]=-raw[i+1]; }    // Z up (printers) to Y up (the view)
   const name = `${file.name} (${(raw.length/9).toLocaleString()} triangles)`;
@@ -7763,9 +8019,9 @@ async function importModelFile(file){
   const again = state.base.type === "stl" && !stlData && !!state.base.stl && state.base.stl.name === name;
   if (!again) clearPaintForNewModel();
   dropExamples(); setViewFlags({ flip:false, layout:false });      // an example's picture would be stamped on the imported model
-  if (!again && !paint) paintUI.method = "photo";          // a plain model: colouring it from a photo comes first
-  stlData = y; stlPaint = paint; stlCache = null; stlName = name; state.base.type = "stl";
-  rememberModel(name, y, paint);
+  if (!again && !paint) paintUI.method = own ? "model" : "photo";   // a plain model: colouring it from a photo comes first
+  stlData = y; stlPaint = paint; stlColour = own; stlCache = null; stlName = name; state.base.type = "stl";
+  rememberModel(name, y, paint, own);
   state.base.stl = { name, scale: again ? state.base.stl.scale : 100 };
   if (paint && !again){
     // the file's filament colours; a filament it uses but gives no colour for still gets a filament here
@@ -7778,13 +8034,23 @@ async function importModelFile(file){
     }
   }
   state.items.forEach(d=>{ d.place = defaultPlace(); d.solids = null; });
-  userMoved = false; renderTab(); await rebuildAll(false); pushHistory();
+  userMoved = false; renderTab(); await rebuildAll(false);
+  // a model with its own colours opens painted in them, in as many filaments as the printer loads
+  if (own && !again && !paint){
+    const o = newPaintOp("model");
+    if (o){ state.paint.ops.push(o); state.paint.on = true; paintChanged(); renderTab();
+      notes.unshift(`This model has its own colours: they are painted on in ${o.pal.length} filaments. Change the number, or use your own filaments, on the Paint tab.`); }
+  }
+  if (notes.length) notify(notes.join(" "));
+  pushHistory();
   if (again) notify(`Opened ${file.name} again: its paint and settings are back.`);
   else if (paint) notify(`Opened ${file.name} with its painting. Change it on the Paint tab.`);
 }
 stlInput.onchange = async ()=>{
-  const file = stlInput.files[0]; stlInput.value = ""; if (!file) return;
-  try { await importModelFile(file); } catch (err){ notify(err.message); }
+  const files = [...stlInput.files]; stlInput.value = ""; if (!files.length) return;
+  const file = files.find(f => /\.(stl|obj|3mf|glb|gltf)$/i.test(f.name));
+  if (!file){ notify("Choose a model file: STL, OBJ, 3MF, GLB or glTF (with an OBJ, its MTL file and pictures can come along)."); return; }
+  try { await importModelFile(file, files); } catch (err){ notify(err.message); }
 };
 const projInput = Object.assign(document.createElement("input"), { type:"file", accept:".json,application/json", id:"projInput", className:"vh" });
 document.body.appendChild(projInput);
@@ -7859,6 +8125,21 @@ function cleanPrinter(pr){
     overhang: num(P.overhang, 20, 80, d.overhang), bridge: num(P.bridge, 0, 60, d.bridge),
     purge: num(P.purge, 0, 5, d.purge), swap: num(P.swap, 0, 600, d.swap) };
 }
+// a photo's hand fixes from a project file: at most 2000 strokes and 100 000 numbers in all, every point on
+// the photo, the brush between 0.2% and 25% of the photo's height
+const PHOTO_FIX_MAX = { strokes:2000, numbers:100000, perStroke:4000 };
+function cleanPhotoFix(f){
+  if (!Array.isArray(f)) return undefined;
+  const num = (v, lo, hi, fb) => Math.min(hi, Math.max(lo, cleanNum(v, fb))), out = []; let total = 0;
+  for (const s of f.slice(0, PHOTO_FIX_MAX.strokes)){
+    if (!s || typeof s !== "object" || !Array.isArray(s.p)) continue;
+    const p = s.p.slice(0, PHOTO_FIX_MAX.perStroke).filter(x => typeof x === "number" && isFinite(x)).map(x => +num(x, 0, 1, 0).toFixed(4));
+    if (p.length % 2) p.pop();
+    if (p.length < 2 || total + p.length > PHOTO_FIX_MAX.numbers) continue;
+    total += p.length; out.push({ add:s.add === true, r:+num(s.r, 0.002, 0.25, 0.03).toFixed(4), p });
+  }
+  return out.length ? out : undefined;
+}
 // paint steps from a project file: known kinds only, colours as filament numbers, points capped
 function cleanPaint(P0){
   const P = P0 && typeof P0 === "object" ? P0 : {}, one = (v, list) => list.includes(v) ? v : list[0];
@@ -7895,6 +8176,17 @@ function cleanPaint(P0){
         return m && poly.length >= 3 ? { k:"area", m, poly, slot:slotOrKeep(o.slot), through:o.through === true } : null; }
       case "fill": { const pt = v3(o.p), radial = Math.round(num(o.radial, 1, 12, 1));
         return pt ? Object.assign({ k:"fill", p:pt, slot:slotOrKeep(o.slot), same:o.same === true, angle:num(o.angle, 1, 89, 30) }, radial > 1 ? { radial } : {}) : null; }
+      case "model": {
+        const fin = x => typeof x === "number" && isFinite(x);
+        const pal = (Array.isArray(o.pal) ? o.pal : []).filter(c => c && typeof c === "object").slice(0, 8).map(c => {
+          const rgb = [0,1,2].map(i => Math.round(num(Array.isArray(c.rgb) ? c.rgb[i] : 128, 0, 255, 128)));
+          const keys = (Array.isArray(c.keys) ? c.keys : []).filter(k => Array.isArray(k) && k.length === 3 && k.every(fin)).slice(0, 24)
+            .map(k => [num(k[0], -10, 60, 0), num(k[1], -200, 200, 0), num(k[2], -200, 200, 0)]);
+          return keys.length ? { rgb, keys } : { rgb };
+        });
+        const sl = slots(o.slots, 8).slice(0, pal.length); while (sl.length < pal.length) sl.push(PAINT_LEAVE);
+        return { k:"model", colours:Math.round(num(o.colours, 2, MAX_SLOTS, 4)), pal, slots:sl, use:one(o.use, ["model","mine"]), smooth:o.smooth !== false };
+      }
       case "photo": {
         // the photos (by picture id), where each was taken from and how it lines up; the colours as lit
         // RGB and their Lab keys; a fit of text or of absurd size falls back to "not lined up yet"
@@ -7906,7 +8198,7 @@ function cleanPaint(P0){
             fit:f ? { a:num(f.a, 1e-5, 10, 0.01), tx:num(f.tx, -5, 5, 0.5), ty:num(f.ty, -5, 5, 0.5), rot:num(f.rot, -0.35, 0.35, 0), mirror:f.mirror === true } : null,
             tol:Math.round(num(v.tol, 0, 100, 35)), match:num(v.match, 0, 1, 0),
             box:Array.isArray(v.box) && v.box.length === 3 && v.box.every(fin) && v.box[2] > 1e-3 ? v.box.map(x => num(x, -1e4, 1e4, 0)) : undefined,
-            ai:typeof v.ai === "string" && v.ai ? cleanStr(v.ai, 40, "") : undefined };
+            ai:typeof v.ai === "string" && v.ai ? cleanStr(v.ai, 40, "") : undefined, fix:cleanPhotoFix(v.fix) };
         });
         const pal = (Array.isArray(o.pal) ? o.pal : []).filter(plain).slice(0, 8).map(c => {
           const rgb = [0,1,2].map(i => Math.round(num(Array.isArray(c.rgb) ? c.rgb[i] : 128, 0, 255, 128)));
@@ -7972,6 +8264,7 @@ function sanitizeProject(data){
     if (it.width === undefined) it.width = 40;
     if (it.rotation === undefined) it.rotation = 0;
     if (it.asset != null) it.asset = cleanStr(String(it.asset), 40, null);
+    if (typeof it.uncut === "string" && it.uncut) it.uncut = cleanStr(it.uncut, 40, null); else delete it.uncut;
     it.place = it.place && typeof it.place === "object"
       ? { c: vec3(it.place.c, [0,0,0]), n: vec3(it.place.n, [0,1,0]) } : undefined;
     it.skip = Array.isArray(it.skip) ? it.skip.filter(x => Number.isInteger(x) && x >= 0 && x < MAX_SLOTS) : [];
@@ -8065,11 +8358,30 @@ function sanitizeProject(data){
         let ok = true;
         for (let i = 0; i < tris.length; i++) if (!Number.isFinite(tris[i]) || Math.abs(tris[i]) > 1e6){ ok = false; break; }
         const paint = ok && typeof m.paint === "string" ? unb64url(m.paint) : null;
-        if (ok) model = { name: cleanStr(m.name, 300, "model"), tris, paint: paint && paint.length === n ? paint : null };
+        if (ok) model = { name: cleanStr(m.name, 300, "model"), tris, paint: paint && paint.length === n ? paint : null, colour: cleanModelColour(m.colour, n, assetsIn) };
       }
     } catch(e){}
   }
   return { state: st, assets: assetsIn, model };
+}
+// an imported model's own colours in a project file: every array the right length, numbers finite, pictures
+// only ones the file carries; anything else and the model comes in without its colours
+function cleanModelColour(c, n, assetsIn){
+  if (!c || typeof c !== "object" || typeof c.cc !== "string") return null;
+  try {
+    const cc = unb64url(c.cc); if (cc.length !== n*9) return null;
+    let uv = null, texOf = null;
+    const tex = (Array.isArray(c.tex) ? c.tex : []).slice(0, 16).map(id => typeof id === "string" && encHas(assetsIn, id) ? id : null);
+    if (typeof c.uv === "string" && typeof c.texOf === "string"){
+      const ub = unb64url(c.uv), tb = unb64url(c.texOf);
+      if (ub.length === n*24 && tb.length === n*2){
+        uv = new Float32Array(ub.buffer.slice(ub.byteOffset, ub.byteOffset + ub.length)); texOf = new Int16Array(tb.buffer.slice(tb.byteOffset, tb.byteOffset + tb.length));
+        for (let i=0;i<uv.length;i++) if (!Number.isFinite(uv[i]) || Math.abs(uv[i]) > 1e4) uv[i] = 0;
+        for (let i=0;i<n;i++) if (!(texOf[i] >= 0 && texOf[i] < tex.length && tex[texOf[i]])) texOf[i] = -1;
+      }
+    }
+    return { cc, uv, texOf, tex };
+  } catch(e){ return null; }
 }
 async function loadProject(data){
   if (!data || !data.state) return false;
@@ -8084,9 +8396,9 @@ async function loadProject(data){
   state.printer = Object.assign(DEFAULTS().printer, data.state.printer||{});
   state.model = Object.assign(DEFAULTS().model, data.state.model||{});
   state.view = Object.assign(DEFAULTS().view, data.state.view||{});
-  stlData = data.model ? data.model.tris : null; stlPaint = data.model ? data.model.paint : null; stlCache = null;
+  stlData = data.model ? data.model.tris : null; stlPaint = data.model ? data.model.paint : null; stlColour = data.model ? data.model.colour : null; stlCache = null;
   stlName = data.model && state.base.stl ? state.base.stl.name : null;
-  if (stlName) rememberModel(stlName, stlData, stlPaint);
+  if (stlName) rememberModel(stlName, stlData, stlPaint, stlColour);
   Object.keys(assets).forEach(k=>delete assets[k]);
   for (const [id,url] of Object.entries(data.assets||{})){
     try { assets[id] = { dataURL:url, canvas:await dataURLToCanvas(url) }; } catch(e){}
@@ -8442,6 +8754,7 @@ window.MakerForge = {
   get rev(){ return buildRev; },
   get busy(){ return busy || queued || exampleBusy > 0; },
   thumb: modelThumb,
+  art: { cutout: aiCutout, uncut: aiUncut, hasBackground: pictureHasBackground },
   examples: { list: EXAMPLES, forType: EXAMPLE_FOR_TYPE, art: EXAMPLE_ART, canvas: exampleCanvas, load: loadExample, drop: dropExamples },
   get tracer(){ return tracerInfo; },
   get enclosure(){ return enclosureInfo; },
@@ -8451,9 +8764,11 @@ window.MakerForge = {
   get print(){ return printFresh() ? printInfo : null; },
   printNow: runPrintability, optimize: optimizePrint, revertOptimize, exportParts,
   // the painter, for the tests: its tool settings, a repaint now, the last result, a model import and the zip
+  model: { get colour(){ return stlColour; }, pick: modelPickColours, bytesToCanvas },
   paint: { ui: paintUI, repaint: () => repaint(true), changed: paintChanged, get info(){ return paintInfo; }, importModel: importModelFile, buildZip,
     hit: paintHit, pick: paintPick, recolour: paintRecolour, colourAt, area: paintArea, previewTris, prepare: preparePaint, get previewCount(){ return previewCount; }, cleanPrinter, showLayerCut, get prefs(){ return prefs; }, applyPrefs, findDefault, cleanPaint,
     photo: { ai: { hooks: aiHooks, find: aiFindFigures, config: AI_FIGURE, state: aiState, sha256: sha256Hex, get: aiGet, mapOf: aiMapOf },
+      figure: (v, w, h) => { const px = photoPixels(v.asset, Math.max(w, h)); return px && photoFigure(v, px); },
       add: addPaintPhotos, fit: photoFitView, colours: photoPickColours, setFilaments: photoSetFilaments, nearest: photoNearestFilaments, get op(){ return photoOpOf(); }, info: o => photoInfo.get(o), labels: photoLabels, colourWord } },
   phone: { spec: phoneSpec, get info(){ return phoneInfo; }, list: PHONES },
   get overlay(){ return overlay.children.length; },

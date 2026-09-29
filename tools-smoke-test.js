@@ -90,7 +90,7 @@ const clickTab = async k => { const b = $$("#tabs button").find(b => b.dataset.k
         const visible = () => $$("#panel button").filter(b => !b.closest("[hidden]"));
         const labels = visible().map(b => b.textContent.trim());
         for (let i = 0; i < labels.length; i++) {
-          if (/Change the object|Clear saved|Undo|Redo/.test(labels[i])) continue;
+          if (/Change the object|Clear saved|Undo|Redo|with AI/.test(labels[i])) continue;      // "with AI" downloads the figure finder
           const b = visible().find(x => x.textContent.trim() === labels[i]);
           if (!b || b.disabled) continue;
           const t0 = Date.now();

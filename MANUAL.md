@@ -135,6 +135,8 @@ The **Art** tab puts pictures and words on the object.
 
 On some objects the picture *becomes* the object: a cookie cutter, a lightbox, a jigsaw, a tracer, a circuit board, a lithophane. Their size and shape are then set on the Make tab, and the Art tab shows only what they use.
 
+**Cut out the subject with AI.** A photo with a background, such as a pet on a sofa or a person in a room, shows **✨ Cut out the subject with AI** under the preview (a keychain's picture shows it on the Make tab too). It takes the background away and trims the picture to the subject, so only the subject prints. The first time, it downloads the AI figure finder (about 19 MB, checked before it runs); after that it works straight away, and the photo never leaves your computer. If it took too much or too little, **Put the background back** returns the photo as it was. Pictures that already have a clear background, such as most logos, do not show the button.
+
 **Tips for good pictures:** bold shapes and a few flat colours print best. Small print below about 1 mm wide may not show. Anything that touches the edge of the picture is taken to be background and left out, so leave a little space round your drawing.
 
 ## 5. Colours: your filaments and your printer
@@ -145,7 +147,15 @@ On some objects the picture *becomes* the object: a cookie cutter, a lightbox, a
 
 ## 6. Paint: colouring a whole model
 
-The **Paint** tab colours the whole surface of a model, made here or imported (STL, OBJ or 3MF). It works in up to eight filaments.
+The **Paint** tab colours the whole surface of a model, made here or imported (STL, OBJ, 3MF, GLB or glTF). It works in up to eight filaments.
+
+**Models that come with colours.** Models from AI model makers (Meshy, Tripo, Rodin and others), from scans and from most 3D apps often carry their colours, as a GLB file, or an OBJ with colours on its corners or an MTL file and a picture. Choose **Import a model** in the Start from sidebar (or **Open a different model** on the Make tab). For an OBJ with an MTL file and pictures, choose the OBJ, the MTL and the pictures together. The model opens already painted: the step **The model's own colours** turns its colours into as many filaments as your printer loads.
+
+- **Number of colours** sets how many filaments it uses.
+- **Set my filaments to its colours** changes your loaded filaments to match the model; **Use my loaded filaments** keeps your spools and paints each part in the nearest one.
+- **Tidy single stray triangles** removes lone specks of colour that would each cost a colour change.
+
+GLB files are measured in metres; the app turns them into millimetres. A model that would be smaller than 10 mm or bigger than 500 mm across is made 80 mm across, and the app says so; change the size on the Make tab. Compressed GLB files (Draco or meshopt) cannot be opened: export them again without compression.
 
 ![The Paint tab with the painted vase example](docs/manual/paint-tab.jpg)
 
@@ -158,6 +168,8 @@ The **Paint** tab colours the whole surface of a model, made here or imported (S
 - **A picture**, projected through the model, wrapped round it like a label, or over it like a map on a globe.
 - **Random blobs**, for camouflage or planets.
 - **From a photo of the model**: drop a photo of a real figure and the app lines it up and colours the model from it. If the background is busy, **Find the figure with AI** (a one-time download of about 19 MB) finds it for you.
+
+**Fixing the figure by hand.** On the photo card, **Figure it found** darkens everything the app takes for background. If it took in some background, or missed a part of the figure, choose what dragging on the photo does: **Take away** paints background out, **Add to the figure** paints a missed part in. Start with a big brush away from the figure, then use a small one near its edges. The colours use your fixes straight away; press **Line it up again** to line the photo up with them too. **Undo the last fix** and **Clear my fixes** take them off, and **Move the photo** goes back to dragging the photo into place. The fixes are saved with the project.
 
 **Brush and fill** paint by hand:
 

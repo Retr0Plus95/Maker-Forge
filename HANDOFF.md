@@ -663,6 +663,79 @@ Asked for: "a beautiful example for every start from here button, so people can 
 
 **Verified**: smoke test; audit of every generator (no findings); project test (every quick start and object round-trips with its example; the example marker in a hostile file; your own picture replaces the example); paint (the vase opens painted and its paint goes quietly), jigsaw, lithophane, phone case, enclosure, art, tracer, print, photo and size tests; the print survey; every example looked at in Chromium, and the car badge, lightbox and phone case examples pass every check. Some examples still show yellow advice, "walls thinner than the nozzle" (0.15 to 0.35 mm), from slivers where two colours of a picture meet (the patch, the plaque, the coaster, the cactus pot); nothing red. **Not checked:** printing the examples; the pictures in browsers other than Chromium.
 
+## Session 20: the AI sections: cut-out, models with their own colours, a hand-fixed outline (v0.21.0)
+
+Asked for: "Add the AI now", then "Do all the AI sections first" (the roadmap's AI items: the AI figure finder on the Art tab, GLB textures and OBJ vertex colours, a hand-fixed figure outline, close-up photos), then a pull request and an updated project page. The branch was brought up to date by merging `main` (after PR #5 was squash-merged), not by resetting it.
+
+**AI cut-out** (Art tab and keychain):
+- `PRCore.cutoutWithMap(rgba, W, H, map, mw, mh, th)`: the picture's alpha from the figure finder's map (`photoMaskFromMap`: enlarged, cut, dust dropped); `edgeOpacity` says how much of a picture's border is opaque.
+- App: `pictureHasBackground(d)` (border over half opaque, at 256 px) decides whether the button shows. `aiCutout(d)` loads the AI (`aiLoad`, the same SHA-256-checked download as Session 17), runs `aiFigureMap` and makes a new picture; it keeps the original in `d.uncut` and sets `d.crop = true`, so the picture is trimmed to the subject. Under 1% kept: a notice, and nothing changes. `aiUncut(d)` puts it back.
+- `aiCutoutRow` offers it on the Art tab and in the keychain's picture group; there the flood-fill colour cut-out is switched off once the AI has cut the picture. `usedAssets` keeps `uncut`; `sanitizeProject` keeps it only as a short string. Hook: `MakerForge.art.{cutout, uncut, hasBackground}`.
+- `aiFailed(err)` is the shared error notice for both AI buttons.
+
+**Models with their own colours** (what Meshy, Tripo, Rodin and most 3D apps export):
+- Readers in `src/core.js`:
+  - `parseGLB` (GLB chunks, or `.gltf` text) and `parseGLTF`. They handle node transforms (TRS or matrix, with mirrored ones turned back to outward) and modes 4, 5 and 6.
+  - Materials: `baseColorFactor`, `baseColorTexture`, `COLOR_0` and KHR_materials_pbrSpecularGlossiness. Pictures come from a bufferView or a data URI, WebP included.
+  - Clear errors for glTF 1, Draco, meshopt or Basis, a separate `.bin`, and a cut-off GLB.
+  - `parseMTL` and `parseOBJColours` read vertex colours (0–1 or 0–255, times Kd), `vt` (turned to picture space, v down) and `usemtl`/`map_Kd`.
+  - All of them return triangle soup turned Z up, with per-corner sRGB colours `cc`, picture places `uv`, a picture per triangle `texOf`, and `images`.
+- `modelTriColours(solid, src, source, mc)` gives the colour of each (refined) triangle: its middle's place in the source triangle, the picture sampled bilinearly (repeating), times the corner colours, in linear light. So detail inside big triangles comes through on the finer mesh (tested: a diagonal across two triangles comes out 50.1% / 49.9%). `modelPalette` and `modelColourLabels` turn that into up to 8 colours, via `photoPalette`/`photoClasses`, with neighbour passes that tidy lone triangles.
+- App:
+  - `importModelFile(file, others)`: the model input takes several files, so an OBJ comes with its MTL and pictures. Pictures are matched by name, or a single dropped picture is used; a missing one is named in the notice.
+  - `modelColourIn` decodes pictures into assets (at most 2048 px). GLB is in metres (×1000). A model with colours, or in metres, that comes out under 10 mm or over 500 mm across is made 80 mm across, and the notice says so.
+  - `stlColour` holds `{cc, uv, texOf, tex}` and is saved in the project (base64). `cleanModelColour` checks every length against the triangle count and every picture id against the file's pictures; a bad `uv`/`texOf` is dropped and the corner colours are kept.
+  - The paint step `k: "model"` is listed first in PAINT_METHODS, is added when such a model opens, and is in `paintNeedsFine`. It offers the number of colours, "Set my filaments to its colours" or "Use my loaded filaments" (`photoSetFilaments` / `photoNearestFilaments`), and "Tidy single stray triangles". `cleanPaint` clamps it.
+- `tools-aimodel-test.js` (`npm run test:aimodel`, `CORE=1` for the readers) covers:
+  - the photo test's footballer as a GLB with vertex colours, as a GLB with a picture, as an OBJ with vertex colours, and as an OBJ + MTL + PNG: every triangle's colour exact, and 100% of the surface right in the app with six colours;
+  - node transforms, damaged files, the metre and 80 mm rules, the Paint tab controls, a project round trip, and hostile projects.
+- The GLB writer used by that test moved into `tools-photo-figure.js` (`makeGLB`, `colourSquares`, `figureGLB`), and `figure(step)` can refine more coarsely, for smaller files in the browser tools.
+
+**Hand-fixed figure outline** (colour from a photo):
+- `PRCore.photoFixMap(fix, W, H)` turns strokes `{ add, r, p:[x0, y0, …] }` into a map (x in parts of the photo's width, y and r in parts of its height), so the same strokes fit the photo at any size. Each stroke is a chain of capsules, and later strokes win. The work stops at 60 × the photo's pixels, so a hostile file of huge brushes takes 175 ms, not minutes. `photoFixMask` applies the map to a mask.
+- App:
+  - `photoFound(v, px)` is the figure as found (AI or colour); `photoFigure` adds `v.fix`. So the fixes feed the line-up, the colouring (`photoView`) and the previews.
+  - `photoPickColours` also leaves out what was taken away from inside the lined-up outline. `photoFixKey` puts the fixes in the colouring cache key.
+- Photo card:
+  - The view choice gains **Figure it found**, which darkens the background to navy. The outline and the figure-as-found are cached per canvas (`photoPrevCache`), so a stroke redraws quickly.
+  - **What dragging on the photo does**: Move the photo, Add to the figure, or Take away. The brush size runs from 0.5 to 20% of the photo's height, with a ring cursor (`drawPhotoRing`).
+  - **Undo the last fix** and **Clear my fixes**.
+  - The pointer is mapped through the preview's letterbox (`object-fit: contain`). Strokes redraw once a frame, and the colours are read again 0.6 s after the brush rests. The fixes do not move the line-up by themselves: **Line it up again** does.
+- `cleanPhotoFix`: at most 2000 strokes and 100 000 numbers, points clamped to the photo, r between 0.002 and 0.25, `add` a boolean.
+- Tested in `tools-photo-test.js` (section 7b2). On the bookshelf photo without the AI, pointer strokes (big ones across the background, then a 1% and a 0.5% brush near the edges; 446 strokes) took the figure from 45% to 91% like the true one. Line it up again then gave: size off 0.6%, place off 0.59%, and 81.9% of the surface right instead of 53.6%, about what the AI gets. Also tested: the round trip, undo and clear, and hostile fixes.
+
+**Close-up photos: started, not in the app yet.** In `src/core.js`:
+- `photoRef`, `photoUV`, `PHOTO_K_MAX`: a fit may carry `k` (the model's height over the camera's distance from its middle; 0 = far away) and `ref` (that middle and height in camera space). `photoRaster` and `photoFit` (`opt.k`) enlarge what is nearer the camera.
+- `photoFit` has a finer last step on a 400 px grid, used only when `k > 0`, and a `"mid"` mode.
+- `photoFitCloseness` tries k = 0, 0.3, 0.6 and 0.9, then finer; a closer camera must win by 2 points of overlap per 1 of k. `photoFitAngles` refines its best angle when `k > 0`.
+
+Without `k` every photo lines up exactly as before (the engine test gives the same numbers). Measured on rendered close-ups of the test figure (camera 1.2 to 2.5 model heights away, one photo, the angle known):
+
+| | Right with the far-away fit | Found k | Right with k |
+| --- | --- | --- | --- |
+| k 0.6, 20° up | 66% | 0.56–0.6 | 84–86% |
+| k 0.5, 30° round, 10° up | 67% | 0.525 | 87% |
+| k 0.8, 25° up | 56% | 0.825 | 83% |
+
+Far-away photos kept k at 0 to 0.075, with no loss.
+
+Still to do:
+- Save `k` in `v.fit` (clamp it in `cleanPaint`).
+- Give `photoFitNowFor` the whole model's `ref` from `photoModel()`, so every part is seen from one camera.
+- Run the closeness search when a photo is lined up, plus a "How close was the camera?" setting.
+- Test in `tools-photo-test.js` with close-up photos.
+
+The angle search from the front can still miss a 20° turn on a close-up (the existing preference for the side asked for). Searching angles both far away and at k 0.5 found it more often, but took three times as long (8–9 s), so it was left out.
+
+**Also fixed**: a cut-off GLB said its data was "in a separate file"; it now says the file is cut short.
+
+**Verified**:
+- `test:aimodel`, `test:photo` (with the real network in Node), `test:paint`, `test:project`, and the smoke test.
+- In Chromium (`tools-browser-check.js`, new this session): a mouse stroke with Take away lands where it was aimed (through the letterbox); the AI cut-out runs in the browser on the bookshelf photo; a GLB with a PNG picture (decoded by the browser, not the test stub) opens in its six colours at 102 mm.
+- New README screenshots: `docs/images/model-colours.jpg` and `docs/images/photo-fix.jpg` (`tools-screenshots.js` scenes `modelcolours` and `photofix`).
+
+**Not checked**: real AI-made models from Meshy, Tripo or Rodin (only models written by the test); KTX2 or Basis pictures (refused); the cut-out on real photos; the hand-fix brush on a touch screen; any print.
+
 ## Unfinished (in priority order)
 
 - **P4**: none outstanding beyond polish.
@@ -670,8 +743,8 @@ Asked for: "a beautiful example for every start from here button, so people can 
 - **P6**: done in Session 19: example images for every start. Still open: picking several pictures for use in other sections (the `enabled` flag is the start of this); traceable pictures on keychains (silhouette mode exists via "Print it in its own colours" off).
 - **P7**: all section improvements (Double-Sided Name rename and mirrored back plate, iron-on patch shapes and military badges and premade patches, Christmas ornaments, caricature bobble head, name/letter lightbox and more box styles, photo frame back panel and clear front and relief panel, tea light egg/round shapes and picture positioning and candle ring and wagon-lantern cover and separate walls, plastic canvas fitting, functional PCB with conductive filament and copper-sheet workflow and Gerber import, car badge shapes and two-sided car keychain).
 - **P8**: done in Session 13 (phone cases). Next: button covers, camera guard ring, MagSafe recess, exact positions from the makers' design guidelines (ideas 16 to 23 above).
-- Painter next steps: done in Session 18: box select (7), radial symmetry (8), the smart brush (9), curvature (10), the eyedropper and recolour (14), a wrapped picture (2), a layer preview with colour changes and waste (4, 5). Still open: AI-model textures (1), sub-triangle export (3), height bands as M600 pauses (6), named layers (11), a BVH (12), mirror-safe paint (13). Opening painted exports in Bambu Studio, OrcaSlicer and PrusaSlicer is still to be done by hand.
-- Asked for in Session 18, still next in line (the manual and the examples were done in Session 19): Web Workers and a BVH (v0.21); GLB textures and OBJ vertex colours (v0.22); the AI figure finder on the Art tab, a hand-fixed figure outline, close-up photos (v0.23); Manifold cutting and engraving (v0.24); sub-triangle paint export if it can be checked against a slicer.
+- Painter next steps: done in Session 18: box select (7), radial symmetry (8), the smart brush (9), curvature (10), the eyedropper and recolour (14), a wrapped picture (2), a layer preview with colour changes and waste (4, 5). AI-model textures (1) were done in Session 20. Still open: sub-triangle export (3), height bands as M600 pauses (6), named layers (11), a BVH (12), mirror-safe paint (13). Opening painted exports in Bambu Studio, OrcaSlicer and PrusaSlicer is still to be done by hand.
+- Asked for in Session 18, still next in line (the manual and the examples were done in Session 19; the AI cut-out, GLB and OBJ colours and the hand-fixed outline in Session 20): close-up photos in the app (the core is ready, see Session 20); Web Workers and a BVH; Manifold cutting and engraving; sub-triangle paint export if it can be checked against a slicer.
 - Examples next steps: an example for Import a model (a small painted figure); the unused moonlit-forest relief could go on a lithophane-style tea light; examples in the dark theme's pictures (the Start pictures are rendered on a clear background, so they suit both).
 - Lithophane next steps: the test strip exists (Session 12); use a printed one to calibrate the preview's transmission constant (1.3 per mm is a guess); colour lithophanes (a thin colour layer behind a white sheet, or filament-swap layers); a lithophane puzzle (joins the jigsaw's single-colour idea); for the lamp shade, *stretch once round* as an alternative to repeating copies, a base ring that sits on an LED tea light, and a lid; an engraved name on the border or foot; a separate slotted stand instead of one printed with the sheet; a *keep proportions* option for the heart (it is stretched to the picture's aspect, like the jigsaw's heart); decimating flat areas (border, blank gaps, smooth sky) so big sheets need not be coarsened.
 - Jigsaw next steps: a lithophane or relief puzzle for single-colour printers (the picture as thickness, backlit); whimsy pieces (a heart, a star or the picture's own subject cut out as one piece); knob shapes from a symbol; split a puzzle bigger than the bed into plates of whole pieces; an optional "print spread out" layout with wider spacing; two-sided puzzles (a second picture on the back); drop colour slivers narrower than the nozzle inside each piece; the heart outline is stretched to the picture's aspect ratio (a "keep proportions" option would crop instead).
@@ -689,8 +762,8 @@ Asked for: "a beautiful example for every start from here button, so people can 
 - Enclosure, Session 12 fits not yet printed: magnet pockets (+0.2 mm on diameter and depth), the sliding lid's 0.2 mm gap and 45° rails, foot recesses, 0.4 mm label depth and 0.6 mm label lines, the lid logo in its first layers. Print the fit test first.
 - Enclosure, Session 13 not yet printed: the pilot-light jewel lens (the shank's corners have 0.15 mm of play a side plus the clearance, the LED pocket 0.1 mm a side, so a 5 mm LED's 5.8 mm base rim stays outside it). Print one lens and a scrap of wall with its hole before a whole box.
 - Tracer hollow cover: strokes thinner than two walls stay solid (by design, noted in the panel).
-- **AI figure finder** (Session 17): it marks the photo's most eye-catching object, not specifically the figure, and fills hollows: a bright object touching the figure, a stand, a hand or a shadow can be taken in, and the fit then comes out a few percent too big (the worst-case test: 2.9%). Nudge it, or add a second photo. The model loads from jsDelivr's copy of this repository's `main` branch, so it works only once this work is merged and the repository is public (or with `models/` uploaded next to `index.html`).
-- **Colour from a photo** (Session 16): tested on rendered photos only. The fit assumes a far-away camera, so strong perspective (a phone held close) and a pose that differs from the model line up less well; white or pale parts on a pale background lower the outline match (the colours still come from inside the model's outline). On a model of several parts made here, each part's depth test sees only that part (imported models are one part). Parts no photo shows are a guess from the nearest colour: add a photo of the back. Changing the model's shape (not only its size) after lining up needs "Line it up again".
+- **AI figure finder** (Session 17): it marks the photo's most eye-catching object, not specifically the figure, and fills hollows: a bright object touching the figure, a stand, a hand or a shadow can be taken in, and the fit then comes out a few percent too big (the worst-case test: 2.9%). Nudge it, or add a second photo. The model loads from jsDelivr's copy of this repository's `main` branch, so it works only once this work is merged and the repository is public (or with `models/` uploaded next to `index.html`). The AI cut-out (Session 20) uses the same model and has the same limits: it keeps the most eye-catching object, which may not be the one you meant.
+- **Colour from a photo** (Session 16): tested on rendered photos only. The fit assumes a far-away camera (the core can fit a close camera since Session 20; the app does not use it yet), so strong perspective (a phone held close) and a pose that differs from the model line up less well; white or pale parts on a pale background lower the outline match (the colours still come from inside the model's outline). On a model of several parts made here, each part's depth test sees only that part (imported models are one part). Parts no photo shows are a guess from the nearest colour: add a photo of the back. Changing the model's shape (not only its size) after lining up needs "Line it up again".
 
 - **Bambu 3mf in Bambu Studio** (tested by the user, Session 10): geometry and colours load, with the standard notice for third-party files (*not from Bambu Lab, load geometry data and color data only*); see Session 10 for why that notice cannot be removed safely. The filament colours themselves come from the user's Bambu Studio setup, not from the file.
 - Everything is tested headlessly: in jsdom with a canvas stub (letters are boxes, `ctx.filter` ignored), and since Session 12 also in headless Chromium with software WebGL (`tools-browser-check.js`: real fonts, real canvas, the 3D view, screenshots). Firefox, Safari, real GPUs, touch input and slicers are still unchecked. Emoji charms in Chromium on Linux use Noto Color Emoji.

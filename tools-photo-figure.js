@@ -6,7 +6,7 @@ module.exports = C => {
   const cyl = (r, y0, y1, seg = 48) => C.revolveLoop([[0, y0], [r, y0], [r, y1], [0, y1]], seg);
   const ball = (r, cy, seg = 64) => { const pr = []; for (let i = 0; i <= 24; i++) { const a = -Math.PI / 2 + i / 24 * Math.PI; pr.push([Math.cos(a) * r, cy + Math.sin(a) * r]); } pr[0][0] = 0; pr[24][0] = 0; return C.revolveLoop(pr, seg); };
   const PART_NAMES = ["base", "leg", "leg", "body", "arm", "arm", "neck", "head"];
-  function figure() {
+  function figure(step) {
     const parts = [
       cyl(18, 0, 4, 64),
       C.transformSolid(cyl(4, 3, 41), 1, -6, 0, 0), C.transformSolid(cyl(4, 3, 41), 1, 6, 0, 0),
@@ -14,9 +14,9 @@ module.exports = C => {
       C.transformSolid(cyl(3.5, 50, 79), 1, -15.5, 0, 0), C.transformSolid(cyl(3.5, 50, 79), 1, 15.5, 0, 0),
       cyl(4, 78, 85), ball(10, 92),
     ];
-    // refined to about 1 mm, as the painter does before it paints (a colour edge needs triangles to fall on)
+    // refined to about 1 mm (or step), as the painter does before it paints (a colour edge needs triangles to fall on)
     const partOf = []; parts.forEach((q, i) => { for (let t = 0; t < q.idx.length / 3; t++) partOf.push(i); });
-    const raw = C.mergeSolids(parts), ed = C.meshEditor(raw); ed.refine(1.0, 900000);
+    const raw = C.mergeSolids(parts), ed = C.meshEditor(raw); ed.refine(step || 1.0, 900000);
     const src = ed.source();
     return { solid: ed.solid(), partOf: Array.from(src, t => partOf[t]), raw };
   }
@@ -111,5 +111,41 @@ module.exports = C => {
     }
     return { rgba, mask: img.mask };
   }
-  return { PART_NAMES, PAL, NAMES, figure, truth, outside, render, score, onBusyBackground, onShelfBackground };
+  // a GLB file (Session 20): one mesh, not indexed; col: linear RGB per corner; uv per corner and a PNG; node: a transform
+  function makeGLB({ pos, col, uv, png, node, extra }) {
+    const parts = [], views = [], accs = [];
+    const add = (bytes, target) => { let off = parts.reduce((a, b) => a + b.length, 0); const pad = (4 - off % 4) % 4; if (pad) { parts.push(new Uint8Array(pad)); off += pad; } parts.push(bytes); views.push(Object.assign({ buffer: 0, byteOffset: off, byteLength: bytes.length }, target ? { target } : {})); return views.length - 1; };
+    const f32 = a => new Uint8Array(new Float32Array(a).buffer);
+    const n = pos.length / 3, mn = [0, 1, 2].map(k => { let m = Infinity; for (let i = k; i < pos.length; i += 3) m = Math.min(m, pos[i]); return m; }), mx = [0, 1, 2].map(k => { let m = -Infinity; for (let i = k; i < pos.length; i += 3) m = Math.max(m, pos[i]); return m; });
+    accs.push({ bufferView: add(f32(pos), 34962), componentType: 5126, count: n, type: "VEC3", min: mn, max: mx });
+    const attributes = { POSITION: 0 };
+    if (col) { accs.push({ bufferView: add(f32(col), 34962), componentType: 5126, count: n, type: "VEC3" }); attributes.COLOR_0 = accs.length - 1; }
+    if (uv) { accs.push({ bufferView: add(f32(uv), 34962), componentType: 5126, count: n, type: "VEC2" }); attributes.TEXCOORD_0 = accs.length - 1; }
+    const g = { asset: { version: "2.0", generator: "Maker Forge tests" }, scene: 0, scenes: [{ nodes: [0] }], nodes: [Object.assign({ mesh: 0 }, node || {})],
+      meshes: [{ primitives: [{ attributes, material: 0 }] }], materials: [{ pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1] } }], accessors: accs, bufferViews: views };
+    if (png) { g.images = [{ bufferView: add(png), mimeType: "image/png" }]; g.textures = [{ source: 0 }]; g.materials[0].pbrMetallicRoughness.baseColorTexture = { index: 0 }; }
+    Object.assign(g, extra || {});
+    let binLen = parts.reduce((a, b) => a + b.length, 0); const bin = new Uint8Array(binLen + (4 - binLen % 4) % 4); let o = 0; for (const q of parts) { bin.set(q, o); o += q.length; }
+    g.buffers = [{ byteLength: bin.length }];
+    let js = Buffer.from(JSON.stringify(g)); js = Buffer.concat([js, Buffer.alloc((4 - js.length % 4) % 4, 0x20)]);
+    const out = Buffer.alloc(12 + 8 + js.length + 8 + bin.length);
+    out.writeUInt32LE(0x46546C67, 0); out.writeUInt32LE(2, 4); out.writeUInt32LE(out.length, 8);
+    out.writeUInt32LE(js.length, 12); out.writeUInt32LE(0x4E4F534A, 16); js.copy(out, 20);
+    out.writeUInt32LE(bin.length, 20 + js.length); out.writeUInt32LE(0x004E4942, 24 + js.length); Buffer.from(bin).copy(out, 28 + js.length);
+    return new Uint8Array(out);
+  }
+  // the six colours as squares on a 48 x 32 picture, and where each colour's square is (encodePNG from tools-test-env.js)
+  function colourSquares(encodePNG) {
+    const W = 48, H = 32, px = new Uint8ClampedArray(W * H * 4);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const c = PAL[NAMES[Math.floor(x / 16) + 3 * Math.floor(y / 16)]]; px.set([c[0], c[1], c[2], 255], 4 * (y * W + x)); }
+    return { W, H, png: encodePNG(W, H, px), uvOf: c => [((c % 3) * 16 + 8) / W, (Math.floor(c / 3) * 16 + 8) / H] };
+  }
+  // the coloured figure as an AI model maker gives it: a GLB in metres, Y up, coloured by that picture
+  function figureGLB(solid, cls, encodePNG) {
+    const T = colourSquares(encodePNG), n = solid.idx.length / 3, pos = new Float32Array(9 * n), uv = new Float32Array(6 * n);
+    for (let t = 0; t < n; t++) { const [u, v] = T.uvOf(cls[t]);
+      for (let k = 0; k < 3; k++) { const vi = solid.idx[3 * t + k]; for (let a = 0; a < 3; a++) pos[9 * t + 3 * k + a] = solid.pos[3 * vi + a] / 1000; uv[6 * t + 2 * k] = u; uv[6 * t + 2 * k + 1] = v; } }
+    return makeGLB({ pos, uv, png: T.png });
+  }
+  return { PART_NAMES, PAL, NAMES, figure, truth, outside, render, score, onBusyBackground, onShelfBackground, makeGLB, colourSquares, figureGLB };
 };

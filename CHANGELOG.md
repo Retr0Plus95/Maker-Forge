@@ -3,6 +3,16 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.22
+
+- **Works on phones and tablets.** Before, on a phone most of the settings were cut off and could not be scrolled to, the quick starts and examples could not be reached below 1100 pixels wide, and on tablets and phones held sideways the **Download files** button was past the edge of the screen. Now:
+  - On a phone held upright, the model sits at the top and the settings scroll below it; **‹** gives the model the whole screen.
+  - **Start from** is a button in the top bar that opens the quick starts over the page, on phones, tablets and narrow windows.
+  - The top bar folds its less-used buttons into a **⋯** menu, with names beside each, whenever they do not fit.
+  - The seven view buttons fold into one when the 3D view is narrow.
+  - Notices run across the bottom of the model instead of covering it.
+- The same happens with big text: at 150% text on a laptop, Start from becomes a drawer rather than squeezing the model.
+
 ## 0.21
 
 - **Cut out the subject with AI.** A photo with a background (a pet on a sofa, a person in a room) shows **✨ Cut out the subject with AI** on the Art tab and on a keychain's picture. The AI figure finder takes the background away and trims the picture to the subject, so only the subject prints. It downloads once (about 19 MB, checked before it runs) and works on your computer: the photo is not sent anywhere. **Put the background back** undoes it. In a test photo of a figure in front of a bookshelf, 88% of the kept picture was the figure.

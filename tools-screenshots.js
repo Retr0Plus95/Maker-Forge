@@ -69,6 +69,29 @@ const figureKit = () => { globalThis.earcut = globalThis.earcut || require("earc
     async export() { const { ctx, page } = await open(); await preset(page, "Car badge"); await tab(page, "export"); await idle(page); await shot(page, path.join(MANUAL, "export-tab.jpg")); await ctx.close(); },
     async help() { const { ctx, page } = await open(); await preset(page, "Lithophane"); await page.click("#helpBtn"); await page.waitForTimeout(500);
       await shot(page, path.join(MANUAL, "help.jpg")); await ctx.close(); },
+    // Session 21: three phone screens side by side: the patch with its settings, Start from, the More menu
+    async phone() {
+      const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: "light" });
+      const page = await ctx.newPage();
+      await page.route("**/*", r => { const u = r.request().url(); for (const [re, f] of LIBS) if (re.test(u)) return r.fulfill({ path: path.join(NM, f), contentType: "application/javascript" }); r.continue(); });
+      await page.goto("file://" + FILE);
+      await page.waitForFunction(() => window.MakerForge && !MakerForge.busy, null, { timeout: 120000 });
+      await page.evaluate(() => document.querySelector('#presetGallery button[data-k="Iron-on patch"]').click()); await idle(page);
+      const pics = [];
+      const grab = async () => { await quiet(page); await page.waitForTimeout(300); pics.push((await page.screenshot({ type: "jpeg", quality: 88 })).toString("base64")); };
+      await grab();
+      await page.tap("#startBtn"); await page.waitForTimeout(400); await grab(); await page.tap("#startsToggle"); await page.waitForTimeout(300);
+      await page.tap("#moreBtn"); await page.waitForTimeout(300); await grab();
+      await ctx.close();
+      const c2 = await browser.newContext({ viewport: { width: 1300, height: 900 } }), p2 = await c2.newPage();     // a blank page, not the app
+      await p2.setContent(`<body style="margin:0;background:#eef1f4;font:600 17px system-ui,sans-serif;color:#22303c">
+        <div style="display:flex;gap:26px;padding:22px;width:1260px;box-sizing:border-box;justify-content:center">${pics.map((b, i) =>
+        `<figure style="margin:0;text-align:center"><img src="data:image/jpeg;base64,${b}" style="width:390px;display:block;border-radius:26px;border:8px solid #1d2733;box-shadow:0 8px 24px rgba(0,0,0,.18)">
+         <figcaption style="margin-top:10px">${["The model on top, the settings below", "Start from opens over the page", "Less-used buttons in the ⋯ menu"][i]}</figcaption></figure>`).join("")}</div></body>`);
+      await p2.waitForTimeout(400);
+      const el = await p2.$("div"); await el.screenshot({ path: path.join(IMAGES, "phone.jpg"), type: "jpeg", quality: 84 });
+      console.log("  docs/images/phone.jpg"); await c2.close();
+    },
     // Session 20: the test figure as a GLB with a colour picture (what AI model makers give), opened in its colours
     async modelcolours() {
       const { F, PC } = figureKit(), small = F.figure(2.5), cls = F.truth(PC.meshTopology(small.solid), small.partOf), f = path.join(TMP, "footballer.glb");

@@ -2,10 +2,10 @@
 
 **Turn names, photos and logos into multi-colour (multi-color) 3D prints.** Keychains and name tags, iron-on patches, car badges, Christmas ornaments, phone cases, lithophanes and lithophane lamps, jigsaw puzzles, cookie cutters, lightboxes, circuit-board art, plastic canvas pixel art, bobble heads, project boxes and electronics enclosures, and more. Paint any STL, OBJ, 3MF, GLB or glTF model in up to eight colours, and print models from AI 3D generators (Meshy, Tripo, Rodin) in their own colours. Export a **3MF ready for Bambu Studio, OrcaSlicer and PrusaSlicer**, with every colour already assigned for an AMS, MMU3, CFS or ACE, plus STL and OBJ files.
 
-Free and open source (MIT). One HTML file: no install, no account, no uploads. It runs on your own computer, even offline.
+Free and open source (MIT). One HTML file: no install, no account, no uploads. It runs on your own computer, tablet or phone, even offline.
 
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-2a9d8f)](LICENSE)
-[![Version 0.21](https://img.shields.io/badge/version-0.21-1f6f8b)](CHANGELOG.md)
+[![Version 0.22](https://img.shields.io/badge/version-0.22-1f6f8b)](CHANGELOG.md)
 [![Runs in the browser](https://img.shields.io/badge/runs%20in-your%20browser-e9c46a)](#get-started-in-a-minute)
 [![Exports 3MF, STL, OBJ](https://img.shields.io/badge/exports-3MF%20·%20STL%20·%20OBJ-d1495b)](#printers-and-slicers)
 
@@ -51,6 +51,7 @@ Every button in the **Start from** sidebar opens with a finished example, so you
 - **Photo to 3D.** Trace a real part from a photo, turn a photo into a lithophane or a relief, or colour a 3D model from a photo of the real thing (with an optional small AI model that finds the figure on a busy background, and a brush to fix what it found by hand).
 - **AI where it helps, on your computer.** Cut the subject out of a photo with one click, so only your pet or your face prints on a keychain or a badge. Open a textured model from an AI 3D generator and print it in its own colours. The AI runs in your browser; nothing is sent anywhere.
 - **Private.** Nothing is uploaded, ever. No account, no tracking, no adverts.
+- **On a phone or tablet too.** On a phone the model sits on top and the settings scroll below it; Start from and the less-used buttons open from the top bar. Every setting, and **Download files**, is within reach on a small screen.
 - **Easy to read.** Bigger text up to 175%, high contrast, a font made for low vision, messages read aloud, and patterns that tell filaments apart without colour.
 
 ---
@@ -70,6 +71,10 @@ Every button in the **Start from** sidebar opens with a finished example, so you
 | ![A footballer figure opened from a GLB with a colour picture, painted in its six colours on the Paint tab](docs/images/model-colours.jpg) | ![The photo card with a bookshelf photo: the figure found, the background darkened, and the Take away and Add to the figure brushes](docs/images/photo-fix.jpg) |
 | **The user manual**, built in (press ?) | **Easy reading**: bigger text and high contrast |
 | ![The user manual window inside the app](docs/manual/help.jpg) | ![The app at 130% text size with high contrast](docs/images/easy-reading.jpg) |
+
+**On a phone**: the model on top with the settings below, Start from, and the ⋯ menu.
+
+![Three phone screens: the iron-on patch with its settings below it, the Start from quick starts over the page, and the menu with Redo, Easy reading, Light or dark, Settings, User manual and About](docs/images/phone.jpg)
 
 More pictures of the painter, phone cases, project boxes and printers are in [What's new](CHANGELOG.md).
 
@@ -101,7 +106,9 @@ The [user manual](MANUAL.md) walks through every tab, tool and setting, with pri
 
 **Is it free?** Yes. Maker Forge is free and open source under the MIT licence, with no account and no paid tier.
 
-**Do I need to install anything?** No. It is one HTML file that runs in your web browser, on Windows, macOS, Linux and ChromeOS. It works offline once the page has loaded its three small code libraries.
+**Do I need to install anything?** No. It is one HTML file that runs in your web browser, on Windows, macOS, Linux and ChromeOS, and on tablets and phones. It works offline once the page has loaded its three small code libraries.
+
+**Does it work on a phone?** Yes. On a phone the model sits at the top and the settings scroll below it; **Start from** and the less-used buttons open from the top bar, and **Download files** is always on the screen. A bigger screen is easier for detailed painting.
 
 **Are my photos uploaded?** No. Everything happens on your computer. The optional AI figure finder (also used to cut out a photo's subject) downloads its model once when you ask for it, and runs on your computer too.
 
@@ -198,4 +205,4 @@ Everything runs locally; the threats worth defending are a hostile **project fil
 
 MIT: see [LICENSE](LICENSE). The example pictures are part of the app and share its licence. The fonts in `fonts/`, also built into `index.html`, keep their own licences (SIL Open Font License 1.1, or Apache 2.0 for five of them): see [fonts/LICENSES.md](fonts/LICENSES.md). The AI figure finder's model in `models/` is U²-Net under the Apache License 2.0: see [models/LICENSE.md](models/LICENSE.md).
 
-<sub>Keywords: multi-colour 3D printing, multi-color 3D print, multicolor, 3MF generator, image to STL, photo to STL, logo to 3D print, SVG to STL, keychain generator, name tag maker, lithophane maker, lithophane lamp, jigsaw puzzle generator, cookie cutter generator, phone case generator, iPhone case STL, project box generator, electronics enclosure, Raspberry Pi case, PCB art, lightbox, shadow box, plastic canvas, pixel art, bobble head, iron-on patch, car badge, Christmas ornament, color painting, GLB to 3MF, glTF to 3MF, GLB to STL, AI 3D model printing, Meshy, Tripo, Rodin, textured model to multi-colour, OBJ vertex colors, remove background, background remover, AI cut-out, Bambu Lab AMS, AMS lite, Prusa MMU3, Creality CFS, Anycubic ACE, Bambu Studio, OrcaSlicer, PrusaSlicer, TPU, PETG, PLA, free, open source, browser-based, offline, no install.</sub>
+<sub>Keywords: multi-colour 3D printing, multi-color 3D print, multicolor, 3MF generator, image to STL, photo to STL, logo to 3D print, SVG to STL, keychain generator, name tag maker, lithophane maker, lithophane lamp, jigsaw puzzle generator, cookie cutter generator, phone case generator, iPhone case STL, project box generator, electronics enclosure, Raspberry Pi case, PCB art, lightbox, shadow box, plastic canvas, pixel art, bobble head, iron-on patch, car badge, Christmas ornament, color painting, GLB to 3MF, glTF to 3MF, GLB to STL, AI 3D model printing, Meshy, Tripo, Rodin, textured model to multi-colour, OBJ vertex colors, remove background, background remover, AI cut-out, Bambu Lab AMS, AMS lite, Prusa MMU3, Creality CFS, Anycubic ACE, Bambu Studio, OrcaSlicer, PrusaSlicer, TPU, PETG, PLA, free, open source, browser-based, offline, no install, works on phone, mobile, tablet, iPad, Android.</sub>

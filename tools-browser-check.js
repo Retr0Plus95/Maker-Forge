@@ -58,6 +58,18 @@ function pageLayout() {
   const name = el => (el.id ? "#" + el.id : el.tagName.toLowerCase() + (el.className && typeof el.className === "string" ? "." + el.className.trim().split(/\s+/).join(".") : "")) +
     (el.textContent.trim() ? ` "${el.textContent.trim().replace(/\s+/g, " ").slice(0, 40)}"` : "");
   if (de.scrollWidth > vw + 1 && getComputedStyle(document.body).overflowX !== "hidden") out.push(`page scrolls sideways (${de.scrollWidth} px in a ${vw} px window)`);
+  // the app bar (Session 21): every button on the screen (a Download button past the edge cannot be pressed)
+  for (const b of document.querySelectorAll(".appbar button")) {
+    if (!vis(b)) continue; const r = b.getBoundingClientRect();
+    if (r.right > vw + 1 || r.left < -1) out.push(`off the screen: ${name(b)}`);
+  }
+  // the settings: all of them within reach, scrolling when they do not fit
+  const sheet = document.querySelector(".sheet"), pnl = document.querySelector("#panel");
+  if (sheet && vis(sheet)) {
+    const oy = el => getComputedStyle(el).overflowY;
+    if (sheet.scrollHeight > sheet.clientHeight + 1 && !/auto|scroll/.test(oy(sheet))) out.push(`the settings do not fit and cannot be scrolled (${sheet.scrollHeight} px in ${sheet.clientHeight})`);
+    if (pnl && pnl.scrollHeight > pnl.clientHeight + 1 && oy(pnl) === "hidden") out.push(`the settings are cut off (${pnl.scrollHeight} px in ${pnl.clientHeight})`);
+  }
   const panel = document.querySelector("#panel");
   if (panel && vis(panel)) {
     const pr = panel.getBoundingClientRect();
@@ -561,7 +573,42 @@ function pageCoverage() {
       const layout = await ph.evaluate(pageLayout); layout.forEach(t => findings.push({ where: "phone " + obj, what: t }));
       shots.push({ file, caption: `Phone: ${obj}`, layout, ...info });
     }
+    // Session 21: what a phone needs: Start from as a drawer, the More menu, the views folded, the settings scrolling
+    const ev = f => ph.evaluate(f);
+    const layoutMode = await ev(() => document.documentElement.dataset.layout);
+    await ph.click("#startBtn"); await ph.waitForTimeout(300);
+    const drawer = await ev(() => { const b = document.querySelector("#starts").getBoundingClientRect(); return { open: document.querySelector(".app").classList.contains("starts-open"), left: Math.round(b.left), w: Math.round(b.width) }; });
+    await shot(ph, "phone-drawer", "Phone: Start from opens over the page");
+    await ph.click('#presetGallery button[data-k="Iron-on patch"]'); await settle(ph);
+    const chosen = await ev(() => ({ open: document.querySelector(".app").classList.contains("starts-open"), type: MakerForge.state.base.type }));
+    await ph.click("#moreBtn"); await ph.waitForTimeout(200);
+    const more = await ev(() => { const m = document.querySelector("#barMore"), b = m.getBoundingClientRect(); return { shown: getComputedStyle(m).display !== "none", inside: b.left >= 0 && b.right <= innerWidth, labels: [...m.querySelectorAll(".lbl")].filter(l => l.offsetWidth).length }; });
+    await shot(ph, "phone-more", "Phone: the More menu");
+    await ph.click("#themeBtn"); await ph.waitForTimeout(200);
+    const moreClosed = await ev(() => !document.querySelector(".appbar").classList.contains("more-open"));
+    await ev(() => { const b = document.querySelector("#themeBtn"); b.click(); b.click(); });            // back to the theme it had
+    const tools = await ev(() => { const t = document.querySelector(".viewtools"), b = t.getBoundingClientRect(); return { compact: t.classList.contains("compact"), h: Math.round(b.height), right: Math.round(b.right) }; });
+    const sb = await ev(() => { const b = document.querySelector(".sheet").getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
+    await ph.mouse.move(sb.x, sb.y); await ph.mouse.wheel(0, 700); await ph.waitForTimeout(300);
+    const scrolled = await ev(() => document.querySelector(".sheet").scrollTop + document.querySelector("#panel").scrollTop);
+    await ph.click("#sheetToggle"); await ph.waitForTimeout(400);
+    const closedH = await ev(() => Math.round(document.querySelector(".stage").getBoundingClientRect().height));
+    await ph.click("#secrail button >> nth=0"); await ph.waitForTimeout(400);
+    const back = await ev(() => Math.round(document.querySelector(".sheet").getBoundingClientRect().height));
+    const ok = layoutMode === "phone" && drawer.open && drawer.left === 0 && drawer.w === 390 && !chosen.open && chosen.type === "board" && more.shown && more.inside && more.labels === 6 && moreClosed &&
+      tools.compact && tools.h < 60 && tools.right <= 390 && scrolled > 100 && closedH > 600 && back > 200;
+    if (!ok) findings.push({ where: "phone", what: JSON.stringify({ layoutMode, drawer, chosen, more, moreClosed, tools, scrolled, closedH, back }) });
+    notes.push(`phone: layout "${layoutMode}", Start from ${drawer.w} px wide, the More menu with ${more.labels} labels, the settings scrolled ${scrolled} px, ${closedH} px of model with the panel closed`);
     await ph.context().close();
+    // a phone on its side and two tablets: side by side, everything on the screen
+    for (const [w, h, what] of [[844, 390, "phone on its side"], [768, 1024, "tablet upright"], [1024, 768, "tablet on its side"]]) {
+      const tp = await openPage({ width: w, height: h }, what);
+      await settle(tp);
+      const mode = await tp.evaluate(() => document.documentElement.dataset.layout);
+      if (mode !== "narrow") findings.push({ where: what, what: `layout "${mode}", expected "narrow"` });
+      await shot(tp, what, `${what} (${w} × ${h})`);
+      await tp.context().close();
+    }
   }
   await browser.close();
 

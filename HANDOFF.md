@@ -737,6 +737,42 @@ The angle search from the front can still miss a 20° turn on a close-up (the ex
 
 **Not checked**: real AI-made models from Meshy, Tripo or Rodin (only models written by the test); KTX2 or Basis pictures (refused); the cut-out on real photos; the hand-fix brush on a touch screen; any print.
 
+## Session 21: phones and tablets (v0.22.0)
+
+Asked for: "make viewing on mobile a priority" (after the v0.21 pull request), and "make a new pull request with every new version release" (now in CLAUDE.md).
+
+**What was wrong** (measured in Chromium at 390 × 844, 844 × 390, 768 × 1024 and 1024 × 768):
+- On a phone held upright, the settings panel was 248 px tall with 1105 px of content, and nothing scrolled. The phone CSS let `#panel` overflow (for a page scroll), but `.app` was fixed at the window's height and `.sheet` hid its overflow.
+- Below 1100 px, Start from was `display:none` with no way to open it, so the quick starts, the examples and the object list could not be reached. "Change the object" did nothing visible.
+- The app bar did not fit below about 1180 px: on a phone on its side and on tablets, **Download files**, Settings, the manual and About were past the right edge (the page was 1071 px wide in every case, hidden by `body{overflow:hidden}`).
+- The view buttons ran off the stage, or wrapped into two rows over the model.
+- On a phone, closing the panel (‹) switched the desktop grid columns back on.
+
+**Layout modes** (`fitLayout`, `layoutMode`):
+- Chosen in JavaScript, not by media queries, because Easy reading zooms the panels by `--ui` and a width breakpoint cannot see that. `data-layout` is set on `<html>`:
+  - `wide`: 1100 × ui px and wider, as before.
+  - `phone`: under 760 × ui px, and not a short landscape screen.
+  - `narrow`: everything else.
+- Runs on `resize` and from `applyPrefs`, which replaces the old "hide Start from under 1900 px at 130% text" rule.
+- **narrow**: the rail, the settings (at most 46% of the width) and the model. Start from is a drawer (`.app.starts-open`, `#startBtn` in the app bar, `#startsBack` behind it). The drawer's close button reads ✕, and it closes after a quick start or object is chosen (`startsChosen`), on Escape and on the backdrop. `setSide("right", …)` opens and closes the drawer, so "Change the object" works too.
+- **phone**: rows are app bar, model (up to 40% of the height), page icons, then settings (the rest). `.sheet` scrolls, the sheet foot is sticky, and ‹ gives the model the whole height (`.app.no-left`). The tabs sit on their own row as five equal columns; the logo name and version are hidden. Notices run across the bottom of the model.
+- **App bar** (`fitBar`): Redo, Aa, theme, Settings, the manual and About are wrapped in `.barmore`; with `display:contents` they sit in the bar as before. When the bar overflows (`scrollWidth > clientWidth`), `.tight` puts them in a ⋯ menu with names (`.lbl`), and `.tighter` hides the logo name, the version and the tab icons. The menu closes on any click, a choice included, and on Escape.
+- **View buttons** (`fitTools`, from `resize`): when they would wrap, the seven views fold into ◱▾ (`#vAngles`, `.vangleset`), which opens them in a row below. `fitHud` then moves the size pills.
+- Wording: the Basics help no longer says "on the left"; the Paint help says "↶ at the top (Ctrl+Z)".
+
+**Tests**:
+- `tools-browser-check.js` `pageLayout` now reports:
+  - app bar buttons off the screen;
+  - settings that overflow without a way to scroll.
+
+  Both would have caught the old bugs, which the sideways-scroll check missed because the body hides overflow.
+- `MOBILE=1` now drives the phone: the Start from drawer (390 px wide, closes after Iron-on patch), the More menu (six labels, closes after a choice), the folded view buttons (one row), scrolling the settings, closing and reopening the panel. It then checks a phone on its side and both tablet orientations (`narrow`, and no layout findings).
+- `tools-screenshots.js` scene `phone` makes `docs/images/phone.jpg` (three phone screens) for the README.
+
+**Not checked**:
+- A real phone or tablet: Safari on iOS (its toolbar and `100dvh`), Android Chrome, touch painting with a finger, pinch zoom in the 3D view (OrbitControls handles touch, and while painting one finger paints and two zoom, as before), and downloading the zip on iOS.
+- The narrow layout at 175% text on a small laptop.
+
 ## Unfinished (in priority order)
 
 - **P4**: none outstanding beyond polish.

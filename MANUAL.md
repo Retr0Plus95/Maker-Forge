@@ -37,6 +37,18 @@ The screen has five areas:
 
 The line along the bottom says what the app is doing. Click it to see a log of everything that happened.
 
+### On a phone or tablet
+
+Maker Forge works on phones and tablets too. On a narrower screen, or with bigger text from **Aa**, the layout changes to fit:
+
+- **Start from** becomes a button in the top bar. It opens the quick starts and objects over the page, and closes once you have chosen one (or with **✕**).
+- The less-used buttons in the top bar (Redo, **Aa**, light or dark, Settings, the manual and About) move into the **⋯** menu.
+- The seven view buttons fold into one, **◱▾**.
+- On a phone held upright, the model sits at the top and the settings scroll below it. The page icons run in a row between the two. **‹** hides the settings so the model gets the whole screen; tap any page icon to bring them back. Turn the phone on its side and the settings sit beside the model instead.
+- In the 3D view, drag with one finger to turn the model and use two fingers to zoom and move it. While you paint, one finger paints and two fingers zoom; choose **Move the view** to turn the model.
+
+A computer is still the easiest place for detailed work, but every setting, and **Download files**, is within reach on a phone.
+
 ### Your first print in five steps
 
 1. Click a button under **Start from**, for example **Iron-on patch**. A finished example appears.

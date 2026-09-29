@@ -355,27 +355,65 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
 :root[data-font="clear"] body,:root[data-font="clear"] button,:root[data-font="clear"] input,:root[data-font="clear"] select,:root[data-font="clear"] textarea{font-family:"Atkinson Hyperlegible","Verdana",system-ui,sans-serif;letter-spacing:.01em}
 :root[data-motion="reduce"] *{transition:none!important;animation:none!important}
 .readaloud{float:right;margin:-2px 0 0 8px;border:1px solid var(--line);background:var(--field);border-radius:8px;cursor:pointer;font-size:13px;padding:2px 7px}
-@media (max-width:1100px){
-  .app{grid-template-columns:calc(60px*var(--ui)) calc(320px*var(--ui)) 1fr 0}
-  .app.no-left{grid-template-columns:calc(60px*var(--ui)) 0 1fr 0}
-  .starts{display:none}
-}
-@media (max-width:760px){
-  body{overflow:auto}
-  .app{grid-template-columns:1fr;grid-template-rows:auto 48vh auto auto}
-  .appbar{flex-wrap:wrap;padding:8px 10px;gap:6px}
-  .toptabs{max-width:100%;overflow-x:auto;scrollbar-width:none}
-  .toptabs button{padding:7px 10px}
-  .toptabs .ico{display:none}
-  .stage{grid-row:2;grid-column:1}
-  .secrail{grid-row:3;grid-column:1;flex-direction:row;overflow-x:auto;border-right:none;border-top:1px solid var(--line);padding:6px}
-  .secrail button .tip{display:none}
-  .sheet{grid-row:4;grid-column:1;border-right:none;border-top:1px solid var(--line)}
-  #panel{overflow:visible}
-  .explode,.hudpills{display:none}
-  .viewtools{left:8px;right:8px;top:8px;justify-content:space-between;overflow-x:auto;scrollbar-width:none}
-  .viewtools button{width:28px;flex:none}
-}
+/* ---- narrow screens, phones and big text (Session 21) ----
+   fitLayout() sets data-layout on <html> from the window's size and the text size (the panels are zoomed by
+   --ui, so a width breakpoint alone would not do): "wide" has everything side by side; "narrow" opens Start
+   from as a drawer; "phone" puts the model on top and the settings, scrolling, below it. fitBar() folds the
+   app bar's less-used buttons into the More menu when they do not fit. */
+.barmore{display:contents}
+.barmore .lbl,#moreBtn,#startBtn,.startsback{display:none}
+.appbar.tight #moreBtn{display:grid;font-size:18px}
+.appbar.tight .barmore{display:none;position:absolute;right:10px;top:calc(100% + 6px);flex-direction:column;gap:2px;min-width:220px;padding:6px;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);z-index:40}
+.appbar.tight.more-open .barmore{display:flex}
+.appbar.tight .barmore .rail-icon{width:auto;height:auto;min-height:44px;display:flex;align-items:center;gap:12px;justify-content:flex-start;
+  border:none;border-radius:9px;padding:8px 12px;font-size:16px;color:var(--ink);background:none}
+.appbar.tight .barmore .rail-icon:hover:not(:disabled),.appbar.tight .barmore .rail-icon:focus-visible{background:var(--panel2)}
+.appbar.tight .barmore .lbl{display:inline;font-weight:700;font-size:14px}
+.appbar.tighter .logo > span:not(.ver),.appbar.tighter .ver{display:none}
+.appbar.tighter .logo{margin-right:2px}
+.appbar.tighter .toptabs .ico{display:none}
+.appbar.tighter .toptabs button{padding:7px 10px}
+.appbar.tighter .toptabs{min-width:0;overflow-x:auto;scrollbar-width:none}
+:root:not([data-layout="wide"]) #startBtn{display:inline-flex}
+:root:not([data-layout="wide"]) .app{grid-template-columns:calc(60px*var(--ui)) min(calc(320px*var(--ui)),46vw) 1fr 0}
+:root:not([data-layout="wide"]) .app.no-left{grid-template-columns:calc(60px*var(--ui)) 0 1fr 0}
+:root:not([data-layout="wide"]) .starts{display:none}
+:root:not([data-layout="wide"]) .app.starts-open .starts{display:flex;position:fixed;top:0;right:0;bottom:0;width:min(300px,calc(100vw / var(--ui)));
+  z-index:60;box-shadow:0 0 40px rgba(0,0,0,.35);border-left:1px solid var(--line)}
+:root:not([data-layout="wide"]) .app.starts-open .startsback{display:block;position:fixed;inset:0;background:rgba(8,16,24,.45);z-index:59}
+:root:not([data-layout="wide"]) .viewtools{right:8px;top:8px;max-width:calc(100% - 16px);flex-wrap:wrap;justify-content:center;border-radius:18px}
+:root:not([data-layout="wide"]) .edgebtn{display:none}
+/* the view buttons: when they do not fit in one row, the seven views fold into one button (fitTools) */
+.vmore{display:none!important}
+.vangleset{display:contents}
+.viewtools.compact .vmore{display:inline-block!important;width:auto!important;padding:0 9px}
+.viewtools.compact .vangleset{display:none}
+.viewtools.compact.angles-open{z-index:6}
+.viewtools.compact.angles-open .vangleset{display:flex;position:absolute;top:calc(100% + 6px);left:0;gap:2px;padding:4px;
+  background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow)}
+/* a phone held upright: the model on top, the settings below it, scrolling on their own */
+:root[data-layout="phone"] .app,:root[data-layout="phone"] .app.no-left,:root[data-layout="phone"] .app.no-right{
+  grid-template-columns:1fr;grid-template-rows:auto minmax(170px,40vh) auto minmax(0,1fr);height:100vh;height:100dvh}
+:root[data-layout="phone"] .app.no-left{grid-template-rows:auto minmax(0,1fr) auto 0}
+:root[data-layout="phone"] .app.no-left .sheet{display:none}
+:root[data-layout="phone"] .appbar{flex-wrap:wrap;padding:6px 10px;gap:6px}
+:root[data-layout="phone"] .toptabs{order:10;flex:1 0 100%;display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
+:root[data-layout="phone"] .toptabs button{justify-content:center;padding:9px 2px}
+:root[data-layout="phone"] #startBtn,:root[data-layout="phone"] #dockExport{padding:8px 11px}
+:root[data-layout="phone"] .stage{grid-row:2;grid-column:1}
+:root[data-layout="phone"] .secrail{grid-row:3;grid-column:1;flex-direction:row;overflow-x:auto;overflow-y:hidden;border-right:none;
+  border-top:1px solid var(--line);padding:5px 8px;gap:6px}
+:root[data-layout="phone"] .secrail button{flex:none;width:44px;height:44px}
+:root[data-layout="phone"] .secrail button .tip,:root[data-layout="phone"] .secrail .sep{display:none}
+:root[data-layout="phone"] .sheet{grid-row:4;grid-column:1;border-right:none;border-top:1px solid var(--line);overflow-y:auto;overscroll-behavior:contain}
+:root[data-layout="phone"] #panel{flex:none;overflow:visible}
+:root[data-layout="phone"] .sheet-foot{position:sticky;bottom:0;z-index:2}
+:root[data-layout="phone"] .explode,:root[data-layout="phone"] .hudpills{display:none}
+:root[data-layout="phone"] .viewtools button{width:36px;height:34px}
+:root[data-layout="phone"] .app.starts-open .starts{width:calc(100vw / var(--ui))}
+/* notices across the bottom of the model, not a tall column over it */
+:root[data-layout="phone"] .notice{left:8px;right:8px;transform:none;max-width:none;bottom:40px;max-height:55%;overflow-y:auto;font-size:13px;padding:10px 13px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -391,17 +429,21 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.21.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.22.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
+    <button class="btn" id="startBtn" aria-controls="starts" aria-expanded="false" title="Quick starts, examples and every object">Start from</button>
     <button class="rail-icon" id="undoBtn" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
-    <button class="rail-icon" id="redoBtn" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
-    <button class="rail-icon" id="easyBtn" title="Easy reading: bigger text, stronger contrast" aria-label="Easy reading: text size and contrast"><b style="font-size:15px">Aa</b></button>
-    <button class="rail-icon" id="themeBtn" title="Light or dark" aria-label="Theme">◐</button>
-    <button class="rail-icon" id="settingsBtn" title="Settings" aria-label="Settings">⚙</button>
-    <button class="rail-icon" id="helpBtn" title="User manual: how everything works" aria-label="User manual"><b style="font-size:16px">?</b></button>
-    <button class="rail-icon" id="aboutBtn" title="About Maker Forge" aria-label="About">ⓘ</button>
+    <button class="rail-icon" id="moreBtn" title="More: redo, easy reading, light or dark, settings, the manual" aria-label="More" aria-expanded="false" aria-controls="barMore">⋯</button>
+    <div class="barmore" id="barMore">
+      <button class="rail-icon" id="redoBtn" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷<span class="lbl" aria-hidden="true">Redo</span></button>
+      <button class="rail-icon" id="easyBtn" title="Easy reading: bigger text, stronger contrast" aria-label="Easy reading: text size and contrast"><b style="font-size:15px">Aa</b><span class="lbl" aria-hidden="true">Easy reading</span></button>
+      <button class="rail-icon" id="themeBtn" title="Light or dark" aria-label="Theme">◐<span class="lbl" aria-hidden="true">Light or dark</span></button>
+      <button class="rail-icon" id="settingsBtn" title="Settings" aria-label="Settings">⚙<span class="lbl" aria-hidden="true">Settings</span></button>
+      <button class="rail-icon" id="helpBtn" title="User manual: how everything works" aria-label="User manual"><b style="font-size:16px">?</b><span class="lbl" aria-hidden="true">User manual</span></button>
+      <button class="rail-icon" id="aboutBtn" title="About Maker Forge" aria-label="About">ⓘ<span class="lbl" aria-hidden="true">About</span></button>
+    </div>
     <button class="btn primary" id="dockExport">Download files</button>
     <div class="progress" id="progress" aria-hidden="true"><span></span></div>
   </header>
@@ -422,6 +464,8 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
     <div id="view" aria-label="3D preview. Drag to orbit, scroll to zoom, click the model to place the selected artwork."></div>
     <div class="hudpills"><div class="pill" id="sizePill">Size <b id="stSize">–</b></div><div class="pill" id="checkPill">–</div></div>
     <div class="viewtools">
+      <button id="vAngles" class="vmore" title="Views: angled, from above, the front, behind, the sides, below" aria-label="Views" aria-expanded="false" aria-controls="vAngleSet">◱▾</button>
+      <span class="vangleset" id="vAngleSet">
       <button id="vAngle" title="Angled view">◱</button>
       <button id="vTop" title="From above">▣</button>
       <button id="vFront" title="From the front">▤</button>
@@ -429,6 +473,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
       <button id="vLeft" title="From the left">◧</button>
       <button id="vRight" title="From the right">◨</button>
       <button id="vBottom" title="From below">⊟</button>
+      </span>
       <button id="vFlip" aria-pressed="false" title="Turn over: see the side that prints on the bed">⟳</button>
       <span class="sep"></span>
       <button id="vWire" aria-pressed="false" title="Wireframe">◇</button>
@@ -447,6 +492,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
     </div>
   </main>
 
+  <div class="startsback" id="startsBack" aria-hidden="true"></div>
   <aside class="starts" id="starts">
     <header class="sheet-head"><div><h2>Start from</h2><p>Pick what you want to make</p></div>
       <button class="rail-icon" id="startsToggle" title="Hide this sidebar" aria-label="Hide the start sidebar">›</button></header>
@@ -3591,6 +3637,7 @@ function fitHud(){
   if (a.width && b.width && a.right + 8 > b.left) p.classList.add("below");
 }
 function resize(){
+  if (typeof fitTools === "function") fitTools();
   fitHud();
   const w = view.clientWidth, h = view.clientHeight;
   renderer.setSize(w,h,false); renderer.domElement.style.width = w+"px"; renderer.domElement.style.height = h+"px";
@@ -5260,7 +5307,7 @@ const SECTION_HELP = [
   [/camera opening/i, "Measure on the back of the phone: from its left edge and top to the edge of the camera bump."],
   [/buttons and port/i, "One long slot a side is the easiest to get right. Holes per button look neater once the fit test lines up."],
   [/picture on the back/i, "The picture prints in the back's first layers, flat on the bed: it comes out crisp and needs no support."],
-  [/^paint$/i, "Pick a colour below, then use Auto colour or the brush. Every change can be undone with Ctrl+Z."],
+  [/^paint$/i, "Pick a colour below, then use Auto colour or the brush. Every change can be undone with ↶ at the top (Ctrl+Z)."],
   [/auto colou?r/i, "Automatic painting follows the model: change its size or shape and the paint is worked out again."],
   [/brush and fill/i, "Left-drag paints, right-drag turns the view, the wheel zooms. On a touch screen use one finger to paint and two to move."],
   [/paint list/i, "Everything you painted, in order. Remove a step or move it up or down."],
@@ -5274,7 +5321,7 @@ const SECTION_HELP = [
   [/frame or tray/i, "A frame prints around the puzzle in one go. A tray prints beside it and holds the finished puzzle."],
   [/labels on the back/i, "Row letter and column number on the back of each piece. Handy for sorting, or for a race against the clock."],
   [/cut lines/i, "The SVG is at true scale in millimetres, ready for a laser cutter or a craft cutter."],
-  [/^basics$/i, "The main settings for what you are making. Every other icon on the left opens one more group of options."],
+  [/^basics$/i, "The main settings for what you are making. Each of the other icons opens one more group of options."],
   [/font/i, "Handwriting fonts marked \"joins up\" connect their letters, which gives a stronger plate."],
   [/charm|symbol/i, "Charms print as silhouettes in a filament colour. Bold, simple emoji work best; thin line art disappears."],
   [/picture beside/i, "Cartoons and logos with a plain background work best. The plate grows around the picture so it prints as one piece."],
@@ -5459,7 +5506,7 @@ function renderStarts(){
   const pic = (key, icon) => encHas(START_THUMBS, key) && /^data:image\/(webp|png);base64,[A-Za-z0-9+/=]+$/.test(START_THUMBS[key])
     ? `<img src="${START_THUMBS[key]}" alt="" width="160" height="120">` : `<span class="em">${icon}</span>`;
   g.innerHTML = Object.keys(PRESETS).map(k=>`<button data-k="${esc(k)}">${pic("preset:" + k, PRESET_ICONS[k]||"◻")}<span>${esc(k)}</span></button>`).join("");
-  g.querySelectorAll("button").forEach(b=>b.onclick = ()=>{ applyPreset(b.dataset.k); renderStarts(); });
+  g.querySelectorAll("button").forEach(b=>b.onclick = ()=>{ applyPreset(b.dataset.k); renderStarts(); startsChosen(); });
   OBJECT_GROUPS.forEach(([title, list])=>{
     body.insertAdjacentHTML("beforeend", `<div class="objcat">${esc(title)}</div>`);
     const grid = document.createElement("div"); grid.className = "objgrid";
@@ -5467,7 +5514,7 @@ function renderStarts(){
       const b = document.createElement("button"); b.className = "objcard";
       b.setAttribute("aria-pressed", String(state.base.type === k));
       b.innerHTML = `${pic("object:" + k, em)}<span>${esc(SHAPE_LABEL[k]||k)}</span>`;
-      b.onclick = ()=>chooseObject(k);
+      b.onclick = ()=>{ chooseObject(k); startsChosen(); };
       grid.appendChild(b);
     });
     body.appendChild(grid);
@@ -5477,7 +5524,7 @@ function renderStarts(){
   w.innerHTML = `<label for="objectSel">All objects</label><select class="sel" id="objectSel">${SHAPES.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join("")}</select>`;
   body.appendChild(w);
   const sel = w.querySelector("select"); sel.value = state.base.type;
-  sel.onchange = ()=>chooseObject(sel.value);
+  sel.onchange = ()=>{ chooseObject(sel.value); startsChosen(); };
 }
 function tabMake(p){
   const b = state.base;
@@ -7838,6 +7885,8 @@ $("#dockExport").onclick = e => { tab = "export"; renderTab(); exportZip(e); };
 /* sidebars: either can be hidden to give the model more room */
 function setSide(which, show){
   const app = document.querySelector(".app");
+  // on narrow screens Start from is a drawer over the page
+  if (which === "right" && document.documentElement.dataset.layout && document.documentElement.dataset.layout !== "wide"){ openStarts(show); return; }
   app.classList.toggle(which === "left" ? "no-left" : "no-right", !show);
   let reopen = document.getElementById(which === "left" ? "leftReopen" : "rightReopen");
   if (!show && !reopen && which === "right"){
@@ -7858,6 +7907,71 @@ $("#panel").addEventListener("scroll", ()=>{
   const st = sectionState[sectionKey()]; if (st && st.active) st.scroll[st.active] = $("#panel").scrollTop;
 }, { passive:true });
 $("#startsToggle").onclick = ()=>setSide("right", false);
+
+/* ---- narrow screens and phones (Session 21): see the CSS of the same name ---- */
+function layoutMode(){
+  const ui = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--ui")) || 1, w = innerWidth, h = innerHeight;
+  // a phone on its side is too short to stack the model over the settings: side by side, as on a tablet
+  return w >= 1100 * ui ? "wide" : w < 760 * ui && !(w > h && h < 520) ? "phone" : "narrow";
+}
+function fitLayout(){
+  const root = document.documentElement, mode = layoutMode();
+  if (root.dataset.layout !== mode){
+    root.dataset.layout = mode;
+    if (mode === "wide") openStarts(false);
+    else { const r = document.getElementById("rightReopen"); if (r) r.remove(); document.querySelector(".app").classList.remove("no-right"); }
+  }
+  fitBar(); fitTools();
+}
+// the app bar: the less-used buttons go into the More menu, then the name and the tab icons go, until it fits
+// the view buttons in one row: fold the seven views into one button when they would wrap
+function fitTools(){
+  const t = document.querySelector(".viewtools"); if (!t) return;
+  const was = t.classList.contains("compact"); t.classList.remove("compact");
+  const b = t.querySelector("#vShot"), one = b ? b.offsetHeight : 30;
+  if (t.offsetHeight > one * 1.8) t.classList.add("compact"); else t.classList.remove("angles-open");
+  if (was !== t.classList.contains("compact")) fitHud();
+}
+$("#vAngles").onclick = e => { e.stopPropagation(); const t = document.querySelector(".viewtools"), open = !t.classList.contains("angles-open");
+  t.classList.toggle("angles-open", open); $("#vAngles").setAttribute("aria-expanded", String(open)); };
+document.addEventListener("click", e => { if (e.target.closest && e.target.closest("#vAngles")) return;
+  const t = document.querySelector(".viewtools"); if (t.classList.contains("angles-open")){ t.classList.remove("angles-open"); $("#vAngles").setAttribute("aria-expanded", "false"); } });
+function fitBar(){
+  const bar = document.querySelector(".appbar"); if (!bar) return;
+  bar.classList.remove("tight", "tighter");
+  if (document.documentElement.dataset.layout === "phone"){ bar.classList.add("tight", "tighter"); return; }
+  for (const c of ["tight", "tighter"]) if (bar.scrollWidth > bar.clientWidth + 1) bar.classList.add(c);
+  if (!bar.classList.contains("tight")) closeMore();
+}
+function openStarts(show){
+  const app = document.querySelector(".app"), was = app.classList.contains("starts-open");
+  app.classList.toggle("starts-open", !!show);
+  $("#startBtn").setAttribute("aria-expanded", String(!!show));
+  const b = $("#startsToggle");
+  if (show && !was){ b.title = "Close"; b.setAttribute("aria-label", "Close Start from"); b.textContent = "✕"; setTimeout(() => { if (!$("#starts").contains(document.activeElement)) b.focus(); }, 30); }
+  if (!show && was){ b.title = "Hide this sidebar"; b.setAttribute("aria-label", "Hide the start sidebar"); b.textContent = "›"; if ($("#starts").contains(document.activeElement)) $("#startBtn").focus(); }
+}
+// after choosing something in the drawer, close it so the model shows
+function startsChosen(){ if (document.documentElement.dataset.layout !== "wide") openStarts(false); }
+$("#startBtn").onclick = () => openStarts(!document.querySelector(".app").classList.contains("starts-open"));
+$("#startsBack").onclick = () => openStarts(false);
+function closeMore(){ const bar = document.querySelector(".appbar"); if (bar.classList.contains("more-open")){ bar.classList.remove("more-open"); $("#moreBtn").setAttribute("aria-expanded", "false"); } }
+$("#moreBtn").onclick = e => {
+  e.stopPropagation();
+  const bar = document.querySelector(".appbar"), open = !bar.classList.contains("more-open");
+  bar.classList.toggle("more-open", open); $("#moreBtn").setAttribute("aria-expanded", String(open));
+  if (open){ const f = [...$("#barMore").querySelectorAll("button")].find(b => !b.disabled); if (f) f.focus(); }
+};
+// a choice in the menu, or a click anywhere else, closes it
+document.addEventListener("click", e => { if (!e.target.closest || !e.target.closest("#moreBtn")) closeMore(); });
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  const bar = document.querySelector(".appbar");
+  if (bar.classList.contains("more-open")){ closeMore(); $("#moreBtn").focus(); e.preventDefault(); }
+  else if (document.querySelector(".app").classList.contains("starts-open")){ openStarts(false); e.preventDefault(); }
+});
+addEventListener("resize", fitLayout);
+fitLayout();
 
 /* activity log: every notice and build lands here, newest first */
 const logEntries = [];
@@ -8674,8 +8788,8 @@ function applyPrefs(){
   if (prefs.motion === "reduce") r.setAttribute("data-motion", "reduce"); else r.removeAttribute("data-motion");
   patUniforms.uPat.value = prefs.patterns ? 1 : 0;
   patUniforms.uPatScale.value = 10 * (window.devicePixelRatio || 1) * prefs.ui;
-  // big text needs the room: the start sidebar steps aside on narrower screens
-  if (prefs.ui >= 1.3 && window.innerWidth < 1900 && typeof setSide === "function") setSide("right", false);
+  // big text needs the room: on narrower screens Start from becomes a drawer and the app bar folds up
+  if (typeof fitLayout === "function") fitLayout();
 }
 function speak(text){
   try {

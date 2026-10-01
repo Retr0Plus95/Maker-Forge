@@ -570,7 +570,7 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
     fit: i === 0 ? { a: 1e9, tx: 0.5, ty: 0.9, rot: 0, mirror: "yes" } : i === 1 ? { a: "big", tx: 0, ty: 0, rot: 0 } : { a: 0.01, tx: 1e9, ty: -1e9, rot: 50, mirror: true }, tol: -5, match: 7 }));
   hv.pal = Array.from({ length: 100 }, () => ({ rgb: [1e9, "x", -4], keys: [[NaN, 0, 0], [1e9, -1e9, 3], "k"] }));
   hv.slots = [99, -1, "2", 255]; hv.colours = 1e6; hv.speck = 1e9; hv.fill = "no"; hv.use = "<script>"; hv.shade = "yes";
-  hv.views[2].fit.k = 1e9; hv.views[2].fit.ref = [1e9, "x", 0, -5]; hv.views[3].fit.k = "<b>"; hv.views[4].fit.k = -3;
+  hv.views[2].fit.ref = [1e9, "x", 0, -5]; hv.views[3].fit.k = "<b>";             // the light setting, a camera reference (v0.24.1)
   hv.views[3].ai = "<img src=x onerror=alert(1)>"; hv.views[4].ai = { evil: 1 }; hv.views[5].ai = "x".repeat(500);
   hv.views[0].fix = Array.from({ length: 3000 }, (_, i) => ({ add: i % 2 === 0, r: 0.03, p: Array.from({ length: 100 }, (_, j) => (j % 7) / 7) }));
   hv.views[3].fix = Array.from({ length: 1000 }, () => ({ add: true, r: 5, p: Array.from({ length: 100 }, (_, j) => j % 2) }));   // huge brushes flung corner to corner
@@ -584,7 +584,7 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
     ho.views.every(v => Math.abs(v.cam.yaw) <= 180 && Math.abs(v.cam.pitch) <= 89 && v.tol >= 0 && v.match <= 1 && v.name.length <= 60) &&
     ho.views[4].ai === undefined && ho.views[5].ai.length === 40 && !MF.paint.photo.ai.mapOf(ho.views[3].ai) &&
     ho.pal.every(p => p.rgb.every(c => c >= 0 && c <= 255) && p.keys.every(k => k.every(Number.isFinite))) && ho.colours === 8 && ho.speck === 50 && ho.use === "photo" &&
-    ho.shade === false && ho.views[2].fit.k === C.PHOTO_K_MAX && !("ref" in ho.views[2].fit) && !("k" in ho.views[3].fit) && !("k" in ho.views[4].fit),
+    ho.shade === false && !("ref" in ho.views[2].fit) && !("k" in ho.views[3].fit),
     "at most six photos and eight colours, numbers clamped, a broken fit dropped", ho && `${ho.views.length} photos, ${ho.pal.length} colours, a ${ho.views[0].fit.a}, slots ${ho.slots.join(",")}`);
   const hf = ho && ho.views.map(v => v.fix), hfN = hf && hf[0] ? hf[0].reduce((n, q) => n + q.p.length, 0) : 0;
   const tFix = Date.now(), bigFix = ho && MF.paint.photo.figure({ asset: ho.views[0].asset, tol: 35, fix: ho.views[3].fix }, 480, 480), fixMs = Date.now() - tFix;

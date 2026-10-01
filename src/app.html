@@ -237,7 +237,6 @@ textarea.ta{resize:vertical;min-height:52px;font-size:13px}
 .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin:9px 0;padding:4px;background:var(--panel);
   border:1px solid var(--line);border-radius:10px}
 .seg.two{grid-template-columns:repeat(2,1fr)}
-.seg.four{grid-template-columns:repeat(4,1fr)}
 .seg button{border:none;background:none;border-radius:7px;padding:7px 4px;cursor:pointer;font-weight:600;font-size:12.5px;color:var(--muted)}
 .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
 .check{display:flex;gap:9px;align-items:center;margin:11px 0;font-weight:600;font-size:13px;cursor:pointer}
@@ -321,6 +320,7 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
 .oprow .grow{flex:1;min-width:0}
 .oprow small{color:var(--muted)}
 .seg.five{grid-template-columns:repeat(5,1fr)}
+.seg.four{grid-template-columns:repeat(4,1fr)}
 .seg.tools{grid-template-columns:repeat(3,1fr)}
 /* the box or lasso being drawn over the view: white over a dark edge, seen on any model */
 .areaSel{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
@@ -429,7 +429,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.23.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.24.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -4053,17 +4053,30 @@ function photoBox(model, cam){
   const b = [(u0 + u1)/2, (v0 + v1)/2, Math.max(1e-6, v1 - v0)]; m.set(key, b);
   return b;
 }
-function photoFitNowFor(v){
+function photoFitScaled(v){
   const f = v.fit, model = f && v.box && photoModel(); if (!model) return f;
   const b = photoBox(model, photoCamOf(v)), [cu0, cv0, h0] = v.box, s = b[2] / h0;
   if (!(s > 0.01 && s < 100) || (Math.abs(s - 1) < 1e-9 && Math.abs(b[0] - cu0) < 1e-9 && Math.abs(b[1] - cv0) < 1e-9)) return f;
   // photoXY: (x, y) = (tx, ty) + a·R(u, v); keep the old middle where it was and scale by the height
   const c = Math.cos(f.rot), sn = Math.sin(f.rot), R = (u, w) => { const uu = f.mirror ? -u : u; return [uu*c - w*sn, -(uu*sn + w*c)]; };
   const a2 = f.a / s, r0 = R(cu0, cv0), r1 = R(b[0], b[1]);
-  return { a:a2, tx:f.tx + f.a*r0[0] - a2*r1[0], ty:f.ty + f.a*r0[1] - a2*r1[1], rot:f.rot, mirror:f.mirror };
+  return Object.assign({ a:a2, tx:f.tx + f.a*r0[0] - a2*r1[0], ty:f.ty + f.a*r0[1] - a2*r1[1], rot:f.rot, mirror:f.mirror }, f.k > 0 ? { k:f.k } : {});
+}
+// a close camera (Session 23): the fit carries how close it was (k), and every use of it gets the whole
+// model's middle as seen from that camera (ref), so each part of the model is seen from the same place;
+// the middle is worked out from the model as it is now, so it follows the model's size
+const photoRefCache = new WeakMap();
+function photoRefOf(model, cam){
+  let m = photoRefCache.get(model); if (!m){ m = new Map(); photoRefCache.set(model, m); }
+  const key = cam.yaw + "," + cam.pitch; if (!m.has(key)) m.set(key, C.photoRef(model, cam));
+  return m.get(key);
+}
+function photoFitNowFor(v){
+  const f = photoFitScaled(v), model = f && f.k > 0 && photoModel();
+  return model ? Object.assign({}, f, { ref:photoRefOf(model, photoCamOf(v)) }) : f;
 }
 // before the fit is changed by hand: take the model as it is now as the reference
-function photoBake(v){ const model = photoModel(); if (!v.fit || !model) return; v.fit = photoFitNowFor(v); v.box = photoBox(model, photoCamOf(v)).map(x => +x.toFixed(5)); }
+function photoBake(v){ const model = photoModel(); if (!v.fit || !model) return; const f = Object.assign({}, photoFitNowFor(v)); delete f.ref; v.fit = f; v.box = photoBox(model, photoCamOf(v)).map(x => +x.toFixed(5)); }
 const wrapYaw = y => { y = ((y + 180) % 360 + 360) % 360 - 180; return y === -180 ? 180 : Math.round(y); };
 /* ---- the AI figure finder (Session 17) ----
    For photos on a busy background, where finding the figure by colour fails: the small U²-Net ("u2netp",
@@ -4251,11 +4264,29 @@ function aiCutoutRow(p, d, after){
 function photoFitView(v, search){
   const model = photoModel(), px = photoPixels(v.asset, 480);
   if (!model || !px) return false;
-  const mask = photoFigure(v, px);
+  const mask = photoFigure(v, px), mirror = !!(v.fit && v.fit.mirror), angles = search ? { yaw:45, pitch:20 } : null;
   // the AI's outline may take in a little background: a part of it the model does not cover counts less
-  const r = C.photoFit(model, photoCamOf(v), mask, px.w, px.h, !!(v.fit && v.fit.mirror), search ? { yaw:45, pitch:20 } : null, false, aiMapOf(v.ai) ? { extra:0.7 } : null);
+  const opt = aiMapOf(v.ai) ? { extra:0.7 } : {};
+  let r;
+  if (typeof v.near === "number") r = C.photoFit(model, photoCamOf(v), mask, px.w, px.h, mirror, angles, false, Object.assign({ k:v.near }, opt));
+  else {
+    // as from far away first; then how close the camera was, at the angle found (Session 23). A close camera
+    // has to fit clearly better (k of 0.15 or more), so a photo from far away lines up exactly as before.
+    r = C.photoFit(model, photoCamOf(v), mask, px.w, px.h, mirror, angles, false, opt);
+    if (r){
+      const cam = r.cam || photoCamOf(v);
+      let near = C.photoFitCloseness(model, cam, mask, px.w, px.h, r.fit.mirror, opt), nearCam = cam;
+      if (near && near.fit.k >= 0.15 && search){
+        // a close camera changes the outline much as a turn does: look round that angle again with it
+        const loc = C.photoFit(model, cam, mask, px.w, px.h, r.fit.mirror, { yaw:10, pitch:10 }, false, Object.assign({ k:near.fit.k }, opt));
+        if (loc && loc.iou > near.iou + 0.002){ const n2 = C.photoFitCloseness(model, loc.cam, mask, px.w, px.h, r.fit.mirror, opt); if (n2 && n2.fit.k >= 0.15){ near = n2; nearCam = loc.cam; } }
+      }
+      if (near && near.fit.k >= 0.15) r = Object.assign(near, { cam:nearCam });
+    }
+  }
   if (!r) return false;
   v.fit = { a:r.fit.a, tx:r.fit.tx, ty:r.fit.ty, rot:r.fit.rot, mirror:r.fit.mirror };
+  if (r.fit.k > 0) v.fit.k = +r.fit.k.toFixed(3);
   v.match = +r.iou.toFixed(3);
   if (r.cam) v.cam = { yaw:wrapYaw(r.cam.yaw), pitch:clamp(Math.round(r.cam.pitch), -89, 89) };
   v.box = photoBox(model, photoCamOf(v)).map(x => +x.toFixed(5));
@@ -7727,6 +7758,14 @@ function photoCard(c){
     sub:()=>"0 is the front, 90 the right side, 180 the back." });
   numField(c, { label:"Taken from (° above)", min:-89, max:89, step:1, get:()=>v.cam.pitch, set:x=>v.cam.pitch = Math.round(x), onChange:refit, noReset:true });
   checkField(c, "The photo is mirrored (a selfie or a reflection)", () => !!(v.fit && v.fit.mirror), x => { if (!v.fit) v.fit = { a:0.01, tx:0.5, ty:0.9, rot:0, mirror:x }; else v.fit.mirror = x; refit(); });
+  // how close the camera was (Session 23): a phone near a small figure makes its near parts bigger
+  c.insertAdjacentHTML("beforeend", `<p class="hint">How close was the camera?</p>`);
+  const nearOpts = [["auto","Work it out"],["0","Far away or zoomed in"],["0.3","Arm's length"],["0.7","Close up"]];
+  const nearNow = () => typeof v.near !== "number" ? "auto" : nearOpts.slice(1).reduce((b, o) => Math.abs(+o[0] - v.near) < Math.abs(+b[0] - v.near) ? o : b)[0];
+  segField(c, nearOpts, nearNow, async k => { if (k === "auto") delete v.near; else v.near = +k; await photoFitNow(o, v, false); renderKeepFocus(); photoRepaint(); }, "two near");
+  const kNow = v.fit && v.fit.k > 0 ? v.fit.k : 0;
+  note(c, kNow ? `${typeof v.near === "number" ? "Lined up" : "Worked out"} as taken from about ${(1 / kNow).toFixed(1)} times the model's height away: its near parts look bigger, and the outline allows for that.`
+    : typeof v.near === "number" ? "Lined up as taken from far away, or zoomed in: no part looks bigger for being nearer." : "It looks taken from far away, or zoomed in. A photo taken close up is worked out when it is lined up.");
   if (aiMapOf(v.ai)){
     note(c, "The AI figure finder found the figure in this photo.");
     buttonRow(c, [["Find the figure by colour instead", async () => { v.ai = null; photoToSide(v); await photoFitNow(o, v, true); photoPickColours(o); renderKeepFocus(); photoRepaint(); }]]);
@@ -8466,7 +8505,9 @@ function cleanPaint(P0){
           const f = plain(v.fit) && fin(v.fit.a) && v.fit.a > 0 && fin(v.fit.tx) && fin(v.fit.ty) && fin(v.fit.rot) ? v.fit : null, c = plain(v.cam) ? v.cam : {};
           return { asset:cleanStr(typeof v.asset === "string" ? v.asset : "", 40, ""), name:cleanStr(v.name, 60, "Photo"),
             cam:{ yaw:Math.round(num(c.yaw, -180, 180, 0)), pitch:Math.round(num(c.pitch, -89, 89, 0)) },
-            fit:f ? { a:num(f.a, 1e-5, 10, 0.01), tx:num(f.tx, -5, 5, 0.5), ty:num(f.ty, -5, 5, 0.5), rot:num(f.rot, -0.35, 0.35, 0), mirror:f.mirror === true } : null,
+            fit:f ? Object.assign({ a:num(f.a, 1e-5, 10, 0.01), tx:num(f.tx, -5, 5, 0.5), ty:num(f.ty, -5, 5, 0.5), rot:num(f.rot, -0.35, 0.35, 0), mirror:f.mirror === true },
+              fin(f.k) && f.k > 0 ? { k:+num(f.k, 0, C.PHOTO_K_MAX, 0).toFixed(3) } : {}) : null,
+            near:fin(v.near) ? +num(v.near, 0, C.PHOTO_K_MAX, 0).toFixed(2) : undefined,
             tol:Math.round(num(v.tol, 0, 100, 35)), match:num(v.match, 0, 1, 0),
             box:Array.isArray(v.box) && v.box.length === 3 && v.box.every(fin) && v.box[2] > 1e-3 ? v.box.map(x => num(x, -1e4, 1e4, 0)) : undefined,
             ai:typeof v.ai === "string" && v.ai ? cleanStr(v.ai, 40, "") : undefined, fix:cleanPhotoFix(v.fix) };

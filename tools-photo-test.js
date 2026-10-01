@@ -100,6 +100,21 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
   const acc5 = score(topo, p5, cls, out);
   check(acc5 > 0.93, "coloured from the three-quarter photo and the back one", `${(acc5 * 100).toFixed(1)}% of the surface`);
 
+  // close-up photos (Session 23): a phone near the figure makes its near parts bigger; how close it was is found
+  for (const [K, camC, seed] of [[0.6, { yaw: 0, pitch: 20 }, 4], [0.5, { yaw: 30, pitch: 10 }, 5]]) {
+    const ref = C.photoRef(solid, camC), tf = { a: 6.3 / H, tx: 0.5 - 6.3 / H * ref[0], ty: 0.5 + 6.3 / H * ref[1], rot: 0.02, mirror: false, k: K, ref };
+    const img = render(solid, topo, cls, camC, tf, W, H, seed), mk = C.photoMask(img.rgba, W, H, 35);
+    t0 = Date.now(); const far = C.photoFit(solid, camC, mk, W, H, false), near = C.photoFitCloseness(solid, camC, mk, W, H, false), msC = Date.now() - t0;
+    const accOf = fit => { const vw = C.photoView(img.rgba, W, H, solid, camC, fit, pal, mk), p = new Uint8Array(topo.n).fill(255);
+      C.paintFromPhotos(solid, topo, p, [vw], { slots, fill: true, speck: 1 }); return score(topo, p, cls, out); };
+    const aFar = accOf(far.fit), aNear = accOf(near.fit);
+    check(near && Math.abs((near.fit.k || 0) - K) < 0.12 && aNear > aFar + 0.1,
+      `a close-up photo (the camera ${(1 / K).toFixed(1)} model heights away, ${camC.yaw}° round, ${camC.pitch}° up): how close is found, and the colours come out far better`,
+      near && `k ${near.fit.k} (really ${K}); ${(aFar * 100).toFixed(1)}% of the surface right as if from far away, ${(aNear * 100).toFixed(1)}% allowing for it; ${msC} ms`);
+  }
+  const farK = C.photoFitCloseness(solid, "front", m, W, H, false);
+  check(farK && !(farK.fit.k >= 0.15), "a photo from far away is not taken for a close-up", farK && `k ${farK.fit.k || 0}`);
+
   // 5. small details and specks
   const eyes = []; for (let t = 0; t < topo.n; t++) { const x = Math.abs(topo.cen[3 * t]), y = topo.cen[3 * t + 1], z = topo.cen[3 * t + 2]; if (Math.hypot(x - 3.5, y - 93) < 1.0 && z > 7.5) eyes.push(t); }
   const hairSlot = slots[pal.map(p => dE(p.rgb, PAL.hair)).indexOf(Math.min(...pal.map(p => dE(p.rgb, PAL.hair))))];
@@ -360,6 +375,36 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
     tool(/Move the photo/).click(); await sleep(60);
   }
 
+  // ---- 7b3. a close-up photo (Session 23): the camera 1.7 model heights away, 20° up ----
+  console.log("\na close-up photo");
+  {
+    MF.state.paint.ops.length = 0; MF.paint.repaint(); await settle();
+    const camC = { yaw: 0, pitch: 20 }, K = 0.6, refC = C.photoRef(solid, camC);
+    const tfC = { a: 6.3 / H, tx: 0.5 - 6.3 / H * refC[0], ty: 0.5 + 6.3 / H * refC[1], rot: 0.02, mirror: false, k: K, ref: refC };
+    const close = render(solid, topo, cls, camC, tfC, W, H, 4);
+    await MF.paint.photo.add([png(close, "close.png")]); await settle();
+    const cop = MF.paint.photo.op, cv0 = cop.views[0], accAuto = accuracy(MF.parts[0], 1).acc, kFound = cv0.fit && cv0.fit.k;
+    check(kFound && Math.abs(kFound - K) < 0.15 && Math.abs(cv0.cam.pitch - 20) <= 6, "a close-up photo in the app: how close the camera was is worked out as it is lined up",
+      cv0.fit && `k ${kFound} (really ${K}), ${cv0.cam.yaw}° round, ${cv0.cam.pitch}° up, ${(accAuto * 100).toFixed(1)}% of the surface right`);
+    const nearBtn = re => $$("#panel .seg.near button").find(b => re.test(b.textContent));
+    check(nearBtn(/Work it out/) && nearBtn(/Work it out/).getAttribute("aria-pressed") === "true" && /Worked out as taken from about \d\.\d times the model's height away/.test(document.querySelector("#panel").textContent),
+      "the card says how close it worked out, with a choice to set it by hand");
+    nearBtn(/Far away/).click();
+    for (let i = 0; i < 400 && !(cv0.near === 0 && !(cv0.fit.k > 0)); i++) await sleep(50);
+    await sleep(800); await settle();
+    const accFar = accuracy(MF.parts[0], 1).acc;
+    check(cv0.near === 0 && !(cv0.fit.k > 0) && accAuto > accFar + 0.05, "set to far away by hand: lined up as from far away, and the colours come out worse",
+      `${(accFar * 100).toFixed(1)}% as from far away, ${(accAuto * 100).toFixed(1)}% worked out`);
+    nearBtn(/Work it out/).click();
+    for (let i = 0; i < 400 && !(cv0.near === undefined && cv0.fit.k > 0); i++) await sleep(50);
+    await sleep(800); await settle();
+    const cPaint = Array.from(MF.parts[0].paint), cSaved = MF.projectPayload(true);
+    await open(cSaved);
+    const cv2 = MF.paint.photo.op.views[0];
+    check(cv2 !== cv0 && cv2.fit.k === cv0.fit.k && cv2.near === undefined && MF.parts[0].paint.every((s, t) => s === cPaint[t]),
+      "saved and opened again: how close it was comes back, and the paint is the same", `k ${cv2.fit.k}`);
+  }
+
   // ---- 7c. the AI cut-out on the Art tab (Session 20): the same bookshelf photo as a picture ----
   console.log("\nthe AI cut-out: a picture's background taken away");
   {
@@ -424,6 +469,7 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
   hv.views[3].fix = Array.from({ length: 1000 }, () => ({ add: true, r: 5, p: Array.from({ length: 100 }, (_, j) => j % 2) }));   // huge brushes flung corner to corner
   hv.views[1].fix = "<img src=x onerror=alert(1)>";
   hv.views[2].fix = [{ add: "yes", r: 1e9, p: [NaN, 5, -3, 0.5, 0.2, "x"] }, { p: "x" }, null, { add: true, r: -4, p: [0.5] }, { add: true, p: Array(9000).fill(0.5) }];
+  hv.views[0].fit.k = 1e9; hv.views[2].fit.k = -3; hv.views[1].near = "<script>"; hv.views[3].near = 99;           // how close (Session 23)
   data.state.items = (data.state.items || []).concat([{ evil: 1 }, "<img src=x onerror=alert(1)>", "y".repeat(500), 7].map((u, i) => ({ id: 900 + i, name: "hostile " + i, uncut: u, width: 20 })));
   t0 = Date.now(); const e0 = env.errors.length; await open(JSON.stringify(data)); const hostileMs = Date.now() - t0;
   const ho = MF.state.paint.ops.find(o => o.k === "photo"), herr = env.errors.slice(e0).filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
@@ -438,6 +484,8 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
     hf[1] === undefined && hf[2].length === 2 && JSON.stringify(hf[2][0]) === JSON.stringify({ add: false, r: 0.25, p: [1, 0, 0.5, 0.2] }) && hf[2][1].p.length === 4000,
     "hand fixes on a photo: at most 2000 strokes and 100 000 numbers, every point on the photo, the brush size clamped, and huge brushes cannot stall it",
     hf && `${hf[0].length} strokes, ${hfN} numbers; ${JSON.stringify(hf[2] && hf[2][0])}; huge brushes ${fixMs} ms`);
+  check(ho && ho.views[0].fit.k === C.PHOTO_K_MAX && ho.views[2].fit.k === undefined && ho.views[1].near === undefined && ho.views[3].near === C.PHOTO_K_MAX,
+    "how close a camera was, from a project file: clamped, and nonsense dropped", ho && JSON.stringify([ho.views[0].fit.k, ho.views[2].fit.k, ho.views[1].near, ho.views[3].near]));
   const hu = MF.state.items.filter(x => /^hostile/.test(x.name)).map(x => x.uncut);
   check(hu.length === 4 && hu[0] === undefined && hu[3] === undefined && hu[1].length <= 40 && hu[2].length === 40, "a picture's original (before an AI cut-out) is only ever a short name", JSON.stringify(hu).slice(0, 80));
   check(hostileMs < 20000 && !herr.length && !document.querySelector("#panel b b") && !document.querySelector("#panel img[src=x]"), "it opens quickly without errors and no markup gets in",

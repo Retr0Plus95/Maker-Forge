@@ -9,7 +9,7 @@ const C = globalThis.PRCore;
 let fails = 0;
 const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${what}${got !== undefined ? "  (" + got + ")" : ""}`); if (!ok) fails++; };
 
-const { PART_NAMES, PAL, NAMES, figure, truth, outside, render, score, onBusyBackground, onShelfBackground } = require("./tools-photo-figure.js")(C);
+const { PART_NAMES, PAL, NAMES, figure, truth, outside, render, score, onBusyBackground, onShelfBackground, KIT, KIT_NAMES, kitTruth, keyLight, productPhoto } = require("./tools-photo-figure.js")(C);
 // the AI figure finder (Session 17): the small U²-Net run by ONNX Runtime (a dev dependency here; the app
 // downloads it from jsDelivr when asked), with the same picture in and out as the app
 const fs = require("fs"), MODEL = path.join(__dirname, "models", "u2netp.onnx");
@@ -148,6 +148,52 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
     check(tiny.length === 320 * 320 && tiny.some(v => v > 0), "a photo smaller than the network's 320 pixels works too");
   }
 
+  // 5c. a product photo (v0.24.1, the owner's case): a figure in a red and green kit lit hard from the right, a
+  // camera at chest height and close by, a dark background with a grey copy of the figure behind it, icons and
+  // a size label. Today's way lined it up from the side and took the red in shade for a colour of its own.
+  console.log("  a product photo: lit from one side, taken from close by, a grey copy behind");
+  const kit = kitTruth(topo, fig.partOf), PW = 900, PH = 675, KL = [0.73, 0.53, 0.44].map((v, _, a) => v / Math.hypot(...a));
+  t0 = Date.now(); const kLight = keyLight(solid, topo, KL), lightMs = Date.now() - t0;
+  const pCam = { yaw: 0, pitch: 10 }, pFit = { a: 5.2 / PH, tx: 560 / PH, ty: 600 / PH, rot: 0, mirror: false, k: 0.45 };
+  const prod = productPhoto(solid, topo, kit, pCam, pFit, PW, PH, kLight, { amb: 0.06, copy: { a: 4.2 / PH, tx: 330 / PH, ty: 520 / PH, rot: 0, mirror: false, k: 0.45 } });
+  const pAI = C.photoMaskFromMap(await figureNet(prod.rgba, PW, PH), 320, 320, PW, PH);
+  const seenBy = (cam, f) => { const R = C.photoRaster(solid, cam, f, PW, PH), sn = new Uint8Array(topo.n); for (const t of R.id) if (t >= 0) sn[t] = 1; return Uint8Array.from(out, (o, t) => o && sn[t] ? 1 : 0); };
+  const pSeen = seenBy(pCam, pFit);
+  // colour the figure the way the app does: colours from inside the lined-up model, then every triangle
+  const colourBy = (F, shade, strict, minInner) => {
+    let img = prod.rgba, L = null;
+    if (shade) { const use = C.photoModelMask(fig.raw, F.cam, F.fit, PW, PH, 3); for (let i = 0; i < PW * PH; i++) if (!pAI[i]) use[i] = 0;
+      L = C.photoLight(prod.rgba, PW, PH, fig.raw, F.cam, F.fit, use); img = C.photoUnshade(prod.rgba, PW, PH, fig.raw, F.cam, F.fit, L, pAI); }
+    const rim = Math.max(2, Math.round(0.02 * F.fit.a * C.photoRef(fig.raw, F.cam)[3] * PH)), pal = C.photoPalette(img, C.photoModelMask(fig.raw, F.cam, F.fit, PW, PH, rim), PW, PH, 5);
+    const v = C.photoView(img, PW, PH, solid, F.cam, F.fit, pal, pAI, strict), p = new Uint8Array(topo.n).fill(255);
+    C.paintFromPhotos(solid, topo, p, [v], { slots: pal.map((_, i) => i), fill: true, speck: 1, smooth: true, minInner });
+    return { L, pal, img, p, seen: score(topo, p, kit, pSeen), all: score(topo, p, kit, out) };
+  };
+  t0 = Date.now(); const Fold = C.photoFit(fig.raw, "front", pAI, PW, PH, false, { yaw: 45, pitch: 20 }, false, { extra: 0.7 });
+  const Fnew = C.photoFitFull(fig.raw, "front", pAI, PW, PH, false, { yaw: 45, pitch: 20 }, { extra: 0.7 }), fullMs = Date.now() - t0;
+  check(Fnew && Fnew.iou > 0.9 && Math.abs(Fnew.fit.k - 0.45) < 0.15 && Math.abs(Fnew.cam.yaw) <= 5 && Math.abs(Fnew.cam.pitch - 10) <= 8 && Math.abs(Fnew.fit.a / pFit.a - 1) < 0.04,
+    "the photo lines up on the figure, not on the icons or the grey copy, and how close the camera was is found",
+    Fnew && `outline ${(Fnew.iou * 100).toFixed(1)}%, ${Fnew.cam.yaw}° round, ${Fnew.cam.pitch}° up (really 0° and 10°), closeness ${Fnew.fit.k} (really 0.45), size off ${((Fnew.fit.a / pFit.a - 1) * 100).toFixed(1)}%, ${fullMs} ms with the search from far away; the scene's light took ${lightMs} ms`);
+  const pBefore = colourBy(Fold, false, false, 0.2), pAfter = colourBy(Fnew, true, true, undefined);
+  const ang = Math.acos(Math.min(1, pAfter.L.dir[0] * KL[0] + pAfter.L.dir[1] * KL[1] + pAfter.L.dir[2] * KL[2])) * 180 / Math.PI;
+  check(pAfter.L && ang < 12 && Math.abs(pAfter.L.amb - 0.06) < 0.08 && pAfter.L.shadows, "the light is found from the photo and the model's shape: its direction, the fill and the model's own shadows",
+    pAfter.L && `${ang.toFixed(1)}° off, fill ${pAfter.L.amb} (really 0.06, less the room's occlusion), explains ${(pAfter.L.fit * 100).toFixed(0)}% of the shading`);
+  const kitDE = pal => KIT_NAMES.map(nm => Math.min(...pal.map(q => dE(q.rgb, KIT[nm]))));
+  check(pAfter.pal.length === 5 && kitDE(pAfter.pal).every(d => d < 25), "with the light taken out, the five colours are the five paints (no red in shade as a colour of its own)",
+    `${KIT_NAMES.map((nm, i) => `${nm} ΔE ${kitDE(pAfter.pal)[i].toFixed(0)}`).join(", ")}; without: ${KIT_NAMES.map((nm, i) => `${nm} ΔE ${kitDE(pBefore.pal)[i].toFixed(0)}`).join(", ")}`);
+  let clear = 0; for (let i = 0; i < PW * PH; i++) if (pAfter.img[4 * i + 3] === 0) clear++;
+  check(clear > 0 && clear < PW * PH * 0.02, "pixels too dark to read are left out, not made into some colour", `${clear} pixels`);
+  check(pAfter.seen > 0.9 && pAfter.seen > pBefore.seen + 0.05 && pAfter.all > pBefore.all + 0.05, "coloured from it: far more of the figure right than before",
+    `what the photo shows ${(pBefore.seen * 100).toFixed(1)}% → ${(pAfter.seen * 100).toFixed(1)}%, the whole figure ${(pBefore.all * 100).toFixed(1)}% → ${(pAfter.all * 100).toFixed(1)}% (the back from one photo is a guess)`);
+  // evenly lit (every colour exactly the same everywhere): nothing to take out
+  const flat = new Uint8ClampedArray(prod.rgba); { const R = C.photoRaster(solid, pCam, pFit, PW, PH); for (let i = 0; i < PW * PH; i++) if (R.id[i] >= 0) flat.set(KIT[KIT_NAMES[kit[R.id[i]]]], 4 * i); }
+  check(C.photoLight(flat, PW, PH, fig.raw, Fnew.cam, Fnew.fit, null) === null, "an evenly lit photo: no light to take out");
+  // the top of the base, seen from a little above: read from the photo, not guessed from its front
+  const top = []; for (let t = 0; t < topo.n; t++) if (fig.partOf[t] === 0 && topo.nrm[3 * t + 1] > 0.9 && pSeen[t]) top.push(t);
+  const viewTop = C.photoView(pAfter.img, PW, PH, solid, Fnew.cam, Fnew.fit, pAfter.pal, pAI, true), sl = pAfter.pal.map((_, i) => i);
+  const pTop = mi => { const p = new Uint8Array(topo.n).fill(255); C.paintFromPhotos(solid, topo, p, [viewTop], { slots: sl, fill: false, speck: 0, smooth: false, minInner: mi }); return top.filter(t => p[t] !== 255).length / top.length; };
+  check(top.length > 100 && pTop(undefined) > 0.8, "the top of the base, seen at a low angle from close by, is read from the photo", `${top.length} triangles, ${(pTop(undefined) * 100).toFixed(0)}% read (${(pTop(0.2) * 100).toFixed(0)}% when only squarely seen faces count)`);
+
   // 6. a denser model: time
   const ed = C.meshEditor(solid); ed.refine(0.9, 900000);
   const dense = ed.solid(), dtopo = C.meshTopology(dense);
@@ -187,12 +233,12 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
     MF.state.slots.map(s => `${s.name} ${s.hex}`).join(", "));
   // how much of the painted figure is right: each triangle against the nearest one of the labelled figure
   const grid = C.triangleGrid(topo, 2);
-  const accuracy = (q, k) => {                       // k: how much bigger the imported model is than the figure
+  const accuracy = (q, k, truthCls = cls) => {       // k: how much bigger the imported model is than the figure
     const ptopo = q.pc.topo, pout = outside(q.pc.solid, ptopo), ptruth = new Int8Array(ptopo.n).fill(-1);
     for (let t = 0; t < ptopo.n; t++) {
       let bd = Infinity; const x = ptopo.cen[3 * t] / k, y = ptopo.cen[3 * t + 1] / k, z = ptopo.cen[3 * t + 2] / k;
       grid.near(x, y, z, 3, u => { if (topo.nrm[3 * u] * ptopo.nrm[3 * t] + topo.nrm[3 * u + 1] * ptopo.nrm[3 * t + 1] + topo.nrm[3 * u + 2] * ptopo.nrm[3 * t + 2] < 0.3) return;
-        const d = (topo.cen[3 * u] - x) ** 2 + (topo.cen[3 * u + 1] - y) ** 2 + (topo.cen[3 * u + 2] - z) ** 2; if (d < bd) { bd = d; ptruth[t] = cls[u]; } });
+        const d = (topo.cen[3 * u] - x) ** 2 + (topo.cen[3 * u + 1] - y) ** 2 + (topo.cen[3 * u + 2] - z) ** 2; if (d < bd) { bd = d; ptruth[t] = truthCls[u]; } });
       if (ptruth[t] < 0) pout[t] = 0;
     }
     return { acc: score(ptopo, q.paint, ptruth, pout), n: ptopo.n };
@@ -270,7 +316,9 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
   await MF.paint.photo.add([png(busyFront, "shelf.png")]); await settle();
   const bop = MF.paint.photo.op, bv = bop.views[0], byColour = { match: bv.match, a: bv.fit ? Math.abs(bv.fit.a / trueFront.a - 1) : 9, acc: accuracy(MF.parts[0], 1).acc };
   const aiBtn = () => $$("#panel button").find(b => /Find the figure with AI/.test(b.textContent));
-  check(byColour.match < 0.75 && aiBtn() && /try Find the figure with AI/.test(document.querySelector("#panel").textContent), "by colour it does not line up, and the card points to the AI figure finder",
+  // by colour the figure found takes in books round it; since v0.24.1 the parts the model does not reach are
+  // left out of lining up, so it lines up roughly (it did not before: 45% outline, 54% of the surface right)
+  check(aiBtn() && byColour.a < 0.05 && byColour.acc > 0.6, "by colour it lines up roughly (the books round it are left out of lining up), and the card offers the AI figure finder",
     `outline ${(byColour.match * 100).toFixed(0)}%, size off ${(byColour.a * 100).toFixed(0)}%, ${(byColour.acc * 100).toFixed(1)}% of the surface right`);
   let netCalls = 0; MF.paint.photo.ai.hooks.run = async (input, S) => { netCalls++; return netRaw(input, S); };
   aiBtn().click();
@@ -280,7 +328,7 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
   check(netCalls === 1 && aiMap && aiMap.w === 320 && bv.match > 0.75 && sizeOff < 0.03 && placeOff < 0.01 && Math.abs(bv.cam.yaw) <= 10,
     "Find the figure with AI: the photo lines up", `outline ${(bv.match * 100).toFixed(0)}%, size off ${(sizeOff * 100).toFixed(1)}%, place off ${(placeOff * 100).toFixed(2)}%, ${bv.cam.yaw}° round`);
   const accBusy = accuracy(MF.parts[0], 1).acc;
-  check(accBusy > 0.78 && accBusy > byColour.acc + 0.15 && MF.parts[0].paint.every(s => s !== 255), "and the figure is coloured from it nearly as well as from a plain background (one photo, so the back is a guess)",
+  check(accBusy > 0.78 && accBusy > byColour.acc && MF.parts[0].paint.every(s => s !== 255), "and the figure is coloured from it nearly as well as from a plain background (one photo, so the back is a guess)",
     `${(accBusy * 100).toFixed(1)}% of the surface right, ${(byColour.acc * 100).toFixed(1)}% by colour`);
   check($$("#panel button").some(b => /by colour instead/.test(b.textContent)) && /AI figure finder found the figure/.test(document.querySelector("#panel").textContent),
     "the card says the AI found it, and offers the colour method back");
@@ -340,8 +388,9 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
     for (let i = 0; i < 200 && fv.match === match0; i++) await sleep(50);
     await sleep(300); await settle();
     const accFix = accuracy(MF.parts[0], 1).acc, sizeOff = Math.abs(fv.fit.a / trueFront.a - 1), placeOff = Math.hypot(fv.fit.tx - trueFront.tx, fv.fit.ty - trueFront.ty);
-    check(fv.match > 0.75 && sizeOff < 0.03 && placeOff < 0.01 && accFix > 0.78 && accFix > acc0 + 0.15,
-      "Line it up again: with the fixes the photo lines up and colours the figure about as well as the AI does",
+    // (before v0.24.1 by colour alone it lined up badly, 53.6% of the surface right; it now lines up roughly)
+    check(fv.match > 0.75 && sizeOff < 0.03 && placeOff < 0.01 && accFix > 0.78 && accFix > acc0,
+      "Line it up again: with the fixes the photo lines up, the colours are read again, and the figure comes out about as well as with the AI",
       `outline ${(match0 * 100).toFixed(0)}% → ${(fv.match * 100).toFixed(0)}%, size off ${(sizeOff * 100).toFixed(1)}%, place off ${(placeOff * 100).toFixed(2)}%, ${(acc0 * 100).toFixed(1)}% → ${(accFix * 100).toFixed(1)}% of the surface right`);
     // saved and opened again: the fixes are in the file and the paint is the same
     const fPaint = Array.from(MF.parts[0].paint), fSaved = MF.projectPayload(true), fixN = fv.fix.length;
@@ -405,6 +454,63 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
       "saved and opened again: how close it was comes back, and the paint is the same", `k ${cv2.fit.k}`);
   }
 
+  // ---- 7d. the product photo of 5c in the app (v0.24.1): the light evened out, the camera close by ----
+  console.log("\na product photo: lit from one side, taken from close by");
+  {
+    MF.state.paint.ops.length = 0; MF.paint.repaint(); await settle();
+    MF.state.printer.colors = 5;
+    await MF.paint.photo.add([new win.File([boot.encodePNG(PW, PH, prod.rgba)], "product.png", { type: "image/png" })]); await settle();
+    const pop = MF.paint.photo.op, pv = pop.views[0];
+    MF.paint.photo.ai.hooks.run = async (input, S) => netRaw(input, S);
+    $$("#panel button").find(b => /Find the figure with AI/.test(b.textContent)).click();
+    for (let i = 0; i < 1200 && !(pv.ai && MF.paint.photo.info(pop) && !/Finding|Lining|Colouring/.test(document.querySelector("#statusLine").textContent)); i++) await sleep(50);
+    await sleep(600); await settle(); MF.paint.photo.ai.hooks.run = null;
+    const panel = () => document.querySelector("#panel").textContent, nearBtn = re => $$("#panel .seg.near button").find(b => re.test(b.textContent));
+    const accOn = accuracy(MF.parts[0], 1, kit).acc;
+    check(pop.shade === true && pv.fit && pv.fit.k > 0.25 && pv.match > 0.85 && Math.abs(pv.cam.yaw) <= 5 && nearBtn(/Work it out/) && /The light in this photo comes from the upper right, and the model casts shadows/.test(panel()),
+      "the photo lines up from close by, and the card says where the light comes from", `${pv.cam.yaw}° round, ${pv.cam.pitch}° up, closeness ${pv.fit.k}, outline ${(pv.match * 100).toFixed(0)}%; "${(/The light in this photo[^.]*\./.exec(panel()) || [""])[0]}"`);
+    const kitNear = () => KIT_NAMES.map(nm => Math.min(...pop.pal.map(q => dE(q.rgb, KIT[nm]))));
+    check(pop.pal.length === 5 && kitNear().every(d => d < 25) && accOn > 0.75, "the five paints are its five colours, and the figure comes out right",
+      `${KIT_NAMES.map((nm, i) => `${nm} ΔE ${kitNear()[i].toFixed(0)}`).join(", ")}; ${(accOn * 100).toFixed(1)}% of the surface right from one photo`);
+    // Even out light and shadow, off and on again
+    const shadeBox = () => $$("#panel label.check").find(l => /Even out light and shadow/.test(l.textContent)).querySelector("input");
+    shadeBox().checked = false; shadeBox().dispatchEvent(new win.Event("change"));
+    for (let i = 0; i < 200 && pop.shade !== false; i++) await sleep(50);
+    await sleep(600); await settle();
+    const accOff = accuracy(MF.parts[0], 1, kit).acc;
+    check(pop.shade === false && /a colour in deep shade can come out as a colour of its own/.test(panel()) && accOff < accOn, "unticking Even out light and shadow reads the photo as it is (less of the figure right)",
+      `${(accOff * 100).toFixed(1)}% right without, ${(accOn * 100).toFixed(1)}% with`);
+    shadeBox().checked = true; shadeBox().dispatchEvent(new win.Event("change"));
+    for (let i = 0; i < 200 && pop.shade !== true; i++) await sleep(50);
+    await sleep(600); await settle();
+    // set to far away by hand, then Line it up again (which works it out again only when asked: Work it out)
+    const k0 = pv.fit.k;
+    nearBtn(/Far away/).click();
+    for (let i = 0; i < 400 && !(pv.near === 0 && !(pv.fit.k > 0)); i++) await sleep(50);
+    await sleep(900); await settle();
+    const matchFar = pv.match;
+    check(pv.near === 0 && !pv.fit.k && matchFar < 0.97, "set to far away by hand: it lines up again that way", `outline ${(matchFar * 100).toFixed(0)}% far away`);
+    nearBtn(/Work it out/).click();
+    for (let i = 0; i < 400 && !(pv.near === undefined && pv.fit.k > 0); i++) await sleep(50);
+    await sleep(600); await settle();
+    $$("#panel button").find(b => /Line it up again/.test(b.textContent)).click();
+    for (let i = 0; i < 400 && !/Lining/.test(document.querySelector("#statusLine").textContent); i++) await sleep(25);
+    await sleep(600); await settle();
+    check(pv.near === undefined && pv.fit.k > 0.25 && pv.match >= matchFar && Math.abs(pv.cam.yaw) <= 5, "Work it out, and Line it up again (the angle searched as from far away and from close by), find how close it was",
+      `closeness ${k0} → far away → ${pv.fit.k}, ${pv.cam.yaw}° round, ${pv.cam.pitch}° up, outline ${(pv.match * 100).toFixed(0)}%`);
+    // saved and opened again: the closeness and the light setting come back, and so does the paint
+    const kPaint = Array.from(MF.parts[0].paint), kSaved = MF.projectPayload(true), sv = JSON.parse(kSaved).state.paint.ops.find(o => o.k === "photo");
+    await open(kSaved);
+    const pv2 = MF.paint.photo.op.views[0];
+    check(sv.shade === true && sv.views[0].fit.k === pv.fit.k && !sv.views[0].fit.ref && MF.paint.photo.op.shade === true && pv2.fit.k === pv.fit.k && MF.parts[0].paint.every((x, t) => x === kPaint[t]),
+      "saved and opened again: the closeness, the light setting and the paint are the same", `closeness ${pv2.fit.k}`);
+    // a step saved before v0.24.1 (no shade setting) keeps the look it had
+    delete sv.shade; const oldFile = JSON.parse(kSaved); oldFile.state.paint.ops = oldFile.state.paint.ops.map(o => o.k === "photo" ? sv : o);
+    await open(JSON.stringify(oldFile));
+    check(MF.paint.photo.op.shade === false, "a photo step saved before this version opens with the light left as it is");
+    MF.state.printer.colors = 6;
+  }
+
   // ---- 7c. the AI cut-out on the Art tab (Session 20): the same bookshelf photo as a picture ----
   console.log("\nthe AI cut-out: a picture's background taken away");
   {
@@ -463,7 +569,8 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
   hv.views = Array.from({ length: 50 }, (_, i) => ({ asset: i ? "<img src=x onerror=alert(1)>" : hv.views[0].asset, name: "<b>x</b>".repeat(40), cam: { yaw: 1e9, pitch: -1e9 },
     fit: i === 0 ? { a: 1e9, tx: 0.5, ty: 0.9, rot: 0, mirror: "yes" } : i === 1 ? { a: "big", tx: 0, ty: 0, rot: 0 } : { a: 0.01, tx: 1e9, ty: -1e9, rot: 50, mirror: true }, tol: -5, match: 7 }));
   hv.pal = Array.from({ length: 100 }, () => ({ rgb: [1e9, "x", -4], keys: [[NaN, 0, 0], [1e9, -1e9, 3], "k"] }));
-  hv.slots = [99, -1, "2", 255]; hv.colours = 1e6; hv.speck = 1e9; hv.fill = "no"; hv.use = "<script>";
+  hv.slots = [99, -1, "2", 255]; hv.colours = 1e6; hv.speck = 1e9; hv.fill = "no"; hv.use = "<script>"; hv.shade = "yes";
+  hv.views[2].fit.ref = [1e9, "x", 0, -5]; hv.views[3].fit.k = "<b>";             // the light setting, a camera reference (v0.24.1)
   hv.views[3].ai = "<img src=x onerror=alert(1)>"; hv.views[4].ai = { evil: 1 }; hv.views[5].ai = "x".repeat(500);
   hv.views[0].fix = Array.from({ length: 3000 }, (_, i) => ({ add: i % 2 === 0, r: 0.03, p: Array.from({ length: 100 }, (_, j) => (j % 7) / 7) }));
   hv.views[3].fix = Array.from({ length: 1000 }, () => ({ add: true, r: 5, p: Array.from({ length: 100 }, (_, j) => j % 2) }));   // huge brushes flung corner to corner
@@ -476,7 +583,8 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
   check(ho && ho.views.length === 6 && ho.pal.length === 8 && ho.slots.length === 8 && ho.views[0].fit.a <= 10 && ho.views[1].fit === null && Math.abs(ho.views[2].fit.tx) <= 5 &&
     ho.views.every(v => Math.abs(v.cam.yaw) <= 180 && Math.abs(v.cam.pitch) <= 89 && v.tol >= 0 && v.match <= 1 && v.name.length <= 60) &&
     ho.views[4].ai === undefined && ho.views[5].ai.length === 40 && !MF.paint.photo.ai.mapOf(ho.views[3].ai) &&
-    ho.pal.every(p => p.rgb.every(c => c >= 0 && c <= 255) && p.keys.every(k => k.every(Number.isFinite))) && ho.colours === 8 && ho.speck === 50 && ho.use === "photo",
+    ho.pal.every(p => p.rgb.every(c => c >= 0 && c <= 255) && p.keys.every(k => k.every(Number.isFinite))) && ho.colours === 8 && ho.speck === 50 && ho.use === "photo" &&
+    ho.shade === false && !("ref" in ho.views[2].fit) && !("k" in ho.views[3].fit),
     "at most six photos and eight colours, numbers clamped, a broken fit dropped", ho && `${ho.views.length} photos, ${ho.pal.length} colours, a ${ho.views[0].fit.a}, slots ${ho.slots.join(",")}`);
   const hf = ho && ho.views.map(v => v.fix), hfN = hf && hf[0] ? hf[0].reduce((n, q) => n + q.p.length, 0) : 0;
   const tFix = Date.now(), bigFix = ho && MF.paint.photo.figure({ asset: ho.views[0].asset, tol: 35, fix: ho.views[3].fix }, 480, 480), fixMs = Date.now() - tFix;

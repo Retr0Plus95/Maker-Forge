@@ -429,7 +429,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.22.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.23.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -513,7 +513,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
   integrity="sha384-2H0pAXlHBLfkdkuPuERxxSBlz7fMZ2EqrwxccEG7J9Svyk1SbUDaknB5UCoel/ZX" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"
   integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
-<script>
+<script id="prcore">
 /*CORE*/
 </script>
 <script>
@@ -3544,6 +3544,92 @@ function normalizeItem(d){
   return d;
 }
 
+/* ---- the helper thread (Session 22) ----
+   A Web Worker running the same geometry library takes heavy work that needs no page: the printability
+   check, and the picking boxes (meshBVH) of big models. It is made from the library's own <script>, so nothing
+   is downloaded. Where a worker cannot start (an older browser, a strict Content-Security-Policy, the tests'
+   jsdom), the same work runs on the page as before. Only one printability job runs at a time: a newer one
+   restarts the worker rather than queue behind a result nobody wants. */
+const helper = { w:null, failed:false, seq:0, jobs:new Map(), kinds:new Map(), done:0 };
+function helperMain(){
+  self.onmessage = e => {
+    const { id, fn, args } = e.data;
+    try {
+      let r, tr = [];
+      if (fn === "print"){ const it = PRCore.analyzePrintSteps(args[0], args[1]); let st; do { st = it.next(); } while (!st.done); r = st.value; }
+      else if (fn === "bvh"){ r = PRCore.meshBVH(args[0], args[1]); tr = [...new Set([r.box.buffer, r.left.buffer, r.start.buffer, r.count.buffer, r.order.buffer])]; }
+      else if (fn === "ping") r = "pong";
+      else throw new Error("no such job: " + fn);
+      self.postMessage({ id, r }, tr);
+    } catch (err){ self.postMessage({ id, err:String(err && err.message || err) }); }
+  };
+}
+function helperWorker(){
+  if (helper.w || helper.failed) return helper.w;
+  try {
+    if (typeof Worker !== "function" || typeof Blob !== "function" || !URL.createObjectURL) throw new Error("no workers here");
+    if (!helper.url){ const src = document.getElementById("prcore").textContent + "\n;(" + helperMain.toString() + ")();"; helper.url = URL.createObjectURL(new Blob([src], { type:"text/javascript" })); }
+    const w = new Worker(helper.url);
+    w.onmessage = e => { const j = helper.jobs.get(e.data.id); if (!j) return; helper.jobs.delete(e.data.id); helper.kinds.delete(e.data.id); helper.done++;
+      if (e.data.err) j.reject(new Error(e.data.err)); else j.resolve(e.data.r); };
+    w.onerror = e => { e.preventDefault && e.preventDefault(); helperStop(true, "The helper thread stopped: " + (e.message || "error")); };
+    helper.w = w;
+  } catch (err){ helper.failed = true; helper.w = null; }
+  return helper.w;
+}
+// stop the worker: every job still out is turned down (its caller does the work on the page, or drops it)
+function helperStop(broken, why){
+  if (helper.w){ try { helper.w.terminate(); } catch(e){} }
+  helper.w = null; if (broken) helper.failed = true;
+  for (const j of helper.jobs.values()) j.reject(new Error(why || "replaced"));
+  helper.jobs.clear(); helper.kinds.clear();
+}
+// a job for the worker; null when there is none (the caller does it on the page). kind "print": a newer one
+// replaces the one still running
+function onHelper(fn, args, transfer, kind){
+  if (kind && [...helper.kinds.values()].includes(kind)) helperStop(false, "replaced");
+  const w = helperWorker(); if (!w) return null;
+  return new Promise((resolve, reject) => {
+    const id = ++helper.seq; helper.jobs.set(id, { resolve, reject }); if (kind) helper.kinds.set(id, kind);
+    try { w.postMessage({ id, fn, args }, transfer || []); } catch (err){ helper.jobs.delete(id); helper.kinds.delete(id); reject(err); }
+  });
+}
+// the mesh check of a part, once: parts do not change after they are built, and the checks run after every change
+const meshCheckCache = new WeakMap();
+function meshCheck(solid){ let r = meshCheckCache.get(solid); if (!r){ r = C.checkMesh(solid); meshCheckCache.set(solid, r); } return r; }
+/* picking with boxes (Session 22): the brush, the eyedropper, measuring and placing artwork ask where a ray
+   meets the model on every move. three.js tests every triangle (13 ms on the painted vase, far more on a
+   phone); a bounding volume hierarchy answers in a few hundredths of a millisecond. A big model's boxes are
+   built on the helper thread; until they arrive, picking works the plain way. */
+const bvhCache = new WeakMap();
+function geomBVH(g){
+  const pa = g.attributes.position; if (!pa) return null;
+  const c = bvhCache.get(g); if (c && c.ver === pa.version) return c.B;
+  const pos = pa.array, idx = g.index ? g.index.array : null, n = (idx ? idx.length : pa.count) / 3;
+  const entry = { B:null, ver:pa.version }; bvhCache.set(g, entry);
+  const job = n > 30000 ? onHelper("bvh", [pos, idx]) : null;
+  if (job) job.then(B => { if (bvhCache.get(g) === entry) entry.B = B; }).catch(() => { if (bvhCache.get(g) === entry) bvhCache.delete(g); });
+  else entry.B = C.meshBVH(pos, idx);
+  return entry.B;
+}
+const rayInv = new THREE.Matrix4(), rayO = new THREE.Vector3(), rayE = new THREE.Vector3();
+function boxedRaycast(raycaster, intersects){
+  const g = this.geometry, m = this.material;
+  const B = g && g.isBufferGeometry && m && !Array.isArray(m) && m.side !== THREE.BackSide ? geomBVH(g) : null;
+  if (!B) return THREE.Mesh.prototype.raycast.call(this, raycaster, intersects);
+  // the ray in the mesh's own space: its direction keeps the world's length, so t stays the world distance
+  rayInv.copy(this.matrixWorld).invert();
+  rayO.copy(raycaster.ray.origin).applyMatrix4(rayInv);
+  rayE.copy(raycaster.ray.origin).add(raycaster.ray.direction).applyMatrix4(rayInv).sub(rayO);
+  const pos = g.attributes.position.array, idx = g.index ? g.index.array : null;
+  const h = C.bvhRaycast(B, pos, idx, [rayO.x, rayO.y, rayO.z], [rayE.x, rayE.y, rayE.z], raycaster.far, m.side === THREE.DoubleSide ? 0 : 1);
+  if (!h || h.t < raycaster.near) return;
+  const a = idx ? idx[3*h.tri] : 3*h.tri, b = idx ? idx[3*h.tri+1] : 3*h.tri+1, c = idx ? idx[3*h.tri+2] : 3*h.tri+2;
+  const A = new THREE.Vector3().fromArray(pos, 3*a), Bv = new THREE.Vector3().fromArray(pos, 3*b), Cv = new THREE.Vector3().fromArray(pos, 3*c);
+  const normal = new THREE.Vector3(); THREE.Triangle.getNormal(A, Bv, Cv, normal);
+  intersects.push({ distance:h.t, point:raycaster.ray.at(h.t, new THREE.Vector3()), object:this, face:{ a, b, c, normal, materialIndex:0 }, faceIndex:h.tri });
+}
+
 /* ---------- 6. scene ---------- */
 const view = $("#view");
 const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true, preserveDrawingBuffer:true });
@@ -3644,7 +3730,53 @@ function resize(){
   camera.aspect = w/Math.max(1,h); camera.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe(view); resize();
-(function loop(){ controls.update(); renderer.render(scene,camera); requestAnimationFrame(loop); })();
+/* draw only when something changed (Session 22). The view was drawn 60 times a second even when nothing
+   moved, which keeps a phone's or laptop's graphics busy and the page's main thread too. Each frame a cheap
+   exact snapshot is taken of everything the picture depends on (the camera, the canvas size, the clear colour,
+   the cut plane, the pattern setting, and every object's pose, visibility, material and geometry versions);
+   the view is drawn when it differs from the last drawing, or when requestRender() asks. */
+let drawSnap = new Float64Array(1024), drawPrev = new Float64Array(1024), drawN = 0, drawPrevN = -1, drawForce = 2, drawCount = 0;
+const drawColour = new THREE.Color();
+function requestRender(){ drawForce = Math.max(drawForce, 2); }
+function viewSnapshot(){
+  let n = 0;
+  const put = x => { if (n >= drawSnap.length){ const a = new Float64Array(drawSnap.length * 2); a.set(drawSnap); drawSnap = a; } drawSnap[n++] = +x || 0; };
+  const P = camera.position, Q = camera.quaternion;
+  put(P.x); put(P.y); put(P.z); put(Q.x); put(Q.y); put(Q.z); put(Q.w); put(camera.zoom); put(camera.fov); put(camera.aspect); put(camera.near); put(camera.far);
+  put(renderer.domElement.width); put(renderer.domElement.height);
+  if (renderer.getClearColor){ renderer.getClearColor(drawColour); put(drawColour.r); put(drawColour.g); put(drawColour.b); }
+  if (renderer.getClearAlpha) put(renderer.getClearAlpha());
+  put(cutPlane.constant); put(cutPlane.normal.y); put(patUniforms.uPat.value); put(patUniforms.uPatScale.value);
+  const mat = m => { put(m.id); put(m.version); put(m.visible); put(m.opacity); put(m.transparent); put(m.side); put(m.wireframe);
+    if (m.color){ put(m.color.r); put(m.color.g); put(m.color.b); }
+    put(m.clippingPlanes ? m.clippingPlanes.length : 0); put(m.map ? m.map.version : -1);
+    if (m.userData && m.userData.patSlot) put(m.userData.patSlot.value); };
+  scene.traverse(o => {
+    put(o.id); put(o.visible); put(o.renderOrder);
+    if (o.matrixAutoUpdate){ put(o.position.x); put(o.position.y); put(o.position.z); put(o.quaternion.x); put(o.quaternion.y); put(o.quaternion.z); put(o.quaternion.w); put(o.scale.x); put(o.scale.y); put(o.scale.z); }
+    else for (const e of o.matrix.elements) put(e);
+    if (o.isLight){ put(o.intensity); put(o.color.r); put(o.color.g); put(o.color.b); }
+    if (o.material){ if (Array.isArray(o.material)) o.material.forEach(mat); else mat(o.material); }
+    const g = o.geometry;
+    if (g){ put(g.id); put(g.drawRange.start); put(g.drawRange.count); put(g.index ? g.index.version : -1);
+      for (const k in g.attributes) put(g.attributes[k].version); }
+    if (o.instanceMatrix){ put(o.instanceMatrix.version); put(o.count); }
+  });
+  drawN = n;
+}
+(function loop(){
+  const moved = controls.update();
+  viewSnapshot();
+  let same = !moved && drawForce <= 0 && drawN === drawPrevN;
+  for (let i = 0; same && i < drawN; i++) if (drawSnap[i] !== drawPrev[i]) same = false;
+  if (!same){
+    renderer.render(scene, camera); drawCount++;
+    if (drawForce > 0) drawForce--;
+    if (drawPrev.length < drawSnap.length) drawPrev = new Float64Array(drawSnap.length);
+    drawPrev.set(drawSnap.subarray(0, drawN)); drawPrevN = drawN;
+  }
+  requestAnimationFrame(loop);
+})();
 controls.addEventListener("start", ()=>userMoved = true);
 // what the camera should keep in view: the model, plus the size labels the rulers draw beside it
 function viewBox(size){
@@ -4610,8 +4742,9 @@ renderer.domElement.addEventListener("pointerup", endStroke);
 renderer.domElement.addEventListener("pointercancel", endStroke);
 renderer.domElement.addEventListener("pointerleave", () => { brushRing.visible = false; brushPreview.visible = false; });
 
-let timer = 0, busy = false, queued = false, buildRev = 0;
-function schedule(){ clearTimeout(timer); timer = setTimeout(()=>rebuildAll(false), 130); }
+let timer = 0, busy = false, queued = false, buildRev = 0, rebuildPending = false;
+// a rebuild a moment from now (sliders call this on every move); MakerForge.busy counts it as work under way
+function schedule(){ clearTimeout(timer); rebuildPending = true; timer = setTimeout(()=>{ rebuildPending = false; rebuildAll(false); }, 130); }
 async function rebuildAll(resetItems){
   if (busy){ queued = true; return; }
   busy = true;
@@ -4640,7 +4773,7 @@ async function rebuildAll(resetItems){
     if (baseGeom){
       const ni = baseGeom.index ? baseGeom.toNonIndexed() : baseGeom;
       baseSoup = { pos:ni.attributes.position.array, nrm:ni.attributes.normal ? ni.attributes.normal.array : null };
-      baseMesh = new THREE.Mesh(baseGeom, slotMat(parts[0].slot));
+      baseMesh = new THREE.Mesh(baseGeom, slotMat(parts[0].slot)); baseMesh.raycast = boxedRaycast;
       baseMesh.updateMatrixWorld(true);
     }
     if (resetItems) state.items.forEach(d => { d.solids = null; d._imgKey = ""; d._srcSig = ""; });
@@ -4696,7 +4829,7 @@ function refreshScene(){
   const box = new THREE.Box3();
   modelParts.forEach((p,i)=>{
     const mesh = new THREE.Mesh(p.geom, p.paint ? paintMat() : slotMat(p.slot));
-    mesh.userData.part = i;
+    mesh.userData.part = i; mesh.raycast = boxedRaycast;
     const off = partOffset(p,i);
     mesh.position.set(off[0],off[1],off[2]);
     p.geom.computeBoundingBox();
@@ -4829,8 +4962,17 @@ async function runPrintability(){
   const parts = printedParts();
   const tris = parts.reduce((a,p)=>a+p.idx.length/3, 0);
   if (!parts.length || tris > 800000){ printInfo = { key, skipped:parts.length ? tris : 0 }; runChecks(); return; }
-  const it = C.analyzePrintSteps(parts, { nozzle:P.nozzle||0.4, layer:P.layer||0.2, angle:P.overhang||45, bridge:P.bridge ?? 10,
-    warpProne: parts.some(p => WARPS.has((state.slots[p.slot]||{}).mat)) });
+  const opts = { nozzle:P.nozzle||0.4, layer:P.layer||0.2, angle:P.overhang||45, bridge:P.bridge ?? 10,
+    warpProne: parts.some(p => WARPS.has((state.slots[p.slot]||{}).mat)) };
+  // on the helper thread when there is one: the page stays free while it works
+  const off = onHelper("print", [parts, opts], null, "print");
+  if (off){
+    let res = null;
+    try { res = await off; } catch (err){ if (!helper.failed && !/replaced/.test(err.message)){ console.error(err); printInfo = { key, failed:err.message }; runChecks(); return; } }
+    if (job !== printJob || busy || printKey() !== key) return;           // a newer build or setting took over
+    if (res){ printInfo = Object.assign(res, { key, slots:parts.map(p=>p.slot) }); runChecks(); refreshOverlay(); return; }
+  }
+  const it = C.analyzePrintSteps(parts, opts);
   let r, t0 = performance.now();
   try {
     for (;;){
@@ -4954,11 +5096,11 @@ function runChecks(){
   const vols = state.slots.map(()=>0);
   let open = 0, tris = 0;
   for (const p of modelParts){
-    const r = C.checkMesh(p.solid);
+    const r = meshCheck(p.solid);
     open += r.open; tris += r.tris; vols[p.slot] += r.volume*sc*sc*sc;
   }
   const brim = brimPart();
-  if (brim && vols[brim.slot] != null) vols[brim.slot] += C.checkMesh(brim.solid).volume;
+  if (brim && vols[brim.slot] != null) vols[brim.slot] += meshCheck(brim.solid).volume;
   list.push(open === 0
     ? { k:"ok", t:"Every part is a closed mesh", s:`${tris.toLocaleString()} triangles in ${modelParts.length} part${modelParts.length===1?"":"s"}` }
     : { k:"warn", t:"Some parts have open edges", s:`${open} unpaired edges. Slicers usually repair this, but check the preview.` });
@@ -8755,10 +8897,12 @@ function applyPreset(key){
     // with no pictures of their own, the quick start opens with its example
     let added = false;
     try { added = await loadExample(key, true); } catch (err){ console.error(err); }
-    exampleBusy--;
     if (added){ renderTab(); notify(pr.tip + " " + exampleNote(key)); }
-    await rebuildAll(false); await new Promise(r=>setTimeout(r,60));
-    state.items.forEach(d=>{ if (!exampleSized.has(d)) d.width = defaultWidth(d.aspect); d.solids = null; }); schedule();
+    // still busy until the last rebuild is under way (a test waiting for "not busy" would otherwise act
+    // between the two rebuilds, and a measurement it started would be cleared by the second)
+    try { await rebuildAll(false); await new Promise(r=>setTimeout(r,60));
+      state.items.forEach(d=>{ if (!exampleSized.has(d)) d.width = defaultWidth(d.aspect); d.solids = null; }); schedule(); }
+    finally { exampleBusy--; }
     exampleSlotSig = slotSig(); pushHistory();
   })();
   pushHistory();
@@ -8881,7 +9025,7 @@ window.MakerForge = {
   get parts(){ return modelParts; },
   get checks(){ return lastChecks; },
   get rev(){ return buildRev; },
-  get busy(){ return busy || queued || exampleBusy > 0; },
+  get busy(){ return busy || queued || rebuildPending || exampleBusy > 0; },
   thumb: modelThumb,
   art: { cutout: aiCutout, uncut: aiUncut, hasBackground: pictureHasBackground },
   examples: { list: EXAMPLES, forType: EXAMPLE_FOR_TYPE, art: EXAMPLE_ART, canvas: exampleCanvas, load: loadExample, drop: dropExamples },
@@ -8903,6 +9047,9 @@ window.MakerForge = {
   get overlay(){ return overlay.children.length; },
   rebuild: rebuildAll,
   get camera(){ return camera; }, get controls(){ return controls; }, shareLink: makeShareLink, projectPayload,
+  get draws(){ return drawCount; }, requestRender,
+  helper: { get ready(){ return !!helper.w; }, get failed(){ return helper.failed; }, get done(){ return helper.done; }, run: onHelper, stop: helperStop },
+  bvhFor: geomBVH, get scene(){ return scene; }, printParts: printedParts,
   get measure(){ return measurePts.map(q => q.toArray().map(v => +v.toFixed(3))); },
   get defaults(){ return DEFAULTS().base; },
   render: renderTab,

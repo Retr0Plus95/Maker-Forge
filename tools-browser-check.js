@@ -287,10 +287,14 @@ function pageCoverage() {
       [...document.querySelectorAll("#presetGallery button")].find(b => b.dataset.k === "Project box").click(); await settle();
       document.querySelector("#vMeasure").click(); await sleep(100);
       const cv = document.querySelector("#view canvas"), rect = cv.getBoundingClientRect();
+      out.measureSteps = [];
       for (const x of [-45.8, 45.8]){
         const v = new THREE.Vector3(x, 35.8, 32).project(MF.camera), cx = rect.left + (v.x + 1)/2*rect.width, cy = rect.top + (1 - v.y)/2*rect.height;
+        const rev0 = MF.rev;
         cv.dispatchEvent(new PointerEvent("pointerdown", { clientX:cx, clientY:cy, bubbles:true })); cv.dispatchEvent(new PointerEvent("pointerup", { clientX:cx, clientY:cy, bubbles:true }));
+        const n1 = MF.measure.length;
         await sleep(100);
+        out.measureSteps.push({ rev0, rev1: MF.rev, busy: MF.busy, after: n1, later: MF.measure.length, notice: document.querySelector("#notice").textContent.slice(0, 50) });
       }
       const m = MF.measure; out.measure = m.length === 2 ? Math.hypot(m[0][0] - m[1][0], m[0][1] - m[1][1], m[0][2] - m[1][2]) : null;
       document.querySelector("#vMeasure").click();
@@ -312,7 +316,7 @@ function pageCoverage() {
     });
     const near = (a, b, t) => a != null && Math.abs(a - b) <= t;
     if (!(r.svg && near(r.svg[0], 40, 0.05) && near(r.svg[1], 20, 0.05) && near(r.hole, 6, 0.05))) findings.push({ where:"SVG import", what:`a 40 × 20 mm SVG plate traced at ${r.svg && r.svg.map(v => v.toFixed(2)).join(" × ")} mm, hole ${r.hole && r.hole.toFixed(2)} mm` });
-    if (!near(r.measure, 92, 0.05)) findings.push({ where:"measuring tape", what:`the project box's front wall measured ${r.measure && r.measure.toFixed(2)} mm instead of 92` });
+    if (!near(r.measure, 92, 0.05)) findings.push({ where:"measuring tape", what:`the project box's front wall measured ${r.measure && r.measure.toFixed(2)} mm instead of 92: ${JSON.stringify(r.measureSteps)}` });
     if (!(r.batch && r.batch.open === 0 && /^3 name plates/.test(r.batch.check || ""))) findings.push({ where:"name list", what:`three names gave ${JSON.stringify(r.batch)}` });
     if (r.section !== "18.0 mm") findings.push({ where:"section view", what:`the cut at 50% of 36 mm reads ${r.section}` });
     const other = await openPage({ width: 1200, height: 800 }, "share link", r.link.url);
@@ -536,6 +540,41 @@ function pageCoverage() {
       notes.push(`AI cut-out in the browser: ${cut ? `${Math.round(cut.clear * 100)}% of the picture made clear, ${cut.parts} parts on the board` : "did not run"}`);
     }
     fs.unlinkSync(fShelf);
+
+    // ---------- Session 22: speed: the helper thread, picking with boxes, drawing only on change ----------
+    {
+      await page.evaluate(() => { const s = document.querySelector("#objectSel"); s.value = "turned"; s.dispatchEvent(new Event("change")); });
+      await settle(page);
+      await page.waitForFunction(() => window.MakerForge.print, null, { timeout: 120000 }).catch(() => {});
+      const sp = await page.evaluate(async () => {
+        const MF = window.MakerForge, stock = THREE.Mesh.prototype.raycast, meshes = [];
+        MF.scene.traverse(o => { if (o.isMesh && o.userData.part != null) meshes.push(o); });
+        meshes.forEach(m => MF.bvhFor(m.geometry));
+        for (let i = 0; i < 100 && !meshes.every(m => MF.bvhFor(m.geometry)); i++) await new Promise(r => setTimeout(r, 50));
+        const ready = meshes.every(m => MF.bvhFor(m.geometry)), c = document.querySelector("#view canvas").getBoundingClientRect();
+        const pts = Array.from({ length: 300 }, (_, i) => ({ clientX: c.left + c.width * (0.1 + 0.8 * ((i * 37) % 300) / 300), clientY: c.top + c.height * (0.1 + 0.8 * ((i * 151) % 300) / 300) }));
+        const key = h => h ? `${h.part}:${h.face}:${h.world.toArray().map(v => v.toFixed(3))}` : "miss";
+        let t0 = performance.now(); const a = pts.map(e => key(MF.paint.hit(e))); const tBox = (performance.now() - t0) / pts.length;
+        const own = meshes.map(m => m.raycast); meshes.forEach(m => m.raycast = stock);
+        t0 = performance.now(); const b = pts.map(e => key(MF.paint.hit(e))); const tPlain = (performance.now() - t0) / pts.length;
+        meshes.forEach((m, i) => m.raycast = own[i]);
+        // the helper's printability result against the same check on the page
+        const P = MF.state.printer, it = MF.core.analyzePrintSteps(MF.printParts(), { nozzle: P.nozzle || 0.4, layer: P.layer || 0.2, angle: P.overhang || 45, bridge: P.bridge ?? 10, warpProne: false });
+        let st; do { st = it.next(); } while (!st.done);
+        const sig = x => x && JSON.stringify([x.overhang && x.overhang.area, x.thin && x.thin.length, x.contact && x.contact.area, x.flats && x.flats.length, x.floating]);
+        const d0 = MF.draws; await new Promise(r => setTimeout(r, 2000)); const d1 = MF.draws;
+        return { ready, same: a.filter((k, i) => k === b[i]).length, n: pts.length, hits: a.filter(k => k !== "miss").length, tBox, tPlain,
+          printSame: sig(MF.print) === sig(st.value), helper: { ready: MF.helper.ready, failed: MF.helper.failed, done: MF.helper.done }, idleDraws: d1 - d0 };
+      });
+      // a drag on the view: it is drawn while it moves
+      const vb = await page.evaluate(() => { const b = document.querySelector("#view canvas").getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
+      const dd0 = await page.evaluate(() => window.MakerForge.draws);
+      await page.mouse.move(vb.x, vb.y); await page.mouse.down(); for (let i = 1; i <= 8; i++) await page.mouse.move(vb.x + i * 12, vb.y); await page.mouse.up(); await page.waitForTimeout(300);
+      const dragDraws = (await page.evaluate(() => window.MakerForge.draws)) - dd0;
+      if (!(sp.ready && sp.same === sp.n && sp.hits > 20 && sp.printSame && sp.helper.ready && !sp.helper.failed && sp.helper.done > 0 && sp.idleDraws <= 1 && dragDraws >= 3))
+        findings.push({ where: "speed", what: JSON.stringify(Object.assign(sp, { dragDraws })) });
+      notes.push(`speed: the helper thread ran ${sp.helper.done} jobs; ${sp.same} of ${sp.n} picks on the painted vase the same as three.js (${sp.hits} hits), ${sp.tBox.toFixed(3)} ms a pick against ${sp.tPlain.toFixed(2)} ms; the printability check from the helper ${sp.printSame ? "matches" : "DIFFERS FROM"} the page's; ${sp.idleDraws} drawings in 2 s of nothing, ${dragDraws} during a drag`);
+    }
 
     // ---------- Session 20: a model with its own colours (a GLB with a picture, as AI model makers give) ----------
     {

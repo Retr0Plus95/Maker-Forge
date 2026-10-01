@@ -1,2 +1,8 @@
 node_modules
 browser-check/
+# editor and system clutter, logs
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/

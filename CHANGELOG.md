@@ -3,15 +3,33 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.23
+
+- **Faster and lighter.**
+  - The 3D view is drawn only when something changes, instead of 60 times a second, so a Maker Forge left open no longer keeps a laptop's or phone's graphics busy (and its battery and fan).
+  - Finding the spot on the model under the pointer (the brush and its preview, Pick colour, measuring, placing a picture) now uses a tree of boxes round the triangles. On the painted vase (359 000 triangles) it takes about 0.015 ms instead of 4 to 15 ms, so the brush keeps up on big models, and on phones too.
+  - The printability check runs on a helper thread (a Web Worker) made from the app itself, so the page stays free while it works. Where a browser cannot start one, it runs on the page as before.
+  - The check that every part is a closed mesh runs once per part, not twice after every change.
+
+**Fixed**
+- Nothing that users would notice was reported or found broken since 0.22.
+
 ## 0.22
 
-- **Works on phones and tablets.** Before, on a phone most of the settings were cut off and could not be scrolled to, the quick starts and examples could not be reached below 1100 pixels wide, and on tablets and phones held sideways the **Download files** button was past the edge of the screen. Now:
+- **Works on phones and tablets.**
   - On a phone held upright, the model sits at the top and the settings scroll below it; **‹** gives the model the whole screen.
   - **Start from** is a button in the top bar that opens the quick starts over the page, on phones, tablets and narrow windows.
   - The top bar folds its less-used buttons into a **⋯** menu, with names beside each, whenever they do not fit.
   - The seven view buttons fold into one when the 3D view is narrow.
   - Notices run across the bottom of the model instead of covering it.
 - The same happens with big text: at 150% text on a laptop, Start from becomes a drawer rather than squeezing the model.
+
+**Fixed**
+- On a phone, most of the settings were cut off and could not be scrolled to.
+- Below 1100 pixels wide (tablets, phones, small windows), Start from could not be opened, so the quick starts, the examples and the list of objects could not be reached; **Change the object** did nothing you could see.
+- On tablets and on phones held sideways, **Download files**, Settings, the manual and About were past the right edge of the screen.
+- On narrow screens the view buttons ran off the side of the 3D view, or wrapped into two rows over the model.
+- On a phone, closing the settings panel (‹) jumbled the layout.
 
 ## 0.21
 

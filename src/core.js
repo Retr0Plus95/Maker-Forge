@@ -2660,6 +2660,105 @@
     if (/^[0-9A-F]C$/.test(s)) return parseInt(s[0], 16) + 3;
     return 0;                                          // unpainted, or split finer than one triangle
   }
+  // ---- picking a point on a big model (Session 22) ----
+  // a bounding volume hierarchy: boxes round groups of triangles, split in half along the longest side at the
+  // middle triangle until a box holds at most `leaf` of them. A ray then tests a few dozen triangles instead of
+  // every one. pos: corner positions (3 per corner); idx: 3 corners per triangle, or null for a plain list.
+  function meshBVH(pos, idx, leaf) {
+    leaf = Math.max(2, leaf || 8);
+    const n = idx ? idx.length / 3 : Math.floor(pos.length / 9), order = new Uint32Array(n), cen = new Float32Array(3 * n), tb = new Float32Array(6 * n);
+    for (let t = 0; t < n; t++) {
+      order[t] = t;
+      let a0 = Infinity, a1 = Infinity, a2 = Infinity, b0 = -Infinity, b1 = -Infinity, b2 = -Infinity;
+      for (let k = 0; k < 3; k++) {
+        const v = 3 * (idx ? idx[3 * t + k] : 3 * t + k), x = pos[v], y = pos[v + 1], z = pos[v + 2];
+        if (x < a0) a0 = x; if (x > b0) b0 = x; if (y < a1) a1 = y; if (y > b1) b1 = y; if (z < a2) a2 = z; if (z > b2) b2 = z;
+      }
+      tb[6 * t] = a0; tb[6 * t + 1] = a1; tb[6 * t + 2] = a2; tb[6 * t + 3] = b0; tb[6 * t + 4] = b1; tb[6 * t + 5] = b2;
+      cen[3 * t] = (a0 + b0) / 2; cen[3 * t + 1] = (a1 + b1) / 2; cen[3 * t + 2] = (a2 + b2) / 2;
+    }
+    let cap = Math.max(16, Math.ceil(4 * n / leaf)), box = new Float32Array(6 * cap), left = new Int32Array(cap), start = new Uint32Array(cap), count = new Uint32Array(cap), nodes = 0;
+    const grow = () => { cap *= 2; const b = new Float32Array(6 * cap); b.set(box); box = b; const l = new Int32Array(cap); l.set(left); left = l;
+      const s = new Uint32Array(cap); s.set(start); start = s; const c = new Uint32Array(cap); c.set(count); count = c; };
+    const make = (s0, s1) => {
+      if (nodes >= cap) grow();
+      const i = nodes++;
+      let a0 = Infinity, a1 = Infinity, a2 = Infinity, b0 = -Infinity, b1 = -Infinity, b2 = -Infinity;
+      for (let j = s0; j < s1; j++) { const o = 6 * order[j];
+        if (tb[o] < a0) a0 = tb[o]; if (tb[o + 1] < a1) a1 = tb[o + 1]; if (tb[o + 2] < a2) a2 = tb[o + 2];
+        if (tb[o + 3] > b0) b0 = tb[o + 3]; if (tb[o + 4] > b1) b1 = tb[o + 4]; if (tb[o + 5] > b2) b2 = tb[o + 5]; }
+      box[6 * i] = a0; box[6 * i + 1] = a1; box[6 * i + 2] = a2; box[6 * i + 3] = b0; box[6 * i + 4] = b1; box[6 * i + 5] = b2;
+      left[i] = -1; start[i] = s0; count[i] = s1 - s0;
+      return i;
+    };
+    // the triangles of [s0, s1) put in order along an axis up to the middle one (quickselect)
+    const select = (s0, s1, k, ax) => {
+      let lo = s0, hi = s1 - 1;
+      while (lo < hi) {
+        const pv = cen[3 * order[(lo + hi) >> 1] + ax]; let i = lo, j = hi;
+        while (i <= j) { while (cen[3 * order[i] + ax] < pv) i++; while (cen[3 * order[j] + ax] > pv) j--;
+          if (i <= j) { const t = order[i]; order[i] = order[j]; order[j] = t; i++; j--; } }
+        if (k <= j) hi = j; else if (k >= i) lo = i; else break;
+      }
+    };
+    const stack = [make(0, n)];
+    while (stack.length) {
+      const i = stack.pop(), s0 = start[i], c = count[i];
+      if (c <= leaf) continue;
+      let a0 = Infinity, a1 = Infinity, a2 = Infinity, b0 = -Infinity, b1 = -Infinity, b2 = -Infinity;
+      for (let j = s0; j < s0 + c; j++) { const o = 3 * order[j];
+        if (cen[o] < a0) a0 = cen[o]; if (cen[o] > b0) b0 = cen[o]; if (cen[o + 1] < a1) a1 = cen[o + 1]; if (cen[o + 1] > b1) b1 = cen[o + 1]; if (cen[o + 2] < a2) a2 = cen[o + 2]; if (cen[o + 2] > b2) b2 = cen[o + 2]; }
+      const ex = b0 - a0, ey = b1 - a1, ez = b2 - a2;
+      if (!(Math.max(ex, ey, ez) > 0)) continue;       // every middle in one spot: a leaf, however full
+      const ax = ex >= ey && ex >= ez ? 0 : ey >= ez ? 1 : 2, mid = s0 + (c >> 1);
+      select(s0, s0 + c, mid, ax);
+      const l = make(s0, mid); make(mid, s0 + c);
+      left[i] = l; stack.push(l, l + 1);
+    }
+    return { n, nodes, box: box.subarray(0, 6 * nodes), left: left.subarray(0, nodes), start: start.subarray(0, nodes), count: count.subarray(0, nodes), order };
+  }
+  // the nearest triangle a ray hits: origin o, direction d (any length; t is in units of it), up to tMax.
+  // cull: the side a triangle is seen from counts as three.js does it: 1 only front faces (corners counter-
+  // clockwise from the ray's side), 0 both. Returns { t, tri, u, v } (u, v: the hit's place on the triangle) or null.
+  function bvhRaycast(B, pos, idx, o, d, tMax, cull) {
+    const ox = o[0], oy = o[1], oz = o[2], dx = d[0], dy = d[1], dz = d[2];
+    const ix = dx !== 0 ? 1 / dx : 1e30, iy = dy !== 0 ? 1 / dy : 1e30, iz = dz !== 0 ? 1 / dz : 1e30;   // along a box face, never NaN
+    let best = tMax == null ? Infinity : tMax, bt = -1, bu = 0, bv = 0;
+    const box = B.box, left = B.left, start = B.start, count = B.count, order = B.order, stack = [0];
+    const slab = i => {
+      const b = 6 * i;
+      let t0 = (box[b] - ox) * ix, t1 = (box[b + 3] - ox) * ix; if (t0 > t1) { const t = t0; t0 = t1; t1 = t; }
+      let u0 = (box[b + 1] - oy) * iy, u1 = (box[b + 4] - oy) * iy; if (u0 > u1) { const t = u0; u0 = u1; u1 = t; }
+      if (u0 > t0 || t0 !== t0) t0 = u0; if (u1 < t1 || t1 !== t1) t1 = u1;
+      let w0 = (box[b + 2] - oz) * iz, w1 = (box[b + 5] - oz) * iz; if (w0 > w1) { const t = w0; w0 = w1; w1 = t; }
+      if (w0 > t0 || t0 !== t0) t0 = w0; if (w1 < t1 || t1 !== t1) t1 = w1;
+      return t1 >= Math.max(t0, 0) && t0 <= best ? t0 : Infinity;
+    };
+    if (!B.nodes || slab(0) === Infinity) return null;
+    while (stack.length) {
+      const i = stack.pop();
+      if (left[i] < 0) {
+        for (let j = start[i], e = start[i] + count[i]; j < e; j++) {
+          const t = order[j], a = 3 * (idx ? idx[3 * t] : 3 * t), b = 3 * (idx ? idx[3 * t + 1] : 3 * t + 1), c = 3 * (idx ? idx[3 * t + 2] : 3 * t + 2);
+          const e1x = pos[b] - pos[a], e1y = pos[b + 1] - pos[a + 1], e1z = pos[b + 2] - pos[a + 2], e2x = pos[c] - pos[a], e2y = pos[c + 1] - pos[a + 1], e2z = pos[c + 2] - pos[a + 2];
+          const px = dy * e2z - dz * e2y, py = dz * e2x - dx * e2z, pz = dx * e2y - dy * e2x, det = e1x * px + e1y * py + e1z * pz;
+          if (cull ? det <= 1e-12 : Math.abs(det) <= 1e-12) continue;
+          const inv = 1 / det, sx = ox - pos[a], sy = oy - pos[a + 1], sz = oz - pos[a + 2], u = (sx * px + sy * py + sz * pz) * inv;
+          if (u < 0 || u > 1) continue;
+          const qx = sy * e1z - sz * e1y, qy = sz * e1x - sx * e1z, qz = sx * e1y - sy * e1x, v = (dx * qx + dy * qy + dz * qz) * inv;
+          if (v < 0 || u + v > 1) continue;
+          const tt = (e2x * qx + e2y * qy + e2z * qz) * inv;
+          if (tt >= 0 && tt < best) { best = tt; bt = t; bu = u; bv = v; }
+        }
+      } else {
+        // the nearer child last, so it is looked at first
+        const l = left[i], ta = slab(l), tb2 = slab(l + 1);
+        if (ta <= tb2) { if (tb2 !== Infinity) stack.push(l + 1); if (ta !== Infinity) stack.push(l); }
+        else { if (ta !== Infinity) stack.push(l); if (tb2 !== Infinity) stack.push(l + 1); }
+      }
+    }
+    return bt < 0 ? null : { t: best, tri: bt, u: bu, v: bv };
+  }
   // a grid of triangle centres for fast "everything within r of this point" questions
   function triangleGrid(topo, cell) {
     const inv = 1 / cell, cells = new Map(), key = (i, j, k) => ((i + 32768) * 65536 + (j + 32768)) * 65536 + (k + 32768);
@@ -3945,7 +4044,7 @@
     gridAround, heightSheet,
     meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, gradientCuts, gradientLayers, paintGradient, paintSwap, meshShells, paintShells,
     meshRegions, paintRegions, paintNoise, paintPictureWrap, paintCurvature, curvatureClasses, layerSlots, colourChanges, paintBrush, brushTris, symmetryCopies, areaTris, paintFill, paintPicture, parseOBJ, parse3MFModel,
-    PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, photoRef, photoUV, PHOTO_K_MAX, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, photoFitCloseness, paintFromPhotos,
+    PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, photoRef, photoUV, PHOTO_K_MAX, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, photoFitCloseness, paintFromPhotos, meshBVH, bvhRaycast,
     photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure, cutoutWithMap, edgeOpacity, photoFixMap, photoFixMask,
     parseGLB, parseGLTF, parseMTL, parseOBJColours, modelTriColours, modelPalette, modelColourLabels
   };

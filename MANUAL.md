@@ -183,7 +183,7 @@ GLB files are measured in metres; the app turns them into millimetres. A model t
 
 **Light and shadow.** A photo lit from one side shows one paint as two colours: red in the light and almost black in the shade. With **Even out light and shadow** (on for new photos) the app works out where the light came from, using the model's own shape, and evens it out before reading the colours. The card says where it found the light. Pixels too dark to read are left out, and those parts take the colour round them.
 
-**Photos from close by.** A phone held near the figure, or a product picture, makes the parts nearest the camera look bigger. When a photo is lined up, the app also works out how close the camera was; **How close the camera was** shows it (0 is far away, 0.5 is about twice the model's height away), and you can change it: the photo lines up again at that distance.
+**Photos taken close up.** A phone held near a small figure makes the parts nearest it look bigger: the head of a figure photographed from above, or the front of its base. When a photo is lined up, the app also works out how close the camera was and allows for it; the photo card says what it found ("taken from about 1.7 times the model's height away"). If it guessed wrong, choose **How close was the camera?**: **Far away or zoomed in**, **Arm's length** or **Close up**, or **Work it out** again.
 
 **Tips for a good result.** The photo works best when it shows the very model you imported. A drawing or an AI-made picture of the figure has a slightly different pose, so the edges of arms, legs and fingers can pick up the background. If the picture has a second figure or other things touching the figure, paint them out with **Take away** (below) and press **Line it up again**. One photo only shows the front: the back gets the nearest colours, so add a photo of the back if you have one, or paint it with the brush and fill.
 
@@ -241,7 +241,11 @@ The buttons above the model:
 | ✂ Section | Cuts the model open at a height, to look inside |
 | ◎ Save a picture | Downloads a PNG of the view |
 
+On a narrow screen the seven view buttons fold into one, **◱▾**, which opens them.
+
 The **Explode** slider pulls a model with several parts apart.
+
+The view is only drawn again when something changes, so an open Maker Forge left alone does not keep your computer's or phone's graphics busy. Clicking or brushing on a big model is quick however many triangles it has, and the printability check works in the background while you carry on.
 
 ## 9. Saving, opening and sharing
 

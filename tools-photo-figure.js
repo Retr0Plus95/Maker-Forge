@@ -111,7 +111,7 @@ module.exports = C => {
     }
     return { rgba, mask: img.mask };
   }
-  // ---- a product photo (v0.22.1): the owner's case, a figure in a Portugal kit lit hard from one side ----
+  // ---- a product photo (v0.24.1): the owner's case, a figure in a Portugal kit lit hard from one side ----
   // A key light with the model's own shadows and soft occlusion, a highlight, a camera above and close by,
   // a dark vignette, a grey copy of the figure behind, round icons and a size label beside it.
   const KIT = { red: [195, 25, 40], green: [20, 100, 55], skin: [225, 170, 130], dark: [45, 35, 30], gold: [205, 165, 70] }, KIT_NAMES = Object.keys(KIT);

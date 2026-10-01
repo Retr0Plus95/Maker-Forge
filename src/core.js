@@ -2660,6 +2660,105 @@
     if (/^[0-9A-F]C$/.test(s)) return parseInt(s[0], 16) + 3;
     return 0;                                          // unpainted, or split finer than one triangle
   }
+  // ---- picking a point on a big model (Session 22) ----
+  // a bounding volume hierarchy: boxes round groups of triangles, split in half along the longest side at the
+  // middle triangle until a box holds at most `leaf` of them. A ray then tests a few dozen triangles instead of
+  // every one. pos: corner positions (3 per corner); idx: 3 corners per triangle, or null for a plain list.
+  function meshBVH(pos, idx, leaf) {
+    leaf = Math.max(2, leaf || 8);
+    const n = idx ? idx.length / 3 : Math.floor(pos.length / 9), order = new Uint32Array(n), cen = new Float32Array(3 * n), tb = new Float32Array(6 * n);
+    for (let t = 0; t < n; t++) {
+      order[t] = t;
+      let a0 = Infinity, a1 = Infinity, a2 = Infinity, b0 = -Infinity, b1 = -Infinity, b2 = -Infinity;
+      for (let k = 0; k < 3; k++) {
+        const v = 3 * (idx ? idx[3 * t + k] : 3 * t + k), x = pos[v], y = pos[v + 1], z = pos[v + 2];
+        if (x < a0) a0 = x; if (x > b0) b0 = x; if (y < a1) a1 = y; if (y > b1) b1 = y; if (z < a2) a2 = z; if (z > b2) b2 = z;
+      }
+      tb[6 * t] = a0; tb[6 * t + 1] = a1; tb[6 * t + 2] = a2; tb[6 * t + 3] = b0; tb[6 * t + 4] = b1; tb[6 * t + 5] = b2;
+      cen[3 * t] = (a0 + b0) / 2; cen[3 * t + 1] = (a1 + b1) / 2; cen[3 * t + 2] = (a2 + b2) / 2;
+    }
+    let cap = Math.max(16, Math.ceil(4 * n / leaf)), box = new Float32Array(6 * cap), left = new Int32Array(cap), start = new Uint32Array(cap), count = new Uint32Array(cap), nodes = 0;
+    const grow = () => { cap *= 2; const b = new Float32Array(6 * cap); b.set(box); box = b; const l = new Int32Array(cap); l.set(left); left = l;
+      const s = new Uint32Array(cap); s.set(start); start = s; const c = new Uint32Array(cap); c.set(count); count = c; };
+    const make = (s0, s1) => {
+      if (nodes >= cap) grow();
+      const i = nodes++;
+      let a0 = Infinity, a1 = Infinity, a2 = Infinity, b0 = -Infinity, b1 = -Infinity, b2 = -Infinity;
+      for (let j = s0; j < s1; j++) { const o = 6 * order[j];
+        if (tb[o] < a0) a0 = tb[o]; if (tb[o + 1] < a1) a1 = tb[o + 1]; if (tb[o + 2] < a2) a2 = tb[o + 2];
+        if (tb[o + 3] > b0) b0 = tb[o + 3]; if (tb[o + 4] > b1) b1 = tb[o + 4]; if (tb[o + 5] > b2) b2 = tb[o + 5]; }
+      box[6 * i] = a0; box[6 * i + 1] = a1; box[6 * i + 2] = a2; box[6 * i + 3] = b0; box[6 * i + 4] = b1; box[6 * i + 5] = b2;
+      left[i] = -1; start[i] = s0; count[i] = s1 - s0;
+      return i;
+    };
+    // the triangles of [s0, s1) put in order along an axis up to the middle one (quickselect)
+    const select = (s0, s1, k, ax) => {
+      let lo = s0, hi = s1 - 1;
+      while (lo < hi) {
+        const pv = cen[3 * order[(lo + hi) >> 1] + ax]; let i = lo, j = hi;
+        while (i <= j) { while (cen[3 * order[i] + ax] < pv) i++; while (cen[3 * order[j] + ax] > pv) j--;
+          if (i <= j) { const t = order[i]; order[i] = order[j]; order[j] = t; i++; j--; } }
+        if (k <= j) hi = j; else if (k >= i) lo = i; else break;
+      }
+    };
+    const stack = [make(0, n)];
+    while (stack.length) {
+      const i = stack.pop(), s0 = start[i], c = count[i];
+      if (c <= leaf) continue;
+      let a0 = Infinity, a1 = Infinity, a2 = Infinity, b0 = -Infinity, b1 = -Infinity, b2 = -Infinity;
+      for (let j = s0; j < s0 + c; j++) { const o = 3 * order[j];
+        if (cen[o] < a0) a0 = cen[o]; if (cen[o] > b0) b0 = cen[o]; if (cen[o + 1] < a1) a1 = cen[o + 1]; if (cen[o + 1] > b1) b1 = cen[o + 1]; if (cen[o + 2] < a2) a2 = cen[o + 2]; if (cen[o + 2] > b2) b2 = cen[o + 2]; }
+      const ex = b0 - a0, ey = b1 - a1, ez = b2 - a2;
+      if (!(Math.max(ex, ey, ez) > 0)) continue;       // every middle in one spot: a leaf, however full
+      const ax = ex >= ey && ex >= ez ? 0 : ey >= ez ? 1 : 2, mid = s0 + (c >> 1);
+      select(s0, s0 + c, mid, ax);
+      const l = make(s0, mid); make(mid, s0 + c);
+      left[i] = l; stack.push(l, l + 1);
+    }
+    return { n, nodes, box: box.subarray(0, 6 * nodes), left: left.subarray(0, nodes), start: start.subarray(0, nodes), count: count.subarray(0, nodes), order };
+  }
+  // the nearest triangle a ray hits: origin o, direction d (any length; t is in units of it), up to tMax.
+  // cull: the side a triangle is seen from counts as three.js does it: 1 only front faces (corners counter-
+  // clockwise from the ray's side), 0 both. Returns { t, tri, u, v } (u, v: the hit's place on the triangle) or null.
+  function bvhRaycast(B, pos, idx, o, d, tMax, cull) {
+    const ox = o[0], oy = o[1], oz = o[2], dx = d[0], dy = d[1], dz = d[2];
+    const ix = dx !== 0 ? 1 / dx : 1e30, iy = dy !== 0 ? 1 / dy : 1e30, iz = dz !== 0 ? 1 / dz : 1e30;   // along a box face, never NaN
+    let best = tMax == null ? Infinity : tMax, bt = -1, bu = 0, bv = 0;
+    const box = B.box, left = B.left, start = B.start, count = B.count, order = B.order, stack = [0];
+    const slab = i => {
+      const b = 6 * i;
+      let t0 = (box[b] - ox) * ix, t1 = (box[b + 3] - ox) * ix; if (t0 > t1) { const t = t0; t0 = t1; t1 = t; }
+      let u0 = (box[b + 1] - oy) * iy, u1 = (box[b + 4] - oy) * iy; if (u0 > u1) { const t = u0; u0 = u1; u1 = t; }
+      if (u0 > t0 || t0 !== t0) t0 = u0; if (u1 < t1 || t1 !== t1) t1 = u1;
+      let w0 = (box[b + 2] - oz) * iz, w1 = (box[b + 5] - oz) * iz; if (w0 > w1) { const t = w0; w0 = w1; w1 = t; }
+      if (w0 > t0 || t0 !== t0) t0 = w0; if (w1 < t1 || t1 !== t1) t1 = w1;
+      return t1 >= Math.max(t0, 0) && t0 <= best ? t0 : Infinity;
+    };
+    if (!B.nodes || slab(0) === Infinity) return null;
+    while (stack.length) {
+      const i = stack.pop();
+      if (left[i] < 0) {
+        for (let j = start[i], e = start[i] + count[i]; j < e; j++) {
+          const t = order[j], a = 3 * (idx ? idx[3 * t] : 3 * t), b = 3 * (idx ? idx[3 * t + 1] : 3 * t + 1), c = 3 * (idx ? idx[3 * t + 2] : 3 * t + 2);
+          const e1x = pos[b] - pos[a], e1y = pos[b + 1] - pos[a + 1], e1z = pos[b + 2] - pos[a + 2], e2x = pos[c] - pos[a], e2y = pos[c + 1] - pos[a + 1], e2z = pos[c + 2] - pos[a + 2];
+          const px = dy * e2z - dz * e2y, py = dz * e2x - dx * e2z, pz = dx * e2y - dy * e2x, det = e1x * px + e1y * py + e1z * pz;
+          if (cull ? det <= 1e-12 : Math.abs(det) <= 1e-12) continue;
+          const inv = 1 / det, sx = ox - pos[a], sy = oy - pos[a + 1], sz = oz - pos[a + 2], u = (sx * px + sy * py + sz * pz) * inv;
+          if (u < 0 || u > 1) continue;
+          const qx = sy * e1z - sz * e1y, qy = sz * e1x - sx * e1z, qz = sx * e1y - sy * e1x, v = (dx * qx + dy * qy + dz * qz) * inv;
+          if (v < 0 || u + v > 1) continue;
+          const tt = (e2x * qx + e2y * qy + e2z * qz) * inv;
+          if (tt >= 0 && tt < best) { best = tt; bt = t; bu = u; bv = v; }
+        }
+      } else {
+        // the nearer child last, so it is looked at first
+        const l = left[i], ta = slab(l), tb2 = slab(l + 1);
+        if (ta <= tb2) { if (tb2 !== Infinity) stack.push(l + 1); if (ta !== Infinity) stack.push(l); }
+        else { if (ta !== Infinity) stack.push(l); if (tb2 !== Infinity) stack.push(l + 1); }
+      }
+    }
+    return bt < 0 ? null : { t: best, tri: bt, u: bu, v: bv };
+  }
   // a grid of triangle centres for fast "everything within r of this point" questions
   function triangleGrid(topo, cell) {
     const inv = 1 / cell, cells = new Map(), key = (i, j, k) => ((i + 32768) * 65536 + (j + 32768)) * 65536 + (k + 32768);
@@ -3296,7 +3395,7 @@
     const stats = g => { const s = [0, 0, 0], key = [0, 0, 0]; for (const i of g.members) { for (let c = 0; c < 3; c++) { s[c] += lin(rgb[i][c]); key[c] += pts[i][c]; } } g.lin = s.map(v => v / g.members.length); g.mean = key.map(v => v / g.members.length); };
     groups.forEach(stats);
     // a strong colour in deep shade keeps its hue but its weak channels drown in noise, so for those the
-    // test is the share of each channel (deep red in a side-lit photo took a filament of its own, v0.22.1)
+    // test is the share of each channel (deep red in a side-lit photo took a filament of its own, v0.24.1)
     const share = g => { const t = g.lin[0] + g.lin[1] + g.lin[2] + 1e-6; return [g.lin[0] / t, g.lin[1] / t, g.lin[2] / t, t]; };
     const deep = (a, b) => {
       const sa = share(a), sb = share(b), strong = q => Math.max(q[0], q[1], q[2]) - Math.min(q[0], q[1], q[2]) > 0.25;
@@ -3310,7 +3409,7 @@
     };
     const join = (bi, bj) => { const g = { keys: groups[bi].keys.concat(groups[bj].keys), members: groups[bi].members.concat(groups[bj].members) }; stats(g); groups.splice(bj, 1); groups.splice(bi, 1, g); };
     // shades of one strong colour are one paint: they join first, even if that leaves fewer colours than
-    // asked for (a spare filament went to the shaded red, and the hair joined it, v0.22.1)
+    // asked for (a spare filament went to the shaded red, and the hair joined it, v0.24.1)
     for (;;) {
       let bi = -1, bj = -1, bc = Infinity;
       for (let i = 0; i < groups.length; i++) for (let j = i + 1; j < groups.length; j++) if (deep(groups[i], groups[j])) { const c = d2(groups[i].mean, groups[j].mean); if (c < bc) { bc = c; bi = i; bj = j; } }
@@ -3397,14 +3496,14 @@
   // shows background there (colour mask says no); returns { cls: { w, h, data } } ready for paintFromPhotos.
   // strict: the mask is to be trusted everywhere (the AI figure finder's, or one fixed by hand): no pixel
   // it calls background is read, so a fit a few pixels off (a photo whose pose differs a little from the
-  // model) does not paint the background's colour along the figure's edges (v0.22.1). The colour method's
+  // model) does not paint the background's colour along the figure's edges (v0.24.1). The colour method's
   // mask can lose white clothes on a white background, so without strict the model's middle always counts.
   function photoView(rgba, W, H, solid, cam, fit, palette, colourMask, strict) {
     const inside = photoModelMask(solid, cam, fit, W, H, 0), core = photoModelMask(solid, cam, fit, W, H, 3), use = new Uint8Array(W * H);
     for (let i = 0; i < W * H; i++) use[i] = strict && colourMask ? inside[i] && colourMask[i] : core[i] || (inside[i] && (!colourMask || colourMask[i])) ? 1 : 0;
     return { cam, fit, cls: { w: W, h: H, data: photoClasses(rgba, use, W, H, palette) } };
   }
-  // ---- light and shade (v0.22.1) ----
+  // ---- light and shade (v0.24.1) ----
   // A photo lit from one side shows one paint as two colours: red in the light, near-black red in the
   // shade (which then takes a filament of its own, or joins a dark green). Once the photo is lined up, the
   // model says which way every pixel faces, so the light can be found from the photo itself and taken
@@ -3603,7 +3702,7 @@
     };
     // pieces of the photo's figure that the lined-up model does not touch (a logo, an icon, a label beside
     // the figure: the AI figure finder marks those too) are left out, and the fit is searched again, so
-    // they neither pull the fit nor blur the overlap the angle and closeness searches compare (v0.22.1)
+    // they neither pull the fit nor blur the overlap the angle and closeness searches compare (v0.24.1)
     const inModel = (fit, x, y) => {
       const dx = (x + 0.5 - fit.tx) / fit.a, dy = -(y + 0.5 - fit.ty) / fit.a, cs = Math.cos(fit.rot), sn = Math.sin(fit.rot);
       let u = dx * cs + dy * sn; const v = -dx * sn + dy * cs; if (fit.mirror) u = -u;
@@ -3678,7 +3777,7 @@
   // how close the camera was, found from the outline: a close camera enlarges the near parts, which a fit
   // from far away cannot match. Tries far away and 0.3, 0.6, 0.9 of the model's height per distance, then
   // finer round the best; a closer camera has to fit clearly better (2 points of overlap per 1 of k), so a
-  // photo from far away stays far away. Every distance is compared at full detail (v0.22.1: the coarse
+  // photo from far away stays far away. Every distance is compared at full detail (v0.24.1: the coarse
   // comparison took 0.075 for a camera at 0.2). Returns photoFit's result for the best, or null.
   function photoFitCloseness(solid, cam, mask, W, H, mirror, opt) {
     const at = new Map(), fitAt = k => {
@@ -3695,7 +3794,7 @@
   // a new photo, all at once: the angle it was taken from, searched from far away and from close by, then
   // how close. Most photos and product pictures are taken from close by, from about the figure's chest:
   // the base is seen from above and the head from below, which a camera far away can only half match, and
-  // the search from far away took such a photo of a figure on its base for one taken from below (v0.22.1).
+  // the search from far away took such a photo of a figure on its base for one taken from below (v0.24.1).
   // A closer camera has to fit clearly better, as in photoFitCloseness. Returns { fit, iou, cam } or null.
   function photoFitFull(solid, cam, mask, W, H, mirror, angles, opt) {
     const score = r => r ? r.iou - 0.02 * (r.fit.k || 0) : -Infinity;
@@ -3749,7 +3848,7 @@
       const C = photoCam(vw.cam), W = vw.cls.w, H = vw.cls.h, cls = vw.cls.data;
       const R = photoRaster(solid, vw.cam, vw.fit, W, H), wt = new Float32Array(n), hit = new Uint8Array(n);
       // a face seen almost edge-on counts little: its pixels are few and the outline's are half background.
-      // A close camera sees each face along its own line (v0.22.1: the top of a base below a close camera is
+      // A close camera sees each face along its own line (v0.24.1: the top of a base below a close camera is
       // seen from above, though a camera far away at that height would see it edge-on)
       const k = vw.fit && vw.fit.k > 0 ? Math.min(PHOTO_K_MAX, +vw.fit.k) : 0;
       let eye = null;
@@ -3761,7 +3860,7 @@
         wt[t] = f > 0.15 ? (f - 0.1) / 0.9 : 0;
       }
       // a face seen at a low angle counts as seen only through pixels well inside the model's outline (the
-      // top of a base seen from a little above: v0.22.1), never through the outline itself
+      // top of a base seen from a little above: v0.24.1), never through the outline itself
       // (inside: the model on all four sides two pixels away, at about the same depth: not at the outline,
       // and not beside an arm or leg in front of the body, where a fit a pixel off reads the wrong part)
       const e = 2, dz = 2 * e / Math.max(1e-9, vw.fit.a * H) / 0.15;
@@ -3809,7 +3908,7 @@
       const push = (d, t) => { heap.push([d, t]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
       const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
       // a colour seen squarely spreads before one only glimpsed at a low angle along the outline (where a
-      // fit a little off reads the background or a neighbouring part): v0.22.1
+      // fit a little off reads the background or a neighbouring part): v0.24.1
       const B = solidBounds(solid), far = 0.04 * Math.hypot(B.mx[0] - B.mn[0], B.mx[1] - B.mn[1], B.mx[2] - B.mn[2]);
       for (let t = 0; t < n; t++) if (lab[t] >= 0) { const d0 = o.fillTrust === false ? 0 : far * Math.max(0, 1 - facing[t] / 0.5); dist[t] = d0; push(d0, t); }
       const cen = topo.cen, nrm = topo.nrm, crease = Math.cos(50 * Math.PI / 180);
@@ -4185,7 +4284,7 @@
     gridAround, heightSheet,
     meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, gradientCuts, gradientLayers, paintGradient, paintSwap, meshShells, paintShells,
     meshRegions, paintRegions, paintNoise, paintPictureWrap, paintCurvature, curvatureClasses, layerSlots, colourChanges, paintBrush, brushTris, symmetryCopies, areaTris, paintFill, paintPicture, parseOBJ, parse3MFModel,
-    PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, photoRef, photoUV, PHOTO_K_MAX, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, photoFitCloseness, photoFitFull, paintFromPhotos, photoLight, photoUnshade, photoLitBy, photoTriNormals,
+    PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, photoRef, photoUV, PHOTO_K_MAX, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, photoFitCloseness, photoFitFull, paintFromPhotos, photoLight, photoUnshade, photoLitBy, photoTriNormals, meshBVH, bvhRaycast,
     photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure, cutoutWithMap, edgeOpacity, photoFixMap, photoFixMask,
     parseGLB, parseGLTF, parseMTL, parseOBJColours, modelTriColours, modelPalette, modelColourLabels
   };

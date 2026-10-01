@@ -5,7 +5,7 @@
 Free and open source (MIT). One HTML file: no install, no account, no uploads. It runs on your own computer, tablet or phone, even offline.
 
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-2a9d8f)](LICENSE)
-[![Version 0.22](https://img.shields.io/badge/version-0.22-1f6f8b)](CHANGELOG.md)
+[![Version 0.24](https://img.shields.io/badge/version-0.24-1f6f8b)](CHANGELOG.md)
 [![Runs in the browser](https://img.shields.io/badge/runs%20in-your%20browser-e9c46a)](#get-started-in-a-minute)
 [![Exports 3MF, STL, OBJ](https://img.shields.io/badge/exports-3MF%20·%20STL%20·%20OBJ-d1495b)](#printers-and-slicers)
 
@@ -183,6 +183,12 @@ image / text  ->  mask per filament (colour quantisation, k-means palette)
                   3mf / obj / stl with extruder assignment
 ```
 
+Keeping it quick on big models and small devices:
+
+- The 3D view is drawn only when something it shows has changed.
+- Picking a point on the model goes through a bounding volume hierarchy (`meshBVH`, `bvhRaycast`).
+- The printability check runs in a Web Worker made from the page's own copy of `src/core.js`, and falls back to the page where a worker cannot start.
+
 Two 3MF flavours are written: `model-prusa-orca.3mf` uses the PrusaSlicer volume convention (`Metadata/Slic3r_PE_model.config`) plus core `basematerials` colours, which PrusaSlicer and OrcaSlicer read directly. `model-bambu.3mf` uses Bambu's layout: one object per filament assembled with components, extruders in `Metadata/model_settings.config` and spool colours in `Metadata/project_settings.config`.
 
 ### Security
@@ -193,7 +199,6 @@ Everything runs locally; the threats worth defending are a hostile **project fil
 
 - No boolean CSG yet: engraving works on name plates, box lids, phone case backs and circuit boards, not on imported models.
 - Compressed GLB files (Draco, meshopt, KTX2 pictures) cannot be opened yet; export them again without compression.
-- Colouring from a photo assumes the camera was not very close to the model: a phone held a hand's width from a small figure lines up less well (support for close-up photos is on the way).
 - Artwork projected onto a cylinder covers about 120° before the edges fall away; the painter can wrap a picture all the way round.
 - Cost and material figures assume solid parts, so treat them as a worst case.
 - Phone camera and button positions are careful estimates: print the fit test rim first.

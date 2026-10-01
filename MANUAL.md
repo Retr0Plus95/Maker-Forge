@@ -181,6 +181,12 @@ GLB files are measured in metres; the app turns them into millimetres. A model t
 - **Random blobs**, for camouflage or planets.
 - **From a photo of the model**: drop a photo of a real figure and the app lines it up and colours the model from it. If the background is busy, **Find the figure with AI** (a one-time download of about 19 MB) finds it for you.
 
+**Light and shadow.** A photo lit from one side shows one paint as two colours: red in the light and almost black in the shade. With **Even out light and shadow** (on for new photos) the app works out where the light came from, using the model's own shape, and evens it out before reading the colours. The card says where it found the light. Pixels too dark to read are left out, and those parts take the colour round them.
+
+**Photos from close by.** A phone held near the figure, or a product picture, makes the parts nearest the camera look bigger. When a photo is lined up, the app also works out how close the camera was; **How close the camera was** shows it (0 is far away, 0.5 is about twice the model's height away), and you can change it: the photo lines up again at that distance.
+
+**Tips for a good result.** The photo works best when it shows the very model you imported. A drawing or an AI-made picture of the figure has a slightly different pose, so the edges of arms, legs and fingers can pick up the background. If the picture has a second figure or other things touching the figure, paint them out with **Take away** (below) and press **Line it up again**. One photo only shows the front: the back gets the nearest colours, so add a photo of the back if you have one, or paint it with the brush and fill.
+
 **Fixing the figure by hand.** On the photo card, **Figure it found** darkens everything the app takes for background. If it took in some background, or missed a part of the figure, choose what dragging on the photo does: **Take away** paints background out, **Add to the figure** paints a missed part in. Start with a big brush away from the figure, then use a small one near its edges. The colours use your fixes straight away; press **Line it up again** to line the photo up with them too. **Undo the last fix** and **Clear my fixes** take them off, and **Move the photo** goes back to dragging the photo into place. The fixes are saved with the project.
 
 **Brush and fill** paint by hand:

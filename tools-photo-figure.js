@@ -111,6 +111,80 @@ module.exports = C => {
     }
     return { rgba, mask: img.mask };
   }
+  // ---- a product photo (v0.22.1): the owner's case, a figure in a Portugal kit lit hard from one side ----
+  // A key light with the model's own shadows and soft occlusion, a highlight, a camera above and close by,
+  // a dark vignette, a grey copy of the figure behind, round icons and a size label beside it.
+  const KIT = { red: [195, 25, 40], green: [20, 100, 55], skin: [225, 170, 130], dark: [45, 35, 30], gold: [205, 165, 70] }, KIT_NAMES = Object.keys(KIT);
+  function kitTruth(topo, partOf) {
+    const cls = new Int8Array(topo.n);
+    for (let t = 0; t < topo.n; t++) {
+      const x = topo.cen[3 * t], y = topo.cen[3 * t + 1], z = topo.cen[3 * t + 2], ax = Math.abs(x), part = PART_NAMES[partOf[t]];
+      let c;
+      if (part === "base") c = z > 10 && ax < 9 && y > 0.8 && y < 3.2 && Math.abs(topo.nrm[3 * t + 1]) < 0.5 ? "gold" : x < 0 ? "green" : "red";   // the flag, gold letters in front
+      else if (part === "leg") c = y < 9 ? "dark" : y < 20 ? "red" : y < 29 ? "skin" : "green";                                              // boots, socks, knees, shorts
+      else if (part === "body") c = y < 50 ? "green" : "red";
+      else if (part === "arm") c = y > 56 ? "red" : "skin";                                                                                    // long sleeves, hands
+      else if (part === "neck") c = "skin";
+      else c = (Math.hypot(ax - 3.5, y - 93) < 1.4 && z > 7) || y > 95.5 || z < -2.5 ? "dark" : "skin";
+      cls[t] = KIT_NAMES.indexOf(c);
+    }
+    return cls;
+  }
+  // per triangle: whether a camera looking from direction d sees it (its middle, for those under a pixel)
+  function seenFrom(solid, topo, d, res) {
+    const cam = { yaw: Math.atan2(d[0], d[2]) * 180 / Math.PI, pitch: Math.asin(Math.max(-1, Math.min(1, d[1]))) * 180 / Math.PI };
+    const fit = { a: 1 / 140, tx: 0.5, ty: 0.75, rot: 0, mirror: false }, R = C.photoRaster(solid, cam, fit, res, res), vis = new Uint8Array(topo.n), I = solid.idx;
+    for (const t of R.id) if (t >= 0) vis[t] = 1;
+    for (let t = 0; t < topo.n; t++) {
+      if (vis[t]) continue;
+      const a = I[3 * t], b = I[3 * t + 1], c = I[3 * t + 2], x = Math.floor((R.X[a] + R.X[b] + R.X[c]) / 3), y = Math.floor((R.Y[a] + R.Y[b] + R.Y[c]) / 3);
+      if (x < 0 || y < 0 || x >= res || y >= res) continue;
+      const k = y * res + x; if (R.id[k] < 0 || (R.Z[a] + R.Z[b] + R.Z[c]) / 3 >= R.depth[k] - 0.6) vis[t] = 1;
+    }
+    return vis;
+  }
+  // the light on every triangle: lit by the key light L (or in the model's shadow) and how open it is to the room
+  function keyLight(solid, topo, L) {
+    const lit = seenFrom(solid, topo, L, 900), seen = new Float32Array(topo.n), cnt = new Float32Array(topo.n);
+    for (let i = 0; i < 14; i++) {
+      const y = 1 - 2 * (i + 0.5) / 14, r = Math.sqrt(1 - y * y), a = i * 2.39996, d = [r * Math.cos(a), y, r * Math.sin(a)], v = seenFrom(solid, topo, d, 400);
+      for (let t = 0; t < topo.n; t++) { const f = topo.nrm[3 * t] * d[0] + topo.nrm[3 * t + 1] * d[1] + topo.nrm[3 * t + 2] * d[2]; if (f > 0.05) { cnt[t] += f; if (v[t]) seen[t] += f; } }
+    }
+    const ao = new Float32Array(topo.n); for (let t = 0; t < topo.n; t++) ao[t] = cnt[t] ? seen[t] / cnt[t] : 1;
+    return { L, lit, ao };
+  }
+  function productPhoto(solid, topo, cls, cam, fit, W, H, light, o) {
+    o = o || {};
+    const { L, lit, ao } = light, amb = o.amb ?? 0.06, V = C.photoCam(cam).c, hv = [L[0] + V[0], L[1] + V[1], L[2] + V[2]], hl = Math.hypot(...hv), Hh = hv.map(v => v / hl);
+    const rnd = C.seededRandom(o.seed || 3), rgba = new Uint8ClampedArray(W * H * 4);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const dx = (x - W * 0.55) / W, dy = (y - H * 0.45) / H, g = 105 - 150 * (dx * dx + dy * dy);
+      rgba.set([g, g + 2, g + 4, 255], 4 * (y * W + x));
+    }
+    for (const cy of [0.18, 0.47, 0.76]) {
+      const cx = 0.12 * W, r = 0.07 * H;
+      for (let y = Math.floor(cy * H - r - 3); y < cy * H + r + 3; y++) for (let x = Math.floor(cx - r - 3); x < cx + r + 3; x++) {
+        const d = Math.hypot(x - cx, y - cy * H); if (d > r + 2) continue;
+        rgba.set([...(d > r - 2 ? KIT.gold : x < cx ? KIT.green : KIT.red), 255], 4 * (y * W + x));
+      }
+    }
+    const shade = (t, alb) => {
+      const n0 = topo.nrm[3 * t], n1 = topo.nrm[3 * t + 1], n2 = topo.nrm[3 * t + 2], nl = n0 * L[0] + n1 * L[1] + n2 * L[2];
+      const dif = lit[t] ? Math.max(0, nl) : 0, spec = lit[t] && nl > 0 ? Math.pow(Math.max(0, n0 * Hh[0] + n1 * Hh[1] + n2 * Hh[2]), 40) * 0.35 : 0;
+      const s = (amb + (1 - amb) * dif) * (0.45 + 0.55 * ao[t]);
+      return alb.map(v => 255 * Math.pow(Math.min(1, Math.pow(v / 255, 2.2) * s * 1.15 + spec), 1 / 2.2));
+    };
+    const draw = (f, albedo) => { const R = C.photoRaster(solid, cam, f, W, H); for (let i = 0; i < W * H; i++) { const t = R.id[i]; if (t >= 0) rgba.set(shade(t, albedo(t)), 4 * i); } return R; };
+    if (o.copy) draw(o.copy, () => [175, 175, 175]);
+    const R = draw(fit, t => KIT[KIT_NAMES[cls[t]]]);
+    for (let y = Math.floor(0.8 * H); y < 0.93 * H; y++) for (let x = Math.floor(0.86 * W); x < 0.96 * W; x++)
+      rgba.set(y > 0.83 * H && y < 0.9 * H && x > 0.88 * W && x < 0.94 * W && (x + y) % 7 < 3 ? [240, 240, 240, 255] : [195, 25, 40, 255], 4 * (y * W + x));
+    const out = new Uint8ClampedArray(rgba);                       // a little soft, a little noisy
+    for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) for (let k = 0; k < 3; k++) {
+      const i = 4 * (y * W + x) + k; out[i] = (rgba[i] * 4 + rgba[i - 4] + rgba[i + 4] + rgba[i - 4 * W] + rgba[i + 4 * W]) / 8 + (rnd() - 0.5) * 8;
+    }
+    return { rgba: out, mask: R.id.map(v => v >= 0 ? 1 : 0) };
+  }
   // a GLB file (Session 20): one mesh, not indexed; col: linear RGB per corner; uv per corner and a PNG; node: a transform
   function makeGLB({ pos, col, uv, png, node, extra }) {
     const parts = [], views = [], accs = [];
@@ -147,5 +221,5 @@ module.exports = C => {
       for (let k = 0; k < 3; k++) { const vi = solid.idx[3 * t + k]; for (let a = 0; a < 3; a++) pos[9 * t + 3 * k + a] = solid.pos[3 * vi + a] / 1000; uv[6 * t + 2 * k] = u; uv[6 * t + 2 * k + 1] = v; } }
     return makeGLB({ pos, uv, png: T.png });
   }
-  return { PART_NAMES, PAL, NAMES, figure, truth, outside, render, score, onBusyBackground, onShelfBackground, makeGLB, colourSquares, figureGLB };
+  return { PART_NAMES, PAL, NAMES, figure, truth, outside, render, score, onBusyBackground, onShelfBackground, makeGLB, colourSquares, figureGLB, KIT, KIT_NAMES, kitTruth, keyLight, productPhoto };
 };

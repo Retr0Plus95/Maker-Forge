@@ -3,6 +3,15 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.22.1
+
+- **More accurate colour from a photo**, worked out on a real case: a figurine of a footballer in a red and green kit and its product picture, where the shaded half of the shirt, arms and legs came out green and the top of the base came out in stripes.
+  - **Light and shadow are evened out.** The app finds where the light came from, using the model's own shape, and takes the shading out before it reads the colours, so the red in shade is read as red. Shades of a strong colour no longer take a filament of their own, and pixels too dark to read are left out. On five test photos lit hard from one side and taken from close by (with all of this release's changes), the parts the photo shows came out 94% right instead of 81%. **Even out light and shadow** turns it off; projects saved before this version keep it off.
+  - **Photos taken from close by line up.** The app now works out how close the camera was (a phone near the figure, most product pictures) as it looks for the angle, and **How close the camera was** lets you set it. The footballer's picture now lines up from the front with the outline matching 85%, where before it lined up from 22° to the side at 71%.
+  - **Other things in the picture are left out of lining up**: icons and labels beside the figure, and a second figure standing behind it, which the AI figure finder marks too.
+  - **The top of a base seen from a little above** is read from the photo instead of being guessed from its front, which painted it in stripes.
+  - Along the edges of a figure found by the AI, the background is no longer read as a colour.
+
 ## 0.22
 
 - **Works on phones and tablets.** Before, on a phone most of the settings were cut off and could not be scrolled to, the quick starts and examples could not be reached below 1100 pixels wide, and on tablets and phones held sideways the **Download files** button was past the edge of the screen. Now:

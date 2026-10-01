@@ -3273,7 +3273,7 @@
   // sort pixels by) and shows as it looks lit: the mean of its brighter half.
   const photoKey = (L, a, b) => [L * 0.5, a, b];
   function photoPalette(rgba, mask, w, h, k) {
-    const n = w * h, idx = []; for (let i = 0; i < n; i++) if (mask[i]) idx.push(i);
+    const n = w * h, idx = []; for (let i = 0; i < n; i++) if (mask[i] && rgba[4 * i + 3] >= 128) idx.push(i);
     if (!idx.length) return [];
     const step = Math.max(1, Math.floor(idx.length / 20000)), pts = [], rgb = [];
     for (let j = 0; j < idx.length; j += step) { const o = 4 * idx[j]; pts.push(photoKey(...srgbToLab(rgba[o], rgba[o + 1], rgba[o + 2]))); rgb.push([rgba[o], rgba[o + 1], rgba[o + 2]]); }
@@ -3295,12 +3295,28 @@
     groups = groups.filter(g => g.members.length);
     const stats = g => { const s = [0, 0, 0], key = [0, 0, 0]; for (const i of g.members) { for (let c = 0; c < 3; c++) { s[c] += lin(rgb[i][c]); key[c] += pts[i][c]; } } g.lin = s.map(v => v / g.members.length); g.mean = key.map(v => v / g.members.length); };
     groups.forEach(stats);
+    // a strong colour in deep shade keeps its hue but its weak channels drown in noise, so for those the
+    // test is the share of each channel (deep red in a side-lit photo took a filament of its own, v0.22.1)
+    const share = g => { const t = g.lin[0] + g.lin[1] + g.lin[2] + 1e-6; return [g.lin[0] / t, g.lin[1] / t, g.lin[2] / t, t]; };
+    const deep = (a, b) => {
+      const sa = share(a), sb = share(b), strong = q => Math.max(q[0], q[1], q[2]) - Math.min(q[0], q[1], q[2]) > 0.25;
+      return strong(sa) && strong(sb) && Math.abs(sa[0] - sb[0]) + Math.abs(sa[1] - sb[1]) + Math.abs(sa[2] - sb[2]) < 0.1 && Math.min(sa[3], sb[3]) > 0.08 * Math.max(sa[3], sb[3]);
+    };
     const cost = (a, b) => {
       let d = Math.sqrt(d2(a.mean, b.mean));
       const r = [0, 1, 2].map(c => (a.lin[c] + 0.01) / (b.lin[c] + 0.01)), R = (r[0] + r[1] + r[2]) / 3;
-      if (R > 0.3 && R < 1 / 0.3 && r.every(v => Math.abs(v / R - 1) < 0.22)) d *= 0.33;
+      if ((R > 0.3 && R < 1 / 0.3 && r.every(v => Math.abs(v / R - 1) < 0.22)) || deep(a, b)) d *= 0.33;
       return d;
     };
+    const join = (bi, bj) => { const g = { keys: groups[bi].keys.concat(groups[bj].keys), members: groups[bi].members.concat(groups[bj].members) }; stats(g); groups.splice(bj, 1); groups.splice(bi, 1, g); };
+    // shades of one strong colour are one paint: they join first, even if that leaves fewer colours than
+    // asked for (a spare filament went to the shaded red, and the hair joined it, v0.22.1)
+    for (;;) {
+      let bi = -1, bj = -1, bc = Infinity;
+      for (let i = 0; i < groups.length; i++) for (let j = i + 1; j < groups.length; j++) if (deep(groups[i], groups[j])) { const c = d2(groups[i].mean, groups[j].mean); if (c < bc) { bc = c; bi = i; bj = j; } }
+      if (bi < 0) break;
+      join(bi, bj);
+    }
     // a group of under 0.4% of the pixels gets no colour of its own: it joins its nearest group first
     // (a rim of background inside a slightly large outline would otherwise take whole filaments)
     const tiny = g => g.members.length < pts.length * 0.004;
@@ -3309,8 +3325,7 @@
       const t = groups.findIndex(tiny);
       if (t >= 0) { for (let j = 0; j < groups.length; j++) if (j !== t) { const c = cost(groups[t], groups[j]); if (c < bc) { bc = c; bi = Math.min(t, j); bj = Math.max(t, j); } } }
       else for (let i = 0; i < groups.length; i++) for (let j = i + 1; j < groups.length; j++) { const c = cost(groups[i], groups[j]); if (c < bc) { bc = c; bi = i; bj = j; } }
-      const g = { keys: groups[bi].keys.concat(groups[bj].keys), members: groups[bi].members.concat(groups[bj].members) };
-      stats(g); groups.splice(bj, 1); groups.splice(bi, 1, g);
+      join(bi, bj);
     }
     return groups.map(g => {
       const byL = g.members.slice().sort((p, q) => pts[q][0] - pts[p][0]), top = byL.slice(0, Math.max(1, Math.ceil(byL.length / 2))), sum = [0, 0, 0];
@@ -3324,7 +3339,7 @@
     const n = w * h, raw = new Int8Array(n).fill(-1), keys = [], owner = [], memo = new Map();
     palette.forEach((p, j) => (p.keys || [photoKey(...srgbToLab(...p.rgb))]).forEach(q => { keys.push(q); owner.push(j); }));
     for (let i = 0; i < n; i++) {
-      if (!mask[i]) continue;
+      if (!mask[i] || rgba[4 * i + 3] < 128) continue;   // clear: background of a cut-out, or too dark to read
       const o = 4 * i, rk = (rgba[o] >> 2) << 12 | (rgba[o + 1] >> 2) << 6 | (rgba[o + 2] >> 2);
       let c = memo.get(rk);
       if (c === undefined) {
@@ -3379,11 +3394,141 @@
     return m;
   }
   // the pixels to read colours from: inside the lined-up model, except near its edge where the photo
-  // shows background there (colour mask says no); returns { cls: { w, h, data } } ready for paintFromPhotos
-  function photoView(rgba, W, H, solid, cam, fit, palette, colourMask) {
+  // shows background there (colour mask says no); returns { cls: { w, h, data } } ready for paintFromPhotos.
+  // strict: the mask is to be trusted everywhere (the AI figure finder's, or one fixed by hand): no pixel
+  // it calls background is read, so a fit a few pixels off (a photo whose pose differs a little from the
+  // model) does not paint the background's colour along the figure's edges (v0.22.1). The colour method's
+  // mask can lose white clothes on a white background, so without strict the model's middle always counts.
+  function photoView(rgba, W, H, solid, cam, fit, palette, colourMask, strict) {
     const inside = photoModelMask(solid, cam, fit, W, H, 0), core = photoModelMask(solid, cam, fit, W, H, 3), use = new Uint8Array(W * H);
-    for (let i = 0; i < W * H; i++) use[i] = core[i] || (inside[i] && (!colourMask || colourMask[i])) ? 1 : 0;
+    for (let i = 0; i < W * H; i++) use[i] = strict && colourMask ? inside[i] && colourMask[i] : core[i] || (inside[i] && (!colourMask || colourMask[i])) ? 1 : 0;
     return { cam, fit, cls: { w: W, h: H, data: photoClasses(rgba, use, W, H, palette) } };
+  }
+  // ---- light and shade (v0.22.1) ----
+  // A photo lit from one side shows one paint as two colours: red in the light, near-black red in the
+  // shade (which then takes a filament of its own, or joins a dark green). Once the photo is lined up, the
+  // model says which way every pixel faces, so the light can be found from the photo itself and taken
+  // out: a key light from a direction plus an even fill, Y = albedo × (amb + (1 − amb) × max(0, n·l)), with
+  // the model's own shadow where the light cannot reach. Pixels are grouped by hue (shading changes how
+  // bright a paint looks, hardly its hue); within a group the brightness has to follow the light.
+  const photoNormalCache = new WeakMap();
+  function photoTriNormals(solid) {
+    let N = photoNormalCache.get(solid); if (N) return N;
+    const I = solid.idx, P = solid.pos, n = I.length / 3; N = new Float32Array(3 * n);
+    for (let t = 0; t < n; t++) {
+      const a = 3 * I[3 * t], b = 3 * I[3 * t + 1], c = 3 * I[3 * t + 2];
+      const ux = P[b] - P[a], uy = P[b + 1] - P[a + 1], uz = P[b + 2] - P[a + 2], vx = P[c] - P[a], vy = P[c + 1] - P[a + 1], vz = P[c + 2] - P[a + 2];
+      const x = uy * vz - uz * vy, y = uz * vx - ux * vz, z = ux * vy - uy * vx, l = Math.hypot(x, y, z) || 1;
+      N[3 * t] = x / l; N[3 * t + 1] = y / l; N[3 * t + 2] = z / l;
+    }
+    photoNormalCache.set(solid, N);
+    return N;
+  }
+  // which triangles a light from direction dir reaches (1) and which lie in the model's own shadow (0):
+  // the model drawn as the light sees it; a triangle too small for a pixel counts by its middle
+  const photoLitCache = new WeakMap();
+  function photoLitBy(solid, dir, res) {
+    res = res || 900;
+    const key = dir.map(v => (+v).toFixed(4)).join() + "," + res;
+    let m = photoLitCache.get(solid); if (!m) { m = new Map(); photoLitCache.set(solid, m); }
+    if (m.has(key)) return m.get(key);
+    const cam = { yaw: Math.atan2(dir[0], dir[2]) * 180 / Math.PI, pitch: Math.asin(Math.max(-1, Math.min(1, dir[1]))) * 180 / Math.PI };
+    const Cm = photoCam(cam), P = solid.pos; let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+    for (let i = 0; i < P.length; i += 3) {
+      const u = P[i] * Cm.r[0] + P[i + 1] * Cm.r[1] + P[i + 2] * Cm.r[2], v = P[i] * Cm.up[0] + P[i + 1] * Cm.up[1] + P[i + 2] * Cm.up[2];
+      if (u < u0) u0 = u; if (u > u1) u1 = u; if (v < v0) v0 = v; if (v > v1) v1 = v;
+    }
+    const a = 0.9 / Math.max(1e-6, u1 - u0, v1 - v0), fit = { a, tx: 0.5 - a * (u0 + u1) / 2, ty: 0.5 + a * (v0 + v1) / 2, rot: 0, mirror: false };
+    const R = photoRaster(solid, cam, fit, res, res), I = solid.idx, n = I.length / 3, vis = new Uint8Array(n), tol = 2.5 / (a * res);
+    for (let i = 0; i < res * res; i++) if (R.id[i] >= 0) vis[R.id[i]] = 1;
+    for (let t = 0; t < n; t++) {
+      if (vis[t]) continue;
+      const p = I[3 * t], q = I[3 * t + 1], r = I[3 * t + 2], x = Math.floor((R.X[p] + R.X[q] + R.X[r]) / 3), y = Math.floor((R.Y[p] + R.Y[q] + R.Y[r]) / 3);
+      if (x < 0 || y < 0 || x >= res || y >= res) { vis[t] = 1; continue; }
+      const k = y * res + x; if (R.id[k] < 0 || (R.Z[p] + R.Z[q] + R.Z[r]) / 3 >= R.depth[k] - tol) vis[t] = 1;
+    }
+    m.set(key, vis); if (m.size > 4) m.delete(m.keys().next().value);
+    return vis;
+  }
+  const PHOTO_LIN = new Float32Array(256);
+  for (let i = 0; i < 256; i++) { const v = i / 255; PHOTO_LIN[i] = v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }
+  // the light in a lined-up photo: { dir (towards the light, model space), amb (the share of light that
+  // reaches everywhere, 0..1), shadows (the model's own shadow counts), fit (how much of the brightness
+  // it explains: 0 none, 1 all) }, or null when the photo looks evenly lit (nothing worth taking out).
+  // use: the pixels to learn from (the figure, away from its edge)
+  function photoLight(rgba, W, H, solid, cam, fit, use) {
+    const R = photoRaster(solid, cam, fit, W, H), N = photoTriNormals(solid), id = R.id, lin = PHOTO_LIN;
+    let cnt = 0; for (let i = 0; i < W * H; i++) if ((!use || use[i]) && id[i] >= 0) cnt++;
+    const step = Math.max(1, Math.floor(cnt / 40000)), HB = 36, NB = HB * 3, S = []; let j = 0;
+    for (let p = 0; p < W * H; p++) {
+      if ((use && !use[p]) || id[p] < 0 || (j++ % step) !== 0) continue;
+      const o = 4 * p; if (rgba[o] > 250 || rgba[o + 1] > 250 || rgba[o + 2] > 250) continue;   // burnt out: a highlight
+      const r = lin[rgba[o]], g = lin[rgba[o + 1]], b = lin[rgba[o + 2]], s = r + g + b; if (s < 0.006) continue;
+      const cr = r / s, cg = g / s, cb = b / s, sat = Math.max(cr, cg, cb) - Math.min(cr, cg, cb);
+      if (sat < 0.12) continue;                      // greys: white and black paint look alike in hue
+      const hue = Math.atan2(cg - (cr + cb) / 2, cr - cb), bin = Math.floor((hue + Math.PI) / (2 * Math.PI) * HB) % HB + HB * (sat < 0.3 ? 0 : sat < 0.5 ? 1 : 2);
+      const t = id[p]; S.push(N[3 * t], N[3 * t + 1], N[3 * t + 2], Math.log(0.2126 * r + 0.7152 * g + 0.0722 * b + 0.002), bin, t);
+    }
+    const ns = S.length / 6; if (ns < 300) return null;
+    const sum = new Float64Array(NB), num = new Float64Array(NB), res = new Float64Array(ns), sig2 = 0.0625;
+    // how badly a light explains the brightness: each pixel's log brightness less the light's, against its
+    // hue group's mean, with a robust measure (paint edges inside a group are outliers, not errors)
+    const cost = (l, q, vis, st) => {
+      st = st || 1; sum.fill(0); num.fill(0);
+      for (let k = 0; k < ns; k += st) {
+        const o = 6 * k; let d = S[o] * l[0] + S[o + 1] * l[1] + S[o + 2] * l[2]; if (d < 0 || (vis && !vis[S[o + 5]])) d = 0;
+        const r = S[o + 3] - Math.log(q + (1 - q) * d); res[k] = r; sum[S[o + 4]] += r; num[S[o + 4]]++;
+      }
+      let c = 0, m = 0;
+      for (let k = 0; k < ns; k += st) { const b = S[6 * k + 4]; if (num[b] < 20) continue; const r = res[k] - sum[b] / num[b], r2 = r * r; c += r2 / (r2 + sig2); m++; }
+      return m ? c / m : Infinity;
+    };
+    const flat = cost([0, 0, 1], 1);
+    // every direction on the camera's side (and a little behind), every fill, on a sample; then finely
+    const Cm = photoCam(cam), dirs = [];
+    for (let i = 0; i < 400; i++) { const y = 1 - 2 * (i + 0.5) / 400, r = Math.sqrt(1 - y * y), a = i * 2.399963; const d = [r * Math.cos(a), y, r * Math.sin(a)]; if (d[0] * Cm.c[0] + d[1] * Cm.c[1] + d[2] * Cm.c[2] > -0.3) dirs.push(d); }
+    let l = null, q = 1, bc = Infinity; const st0 = Math.max(1, Math.floor(ns / 6000));
+    for (const d of dirs) for (const q0 of [0.02, 0.04, 0.07, 0.1, 0.15, 0.22, 0.3, 0.4, 0.55, 0.7, 0.85]) { const c = cost(d, q0, null, st0); if (c < bc) { bc = c; l = d; q = q0; } }
+    bc = cost(l, q);
+    const refine = vis => {
+      for (const st of [0.12, 0.06, 0.03, 0.015]) for (let it = 0, moved = true; it < 8 && moved; it++) {
+        moved = false;
+        for (const [dx, dy, dz, dq] of [[st, 0, 0, 1], [-st, 0, 0, 1], [0, st, 0, 1], [0, -st, 0, 1], [0, 0, st, 1], [0, 0, -st, 1], [0, 0, 0, 1 + 2 * st], [0, 0, 0, 1 / (1 + 2 * st)]]) {
+          const l2 = [l[0] + dx, l[1] + dy, l[2] + dz], ln = Math.hypot(l2[0], l2[1], l2[2]); for (let k = 0; k < 3; k++) l2[k] /= ln;
+          const q2 = Math.max(0.01, Math.min(1, q * dq)), c = cost(l2, q2, vis);
+          if (c < bc - 1e-7) { bc = c; l = l2; q = q2; moved = true; }
+        }
+      }
+    };
+    refine(null);
+    // the model's own shadow (an arm on the body, the figure on its base): kept when it explains more
+    const l0 = l, q0 = q, c0 = bc, vis = photoLitBy(solid, l);
+    bc = cost(l, q, vis); refine(vis);
+    let shadows = true;
+    if (!(bc < c0)) { l = l0; q = q0; bc = c0; shadows = false; }
+    const explained = flat > 0 ? 1 - bc / flat : 0;
+    if (!(explained > 0.1)) return null;             // evenly lit, or a light it cannot make out
+    return { dir: l.map(v => +v.toFixed(4)), amb: +q.toFixed(4), shadows, fit: +explained.toFixed(3) };
+  }
+  // the photo with the light's shading taken out where the model is (and use allows): each pixel as it
+  // would look facing the light. At most maxGain times brighter (5): the darkest shade is mostly noise.
+  // Pixels too dark to read come back clear (alpha 0): photoPalette and photoClasses skip them.
+  function photoUnshade(rgba, W, H, solid, cam, fit, light, use, maxGain) {
+    const out = new Uint8ClampedArray(rgba);
+    if (!light || !Array.isArray(light.dir)) return out;
+    const R = photoRaster(solid, cam, fit, W, H), N = photoTriNormals(solid), l = light.dir, q = Math.max(0.01, Math.min(1, +light.amb || 0));
+    const vis = light.shadows ? photoLitBy(solid, l) : null, g = maxGain || 5, lin = PHOTO_LIN;
+    const toS = v => { v = v > 1 ? 1 : v; return 255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055); };
+    for (let i = 0; i < W * H; i++) {
+      const t = R.id[i]; if (t < 0 || (use && !use[i])) continue;
+      let d = N[3 * t] * l[0] + N[3 * t + 1] * l[1] + N[3 * t + 2] * l[2]; if (d < 0 || (vis && !vis[t])) d = 0;
+      const k = Math.min(g, 1 / (q + (1 - q) * d)), o = 4 * i;
+      // nearly black in the shade: its hue is noise, and made brighter it would read as some colour.
+      // Left unread (clear), so the model takes the colour of better-lit parts round it there.
+      if (k > 2 && Math.max(rgba[o], rgba[o + 1], rgba[o + 2]) < 24) { out[o + 3] = 0; continue; }
+      out[o] = toS(lin[rgba[o]] * k); out[o + 1] = toS(lin[rgba[o + 1]] * k); out[o + 2] = toS(lin[rgba[o + 2]] * k);
+    }
+    return out;
   }
   // line a photo's figure up with the model's outline seen by cam: size, place and a slight turn, and
   // mirrored if that fits better (mirror: true, false or "auto"); mask is W x H. opt.extra: how much a
@@ -3456,8 +3601,33 @@
       }
       return { fit, score };
     };
+    // pieces of the photo's figure that the lined-up model does not touch (a logo, an icon, a label beside
+    // the figure: the AI figure finder marks those too) are left out, and the fit is searched again, so
+    // they neither pull the fit nor blur the overlap the angle and closeness searches compare (v0.22.1)
+    const inModel = (fit, x, y) => {
+      const dx = (x + 0.5 - fit.tx) / fit.a, dy = -(y + 0.5 - fit.ty) / fit.a, cs = Math.cos(fit.rot), sn = Math.sin(fit.rot);
+      let u = dx * cs + dy * sn; const v = -dx * sn + dy * cs; if (fit.mirror) u = -u;
+      const ix = Math.floor(gx(u)), iy = Math.floor(gy(v));
+      return ix >= 0 && iy >= 0 && ix < gw && iy < gh ? S[iy * gw + ix] : 0;
+    };
+    const focus = (g, fit) => {
+      const { pw, ph, PM } = g, lab = new Int32Array(pw * ph).fill(-1), q = new Int32Array(pw * ph), keep = [];
+      for (let s = 0; s < pw * ph; s++) {
+        if (!PM[s] || lab[s] >= 0) continue;
+        const id = keep.length; let qh = 0, qt = 0, hit = 0; q[qt++] = s; lab[s] = id;
+        while (qh < qt) {
+          const i = q[qh++], x = i % pw, y = (i - x) / pw; if (inModel(fit, x, y)) hit++;
+          for (const j of [x > 0 ? i - 1 : -1, x < pw - 1 ? i + 1 : -1, y > 0 ? i - pw : -1, y < ph - 1 ? i + pw : -1]) if (j >= 0 && PM[j] && lab[j] < 0) { lab[j] = id; q[qt++] = j; }
+        }
+        keep.push(hit >= qt * 0.2);
+      }
+      if (keep.every(Boolean)) return null;
+      const PM2 = new Uint8Array(pw * ph); let pn = 0, bx0 = Infinity, bx1 = -Infinity, by0 = Infinity, by1 = -Infinity;
+      for (let i = 0; i < pw * ph; i++) if (PM[i] && keep[lab[i]]) { PM2[i] = 1; pn++; const x = i % pw, y = (i - x) / pw; bx0 = Math.min(bx0, x); bx1 = Math.max(bx1, x); by0 = Math.min(by0, y); by1 = Math.max(by1, y); }
+      return pn ? Object.assign({}, g, { PM: PM2, pn, bx0, bx1, by0, by1 }) : null;
+    };
     const mid = quick === "mid"; if (mid) quick = false;
-    const g1 = atSize(quick ? 100 : 200);
+    let g1 = atSize(quick ? 100 : 200);
     if (!g1.pn) return null;
     let best = { score: -1, fit: null }, g = g1;
     for (const mir of mirror === "auto" ? [false, true] : [!!mirror]) {
@@ -3466,13 +3636,38 @@
       const r = search(g1, fit, { a: 0.08, tx: (bx1 - bx0 + 1) * 0.04, ty: (by1 - by0 + 1) * 0.04, rot: 0.06 }, quick ? 0.01 : 0.002);
       if (r.score > best.score) best = r;
     }
+    // then what lies well away from the lined-up model, even if it touches the figure (a second figure
+    // standing behind it: the AI marks both): kept within 6% of the model's height of its outline, twice
+    const trim = (g, fit) => {
+      const { pw, ph, PM } = g, R = Math.max(2, Math.round(0.06 * (v1 - v0) * fit.a)), d = new Int16Array(pw * ph).fill(-1), q = new Int32Array(pw * ph);
+      let qh = 0, qt = 0;
+      for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) if (inModel(fit, x, y)) { d[y * pw + x] = 0; q[qt++] = y * pw + x; }
+      while (qh < qt) {
+        const i = q[qh++], x = i % pw, y = (i - x) / pw; if (d[i] >= R) continue;
+        for (const j of [x > 0 ? i - 1 : -1, x < pw - 1 ? i + 1 : -1, y > 0 ? i - pw : -1, y < ph - 1 ? i + pw : -1]) if (j >= 0 && d[j] < 0) { d[j] = d[i] + 1; q[qt++] = j; }
+      }
+      let cut = 0; for (let i = 0; i < pw * ph; i++) if (PM[i] && d[i] < 0) cut++;
+      if (cut < g.pn * 0.03) return null;            // a halo round the figure stays: only a real piece goes
+      const PM2 = new Uint8Array(pw * ph); let pn = 0, bx0 = Infinity, bx1 = -Infinity, by0 = Infinity, by1 = -Infinity;
+      for (let i = 0; i < pw * ph; i++) if (PM[i] && d[i] >= 0) { PM2[i] = 1; pn++; const x = i % pw, y = (i - x) / pw; bx0 = Math.min(bx0, x); bx1 = Math.max(bx1, x); by0 = Math.min(by0, y); by1 = Math.max(by1, y); }
+      return pn ? Object.assign({}, g, { PM: PM2, pn, bx0, bx1, by0, by1 }) : null;
+    };
+    const clean = (g, fit) => { const a = focus(g, fit), b = trim(a || g, fit); return b || a; };
+    let g1f = null;
+    for (let round = 0; round < 2; round++) {
+      const g1c = clean(g1, best.fit); if (!g1c) break;
+      g1 = g = g1f = g1c;
+      best = search(g1, Object.assign({}, best.fit), { a: 0.02, tx: (g1.bx1 - g1.bx0 + 1) * 0.01, ty: (g1.by1 - g1.by0 + 1) * 0.01, rot: 0.015 }, quick ? 0.01 : 0.002);
+    }
     // then, for a close camera, finely on a picture twice the size (a close-up from above is thrown by a
     // pixel or a degree); the searches over angles and closeness compare at the usual size ("mid") and only
-    // refine the best. A photo from far away is lined up as before.
-    if (!quick && !mid && persp) {
-      const g2 = atSize(400);
+    // refine the best. A photo from far away is lined up as before, unless opt.fine asks for it (the
+    // closeness search compares every distance, far away included, at this detail).
+    if (!quick && !mid && (persp || (opt && opt.fine))) {
+      let g2 = atSize(400);
       if (g2.pn && g2.f < g1.f - 1e-9) {
         const s = g1.f / g2.f, F0 = best.fit;
+        if (g1f) g2 = clean(g2, { a: F0.a * s, tx: F0.tx * s, ty: F0.ty * s, rot: F0.rot, mirror: F0.mirror }) || g2;
         best = search(g2, { a: F0.a * s, tx: F0.tx * s, ty: F0.ty * s, rot: F0.rot, mirror: F0.mirror }, { a: 0.004, tx: 1, ty: 1, rot: 0.004 }, 0.0005); g = g2;
       }
     }
@@ -3483,18 +3678,32 @@
   // how close the camera was, found from the outline: a close camera enlarges the near parts, which a fit
   // from far away cannot match. Tries far away and 0.3, 0.6, 0.9 of the model's height per distance, then
   // finer round the best; a closer camera has to fit clearly better (2 points of overlap per 1 of k), so a
-  // photo from far away stays far away. Returns photoFit's result for the best, or null.
+  // photo from far away stays far away. Every distance is compared at full detail (v0.22.1: the coarse
+  // comparison took 0.075 for a camera at 0.2). Returns photoFit's result for the best, or null.
   function photoFitCloseness(solid, cam, mask, W, H, mirror, opt) {
     const at = new Map(), fitAt = k => {
       k = Math.round(Math.max(0, Math.min(PHOTO_K_MAX, k)) * 1000) / 1000;
-      if (!at.has(k)) { const r = photoFit(solid, cam, mask, W, H, mirror, null, "mid", Object.assign({}, opt, { k })); at.set(k, r && Object.assign(r, { score: r.iou - 0.02 * k })); }
+      if (!at.has(k)) { const r = photoFit(solid, cam, mask, W, H, mirror, null, false, Object.assign({}, opt, { k, fine: true })); at.set(k, r && Object.assign(r, { score: r.iou - 0.02 * k })); }
       return at.get(k);
     };
     let best = null;
     const tryK = k => { const r = fitAt(k); if (r && (!best || r.score > best.score + 1e-9)) best = r; };
     for (const k of [0, 0.3, 0.6, 0.9]) tryK(k);
     for (const step of [0.15, 0.075, 0.04]) { const k0 = best ? best.fit.k || 0 : 0; tryK(k0 - step); tryK(k0 + step); }
-    return best && photoFit(solid, cam, mask, W, H, mirror, null, false, Object.assign({}, opt, { k: best.fit.k || 0 }));
+    return best;
+  }
+  // a new photo, all at once: the angle it was taken from, searched from far away and from close by, then
+  // how close. Most photos and product pictures are taken from close by, from about the figure's chest:
+  // the base is seen from above and the head from below, which a camera far away can only half match, and
+  // the search from far away took such a photo of a figure on its base for one taken from below (v0.22.1).
+  // A closer camera has to fit clearly better, as in photoFitCloseness. Returns { fit, iou, cam } or null.
+  function photoFitFull(solid, cam, mask, W, H, mirror, angles, opt) {
+    const score = r => r ? r.iou - 0.02 * (r.fit.k || 0) : -Infinity;
+    let best = null;
+    for (const k of [0, 0.45]) { const r = photoFitAngles(solid, cam, mask, W, H, mirror, angles, Object.assign({}, opt, { k })); if (score(r) > score(best)) best = r; }
+    if (!best) return null;
+    const rk = photoFitCloseness(solid, best.cam, mask, W, H, best.fit.mirror, opt);
+    return score(rk) >= score(best) - 1e-9 ? Object.assign(rk, { cam: best.cam }) : best;
   }
   // the same, also turning the camera: angles.yaw / angles.pitch are how far to look either side of cam
   // (degrees); a coarse search every 15°, then finer; returns { fit, iou, cam: { yaw, pitch } }
@@ -3533,12 +3742,40 @@
   function paintFromPhotos(solid, topo, paint, views, o) {
     o = o || {};
     const n = topo.n, K = Math.max(1, (o.slots || []).length), votes = new Float32Array(n * K), facing = new Float32Array(n);
+    // seen: a photo shows it at least this squarely (the weight below, 0..1), or a little less squarely
+    // through pixels well inside the outline
+    const minFacing = o.minFacing ?? 0.2, minInner = Math.min(minFacing, o.minInner ?? 0.05);
     for (const vw of views) {
       const C = photoCam(vw.cam), W = vw.cls.w, H = vw.cls.h, cls = vw.cls.data;
       const R = photoRaster(solid, vw.cam, vw.fit, W, H), wt = new Float32Array(n), hit = new Uint8Array(n);
-      // a face seen almost edge-on counts little: its pixels are few and the outline's are half background
-      for (let t = 0; t < n; t++) { const f = topo.nrm[3 * t] * C.c[0] + topo.nrm[3 * t + 1] * C.c[1] + topo.nrm[3 * t + 2] * C.c[2]; wt[t] = f > 0.15 ? (f - 0.1) / 0.9 : 0; }
-      for (let i = 0; i < W * H; i++) { const t = R.id[i], c = cls[i]; if (t >= 0 && c >= 0 && c < K && wt[t] > 0) { votes[t * K + c] += wt[t]; hit[t] = 1; if (wt[t] > facing[t]) facing[t] = wt[t]; } }
+      // a face seen almost edge-on counts little: its pixels are few and the outline's are half background.
+      // A close camera sees each face along its own line (v0.22.1: the top of a base below a close camera is
+      // seen from above, though a camera far away at that height would see it edge-on)
+      const k = vw.fit && vw.fit.k > 0 ? Math.min(PHOTO_K_MAX, +vw.fit.k) : 0;
+      let eye = null;
+      if (k) { const ref = Array.isArray(vw.fit.ref) && vw.fit.ref.length === 4 ? vw.fit.ref : photoRef(solid, vw.cam), d = ref[2] + ref[3] / k; eye = [0, 1, 2].map(a => ref[0] * C.r[a] + ref[1] * C.up[a] + d * C.c[a]); }
+      for (let t = 0; t < n; t++) {
+        let f;
+        if (eye) { const x = eye[0] - topo.cen[3 * t], y = eye[1] - topo.cen[3 * t + 1], z = eye[2] - topo.cen[3 * t + 2], l = Math.hypot(x, y, z) || 1; f = (topo.nrm[3 * t] * x + topo.nrm[3 * t + 1] * y + topo.nrm[3 * t + 2] * z) / l; }
+        else f = topo.nrm[3 * t] * C.c[0] + topo.nrm[3 * t + 1] * C.c[1] + topo.nrm[3 * t + 2] * C.c[2];
+        wt[t] = f > 0.15 ? (f - 0.1) / 0.9 : 0;
+      }
+      // a face seen at a low angle counts as seen only through pixels well inside the model's outline (the
+      // top of a base seen from a little above: v0.22.1), never through the outline itself
+      // (inside: the model on all four sides two pixels away, at about the same depth: not at the outline,
+      // and not beside an arm or leg in front of the body, where a fit a pixel off reads the wrong part)
+      const e = 2, dz = 2 * e / Math.max(1e-9, vw.fit.a * H) / 0.15;
+      const inner = i => {
+        const x = i % W; if (x < e || x >= W - e || i < e * W || i >= (H - e) * W) return false;
+        const z = R.depth[i]; for (const j of [i - e, i + e, i - e * W, i + e * W]) if (R.id[j] < 0 || Math.abs(R.depth[j] - z) > dz) return false;
+        return true;
+      };
+      for (let i = 0; i < W * H; i++) {
+        const t = R.id[i], c = cls[i]; if (!(t >= 0 && c >= 0 && c < K && wt[t] > 0)) continue;
+        votes[t * K + c] += wt[t]; hit[t] = 1;
+        const f = wt[t] >= minFacing || inner(i) ? wt[t] : 0;
+        if (f > facing[t]) facing[t] = f;
+      }
       // triangles smaller than a pixel: their middle, if nothing nearer covers it
       const I = solid.idx, tol = Math.max(0.3, 2 / (vw.fit.a * H));
       for (let t = 0; t < n; t++) {
@@ -3547,12 +3784,12 @@
         const x = Math.floor((R.X[a] + R.X[b] + R.X[c]) / 3), y = Math.floor((R.Y[a] + R.Y[b] + R.Y[c]) / 3);
         if (x < 0 || y < 0 || x >= W || y >= H) continue;
         const k = y * W + x, z = (R.Z[a] + R.Z[b] + R.Z[c]) / 3;
-        if (R.id[k] >= 0 && z >= R.depth[k] - tol && cls[k] >= 0 && cls[k] < K) { votes[t * K + cls[k]] += wt[t] * 0.5; if (wt[t] > facing[t]) facing[t] = wt[t]; }
+        if (R.id[k] >= 0 && z >= R.depth[k] - tol && cls[k] >= 0 && cls[k] < K) { votes[t * K + cls[k]] += wt[t] * 0.5; const f = wt[t] >= minFacing || inner(k) ? wt[t] : 0; if (f > facing[t]) facing[t] = f; }
       }
     }
     // seen: some photo shows it, not too far edge-on (however small it is); the rest is left to the fill
-    const lab = new Int16Array(n).fill(-1), minFacing = o.minFacing ?? 0.2;
-    for (let t = 0; t < n; t++) { if (facing[t] < minFacing) continue; let bc = -1, bv = 0; for (let c = 0; c < K; c++) { const v = votes[t * K + c]; if (v > bv) { bv = v; bc = c; } } lab[t] = bc; }
+    const lab = new Int16Array(n).fill(-1);
+    for (let t = 0; t < n; t++) { if (facing[t] < minInner) continue; let bc = -1, bv = 0; for (let c = 0; c < K; c++) { const v = votes[t * K + c]; if (v > bv) { bv = v; bc = c; } } lab[t] = bc; }
     const seen = lab.reduce((s, c) => s + (c >= 0 ? 1 : 0), 0);
     // one smoothing pass: a triangle whose three neighbours agree on another colour takes it
     if (o.smooth !== false) for (let pass = 0; pass < 2; pass++) {
@@ -3571,7 +3808,10 @@
       const dist = new Float64Array(n).fill(Infinity), heap = [];
       const push = (d, t) => { heap.push([d, t]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
       const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
-      for (let t = 0; t < n; t++) if (lab[t] >= 0) { dist[t] = 0; push(0, t); }
+      // a colour seen squarely spreads before one only glimpsed at a low angle along the outline (where a
+      // fit a little off reads the background or a neighbouring part): v0.22.1
+      const B = solidBounds(solid), far = 0.04 * Math.hypot(B.mx[0] - B.mn[0], B.mx[1] - B.mn[1], B.mx[2] - B.mn[2]);
+      for (let t = 0; t < n; t++) if (lab[t] >= 0) { const d0 = o.fillTrust === false ? 0 : far * Math.max(0, 1 - facing[t] / 0.5); dist[t] = d0; push(d0, t); }
       const cen = topo.cen, nrm = topo.nrm, crease = Math.cos(50 * Math.PI / 180);
       while (heap.length) {
         const [d, t] = pop(); if (d > dist[t]) continue;
@@ -3945,7 +4185,7 @@
     gridAround, heightSheet,
     meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, gradientCuts, gradientLayers, paintGradient, paintSwap, meshShells, paintShells,
     meshRegions, paintRegions, paintNoise, paintPictureWrap, paintCurvature, curvatureClasses, layerSlots, colourChanges, paintBrush, brushTris, symmetryCopies, areaTris, paintFill, paintPicture, parseOBJ, parse3MFModel,
-    PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, photoRef, photoUV, PHOTO_K_MAX, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, photoFitCloseness, paintFromPhotos,
+    PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, photoRef, photoUV, PHOTO_K_MAX, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, photoFitCloseness, photoFitFull, paintFromPhotos, photoLight, photoUnshade, photoLitBy, photoTriNormals,
     photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure, cutoutWithMap, edgeOpacity, photoFixMap, photoFixMask,
     parseGLB, parseGLTF, parseMTL, parseOBJColours, modelTriColours, modelPalette, modelColourLabels
   };

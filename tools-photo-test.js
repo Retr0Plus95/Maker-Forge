@@ -373,8 +373,9 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
     for (let i = 0; i < 200 && fv.match === match0; i++) await sleep(50);
     await sleep(300); await settle();
     const accFix = accuracy(MF.parts[0], 1).acc, sizeOff = Math.abs(fv.fit.a / trueFront.a - 1), placeOff = Math.hypot(fv.fit.tx - trueFront.tx, fv.fit.ty - trueFront.ty);
-    check(fv.match > 0.75 && sizeOff < 0.03 && placeOff < 0.01 && accFix > 0.78 && accFix > acc0 + 0.15,
-      "Line it up again: with the fixes the photo lines up and colours the figure about as well as the AI does",
+    // (before v0.22.1 by colour alone it lined up badly, 53.6% of the surface right; it now lines up roughly)
+    check(fv.match > 0.75 && sizeOff < 0.03 && placeOff < 0.01 && accFix > 0.78 && accFix > acc0,
+      "Line it up again: with the fixes the photo lines up, the colours are read again, and the figure comes out about as well as with the AI",
       `outline ${(match0 * 100).toFixed(0)}% → ${(fv.match * 100).toFixed(0)}%, size off ${(sizeOff * 100).toFixed(1)}%, place off ${(placeOff * 100).toFixed(2)}%, ${(acc0 * 100).toFixed(1)}% → ${(accFix * 100).toFixed(1)}% of the surface right`);
     // saved and opened again: the fixes are in the file and the paint is the same
     const fPaint = Array.from(MF.parts[0].paint), fSaved = MF.projectPayload(true), fixN = fv.fix.length;

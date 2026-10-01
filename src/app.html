@@ -7635,7 +7635,7 @@ function photoCard(c){
   showMatch();
   // where it was taken from
   segField(c, [["front","Front"],["right","Right"],["back","Back"],["left","Left"],["top","Top"]], () => photoSideOf(v), async k => {
-    const s0 = PHOTO_SIDES[k]; v.cam = { yaw:s0[0], pitch:s0[1] }; await photoFitNow(o, v, true); renderKeepFocus(); photoRepaint(); }, "five");
+    const s0 = PHOTO_SIDES[k]; v.cam = { yaw:s0[0], pitch:s0[1] }; await photoFitNow(o, v, true); photoPickColours(o); renderKeepFocus(); photoRepaint(); }, "five");
   // a new angle or background: line up again at that angle (the card stays as it is, so a slider keeps the focus)
   const refit = () => photoLater(async () => { await photoFitNow(o, v, false); redraw(); showMatch(); photoRepaint(); }, 500);
   numField(c, { label:"Taken from (° round the model)", min:-180, max:180, step:1, get:()=>v.cam.yaw, set:x=>v.cam.yaw = Math.round(x), onChange:refit, noReset:true,
@@ -7657,7 +7657,9 @@ function photoCard(c){
     note(c, aiState.session ? "The AI figure finder is ready. It looks at every photo of this step."
       : `The AI figure finder looks at every photo of this step. It downloads once (about ${AI_FIGURE.mb} MB) and runs on this computer: your photos are not sent anywhere.`);
   }
-  buttonRow(c, [["Line it up again", async () => { await photoFitNow(o, v, true); renderKeepFocus(); photoRepaint(); }], ["Remove this photo", removePhoto]]);
+  // lined up anew, the colours are read anew (they are read inside the lined-up model: hand fixes picked
+  // them with the old fit, and missed the base, v0.22.1)
+  buttonRow(c, [["Line it up again", async () => { await photoFitNow(o, v, true); photoPickColours(o); renderKeepFocus(); photoRepaint(); }], ["Remove this photo", removePhoto]]);
 
   // the colours
   c.insertAdjacentHTML("beforeend", `<h3>Colours</h3>`);

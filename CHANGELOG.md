@@ -11,6 +11,8 @@ Every release of Maker Forge, newest first. The [README](README.md) describes th
   - **Other things in the picture are left out of lining up**: icons and labels beside the figure, and a second figure standing behind it, which the AI figure finder marks too.
   - **The top of a base seen from a little above** is read from the photo instead of being guessed from its front, which painted it in stripes.
   - Along the edges of a figure found by the AI, the background is no longer read as a colour.
+  - **Line it up again** and the side buttons read the colours again, so hand fixes no longer leave a colour out.
+  - Finding the figure by colour copes better with a busy background: on a test photo in front of a bookshelf, 76% of the model came out right instead of 54%.
 
 ## 0.22
 

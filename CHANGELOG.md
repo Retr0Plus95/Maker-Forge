@@ -3,6 +3,14 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.24
+
+- **Close-up photos.** When colouring a model from a photo, a phone held near a small figure makes its near parts look bigger, and the photo did not line up well. Now the app works out how close the camera was as it lines the photo up, and allows for it. On rendered close-ups of the test figure (the camera 1.7 and 2 times the figure's height away), the share of the surface coloured right went from 65% to 84% and from 68% to 87%. Photos from far away line up exactly as before.
+- **How close was the camera?** on the photo card shows what was worked out, and lets you choose **Far away or zoomed in**, **Arm's length** or **Close up** by hand. It is saved with the project.
+
+**Fixed**
+- Colouring from a photo taken close to the model lined it up badly, so parts of the model took the wrong colours.
+
 ## 0.23
 
 - **Faster and lighter.**

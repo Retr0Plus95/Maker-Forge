@@ -181,6 +181,8 @@ GLB files are measured in metres; the app turns them into millimetres. A model t
 - **Random blobs**, for camouflage or planets.
 - **From a photo of the model**: drop a photo of a real figure and the app lines it up and colours the model from it. If the background is busy, **Find the figure with AI** (a one-time download of about 19 MB) finds it for you.
 
+**Photos taken close up.** A phone held near a small figure makes the parts nearest it look bigger: the head of a figure photographed from above, or the front of its base. When a photo is lined up, the app also works out how close the camera was and allows for it; the photo card says what it found ("taken from about 1.7 times the model's height away"). If it guessed wrong, choose **How close was the camera?**: **Far away or zoomed in**, **Arm's length** or **Close up**, or **Work it out** again.
+
 **Fixing the figure by hand.** On the photo card, **Figure it found** darkens everything the app takes for background. If it took in some background, or missed a part of the figure, choose what dragging on the photo does: **Take away** paints background out, **Add to the figure** paints a missed part in. Start with a big brush away from the figure, then use a small one near its edges. The colours use your fixes straight away; press **Line it up again** to line the photo up with them too. **Undo the last fix** and **Clear my fixes** take them off, and **Move the photo** goes back to dragging the photo into place. The fixes are saved with the project.
 
 **Brush and fill** paint by hand:

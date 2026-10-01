@@ -830,6 +830,32 @@ Asked for: "list bug fixes in release updates" (now a rule in CLAUDE.md: every C
 - Painting a big model from a photo, and the colour-change count, also still run on the page.
 - The worker has not been tried in Firefox or Safari.
 
+## Session 23: close-up photos (v0.24.0)
+
+Asked for: "start on close-up photos" (the core was ready from Session 20), with a new branch and pull request per release while the last one is open. This work is on `claude/v0.24-close-up-photos`, which starts from `claude/relaxed-dirac-cuhvec` (v0.23, PR #7); the owner chose that over waiting or adding it to #7.
+
+**In the app**:
+- `photoFitView` lines a photo up as from far away first, as before. Unless `v.near` is set by hand, it then runs `photoFitCloseness` at the angle found. If the camera was close (`k ≥ 0.15`), and the photo is being searched for its angle, it looks again within ±10° with that `k` (`photoFitAngles` with `opt.k`) and runs closeness again at any better angle.
+- A photo from far away (`k` under 0.15) keeps the far-away fit exactly; the engine test's numbers for the existing photos are unchanged.
+- `v.fit.k` (3 decimals) is saved.
+- `photoFitNowFor` keeps `k` through a size change (`photoFitScaled`), and adds `ref`, the whole model's middle from `photoRefOf(model, cam)` (cached per model and angle), at every use. So the preview, the colour picking, `photoView` and `paintFromPhotos` on each part all see the model from the same camera. `ref` is never saved; `photoBake` strips it.
+- The photo card has **How close was the camera?**: Work it out, Far away or zoomed in (`v.near = 0`), Arm's length (0.3) or Close up (0.7). The four buttons sit two by two (`.seg.two`): four in a row wrapped "Far away or zoomed in" onto three lines. A note under it says what the fit used, as times the model's height away (1/k).
+- `cleanPaint` clamps `fit.k` and `near` to 0..`PHOTO_K_MAX` (1.2), and drops anything that is not a finite number.
+
+**Tests** (`tools-photo-test.js`):
+- Engine: two rendered close-ups have their closeness found:
+  - k 0.6 at 20° up, found 0.56: 65.3% of the surface right as from far away, 84.2% allowing for it;
+  - k 0.5 at 30° round and 10° up, found 0.525: 67.9% → 87.1%.
+
+  The far-away front photo stays at k 0.
+- App:
+  - A close-up added on the Paint tab is worked out (k within 0.15, pitch within 6°), and the card says so.
+  - **Far away** by hand lines it up worse; **Work it out** brings it back.
+  - A project round trip keeps `k` and the paint.
+  - A hostile project's `k` and `near` are clamped or dropped.
+
+**Not checked**: real close-up photos from a phone (lens distortion is not modelled, only the perspective); a figure whose depth is large compared with its height, such as a model lying down photographed end-on, where a small `k` already changes a lot.
+
 ## Unfinished (in priority order)
 
 - **P4**: none outstanding beyond polish.
@@ -838,7 +864,7 @@ Asked for: "list bug fixes in release updates" (now a rule in CLAUDE.md: every C
 - **P7**: all section improvements (Double-Sided Name rename and mirrored back plate, iron-on patch shapes and military badges and premade patches, Christmas ornaments, caricature bobble head, name/letter lightbox and more box styles, photo frame back panel and clear front and relief panel, tea light egg/round shapes and picture positioning and candle ring and wagon-lantern cover and separate walls, plastic canvas fitting, functional PCB with conductive filament and copper-sheet workflow and Gerber import, car badge shapes and two-sided car keychain).
 - **P8**: done in Session 13 (phone cases). Next: button covers, camera guard ring, MagSafe recess, exact positions from the makers' design guidelines (ideas 16 to 23 above).
 - Painter next steps: done in Session 18: box select (7), radial symmetry (8), the smart brush (9), curvature (10), the eyedropper and recolour (14), a wrapped picture (2), a layer preview with colour changes and waste (4, 5). AI-model textures (1) were done in Session 20. Still open: sub-triangle export (3), height bands as M600 pauses (6), named layers (11), a BVH (12), mirror-safe paint (13). Opening painted exports in Bambu Studio, OrcaSlicer and PrusaSlicer is still to be done by hand.
-- Asked for in Session 18, still next in line (the manual and the examples were done in Session 19; the AI cut-out, GLB and OBJ colours and the hand-fixed outline in Session 20; a BVH, drawing on change and a first helper thread in Session 22): close-up photos in the app (the core is ready, see Session 20); moving the builds to the helper thread (see Session 22); Manifold cutting and engraving; sub-triangle paint export if it can be checked against a slicer.
+- Asked for in Session 18, still next in line (the manual and the examples were done in Session 19; the AI cut-out, GLB and OBJ colours and the hand-fixed outline in Session 20; a BVH, drawing on change and a first helper thread in Session 22): moving the builds to the helper thread (see Session 22); Manifold cutting and engraving; sub-triangle paint export if it can be checked against a slicer.
 - Examples next steps: an example for Import a model (a small painted figure); the unused moonlit-forest relief could go on a lithophane-style tea light; examples in the dark theme's pictures (the Start pictures are rendered on a clear background, so they suit both).
 - Lithophane next steps: the test strip exists (Session 12); use a printed one to calibrate the preview's transmission constant (1.3 per mm is a guess); colour lithophanes (a thin colour layer behind a white sheet, or filament-swap layers); a lithophane puzzle (joins the jigsaw's single-colour idea); for the lamp shade, *stretch once round* as an alternative to repeating copies, a base ring that sits on an LED tea light, and a lid; an engraved name on the border or foot; a separate slotted stand instead of one printed with the sheet; a *keep proportions* option for the heart (it is stretched to the picture's aspect, like the jigsaw's heart); decimating flat areas (border, blank gaps, smooth sky) so big sheets need not be coarsened.
 - Jigsaw next steps: a lithophane or relief puzzle for single-colour printers (the picture as thickness, backlit); whimsy pieces (a heart, a star or the picture's own subject cut out as one piece); knob shapes from a symbol; split a puzzle bigger than the bed into plates of whole pieces; an optional "print spread out" layout with wider spacing; two-sided puzzles (a second picture on the back); drop colour slivers narrower than the nozzle inside each piece; the heart outline is stretched to the picture's aspect ratio (a "keep proportions" option would crop instead).
@@ -857,7 +883,7 @@ Asked for: "list bug fixes in release updates" (now a rule in CLAUDE.md: every C
 - Enclosure, Session 13 not yet printed: the pilot-light jewel lens (the shank's corners have 0.15 mm of play a side plus the clearance, the LED pocket 0.1 mm a side, so a 5 mm LED's 5.8 mm base rim stays outside it). Print one lens and a scrap of wall with its hole before a whole box.
 - Tracer hollow cover: strokes thinner than two walls stay solid (by design, noted in the panel).
 - **AI figure finder** (Session 17): it marks the photo's most eye-catching object, not specifically the figure, and fills hollows: a bright object touching the figure, a stand, a hand or a shadow can be taken in, and the fit then comes out a few percent too big (the worst-case test: 2.9%). Nudge it, or add a second photo. The model loads from jsDelivr's copy of this repository's `main` branch; the repository is public and `models/u2netp.onnx` is on `main` (checked in Session 21), so that address should work. The live address has not been fetched from the test container, where jsDelivr is blocked; the browser check serves a local copy. A copy of `models/` next to `index.html` works too. The AI cut-out (Session 20) uses the same model and has the same limits: it keeps the most eye-catching object, which may not be the one you meant.
-- **Colour from a photo** (Session 16): tested on rendered photos only. The fit assumes a far-away camera (the core can fit a close camera since Session 20; the app does not use it yet), so strong perspective (a phone held close) and a pose that differs from the model line up less well; white or pale parts on a pale background lower the outline match (the colours still come from inside the model's outline). On a model of several parts made here, each part's depth test sees only that part (imported models are one part). Parts no photo shows are a guess from the nearest colour: add a photo of the back. Changing the model's shape (not only its size) after lining up needs "Line it up again".
+- **Colour from a photo** (Session 16): tested on rendered photos only. Since Session 23 the fit allows for a close camera (perspective, not lens distortion), so strong perspective (a phone held close) and a pose that differs from the model line up less well; white or pale parts on a pale background lower the outline match (the colours still come from inside the model's outline). On a model of several parts made here, each part's depth test sees only that part (imported models are one part). Parts no photo shows are a guess from the nearest colour: add a photo of the back. Changing the model's shape (not only its size) after lining up needs "Line it up again".
 
 - **Bambu 3mf in Bambu Studio** (tested by the user, Session 10): geometry and colours load, with the standard notice for third-party files (*not from Bambu Lab, load geometry data and color data only*); see Session 10 for why that notice cannot be removed safely. The filament colours themselves come from the user's Bambu Studio setup, not from the file.
 - Everything is tested headlessly: in jsdom with a canvas stub (letters are boxes, `ctx.filter` ignored), and since Session 12 also in headless Chromium with software WebGL (`tools-browser-check.js`: real fonts, real canvas, the 3D view, screenshots). Firefox, Safari, real GPUs, touch input and slicers are still unchecked. Emoji charms in Chromium on Linux use Noto Color Emoji.

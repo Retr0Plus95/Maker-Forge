@@ -815,6 +815,11 @@ Asked for: "list bug fixes in release updates" (now a rule in CLAUDE.md: every C
 
 **The mesh check once** (`meshCheck`): `runChecks` ran `checkMesh` on every part after each build and again when printability finished. It is now cached per solid, since parts do not change after they are built. On a rebuild of the project box: 5 checks for 5 parts.
 
+**A race the speed-up uncovered**: the browser check's measuring tape (two clicks on the project box) found one point instead of two.
+- A quick start dropped `exampleBusy` before its own last steps: a rebuild, 60 ms, then `schedule()` for a second rebuild 130 ms later. So `MakerForge.busy` read false in between, the check clicked, and the second rebuild cleared the first point (`refreshScene` clears measurements).
+- The check passed only because drawing 60 times a second used to keep the page slow enough.
+- Now a scheduled rebuild counts as busy (`rebuildPending`), and the quick start stays busy until its last rebuild is scheduled. Choosing an object had no gap: `rebuildAll` marks itself busy before its first await.
+
 **Tests**:
 - `test:speed` (new; the core part, and the app in jsdom, where there is no worker, so the fallbacks are what is tested).
 - `tools-browser-check.js` checks the real worker, the picks, the printability match, idle drawing and drawing during a drag.

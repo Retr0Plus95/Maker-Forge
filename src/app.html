@@ -4742,8 +4742,9 @@ renderer.domElement.addEventListener("pointerup", endStroke);
 renderer.domElement.addEventListener("pointercancel", endStroke);
 renderer.domElement.addEventListener("pointerleave", () => { brushRing.visible = false; brushPreview.visible = false; });
 
-let timer = 0, busy = false, queued = false, buildRev = 0;
-function schedule(){ clearTimeout(timer); timer = setTimeout(()=>rebuildAll(false), 130); }
+let timer = 0, busy = false, queued = false, buildRev = 0, rebuildPending = false;
+// a rebuild a moment from now (sliders call this on every move); MakerForge.busy counts it as work under way
+function schedule(){ clearTimeout(timer); rebuildPending = true; timer = setTimeout(()=>{ rebuildPending = false; rebuildAll(false); }, 130); }
 async function rebuildAll(resetItems){
   if (busy){ queued = true; return; }
   busy = true;
@@ -8896,10 +8897,12 @@ function applyPreset(key){
     // with no pictures of their own, the quick start opens with its example
     let added = false;
     try { added = await loadExample(key, true); } catch (err){ console.error(err); }
-    exampleBusy--;
     if (added){ renderTab(); notify(pr.tip + " " + exampleNote(key)); }
-    await rebuildAll(false); await new Promise(r=>setTimeout(r,60));
-    state.items.forEach(d=>{ if (!exampleSized.has(d)) d.width = defaultWidth(d.aspect); d.solids = null; }); schedule();
+    // still busy until the last rebuild is under way (a test waiting for "not busy" would otherwise act
+    // between the two rebuilds, and a measurement it started would be cleared by the second)
+    try { await rebuildAll(false); await new Promise(r=>setTimeout(r,60));
+      state.items.forEach(d=>{ if (!exampleSized.has(d)) d.width = defaultWidth(d.aspect); d.solids = null; }); schedule(); }
+    finally { exampleBusy--; }
     exampleSlotSig = slotSig(); pushHistory();
   })();
   pushHistory();
@@ -9022,7 +9025,7 @@ window.MakerForge = {
   get parts(){ return modelParts; },
   get checks(){ return lastChecks; },
   get rev(){ return buildRev; },
-  get busy(){ return busy || queued || exampleBusy > 0; },
+  get busy(){ return busy || queued || rebuildPending || exampleBusy > 0; },
   thumb: modelThumb,
   art: { cutout: aiCutout, uncut: aiUncut, hasBackground: pictureHasBackground },
   examples: { list: EXAMPLES, forType: EXAMPLE_FOR_TYPE, art: EXAMPLE_ART, canvas: exampleCanvas, load: loadExample, drop: dropExamples },

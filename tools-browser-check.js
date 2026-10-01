@@ -287,10 +287,14 @@ function pageCoverage() {
       [...document.querySelectorAll("#presetGallery button")].find(b => b.dataset.k === "Project box").click(); await settle();
       document.querySelector("#vMeasure").click(); await sleep(100);
       const cv = document.querySelector("#view canvas"), rect = cv.getBoundingClientRect();
+      out.measureSteps = [];
       for (const x of [-45.8, 45.8]){
         const v = new THREE.Vector3(x, 35.8, 32).project(MF.camera), cx = rect.left + (v.x + 1)/2*rect.width, cy = rect.top + (1 - v.y)/2*rect.height;
+        const rev0 = MF.rev;
         cv.dispatchEvent(new PointerEvent("pointerdown", { clientX:cx, clientY:cy, bubbles:true })); cv.dispatchEvent(new PointerEvent("pointerup", { clientX:cx, clientY:cy, bubbles:true }));
+        const n1 = MF.measure.length;
         await sleep(100);
+        out.measureSteps.push({ rev0, rev1: MF.rev, busy: MF.busy, after: n1, later: MF.measure.length, notice: document.querySelector("#notice").textContent.slice(0, 50) });
       }
       const m = MF.measure; out.measure = m.length === 2 ? Math.hypot(m[0][0] - m[1][0], m[0][1] - m[1][1], m[0][2] - m[1][2]) : null;
       document.querySelector("#vMeasure").click();
@@ -312,7 +316,7 @@ function pageCoverage() {
     });
     const near = (a, b, t) => a != null && Math.abs(a - b) <= t;
     if (!(r.svg && near(r.svg[0], 40, 0.05) && near(r.svg[1], 20, 0.05) && near(r.hole, 6, 0.05))) findings.push({ where:"SVG import", what:`a 40 × 20 mm SVG plate traced at ${r.svg && r.svg.map(v => v.toFixed(2)).join(" × ")} mm, hole ${r.hole && r.hole.toFixed(2)} mm` });
-    if (!near(r.measure, 92, 0.05)) findings.push({ where:"measuring tape", what:`the project box's front wall measured ${r.measure && r.measure.toFixed(2)} mm instead of 92` });
+    if (!near(r.measure, 92, 0.05)) findings.push({ where:"measuring tape", what:`the project box's front wall measured ${r.measure && r.measure.toFixed(2)} mm instead of 92: ${JSON.stringify(r.measureSteps)}` });
     if (!(r.batch && r.batch.open === 0 && /^3 name plates/.test(r.batch.check || ""))) findings.push({ where:"name list", what:`three names gave ${JSON.stringify(r.batch)}` });
     if (r.section !== "18.0 mm") findings.push({ where:"section view", what:`the cut at 50% of 36 mm reads ${r.section}` });
     const other = await openPage({ width: 1200, height: 800 }, "share link", r.link.url);

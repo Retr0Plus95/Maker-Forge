@@ -1,0 +1,68 @@
+# After a squash merge (Session 24): when a pull request is squash-merged into main, every open pull request built on
+# top of it would show conflicts (git can't link the squashed commit to the branch's own commits). This merges main
+# into each such branch from the right starting point with tools-after-squash.js, so it can be squash-merged too.
+# It only adds a merge commit; it never rebases or force-pushes. A branch with real conflicts gets a comment instead.
+# Run it by hand from the Actions tab ("Run workflow") to check every open pull request.
+name: After a squash merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: after-squash
+  cancel-in-progress: false
+
+jobs:
+  update-open-pull-requests:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Merge main into the open pull requests built on the merged one
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGED_HEAD: ${{ github.event.pull_request.head.sha }}
+          MERGED_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # run main's copy: checking out each branch below swaps the files in this folder
+          cp tools-after-squash.js "$RUNNER_TEMP/after-squash.js"
+          from=()
+          if [ -n "$MERGED_HEAD" ]; then from=(--from "$MERGED_HEAD"); fi
+          gh pr list --base main --state open --limit 100 --json number,headRefName,isCrossRepository \
+            --jq '.[] | select(.isCrossRepository | not) | "\(.number) \(.headRefName)"' |
+          while read -r number branch; do
+            echo "::group::#$number $branch"
+            set +e
+            out=$(node "$RUNNER_TEMP/after-squash.js" --branch "$branch" --push "${from[@]}" 2>&1)
+            code=$?
+            set -e
+            echo "$out"
+            echo "::endgroup::"
+            if [ "$code" = 2 ]; then
+              {
+                echo "Main has moved on${MERGED_NUMBER:+ (#$MERGED_NUMBER was merged)}, and this branch now has real conflicts with it, so it couldn't be brought up to date automatically:"
+                echo
+                echo '```'
+                echo "$out"
+                echo '```'
+                echo
+                echo "Merge main into this branch and settle those files by hand (or ask Claude to). \`node tools-after-squash.js\` in the branch shows the same list."
+              } > "$RUNNER_TEMP/comment.md"
+              gh pr comment "$number" --body-file "$RUNNER_TEMP/comment.md"
+            elif [ "$code" != 0 ]; then
+              echo "::warning::#$number ($branch) could not be updated: $out"
+            fi
+          done

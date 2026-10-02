@@ -69,6 +69,7 @@
     "test:photo": "node tools-photo-test.js index.html",
     "test:aimodel": "node tools-aimodel-test.js index.html",
     "test:speed": "node tools-speed-test.js index.html",
+    "test:squash": "node tools-after-squash-test.js",
     "thumbs": "node tools-thumbs.js index.html",
     "screenshots": "node tools-screenshots.js index.html"
   },

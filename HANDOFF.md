@@ -890,6 +890,35 @@ Done from the website's Claude session, on its own branch (`claude/new-session-b
 **Next**: a second figure touching the first could be dropped by colour or depth from the AI's map rather than by distance; a finer figure mask round fingers (the AI's map is 320 px); a better guess for the back from one photo (clothes usually go round: the front's colour at the same height); a crease-aware clean-up (boundaries on sculpted figures follow folds and hems).
 
 
+## Session 25: squash merges without false conflicts (no app change; still v0.24.1)
+
+Asked for: after v0.24.0 (#8) and v0.24.1 (#9) both showed "This branch has conflicts that must be resolved" once the release before them was squash-merged, and after being offered merge commits instead: "no i want squash and merge, fix the error instead".
+
+**Why it happens**: "Squash and merge" puts a pull request's work on `main` as one new commit. Its files are the pull request's, but git can't link it to the branch's own commits. A branch started on top of that pull request (the next release, begun while the last one waited for review) still shares only the older `main` with it. So git measures both sides from there, finds both changed the same lines (version, CHANGELOG, the same code) and reports conflicts, although nothing really disagrees. #8 and #9 were fixed by hand in Sessions 23 and 24 by merging each file from the right starting point.
+
+**The fix** (nothing in the app changes):
+- `tools-after-squash.js` merges `main` into a branch from the right starting point. That is the newest commit of the branch whose exact files are already on `main` (a squash commit has the same files as the pull request's last commit when it was up to date), or, with `--from <sha>`, where the branch and the merged pull request part. Only `main`'s newer changes come in, and nothing the branch did is undone.
+  - It works out the result with `git merge-tree --write-tree --merge-base=…` (git 2.40+; the container has 2.43). Then it makes a real merge commit (parents: the branch and `main`) with exactly those files.
+  - It never rebases or force-pushes; `--push` is a plain push, refused if the branch moved.
+  - Real conflicts (both sides changed the same lines even from there) stop it before anything changes, with the files listed (exit 2).
+  - A branch not built on a squashed one is left alone ("a normal merge is the right one").
+- `.github/workflows/after-squash.yml` runs it after every merged pull request into `main` (and by hand from the Actions tab), for each open same-repository pull request with `--from` the merged one's last commit. It runs `main`'s copy of the tool, saved before each branch is checked out. Real conflicts get a comment on that pull request instead. It needs `contents: write` and `pull-requests: write` (asked for in the file).
+- CLAUDE.md: the owner keeps Squash and merge; start branches from the latest `main`; after a squash, use the tool, not a hand merge, rebase or force-push; `npm run test:squash`.
+- This branch (`claude/relaxed-dirac-cuhvec`, last used for v0.23.0) was brought up to `main` with the tool itself: from 4769553, no conflicts, its files then exactly `main`'s.
+
+**Tests** (`npm run test:squash`, 20 checks, throwaway repositories in the temp folder):
+- the problem reproduced (a normal merge conflicts); after the tool, the branch's own files in a merge commit with both parents, a deleted file still deleted, and a clean merge with `main` afterwards;
+- `main` moved on after the squash: that change comes in too;
+- a branch that undid one of the squashed pull request's changes: a normal merge quietly puts it back with no conflict, the tool keeps it undone (why a hand merge isn't good enough);
+- a real conflict: exit 2, the file named, the branch untouched;
+- an unrelated branch left alone; a pull request squashed while behind `main` (only `--from` finds the place);
+- `--branch` with `--push` against a bare remote: one commit added, not forced; trailers; uncommitted changes and bad options refused;
+- the real history of #8 (7ce6d8a after eea0209) and #9 (a8ad830 after 6499316): both conflict normally, and the tool merges them with each branch's files unchanged.
+
+The workflow's script was run locally with a stand-in for `gh`, against a bare remote. It used two open pull requests built on a squashed one: one was updated and pushed, keeping its changes plus `main`'s later fix; the other, with a real conflict, was left alone and got the comment.
+
+**Not checked**: the workflow on GitHub itself (it only runs once it is on `main`; the first squash merge after that is its real test, or run it by hand from the Actions tab). If the repository's Actions settings forbid write access for workflows, the push and comment fail and say so in the run's log.
+
 ## Unfinished (in priority order)
 
 - **P4**: none outstanding beyond polish.

@@ -19,7 +19,8 @@ new work, and read the relevant "Session N" section before touching that feature
   `npm run fonts` (`tools-fonts.js`). Run it after adding a font to `FONTS`.
 - `index.html` – the built single-file app. **Generated: edit `src/`, never `index.html` directly.**
 - `tools-*.js` – headless tests (jsdom + a software canvas stub in `tools-test-env.js`), plus
-  `tools-browser-check.js`, which runs the app in real Chromium.
+  `tools-browser-check.js`, which runs the app in real Chromium, and `tools-after-squash.js` (see Conventions).
+- `.github/workflows/after-squash.yml` – after each squash merge, brings the open pull requests built on it up to date.
 
 ## Setup
 
@@ -60,6 +61,7 @@ Plus, depending on what changed:
   screenshots and `report.html` land in `browser-check/`, which is git-ignored)
 - an example (`src/examples.js`) or anything that changes how an example looks → `npm run thumbs` (then build again)
   and, if the README or manual shows it, `npm run screenshots`
+- `tools-after-squash.js` or `.github/workflows/after-squash.yml` → `npm run test:squash`
 - a change a user would notice → update `MANUAL.md` and `CHANGELOG.md`
 
 Smoke test options: `QUICK=1`, `ONLY=tracer,board`, `PAGES=0-3`, `VERBOSE=1`. Lithophane and jigsaw
@@ -79,6 +81,12 @@ tests accept `CORE=1` for the fast geometry-only part.
 - Bump `version` in `package.json` for each release and add a "Session N" section to `HANDOFF.md`
   describing what changed, what was tested and anything left unfinished.
 - Open a new pull request for every version release (the owner asked for this in Session 20).
+- The owner merges with **Squash and merge** and wants to keep it (Session 25). Start each new branch from the latest
+  `main`. A branch started on another, unmerged branch shows false conflicts once that one is squash-merged: then run
+  `git fetch origin && node tools-after-squash.js` on it and push. It merges `main` in from the right starting point,
+  so only `main`'s newer changes come in. Don't merge `main` by hand (a plain merge can quietly undo the branch's own
+  changes), and don't rebase or force-push. The GitHub Action does the same for open pull requests after every merge,
+  and comments on any with real conflicts.
 - Every release note, the `CHANGELOG.md` entry and the pull request description alike, lists that release's bug fixes
   under **Fixed**, one line each, as a user would notice them (asked for in Session 21).
 - Updating ONNX Runtime Web or the model means new SHA-256 values in `AI_FIGURE` (`src/app.html`) and in `models/LICENSE.md`.

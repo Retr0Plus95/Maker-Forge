@@ -3,6 +3,28 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.24.1
+
+- **More accurate colour from a photo**, worked out on a real case: a figurine of a footballer in a red and green kit and its product picture, where the shaded half of the shirt, arms and legs came out green, the face partly green and the top of the base in stripes.
+  - **Light and shadow are evened out.** The app finds where the light came from, using the model's own shape, and takes the shading out before it reads the colours, so the red in shade is read as red. Shades of a strong colour no longer take a filament of their own, and pixels too dark to read are left out. The photo card says where the light came from. **Even out light and shadow** turns it off; projects saved before this version keep it off.
+  - **Other things in the picture are left out of lining up**: icons and labels beside the figure, and a second figure standing behind it, which the AI figure finder marks too.
+  - **The angle is looked for both as from far away and as from close by**, then how close. The footballer's picture now lines up from the front with the outline matching 85%, where it lined up as from 22° to the side at 71%.
+  - On five test photos lit hard from one side and taken from close by, the parts the photo shows came out 94% right instead of 81%.
+
+**Fixed**
+- The top of a base seen from a little above was guessed from its front, which painted it in stripes; it is now read from the photo.
+- Along the edges of a figure found by the AI, the background was read as a colour (grey along arms and legs).
+- **Line it up again** and the side buttons did not read the colours again, so after hand fixes a colour could be left out.
+- Finding the figure by colour lost it in front of a busy background more often than it needed to: on a test photo in front of a bookshelf, 76% of the model now comes out right instead of 54%.
+
+## 0.24
+
+- **Close-up photos.** When colouring a model from a photo, a phone held near a small figure makes its near parts look bigger, and the photo did not line up well. Now the app works out how close the camera was as it lines the photo up, and allows for it. On rendered close-ups of the test figure (the camera 1.7 and 2 times the figure's height away), the share of the surface coloured right went from 65% to 84% and from 68% to 87%. Photos from far away line up exactly as before.
+- **How close was the camera?** on the photo card shows what was worked out, and lets you choose **Far away or zoomed in**, **Arm's length** or **Close up** by hand. It is saved with the project.
+
+**Fixed**
+- Colouring from a photo taken close to the model lined it up badly, so parts of the model took the wrong colours.
+
 ## 0.23
 
 - **Faster and lighter.**

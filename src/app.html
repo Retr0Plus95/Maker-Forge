@@ -237,7 +237,6 @@ textarea.ta{resize:vertical;min-height:52px;font-size:13px}
 .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin:9px 0;padding:4px;background:var(--panel);
   border:1px solid var(--line);border-radius:10px}
 .seg.two{grid-template-columns:repeat(2,1fr)}
-.seg.four{grid-template-columns:repeat(4,1fr)}
 .seg button{border:none;background:none;border-radius:7px;padding:7px 4px;cursor:pointer;font-weight:600;font-size:12.5px;color:var(--muted)}
 .seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
 .check{display:flex;gap:9px;align-items:center;margin:11px 0;font-weight:600;font-size:13px;cursor:pointer}
@@ -321,6 +320,7 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
 .oprow .grow{flex:1;min-width:0}
 .oprow small{color:var(--muted)}
 .seg.five{grid-template-columns:repeat(5,1fr)}
+.seg.four{grid-template-columns:repeat(4,1fr)}
 .seg.tools{grid-template-columns:repeat(3,1fr)}
 /* the box or lasso being drawn over the view: white over a dark edge, seen on any model */
 .areaSel{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
@@ -429,7 +429,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.23.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.24.1</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -4053,17 +4053,32 @@ function photoBox(model, cam){
   const b = [(u0 + u1)/2, (v0 + v1)/2, Math.max(1e-6, v1 - v0)]; m.set(key, b);
   return b;
 }
-function photoFitNowFor(v){
+function photoFitScaled(v){
   const f = v.fit, model = f && v.box && photoModel(); if (!model) return f;
   const b = photoBox(model, photoCamOf(v)), [cu0, cv0, h0] = v.box, s = b[2] / h0;
   if (!(s > 0.01 && s < 100) || (Math.abs(s - 1) < 1e-9 && Math.abs(b[0] - cu0) < 1e-9 && Math.abs(b[1] - cv0) < 1e-9)) return f;
   // photoXY: (x, y) = (tx, ty) + a·R(u, v); keep the old middle where it was and scale by the height
   const c = Math.cos(f.rot), sn = Math.sin(f.rot), R = (u, w) => { const uu = f.mirror ? -u : u; return [uu*c - w*sn, -(uu*sn + w*c)]; };
   const a2 = f.a / s, r0 = R(cu0, cv0), r1 = R(b[0], b[1]);
-  return { a:a2, tx:f.tx + f.a*r0[0] - a2*r1[0], ty:f.ty + f.a*r0[1] - a2*r1[1], rot:f.rot, mirror:f.mirror };
+  return Object.assign({ a:a2, tx:f.tx + f.a*r0[0] - a2*r1[0], ty:f.ty + f.a*r0[1] - a2*r1[1], rot:f.rot, mirror:f.mirror }, f.k > 0 ? { k:f.k } : {});
 }
+// a close camera (Session 23): the fit carries how close it was (k), and every use of it gets the whole
+// model's middle as seen from that camera (ref), so each part of the model is seen from the same place;
+// the middle is worked out from the model as it is now, so it follows the model's size
+const photoRefCache = new WeakMap();
+function photoRefOf(model, cam){
+  let m = photoRefCache.get(model); if (!m){ m = new Map(); photoRefCache.set(model, m); }
+  const key = cam.yaw + "," + cam.pitch; if (!m.has(key)) m.set(key, C.photoRef(model, cam));
+  return m.get(key);
+}
+function photoFitNowFor(v){
+  const f = photoFitScaled(v), model = f && f.k > 0 && photoModel();
+  return model ? Object.assign({}, f, { ref:photoRefOf(model, photoCamOf(v)) }) : f;
+}
+// a fit as a step keeps it: the camera reference is worked out again each time
+const photoFitKept = f => f && Object.assign({ a:f.a, tx:f.tx, ty:f.ty, rot:f.rot, mirror:f.mirror }, f.k > 0 ? { k:f.k } : {});
 // before the fit is changed by hand: take the model as it is now as the reference
-function photoBake(v){ const model = photoModel(); if (!v.fit || !model) return; v.fit = photoFitNowFor(v); v.box = photoBox(model, photoCamOf(v)).map(x => +x.toFixed(5)); }
+function photoBake(v){ const model = photoModel(); if (!v.fit || !model) return; v.fit = photoFitKept(photoFitNowFor(v)); v.box = photoBox(model, photoCamOf(v)).map(x => +x.toFixed(5)); }
 const wrapYaw = y => { y = ((y + 180) % 360 + 360) % 360 - 180; return y === -180 ? 180 : Math.round(y); };
 /* ---- the AI figure finder (Session 17) ----
    For photos on a busy background, where finding the figure by colour fails: the small U²-Net ("u2netp",
@@ -4251,13 +4266,22 @@ function aiCutoutRow(p, d, after){
 function photoFitView(v, search){
   const model = photoModel(), px = photoPixels(v.asset, 480);
   if (!model || !px) return false;
-  const mask = photoFigure(v, px);
+  const mask = photoFigure(v, px), mirror = !!(v.fit && v.fit.mirror), angles = search ? { yaw:45, pitch:20 } : null;
   // the AI's outline may take in a little background: a part of it the model does not cover counts less
-  const r = C.photoFit(model, photoCamOf(v), mask, px.w, px.h, !!(v.fit && v.fit.mirror), search ? { yaw:45, pitch:20 } : null, false, aiMapOf(v.ai) ? { extra:0.7 } : null);
+  const opt = aiMapOf(v.ai) ? { extra:0.7 } : {};
+  let r;
+  if (typeof v.near === "number") r = C.photoFit(model, photoCamOf(v), mask, px.w, px.h, mirror, angles, false, Object.assign({ k:v.near }, opt));
+  // worked out (Session 23, v0.24.1): a new photo or Line it up again looks for the angle both as from far
+  // away and as from close by, then for how close (photoFitFull: a product picture of a figure on a base,
+  // taken from about its chest, was lined up as from 22° to the side when the angle was found far away
+  // first). At a given angle only how close is looked for. A close camera has to fit clearly better, so a
+  // photo from far away lines up as before.
+  else r = search ? C.photoFitFull(model, photoCamOf(v), mask, px.w, px.h, mirror, angles, opt)
+    : C.photoFitCloseness(model, photoCamOf(v), mask, px.w, px.h, mirror, opt);
   if (!r) return false;
-  v.fit = { a:r.fit.a, tx:r.fit.tx, ty:r.fit.ty, rot:r.fit.rot, mirror:r.fit.mirror };
-  v.match = +r.iou.toFixed(3);
   if (r.cam) v.cam = { yaw:wrapYaw(r.cam.yaw), pitch:clamp(Math.round(r.cam.pitch), -89, 89) };
+  v.fit = photoFitKept(r.fit); if (v.fit.k) v.fit.k = +v.fit.k.toFixed(3);
+  v.match = +r.iou.toFixed(3);
   v.box = photoBox(model, photoCamOf(v)).map(x => +x.toFixed(5));
   return true;
 }
@@ -4267,6 +4291,42 @@ async function photoFitNow(o, v, search){
   setBusy(false); if (ok) logLine(`Lined ${v.name} up with the model (outline ${Math.round(100 * v.match)}%)`);
   if (!ok) notify("The photo could not be lined up: no figure was found in it. Try a photo on a plain background, or change the background setting.");
   return ok;
+}
+/* ---- light and shade (v0.24.1) ----
+   A photo lit from one side shows one paint as two colours (red in the light, near-black red in the shade),
+   so the shade took a filament of its own or joined a dark colour. With "Even out light and shadow" (o.shade)
+   the light is found from each lined-up photo and the model's shape (core photoLight: a key light and an even
+   fill, and the model's own shadow), and taken out before the colours are read (core photoUnshade). */
+const photoLightCache = new Map(), photoShadeCache = new Map();
+const cacheSet = (m, k, v, n) => { m.set(k, v); if (m.size > n) m.delete(m.keys().next().value); return v; };
+function photoLightOf(v){
+  const model = photoModel(), f = v.fit && model && photoFitNowFor(v), px = f && photoPixels(v.asset, 480);
+  if (!px) return null;
+  const key = JSON.stringify([v.asset, photoCamOf(v), f, v.ai || "", v.tol, photoFixKey(v)]);
+  if (photoLightCache.has(key)) return photoLightCache.get(key);
+  // learned from the figure as found, away from the model's edge
+  const use = C.photoModelMask(model, photoCamOf(v), f, px.w, px.h, 3), fig = photoFigure(v, px);
+  for (let i=0;i<use.length;i++) if (!fig[i]) use[i] = 0;
+  let L = null; try { L = C.photoLight(px.rgba, px.w, px.h, model, photoCamOf(v), f, use); } catch (err){ console.error(err); }
+  return cacheSet(photoLightCache, key, L, 12);
+}
+// the pixels to read colours from: the photo, with the light taken out when the step asks for it
+function photoReadPixels(o, v, px){
+  if (o.shade !== true) return px.rgba;
+  const model = photoModel(), f = v.fit && model && photoFitNowFor(v), L = f && photoLightOf(v);
+  if (!L) return px.rgba;
+  const key = JSON.stringify([v.asset, px.w, photoCamOf(v), f, L, v.ai || "", v.tol, photoFixKey(v)]);
+  if (photoShadeCache.has(key)) return photoShadeCache.get(key);
+  return cacheSet(photoShadeCache, key, C.photoUnshade(px.rgba, px.w, px.h, model, photoCamOf(v), f, L, photoFigure(v, px)), 6);
+}
+// the AI's outline, or one fixed by hand, is trusted everywhere: what it calls background is never read
+// (the colour method's can lose white clothes on a white background, so the model's middle always counts)
+const photoStrict = v => !!aiMapOf(v.ai) || !!(v.fix && v.fix.length);
+// where the light came from, in words, as the photo sees it
+function photoLightWords(v, L){
+  const Cm = C.photoCam(photoCamOf(v)), d = L.dir, x = d[0]*Cm.r[0] + d[1]*Cm.r[1] + d[2]*Cm.r[2], y = d[0]*Cm.up[0] + d[1]*Cm.up[1] + d[2]*Cm.up[2];
+  const h = x > 0.35 ? "right" : x < -0.35 ? "left" : "", up = y > 0.35 ? (h ? "upper " : "above") : y < -0.35 ? (h ? "lower " : "below") : "";
+  return h || up ? `from the ${up}${h}`.replace("the above", "above").replace("the below", "below") : "from the front";
 }
 // the photos' colours: pixels inside the lined-up model (the photo's own figure until it is lined up)
 function photoPickColours(o){
@@ -4278,7 +4338,7 @@ function photoPickColours(o){
     const f = v.fit && model ? photoFitNowFor(v) : null, rim = f ? Math.max(2, Math.round(0.02 * f.a * photoBox(model, photoCamOf(v))[2] * px.h)) : 0;
     const m = f ? C.photoModelMask(model, photoCamOf(v), f, px.w, px.h, rim) : photoFigure(v, px);
     if (f && v.fix && v.fix.length){ const fm = C.photoFixMap(v.fix, px.w, px.h); for (let i=0;i<m.length;i++) if (fm[i] === 2) m[i] = 0; }
-    parts.push([px.rgba, m]);
+    parts.push([f ? photoReadPixels(o, v, px) : px.rgba, m]);
   }
   const n = parts.reduce((s, q) => s + q[1].length, 0);
   if (!n){ o.pal = []; o.slots = []; return; }
@@ -4325,7 +4385,7 @@ function photoNearestFilaments(o){
 const photoInfo = new WeakMap();                     // step -> what the last colouring saw
 function photoLabels(pc, o){
   const fits = o.views.map(photoFitNowFor);
-  const key = JSON.stringify([o.views.map((v, i) => [v.asset, v.cam, fits[i], v.tol, v.ai || "", photoFixKey(v)]), o.pal, o.fill, o.speck, o.smooth]);
+  const key = JSON.stringify([o.views.map((v, i) => [v.asset, v.cam, fits[i], v.tol, v.ai || "", photoFixKey(v)]), o.pal, o.fill, o.speck, o.smooth, o.shade === true]);
   if (!pc.photo) pc.photo = new Map();
   let r = pc.photo.get(key); if (r) return r;
   const B = C.solidBounds(pc.solid), D = Math.hypot(B.mx[0]-B.mn[0], B.mx[1]-B.mn[1], B.mx[2]-B.mn[2]) || 1, views = [];
@@ -4333,7 +4393,7 @@ function photoLabels(pc, o){
     const f = fits[i], px = f && photoPixels(v.asset, PHOTO_RES);
     // a fit that makes the model many times bigger than the photo is broken (a hand-edited file): skip it
     if (!px || !(f.a * D < 4)) return;
-    views.push(C.photoView(px.rgba, px.w, px.h, pc.solid, photoCamOf(v), f, o.pal, photoFigure(v, px)));
+    views.push(C.photoView(photoReadPixels(o, v, px), px.w, px.h, pc.solid, photoCamOf(v), f, o.pal, photoFigure(v, px), photoStrict(v)));
   });
   const n = pc.topo.n, lab = new Int16Array(n).fill(-1);
   let info = { seen:0, painted:0, n };
@@ -4353,7 +4413,7 @@ async function photoRepaint(){
   try { repaint(true); } catch (err){ console.error(err); }
   setBusy(false); pushHistory(); logLine(`Painted in ${Math.round(performance.now() - t0)} ms`);
 }
-function newPhotoOp(){ return { k:"photo", views:[], pal:[], slots:[], colours:clamp(Math.round(state.printer.colors || 4), 2, MAX_SLOTS), use:"photo", fill:true, speck:1, smooth:true }; }
+function newPhotoOp(){ return { k:"photo", views:[], pal:[], slots:[], colours:clamp(Math.round(state.printer.colors || 4), 2, MAX_SLOTS), use:"photo", fill:true, speck:1, smooth:true, shade:true }; }
 const photoOpOf = () => { const ops = state.paint.ops; for (let i = ops.length - 1; i >= 0; i--) if (ops[i].k === "photo") return ops[i]; return null; };
 // photos dropped on the Paint tab: kept like pictures, lined up, and the model coloured from them
 const photoInput = Object.assign(document.createElement("input"), { type:"file", accept:"image/png,image/jpeg,image/webp,image/gif", multiple:true, id:"photoInput", className:"vh" });
@@ -7567,7 +7627,7 @@ function drawPhotoPreview(cv, o, v){
   if (v.fit && model){
     const cam = photoCamOf(v), fit = photoFitNowFor(v);
     if (show === "colours" && o.pal.length){
-      const cls = C.photoView(px.rgba, W, H, model, cam, fit, o.pal, photoFigure(v, px)).cls.data;
+      const cls = C.photoView(photoReadPixels(o, v, px), W, H, model, cam, fit, o.pal, photoFigure(v, px), photoStrict(v)).cls.data;
       for (let i=0;i<W*H;i++){
         const c = cls[i];
         if (c >= 0){ const s = o.slots[c], rgb = s !== PAINT_LEAVE && state.slots[s] ? C.hexToRgb(state.slots[s].hex) : o.pal[c].rgb; d[4*i] = rgb[0]; d[4*i+1] = rgb[1]; d[4*i+2] = rgb[2]; }
@@ -7720,13 +7780,21 @@ function photoCard(c){
   showMatch();
   // where it was taken from
   segField(c, [["front","Front"],["right","Right"],["back","Back"],["left","Left"],["top","Top"]], () => photoSideOf(v), async k => {
-    const s0 = PHOTO_SIDES[k]; v.cam = { yaw:s0[0], pitch:s0[1] }; await photoFitNow(o, v, true); renderKeepFocus(); photoRepaint(); }, "five");
+    const s0 = PHOTO_SIDES[k]; v.cam = { yaw:s0[0], pitch:s0[1] }; await photoFitNow(o, v, true); photoPickColours(o); renderKeepFocus(); photoRepaint(); }, "five");
   // a new angle or background: line up again at that angle (the card stays as it is, so a slider keeps the focus)
   const refit = () => photoLater(async () => { await photoFitNow(o, v, false); redraw(); showMatch(); photoRepaint(); }, 500);
   numField(c, { label:"Taken from (° round the model)", min:-180, max:180, step:1, get:()=>v.cam.yaw, set:x=>v.cam.yaw = Math.round(x), onChange:refit, noReset:true,
     sub:()=>"0 is the front, 90 the right side, 180 the back." });
   numField(c, { label:"Taken from (° above)", min:-89, max:89, step:1, get:()=>v.cam.pitch, set:x=>v.cam.pitch = Math.round(x), onChange:refit, noReset:true });
   checkField(c, "The photo is mirrored (a selfie or a reflection)", () => !!(v.fit && v.fit.mirror), x => { if (!v.fit) v.fit = { a:0.01, tx:0.5, ty:0.9, rot:0, mirror:x }; else v.fit.mirror = x; refit(); });
+  // how close the camera was (Session 23): a phone near a small figure makes its near parts bigger
+  c.insertAdjacentHTML("beforeend", `<p class="hint">How close was the camera?</p>`);
+  const nearOpts = [["auto","Work it out"],["0","Far away or zoomed in"],["0.3","Arm's length"],["0.7","Close up"]];
+  const nearNow = () => typeof v.near !== "number" ? "auto" : nearOpts.slice(1).reduce((b, o) => Math.abs(+o[0] - v.near) < Math.abs(+b[0] - v.near) ? o : b)[0];
+  segField(c, nearOpts, nearNow, async k => { if (k === "auto") delete v.near; else v.near = +k; await photoFitNow(o, v, false); renderKeepFocus(); photoRepaint(); }, "two near");
+  const kNow = v.fit && v.fit.k > 0 ? v.fit.k : 0;
+  note(c, kNow ? `${typeof v.near === "number" ? "Lined up" : "Worked out"} as taken from about ${(1 / kNow).toFixed(1)} times the model's height away: its near parts look bigger, and the outline allows for that.`
+    : typeof v.near === "number" ? "Lined up as taken from far away, or zoomed in: no part looks bigger for being nearer." : "It looks taken from far away, or zoomed in. A photo taken close up is worked out when it is lined up.");
   if (aiMapOf(v.ai)){
     note(c, "The AI figure finder found the figure in this photo.");
     buttonRow(c, [["Find the figure by colour instead", async () => { v.ai = null; photoToSide(v); await photoFitNow(o, v, true); photoPickColours(o); renderKeepFocus(); photoRepaint(); }]]);
@@ -7737,10 +7805,20 @@ function photoCard(c){
     note(c, aiState.session ? "The AI figure finder is ready. It looks at every photo of this step."
       : `The AI figure finder looks at every photo of this step. It downloads once (about ${AI_FIGURE.mb} MB) and runs on this computer: your photos are not sent anywhere.`);
   }
-  buttonRow(c, [["Line it up again", async () => { await photoFitNow(o, v, true); renderKeepFocus(); photoRepaint(); }], ["Remove this photo", removePhoto]]);
+  // lined up anew, the colours are read anew (they are read inside the lined-up model: hand fixes picked
+  // them with the old fit, and missed the base, v0.24.1)
+  buttonRow(c, [["Line it up again", async () => { await photoFitNow(o, v, true); photoPickColours(o); renderKeepFocus(); photoRepaint(); }], ["Remove this photo", removePhoto]]);
 
   // the colours
   c.insertAdjacentHTML("beforeend", `<h3>Colours</h3>`);
+  checkField(c, "Even out light and shadow", () => o.shade === true, x => { o.shade = x; photoPickColours(o); renderKeepFocus(); photoRepaint(); });
+  {
+    const L = o.shade === true && v.fit ? photoLightOf(v) : null;
+    note(c, o.shade !== true ? "Off: a colour in deep shade can come out as a colour of its own (a dark red beside the red)."
+      : !v.fit ? "The light is found once the photo is lined up."
+      : L ? `The light in this photo comes ${photoLightWords(v, L)}${L.shadows ? ", and the model casts shadows" : ""}. It is evened out, using the model's shape, before the colours are read.`
+      : "This photo looks evenly lit: there is no shading to take out.");
+  }
   numField(c, { label:"Number of colours", min:2, max:MAX_SLOTS, step:1, def:clamp(Math.round(state.printer.colors || 4), 2, MAX_SLOTS), get:()=>o.colours, set:x=>o.colours = Math.round(x),
     onChange:() => photoLater(() => { photoPickColours(o); renderKeepFocus(); photoRepaint(); }, 500) });
   if (o.pal.length > (state.printer.colors || 4)) note(c, `Your printer is set to load ${state.printer.colors} filaments, and this uses ${o.pal.length}. Fewer colours, or colour swaps during the print, get round that.`);
@@ -8466,7 +8544,9 @@ function cleanPaint(P0){
           const f = plain(v.fit) && fin(v.fit.a) && v.fit.a > 0 && fin(v.fit.tx) && fin(v.fit.ty) && fin(v.fit.rot) ? v.fit : null, c = plain(v.cam) ? v.cam : {};
           return { asset:cleanStr(typeof v.asset === "string" ? v.asset : "", 40, ""), name:cleanStr(v.name, 60, "Photo"),
             cam:{ yaw:Math.round(num(c.yaw, -180, 180, 0)), pitch:Math.round(num(c.pitch, -89, 89, 0)) },
-            fit:f ? { a:num(f.a, 1e-5, 10, 0.01), tx:num(f.tx, -5, 5, 0.5), ty:num(f.ty, -5, 5, 0.5), rot:num(f.rot, -0.35, 0.35, 0), mirror:f.mirror === true } : null,
+            fit:f ? Object.assign({ a:num(f.a, 1e-5, 10, 0.01), tx:num(f.tx, -5, 5, 0.5), ty:num(f.ty, -5, 5, 0.5), rot:num(f.rot, -0.35, 0.35, 0), mirror:f.mirror === true },
+              fin(f.k) && f.k > 0 ? { k:+num(f.k, 0, C.PHOTO_K_MAX, 0).toFixed(3) } : {}) : null,
+            near:fin(v.near) ? +num(v.near, 0, C.PHOTO_K_MAX, 0).toFixed(2) : undefined,
             tol:Math.round(num(v.tol, 0, 100, 35)), match:num(v.match, 0, 1, 0),
             box:Array.isArray(v.box) && v.box.length === 3 && v.box.every(fin) && v.box[2] > 1e-3 ? v.box.map(x => num(x, -1e4, 1e4, 0)) : undefined,
             ai:typeof v.ai === "string" && v.ai ? cleanStr(v.ai, 40, "") : undefined, fix:cleanPhotoFix(v.fix) };
@@ -8479,7 +8559,7 @@ function cleanPaint(P0){
         });
         const sl = slots(o.slots, 8).slice(0, pal.length); while (sl.length < pal.length) sl.push(PAINT_LEAVE);
         return { k:"photo", views, pal, slots:sl, colours:Math.round(num(o.colours, 2, MAX_SLOTS, 4)), use:one(o.use, ["photo","mine"]),
-          fill:o.fill !== false, speck:num(o.speck, 0, 50, 1), smooth:o.smooth !== false };
+          fill:o.fill !== false, speck:num(o.speck, 0, 50, 1), smooth:o.smooth !== false, shade:o.shade === true };
       }
       default: return null;
     }

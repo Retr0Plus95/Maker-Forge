@@ -668,7 +668,7 @@ const PALETTES = {
 };
 const CURVED = { cylinder:1, sphere:1, shell:1, hex:1, stl:1, turned:1, bobble:1 };
 const FLAT = { board:1, nameplate:1, frame:1, box:1, canvas:1, pcb:1, tracer:1, jigsaw:1 };
-// the picture that becomes the object itself, not laid on it as well (a plastic canvas's stitches: Session 27,
+// the picture that becomes the object itself, not laid on it as well (a plastic canvas's stitches: Session 28,
 // it was printed twice, as stitches and as a decal over them)
 const CONSUMES_ART = { cutter:1, pcb:1, lightbox:1, tracer:1, jigsaw:1, lithophane:1, canvas:1 };
 // which of the picture's own settings each of those objects reads; the Art tab shows only these
@@ -1071,7 +1071,7 @@ function toCanvas(img, max=1600){
   const c = document.createElement("canvas");
   c.width = Math.max(1,Math.round(w*s)); c.height = Math.max(1,Math.round(h*s));
   // in memory rather than on the graphics chip: pictures are read back again and again (resampled, cropped,
-  // kept with the project), and every read from the chip stalls the page (Session 27)
+  // kept with the project), and every read from the chip stalls the page (Session 28)
   const x = c.getContext("2d", { willReadFrequently:true }); x.imageSmoothingQuality = "high"; x.drawImage(img,0,0,c.width,c.height);
   return c;
 }
@@ -1164,7 +1164,7 @@ function sourceCanvas(d){
   d._srcCv = cv; d._srcSig = sig; d.aspect = cv.width/cv.height; d._imgKey = "";
   return cv;
 }
-// A picture kept with the project (Session 27). Writing a big picture out as PNG text takes up to a second on the
+// A picture kept with the project (Session 28). Writing a big picture out as PNG text takes up to a second on the
 // page, so it is written in the background (toBlob encodes away from the page) and only written on the spot if
 // something needs it sooner; the autosave waits for it instead (saveLocal). JPEG for photos with no see-through parts.
 function pictureAsset(canvas, type, quality){
@@ -1194,7 +1194,7 @@ function thumbURL(cv){
   const x = c.getContext("2d", { willReadFrequently:true }); x.imageSmoothingQuality = "high"; x.drawImage(cv, 0, 0, c.width, c.height);
   return c.toDataURL("image/png");
 }
-// A picture's pixels at a size. Reading pixels back from the browser's canvas is slow (Session 27: up to most of
+// A picture's pixels at a size. Reading pixels back from the browser's canvas is slow (Session 28: up to most of
 // a second for a puzzle's picture on a phone or a slow graphics chip), and most changes keep the picture and its
 // size, so the last few sizes of each picture are kept. Pictures are never drawn over once made (a change makes a
 // new canvas), so what is kept stays right; each caller gets its own copy to change as it likes.
@@ -1419,7 +1419,7 @@ function buildCanvasPanel(){
   const cellXY = (i,j) => [(i+0.5-gx/2)*cv.pitch, (gy/2-(j+0.5))*cv.pitch];
   // The openings: square holes at the tile corners, the hanging holes and, with the background left open, open
   // squares with the bars between them kept, like real canvas. A corner hole that would cut into a hanging hole or
-  // an open square is left out, and openings that still overlap are joined into one (Session 27: they overlapped,
+  // an open square is left out, and openings that still overlap are joined into one (Session 28: they overlapped,
   // which left bits of plastic inside the hanging holes and made a muddle of an open background).
   const open = (i,j) => !!(cv.open && idx) && i >= 0 && j >= 0 && i < gx && j < gy && idx[j*gx+i] < 0;
   const hangs = cv.hang ? [[-W/2+cv.margin, H/2+cv.margin/2], [W/2-cv.margin, H/2+cv.margin/2]] : [];
@@ -1804,7 +1804,7 @@ function encLogo(E, lidSlot, area, R, taken, warn){
   // sliver is left that a slicer would skip
   const s = clamp(lw/500, 0.05, 0.2), gw = Math.max(4, Math.round(lw/s)), gh = Math.max(4, Math.round(lh/s));
   // the picture split into its colours and traced, kept while the picture, its size and the filaments stay the
-  // same: moving the logo, or any change to the box or case, used to redo it (a third of a second, Session 27)
+  // same: moving the logo, or any change to the box or case, used to redo it (a third of a second, Session 28)
   const rOpen = Math.max(0, Math.round((state.printer.nozzle || 0.4)*0.5/s)), engrave = LG.mode === "engrave";
   const key = [s, gw, gh, !!item.mirror, item.smooth ?? 1, (item.skip || []).join(","), state.slots.map(sl => sl.hex).join(","), lidSlot, rOpen, engrave].join("|");
   let v = encLogoCache.get(src);
@@ -2526,7 +2526,7 @@ async function buildTracer(){
     for (let y=0;y<h;y++) for (let x=0;x<w;x++) if (x<edge||y<edge||x>=w-edge||y>=h-edge) mask[y*w+x] = 0;
   }
 
-  await yieldUI();                                    // a breath between the steps, so the page keeps up (Session 27)
+  await yieldUI();                                    // a breath between the steps, so the page keeps up (Session 28)
   // 2. clean up: close small gaps, open away whiskers, drop specks, keep the part
   const rough = mask.slice();
   const px0 = paperMmPerPx ? 1/paperMmPerPx : Math.max(w,h)/Math.max(1,T.size);   // provisional px per mm
@@ -3361,7 +3361,7 @@ async function buildNamePlate(){
   };
   refresh();
   // trace a field only in a window round what is set in it, then move the outlines back into place
-  // (Session 27: tracing or measuring distances across the whole canvas was most of a second)
+  // (Session 28: tracing or measuring distances across the whole canvas was most of a second)
   const mmPerPx = 1/PLATE_PX;
   const traceIn = (src, bb, mg, opt, toField) => {
     if (bb.maxX < 0) return [];
@@ -3454,7 +3454,7 @@ async function buildNamePlate(){
     }
   }
 
-  // The plate's outline as a field that is positive on the plate, traced where it crosses zero (Session 27). Taken
+  // The plate's outline as a field that is positive on the plate, traced where it crosses zero (Session 28). Taken
   // straight from the distances to the letters it needs one or two distance passes instead of four, and comes out
   // smoother than tracing a grown and shrunk mask (that was most of a second per change on a long name).
   const plateField = new Float32Array(W*H);
@@ -4916,8 +4916,9 @@ function errWhere(err){
   return m ? ` (in ${m[1] || m[2]})` : "";
 }
 let timer = 0, busy = false, queued = false, buildRev = 0, rebuildPending = false, lastBuildMs = 0;
+const keptGeom = new WeakMap(), keptSoup = new WeakMap();   // an imported model's solid -> geometry -> its triangles
 // a rebuild a moment from now (sliders call this on every move); MakerForge.busy counts it as work under way.
-// A model that takes long to build waits a little longer for the slider to stop (Session 27), so dragging
+// A model that takes long to build waits a little longer for the slider to stop (Session 28), so dragging
 // doesn't start a slow build at every pause and lock the page up.
 function schedule(){
   clearTimeout(timer); rebuildPending = true;
@@ -4944,13 +4945,23 @@ async function rebuildAll(resetItems){
     else if (t === "enclosure") parts = buildEnclosure();
     else if (t === "phonecase") parts = buildPhoneCase();
     else parts = buildSimpleObject();
-    parts.forEach(p => { if (!p.geom) p.geom = solidToGeometry(p.solid); });
+    // an imported model is the same solid from build to build: its geometry, the copy pictures are laid on and
+    // its picking boxes are kept, not made again for every change to artwork or paint (Session 28)
+    parts.forEach(p => {
+      if (p.geom) return;
+      if (t === "stl"){ let g = keptGeom.get(p.solid); if (!g) keptGeom.set(p.solid, g = solidToGeometry(p.solid)); p.geom = g; }
+      else p.geom = solidToGeometry(p.solid);
+    });
 
     if (baseMesh){ baseMesh = null; }
     baseGeom = parts.length ? parts[0].geom : null; baseSoup = null;
     if (baseGeom){
-      const ni = baseGeom.index ? baseGeom.toNonIndexed() : baseGeom;
-      baseSoup = { pos:ni.attributes.position.array, nrm:ni.attributes.normal ? ni.attributes.normal.array : null };
+      baseSoup = keptSoup.get(baseGeom);
+      if (!baseSoup){
+        const ni = baseGeom.index ? baseGeom.toNonIndexed() : baseGeom;
+        baseSoup = { pos:ni.attributes.position.array, nrm:ni.attributes.normal ? ni.attributes.normal.array : null };
+        if (t === "stl") keptSoup.set(baseGeom, baseSoup);
+      }
       baseMesh = new THREE.Mesh(baseGeom, slotMat(parts[0].slot)); baseMesh.raycast = boxedRaycast;
       baseMesh.updateMatrixWorld(true);
     }
@@ -9109,7 +9120,7 @@ function applyPreset(key){
     // The pictures' sizes depend on the model, so they are set after it is built, and it is built again
     // with them, but only when a size changed that the model uses: a picture laid on it, or the one a cookie
     // cutter is cut from. A puzzle, a lithophane, a box, a phone case or a keychain's picture beside the name
-    // was built twice for nothing (Session 27).
+    // was built twice for nothing (Session 28).
     try { await rebuildAll(false); await new Promise(r=>setTimeout(r,60));
       const t = state.base.type, consumed = CONSUMES_ART[t] ? (state.items[state.active] || state.items[0]) : null;
       let changed = false;
@@ -9295,7 +9306,7 @@ window.MakerForge = {
 })();
 }
 /* The geometry library runs from its own <script id="prcore"> above, and the app starts once it has. A website
-   whose Content-Security-Policy forbids scripts written into the page (Session 27: the owner's site, where every
+   whose Content-Security-Policy forbids scripts written into the page (Session 28: the owner's site, where every
    build failed with "Cannot read properties of undefined (reading 'coverageField')") does not run that one: the
    same text then runs from a blob: URL, which such a policy usually allows. A page that blocks both says so. */
 (function start(){

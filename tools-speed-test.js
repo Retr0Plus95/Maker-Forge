@@ -1,6 +1,6 @@
 // Speed (Session 22): picking with a bounding volume hierarchy, checked ray by ray against testing every
 // triangle, on the photo test's figure (568 680 triangles), a sphere and a heap of random triangles.
-// Session 27: distance fields and the closed-mesh check, each checked number by number against the old way, and
+// Session 28: distance fields and the closed-mesh check, each checked number by number against the old way, and
 // a plastic canvas's panel triangulated in strips.
 //   node tools-speed-test.js [index.html]      CORE=1 for the core only
 "use strict";
@@ -80,7 +80,7 @@ check(C.bvhRaycast(empty, new Float32Array(0), new Uint32Array(0), [0, 0, 5], [0
   C.bvhRaycast(one, new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), null, [0.2, 0.2, -5], [0, 0, 1], null, 1) === null && C.meshBVH(same, null).nodes >= 1,
   "odd cases: no triangles, one triangle seen from the front and from behind, fifty triangles in one point");
 
-// distance fields (Session 27): the passes down the columns now read the rows in memory order. Every distance must
+// distance fields (Session 28): the passes down the columns now read the rows in memory order. Every distance must
 // come out exactly as the general method (kept here as it was) gave it, or outlines built from them would move.
 console.log("\ndistance fields");
 {
@@ -121,7 +121,7 @@ console.log("\ndistance fields");
   check(true, "a long name plate's grid (2702 × 730)", `${tn} ms, the general method ${tg} ms`);
 }
 
-// the closed-mesh check (Session 27): edges paired up under their lower corner instead of one big sort. The open
+// the closed-mesh check (Session 28): edges paired up under their lower corner instead of one big sort. The open
 // edge count and the volume must come out exactly as the sorted way (kept here as it was) gave them.
 console.log("\nthe closed-mesh check");
 {
@@ -159,7 +159,7 @@ console.log("\nthe closed-mesh check");
   check(true, "the figure (568 680 triangles)", `${tn} ms, the sorted way ${ts} ms`);
 }
 
-// many holes (Session 27): a convex outline with a grid of holes is triangulated in strips between columns of holes,
+// many holes (Session 28): a convex outline with a grid of holes is triangulated in strips between columns of holes,
 // and overlapping square openings are joined first (rectUnion). The same region must come out (area, volume, every
 // opening open, nothing outside), and the walls must close up.
 console.log("\nmany holes");

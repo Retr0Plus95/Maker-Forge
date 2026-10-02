@@ -55,8 +55,13 @@ Plus, depending on what changed:
   `parseOBJColours`, `modelTriColours`, the Paint tab's "model" step) or the AI cut-out → `npm run test:aimodel` for
   the models (`CORE=1` for the readers only) and `npm run test:photo` for the cut-out
 - picking (`meshBVH`, `bvhRaycast`, `boxedRaycast`), the helper thread (`onHelper`, the `prcore` script) or the draw loop
-  (`viewSnapshot`) → `npm run test:speed` (`CORE=1` for the boxes only) and `npm run check:browser` (the only place
+  (`viewSnapshot`) → `npm run test:speed` (`CORE=1` for the core only) and `npm run check:browser` (the only place
   with a real Web Worker)
+- `edt`, `checkMesh`, `triangulate` (its strips for many holes) or `rectUnion` → `CORE=1 npm run test:speed`: each is
+  checked number by number against the old way (Session 28)
+- how the app starts (the `makerForge()` starter at the end of `src/app.html`, which loads the `prcore` script itself
+  when a page's security policy blocks it, as the owner's website does) → `npm run check:browser`, and serve a copy
+  the way the website does (Session 28 in `HANDOFF.md`)
 - new settings, `sanitizeProject`, `LIMITS` / `LIMITS_AT`, or `DEFAULTS` → `npm run test:project` (every quick start and object
   must come back unchanged from a saved project, and out-of-range values must not make a build run away)
 - after any generator change → `node tools-print-survey.js index.html` (look for new warnings)

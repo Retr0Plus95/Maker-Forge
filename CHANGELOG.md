@@ -5,13 +5,22 @@ Every release of Maker Forge, newest first. The [README](README.md) describes th
 
 ## 0.25.1
 
-- **Much less freezing.** Building a model now does the same work in far less time, and takes short breaks so the page keeps responding. Measured in Chrome on every quick start, the longest freeze while opening one or moving a slider:
-  - Name keychain: 1.6 s → 0.4 s per slider change;
-  - Kids' puzzle: 3.2 s → 1.7 s when it opens; Jigsaw puzzle 1.2 s → 0.6 s;
-  - Lithophane: 0.8 s → 0.3 s per slider change;
-  - Plastic canvas: 0.8 s → SLIDER_CANVAS s per slider change; Trace a part: 0.5 s → SLIDER_TRACE s.
+- **Much less freezing.** Building a model now does the same work in far less time, and takes short breaks so the page keeps responding. Measured in Chrome on every quick start, the longest freeze while opening one and while moving its first slider:
+  - Name keychain: 2.8 s → 0.4 s to open, 1.4 s → 0.3 s per slider change;
+  - Double-sided tag: 1.2 s → 0.25 s, 1.2 s → 0.23 s;
+  - Kids' puzzle: 3.4 s → 0.3 s to open;
+  - Lithophane: 1.7 s → 0.2 s to open, 0.8 s → 0.3 s per slider change;
+  - Trace a part: 0.8 s → 0.2 s, 0.5 s → 0.2 s;
+  - Plastic canvas: 0.7 s → 0.1 s, 0.7 s → 0.1 s;
+  - over all 22 quick starts, the longest freeze is now under half a second (it was 3.4 s).
 - Opening a quick start no longer builds the model twice when nothing changed in between (puzzles, lithophanes, boxes, phone cases).
 - Pictures are kept with your project in the background instead of while you wait, and a big model's closed-mesh check is about seven times quicker.
+- **Big imported models** freeze less too. On a 373 000-triangle figure coloured from a photo:
+  - adding the photo: 3.1 s → 2.1 s;
+  - opening the Export tab: 0.7 s → 0.2 s;
+  - changing a picture's width: 0.9 s → 0.6 s.
+
+  Changing such a model's size still freezes for about 4 seconds; that is next.
 
 **Fixed**
 - On a website with strict security settings, such as the Maker Forge page on retr0plus.se, and so on phones visiting it, every model failed with "Cannot read properties of undefined (reading 'coverageField')". The app now starts there too; downloading `index.html` always worked.

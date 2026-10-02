@@ -495,7 +495,7 @@
     out.cuts = cuts;
     return out;
   }
-  // The outline of a union of axis-aligned rectangles [x0, y0, x1, y1], exactly (Session 27: a plastic canvas's open
+  // The outline of a union of axis-aligned rectangles [x0, y0, x1, y1], exactly (Session 28: a plastic canvas's open
   // squares overlap the stitch holes at their corners, and overlapping holes made earcut cover parts of them). The
   // regions come out clockwise and anything they enclose counter-clockwise, so groupLoops reads them as holes in a
   // panel and islands in those holes.
@@ -667,7 +667,7 @@
     for (let t = 0; t < E; t++) if (I[t] >= nv) nv = I[t] + 1;
     // A closed mesh has each edge once each way. Every edge goes in a list under its lower corner, with its
     // other corner and its direction; each corner's few edges are then paired up. Unpaired edges count as
-    // the sorted list of all directed edges counted them (Session 27: that sort was most of the time on big
+    // the sorted list of all directed edges counted them (Session 28: that sort was most of the time on big
     // models): an edge with both directions present counts their difference from each side.
     const start = new Int32Array(nv + 1);
     for (let t = 0; t < E; t += 3) for (let k = 0; k < 3; k++) {
@@ -730,7 +730,7 @@
   function edt(mask, w, h) {
     const INF = 1e20, out = new Float64Array(w * h);
     // down the columns: for a mask that is just the distance to the nearest set pixel above or below, found in two
-    // sweeps that read the rows in memory order (Session 27: walking each column missed the cache on every pixel).
+    // sweeps that read the rows in memory order (Session 28: walking each column missed the cache on every pixel).
     // The squares come out exactly as the general method gave them, so nothing built from them moves.
     const run = new Float64Array(w).fill(INF);
     for (let y = 0, i = 0; y < h; y++) for (let x = 0; x < w; x++, i++) out[i] = run[x] = mask[i] ? 0 : run[x] + 1;
@@ -2552,7 +2552,7 @@
     };
     const poly = [], tag = [];
     const tri = (a, ia, b, ib, d, id) => {              // counter-clockwise in (u, v)
-      // all three corners on the sheet, as nearly all are: straight in, with no lists made (Session 27)
+      // all three corners on the sheet, as nearly all are: straight in, with no lists made (Session 28)
       if (!sdf || (sdf[a] <= 0 && sdf[b] <= 0 && sdf[d] <= 0)) {
         tris.push(a, b, d);
         if (border(a, b, ia, ib)) walls.push(a, b);

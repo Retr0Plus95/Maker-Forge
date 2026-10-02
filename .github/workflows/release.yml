@@ -1,0 +1,29 @@
+# Releases (Session 27): every version of the app as a file to download from the Releases page, so anyone can
+# pick an earlier one. After each merge to main, tools-release.js makes a release for each version on main that
+# has none yet (the first run also makes them for the versions before this workflow), with that version's
+# index.html attached as maker-forge-<version>.html. Run it by hand from the Actions tab ("Run workflow") too.
+name: Releases
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: releases
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Make a release for every version on main that has none
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools-release.js --backfill

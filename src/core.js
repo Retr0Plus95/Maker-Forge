@@ -3610,21 +3610,23 @@
     return { dir: l.map(v => +v.toFixed(4)), amb: +q.toFixed(4), shadows, fit: +explained.toFixed(3) };
   }
   // the photo with the light's shading taken out where the model is (and use allows): each pixel as it
-  // would look facing the light. At most maxGain times brighter (5): the darkest shade is mostly noise.
+  // would look facing the light. At most maxGain times brighter (10; it was 5 until v0.25, which left red
+  // in a deep shade dark red, a colour of its own that pushed the hair out of the palette).
   // Pixels too dark to read come back clear (alpha 0): photoPalette and photoClasses skip them.
   function photoUnshade(rgba, W, H, solid, cam, fit, light, use, maxGain) {
     const out = new Uint8ClampedArray(rgba);
     if (!light || !Array.isArray(light.dir)) return out;
     const R = photoRaster(solid, cam, fit, W, H), N = photoTriNormals(solid), l = light.dir, q = Math.max(0.01, Math.min(1, +light.amb || 0));
-    const vis = light.shadows ? photoLitBy(solid, l) : null, g = maxGain || 5, lin = PHOTO_LIN;
+    const vis = light.shadows ? photoLitBy(solid, l) : null, g = maxGain || 10, lin = PHOTO_LIN;
     const toS = v => { v = v > 1 ? 1 : v; return 255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055); };
     for (let i = 0; i < W * H; i++) {
       const t = R.id[i]; if (t < 0 || (use && !use[i])) continue;
       let d = N[3 * t] * l[0] + N[3 * t + 1] * l[1] + N[3 * t + 2] * l[2]; if (d < 0 || (vis && !vis[t])) d = 0;
       const k = Math.min(g, 1 / (q + (1 - q) * d)), o = 4 * i;
-      // nearly black in the shade: its hue is noise, and made brighter it would read as some colour.
-      // Left unread (clear), so the model takes the colour of better-lit parts round it there.
-      if (k > 2 && Math.max(rgba[o], rgba[o + 1], rgba[o + 2]) < 24) { out[o + 3] = 0; continue; }
+      // black in the shade: its hue is noise, and made brighter it would read as some colour. Left unread
+      // (clear), so the model takes the colour of better-lit parts round it there. Only the truly black (under
+      // 8): at 24 (v0.24.1) black boots and hair in a half shade went unread and took the socks' red (v0.25)
+      if (k > 2 && Math.max(rgba[o], rgba[o + 1], rgba[o + 2]) < 8) { out[o + 3] = 0; continue; }
       out[o] = toS(lin[rgba[o]] * k); out[o + 1] = toS(lin[rgba[o + 1]] * k); out[o + 2] = toS(lin[rgba[o + 2]] * k);
     }
     return out;
@@ -3736,9 +3738,12 @@
       if (r.score > best.score) best = r;
     }
     // then what lies well away from the lined-up model, even if it touches the figure (a second figure
-    // standing behind it: the AI marks both): kept within 6% of the model's height of its outline, twice
+    // standing behind it: the AI marks both): kept within 6% of the model's height of its outline, then,
+    // lined up again, within 3% (v0.25: a grey copy touching the figure's side still pulled the angle 10°)
+    const TRIM = [0.06, 0.03];
+    let trimRound = 0;
     const trim = (g, fit) => {
-      const { pw, ph, PM } = g, R = Math.max(2, Math.round(0.06 * (v1 - v0) * fit.a)), d = new Int16Array(pw * ph).fill(-1), q = new Int32Array(pw * ph);
+      const { pw, ph, PM } = g, R = Math.max(2, Math.round(TRIM[Math.min(trimRound, TRIM.length - 1)] * (v1 - v0) * fit.a)), d = new Int16Array(pw * ph).fill(-1), q = new Int32Array(pw * ph);
       let qh = 0, qt = 0;
       for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) if (inModel(fit, x, y)) { d[y * pw + x] = 0; q[qt++] = y * pw + x; }
       while (qh < qt) {
@@ -3753,7 +3758,8 @@
     };
     const clean = (g, fit) => { const a = focus(g, fit), b = trim(a || g, fit); return b || a; };
     let g1f = null;
-    for (let round = 0; round < 2; round++) {
+    for (let round = 0; round < TRIM.length; round++) {
+      trimRound = round;
       const g1c = clean(g1, best.fit); if (!g1c) break;
       g1 = g = g1f = g1c;
       best = search(g1, Object.assign({}, best.fit), { a: 0.02, tx: (g1.bx1 - g1.bx0 + 1) * 0.01, ty: (g1.by1 - g1.by0 + 1) * 0.01, rot: 0.015 }, quick ? 0.01 : 0.002);

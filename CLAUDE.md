@@ -21,6 +21,9 @@ new work, and read the relevant "Session N" section before touching that feature
 - `tools-*.js` – headless tests (jsdom + a software canvas stub in `tools-test-env.js`), plus
   `tools-browser-check.js`, which runs the app in real Chromium, and `tools-after-squash.js` (see Conventions).
 - `.github/workflows/after-squash.yml` – after each squash merge, brings the open pull requests built on it up to date.
+- `.github/workflows/release.yml` + `tools-release.js` – after each merge to `main`, every version on `main` without a
+  GitHub Release gets one, with its `index.html` as `maker-forge-<version>.html` (`npm run release:dry` to preview).
+  So a release needs no more than the version bump in `package.json` and its CHANGELOG.md section.
 
 ## Setup
 

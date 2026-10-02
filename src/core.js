@@ -446,16 +446,129 @@
     return polys;
   }
 
+  // A convex outline with many holes (a plastic canvas's grid of holes) cut into upright strips between columns of
+  // holes: earcut joins every hole to the outline one by one, which grows with the square of their number (3.5 s
+  // for a 90-cell canvas). The strips share their cut edges point for point, so the walls still close up.
+  function stripsOf(poly) {
+    const R = poly.outer, n = R.length, H = poly.holes;
+    if (H.length < 64 || n < 3) return null;
+    let sgn = 0;
+    for (let i = 0; i < n; i++) {
+      const a = R[i], b = R[(i + 1) % n], c = R[(i + 2) % n], z = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
+      if (Math.abs(z) < 1e-12) continue;
+      if (sgn && Math.sign(z) !== sgn) return null;    // not convex
+      sgn = Math.sign(z);
+    }
+    const span = H.map(h => { let lo = Infinity, hi = -Infinity; for (const p of h) { if (p[0] < lo) lo = p[0]; if (p[0] > hi) hi = p[0]; } return { h, lo, hi }; }).sort((a, b) => a.lo - b.lo);
+    const per = Math.max(16, Math.ceil(Math.sqrt(H.length) * 1.5)), cuts = [];
+    let reach = -Infinity, since = 0;
+    for (let i = 0; i < span.length; i++) {
+      if (i && since >= per && span[i].lo > reach + 1e-6) {
+        let x = (reach + span[i].lo) / 2;
+        if (R.some(p => Math.abs(p[0] - x) < 1e-7)) x = reach + (span[i].lo - reach) * 0.37;
+        cuts.push(x); since = 0;
+      }
+      reach = Math.max(reach, span[i].hi); since++;
+    }
+    if (!cuts.length) return null;
+    // the outline cut down to x0 <= x <= x1 (Sutherland-Hodgman; the points on a cut come out the same from both sides)
+    const at = (p, q, x) => { const t = (x - p[0]) / (q[0] - p[0]); return [x, p[1] + (q[1] - p[1]) * t]; };
+    const clip = (L, x, keepRight) => {
+      const out = [], inside = p => keepRight ? p[0] >= x : p[0] <= x;
+      for (let i = 0; i < L.length; i++) {
+        const p = L[i], q = L[(i + 1) % L.length], ip = inside(p), iq = inside(q);
+        if (ip) out.push(p);
+        if (ip !== iq) out.push(p[0] < q[0] ? at(p, q, x) : at(q, p, x));
+      }
+      return out;
+    };
+    const edges = [-Infinity, ...cuts, Infinity], out = [];
+    let k = 0;
+    for (let s = 0; s + 1 < edges.length; s++) {
+      let L = R;
+      if (edges[s] > -Infinity) L = clip(L, edges[s], true);
+      if (edges[s + 1] < Infinity) L = clip(L, edges[s + 1], false);
+      const holes = [];
+      while (k < span.length && span[k].hi < edges[s + 1]) holes.push(span[k++].h);
+      if (L.length >= 3) out.push({ outer: L, holes });
+    }
+    out.cuts = cuts;
+    return out;
+  }
+  // The outline of a union of axis-aligned rectangles [x0, y0, x1, y1], exactly (Session 27: a plastic canvas's open
+  // squares overlap the stitch holes at their corners, and overlapping holes made earcut cover parts of them). The
+  // regions come out clockwise and anything they enclose counter-clockwise, so groupLoops reads them as holes in a
+  // panel and islands in those holes.
+  function rectUnion(rects) {
+    rects = rects.filter(r => r[2] > r[0] && r[3] > r[1]);
+    const xs = [...new Set(rects.flatMap(r => [r[0], r[2]]))].sort((a, b) => a - b), ys = [...new Set(rects.flatMap(r => [r[1], r[3]]))].sort((a, b) => a - b);
+    const nx = xs.length - 1, ny = ys.length - 1;
+    if (nx < 1 || ny < 1) return [];
+    const ix = new Map(xs.map((x, i) => [x, i])), iy = new Map(ys.map((y, i) => [y, i])), on = new Uint8Array(nx * ny);
+    for (const r of rects) for (let j = iy.get(r[1]); j < iy.get(r[3]); j++) for (let i = ix.get(r[0]); i < ix.get(r[2]); i++) on[j * nx + i] = 1;
+    const at = (i, j) => i >= 0 && j >= 0 && i < nx && j < ny && on[j * nx + i] === 1;
+    // the edges between a covered and an uncovered cell, each with the covered one on its right
+    const W = nx + 1, out = new Map(), edge = (a, b) => { const l = out.get(a); if (l) l.push(b); else out.set(a, [b]); };
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) if (at(i, j)) {
+      if (!at(i, j - 1)) edge(j * W + i + 1, j * W + i);
+      if (!at(i, j + 1)) edge((j + 1) * W + i, (j + 1) * W + i + 1);
+      if (!at(i - 1, j)) edge(j * W + i, (j + 1) * W + i);
+      if (!at(i + 1, j)) edge((j + 1) * W + i + 1, j * W + i + 1);
+    }
+    const loops = [];
+    for (const [start, list] of out) while (list.length) {
+      const L = [];
+      let prev = start, cur = list.pop();
+      L.push(start);
+      while (cur !== start) {
+        L.push(cur);
+        const nxt = out.get(cur);
+        if (!nxt || !nxt.length) break;
+        // where two regions touch at a corner, turn right: that keeps to the same region, so each is its own loop
+        let k = 0;
+        if (nxt.length > 1) {
+          const dx = cur % W - prev % W, dy = Math.floor(cur / W) - Math.floor(prev / W);
+          k = nxt.findIndex(b => { const ex = b % W - cur % W, ey = Math.floor(b / W) - Math.floor(cur / W); return dx * ey - dy * ex < 0; });
+          if (k < 0) k = 0;
+        }
+        prev = cur; cur = nxt.splice(k, 1)[0];
+      }
+      // corners only: points along a straight side are dropped
+      const P = L.map(v => [xs[v % W], ys[Math.floor(v / W)]]), Q = [];
+      for (let i = 0; i < P.length; i++) {
+        const a = P[(i + P.length - 1) % P.length], b = P[i], c = P[(i + 1) % P.length];
+        if ((b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]) !== 0) Q.push(b);
+      }
+      if (Q.length >= 4) loops.push(Q);
+    }
+    return loops;
+  }
+
   // polygons in a right-handed 2D frame -> {pts, tris} with positive (CCW) winding
   function triangulate(polys, maxLen) {
     const pts = [], tris = [];
+    const cutX = new Set(), seen = new Map();           // points on the strips' cuts, kept once
+    polys = polys.flatMap(p => {
+      const st = stripsOf(p);
+      if (!st) return [p];
+      st.cuts.forEach(x => cutX.add(x));
+      return st.map(q => Object.assign(q, { shared: true }));
+    });
     for (const poly of polys) {
       const flat = [], holeIdx = [], base = pts.length;
       const push = L => { for (const p of L) { flat.push(p[0], p[1]); pts.push([p[0], p[1]]); } };
       push(poly.outer);
       for (const h of poly.holes) { holeIdx.push(flat.length / 2); push(h); }
       const t = global.earcut(flat, holeIdx, 2);
-      for (let i = 0; i < t.length; i += 3) tris.push(t[i] + base, t[i + 1] + base, t[i + 2] + base);
+      const id = new Int32Array(pts.length - base);
+      for (let i = 0; i < id.length; i++) {
+        id[i] = base + i;
+        const p = pts[base + i];
+        if (!poly.shared || !cutX.has(p[0])) continue;  // one index for a point on a cut, from either side
+        const key = p[0] + "," + p[1], had = seen.get(key);
+        if (had === undefined) seen.set(key, base + i); else id[i] = had;
+      }
+      for (let i = 0; i < t.length; i++) tris.push(id[t[i]]);
     }
     for (let i = 0; i < tris.length; i += 3) {
       const a = pts[tris[i]], b = pts[tris[i + 1]], c = pts[tris[i + 2]];
@@ -552,25 +665,35 @@
     const I = solid.idx, P = solid.pos, E = I.length;
     let vol = 0, nv = P.length / 3;
     for (let t = 0; t < E; t++) if (I[t] >= nv) nv = I[t] + 1;
-    // every directed edge a -> b as one exact number, sorted: a closed mesh has each edge once each way
-    const keys = new Float64Array(E);
+    // A closed mesh has each edge once each way. Every edge goes in a list under its lower corner, with its
+    // other corner and its direction; each corner's few edges are then paired up. Unpaired edges count as
+    // the sorted list of all directed edges counted them (Session 27: that sort was most of the time on big
+    // models): an edge with both directions present counts their difference from each side.
+    const start = new Int32Array(nv + 1);
+    for (let t = 0; t < E; t += 3) for (let k = 0; k < 3; k++) {
+      const a = I[t + k], b = I[t + (k + 1) % 3];
+      if (a !== b) start[(a < b ? a : b) + 1]++;
+    }
+    for (let v = 0; v < nv; v++) start[v + 1] += start[v];
+    const fill = start.slice(0, nv), code = new Float64Array(start[nv]);   // other corner * 2 + (1 if it runs up)
     for (let t = 0; t < E; t += 3) {
-      for (let k = 0; k < 3; k++) keys[t + k] = I[t + k] * nv + I[t + (k + 1) % 3];
+      for (let k = 0; k < 3; k++) {
+        const a = I[t + k], b = I[t + (k + 1) % 3];
+        if (a < b) code[fill[a]++] = b * 2 + 1; else if (b < a) code[fill[b]++] = a * 2;
+      }
       const a = I[t] * 3, b = I[t + 1] * 3, c = I[t + 2] * 3;
       vol += (P[a] * (P[b + 1] * P[c + 2] - P[b + 2] * P[c + 1]) - P[a + 1] * (P[b] * P[c + 2] - P[b + 2] * P[c]) + P[a + 2] * (P[b] * P[c + 1] - P[b + 1] * P[c])) / 6;
     }
-    keys.sort();
-    const count = key => {                               // how often a directed edge occurs
-      let lo = 0, hi = E;
-      while (lo < hi) { const m = (lo + hi) >> 1; if (keys[m] < key) lo = m + 1; else hi = m; }
-      let n = 0; while (lo + n < E && keys[lo + n] === key) n++;
-      return n;
-    };
     let open = 0;
-    for (let i = 0; i < E;) {
-      let j = i; while (j < E && keys[j] === keys[i]) j++;
-      const k = keys[i], b = k % nv, a = (k - b) / nv;
-      open += Math.abs(j - i - count(b * nv + a)); i = j;
+    for (let v = 0; v < nv; v++) {
+      const lo = start[v], hi = start[v + 1];
+      if (hi - lo > 24) code.subarray(lo, hi).sort();
+      else for (let i = lo + 1; i < hi; i++) { const x = code[i]; let j = i - 1; while (j >= lo && code[j] > x) { code[j + 1] = code[j]; j--; } code[j + 1] = x; }
+      for (let i = lo; i < hi;) {
+        const other = Math.floor(code[i] / 2); let up = 0, down = 0;
+        while (i < hi && Math.floor(code[i] / 2) === other) { if (code[i] % 2) up++; else down++; i++; }
+        open += up && down ? 2 * Math.abs(up - down) : up + down;
+      }
     }
     return { tris: E / 3, open, volume: Math.abs(vol) };
   }
@@ -605,12 +728,19 @@
   }
   // distance in pixels from every pixel to the nearest set pixel
   function edt(mask, w, h) {
-    const m = Math.max(w, h), INF = 1e20;
-    const f = new Float64Array(m), d = new Float64Array(m), v = new Int32Array(m), z = new Float64Array(m + 1);
-    const out = new Float64Array(w * h);
-    for (let i = 0; i < w * h; i++) out[i] = mask[i] ? 0 : INF;
-    for (let x = 0; x < w; x++) { for (let y = 0; y < h; y++) f[y] = out[y * w + x]; edt1d(f, h, d, v, z); for (let y = 0; y < h; y++) out[y * w + x] = d[y]; }
-    for (let y = 0; y < h; y++) { for (let x = 0; x < w; x++) f[x] = out[y * w + x]; edt1d(f, w, d, v, z); for (let x = 0; x < w; x++) out[y * w + x] = Math.sqrt(d[x]); }
+    const INF = 1e20, out = new Float64Array(w * h);
+    // down the columns: for a mask that is just the distance to the nearest set pixel above or below, found in two
+    // sweeps that read the rows in memory order (Session 27: walking each column missed the cache on every pixel).
+    // The squares come out exactly as the general method gave them, so nothing built from them moves.
+    const run = new Float64Array(w).fill(INF);
+    for (let y = 0, i = 0; y < h; y++) for (let x = 0; x < w; x++, i++) out[i] = run[x] = mask[i] ? 0 : run[x] + 1;
+    run.fill(INF);
+    for (let y = h - 1; y >= 0; y--) for (let x = 0, i = y * w; x < w; x++, i++) {
+      const r = run[x] = mask[i] ? 0 : run[x] + 1, a = out[i] < r ? out[i] : r;
+      out[i] = a >= INF ? INF : a * a;
+    }
+    const f = new Float64Array(w), d = new Float64Array(w), v = new Int32Array(w), z = new Float64Array(w + 1);
+    for (let y = 0; y < h; y++) { const o = y * w; for (let x = 0; x < w; x++) f[x] = out[o + x]; edt1d(f, w, d, v, z); for (let x = 0; x < w; x++) out[o + x] = Math.sqrt(d[x]); }
     return out;
   }
   function dilateMask(mask, w, h, r) {
@@ -2422,12 +2552,15 @@
     };
     const poly = [], tag = [];
     const tri = (a, ia, b, ib, d, id) => {              // counter-clockwise in (u, v)
-      const vs = [a, b, d], is = [ia, ib, id];
-      if (!sdf) {
+      // all three corners on the sheet, as nearly all are: straight in, with no lists made (Session 27)
+      if (!sdf || (sdf[a] <= 0 && sdf[b] <= 0 && sdf[d] <= 0)) {
         tris.push(a, b, d);
-        for (let k = 0; k < 3; k++) { const p = vs[k], q = vs[(k + 1) % 3]; if (border(p, q, is[k], is[(k + 1) % 3])) walls.push(p, q); }
+        if (border(a, b, ia, ib)) walls.push(a, b);
+        if (border(b, d, ib, id)) walls.push(b, d);
+        if (border(d, a, id, ia)) walls.push(d, a);
         return;
       }
+      const vs = [a, b, d], is = [ia, ib, id];
       const inn = vs.map(inside);
       if (!inn[0] && !inn[1] && !inn[2]) return;
       poly.length = 0; tag.length = 0;
@@ -4283,7 +4416,7 @@
 
   global.PRCore = {
     hexToRgb, rgbToHex, colorDist, luma, kmeans, buildCellMap, makeProjector, buildDecalSolids, weldSoup, parseSTL,
-    prepareParts, make3MF, make3MF_BBL, makeSTL, makeOBJ, traceMask, groupLoops, triangulate, solidFromTris, buildVectorSolid,
+    prepareParts, make3MF, make3MF_BBL, makeSTL, makeOBJ, traceMask, groupLoops, rectUnion, triangulate, solidFromTris, buildVectorSolid,
     extrudePolys, extrudePolysAt, closeMask, smoothMask, revolve, revolveLoop, sweepTube, traceField, fieldToPolys, strokePolys, signedDistanceField, coverageField, blurMask, homography, applyH, warpQuad, quadCorners, refineQuad, fitDimensions, convexHull, outlineSVG, outlineDXF, transformSolid, mirrorSolid, solidBounds, mirrorMaskX, perforate, insideRing, snapToGrid, signedVolume, buildMaskSolid, maskOfSlot, checkMesh, edt, dilateMask, erodeMask, labelMask, maskToPolys, ringCircle, ringRect, ringStar, ringPoly, ringHeart, mergeSolids, area2,
     affineSolid, mat3Mul, rotationDownTo, analyzePrint, analyzePrintSteps, bestOrientation, bestOrientationSteps, orientationScore, brimSolid, bedContact, sliceMask, gridOver, flattenParts,
     seededRandom, jigsawGrid, jigsawCut, jigsawEdge, jigsawPiece, jigsawSVG, jigsawCutLines, ringField, ringDistance, outlineBand, strokeText,

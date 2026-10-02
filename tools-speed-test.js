@@ -1,5 +1,7 @@
 // Speed (Session 22): picking with a bounding volume hierarchy, checked ray by ray against testing every
 // triangle, on the photo test's figure (568 680 triangles), a sphere and a heap of random triangles.
+// Session 27: distance fields and the closed-mesh check, each checked number by number against the old way, and
+// a plastic canvas's panel triangulated in strips.
 //   node tools-speed-test.js [index.html]      CORE=1 for the core only
 "use strict";
 const path = require("path");
@@ -77,6 +79,133 @@ const same = new Float32Array(9 * 50).fill(1);                                  
 check(C.bvhRaycast(empty, new Float32Array(0), new Uint32Array(0), [0, 0, 5], [0, 0, -1], null, 1) === null && h1 && h1.tri === 0 && Math.abs(h1.t - 5) < 1e-9 &&
   C.bvhRaycast(one, new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), null, [0.2, 0.2, -5], [0, 0, 1], null, 1) === null && C.meshBVH(same, null).nodes >= 1,
   "odd cases: no triangles, one triangle seen from the front and from behind, fifty triangles in one point");
+
+// distance fields (Session 27): the passes down the columns now read the rows in memory order. Every distance must
+// come out exactly as the general method (kept here as it was) gave it, or outlines built from them would move.
+console.log("\ndistance fields");
+{
+  const edt1d = (f, n, d, v, z) => {
+    let k = 0; v[0] = 0; z[0] = -Infinity; z[1] = Infinity;
+    for (let q = 1; q < n; q++) {
+      let s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+      while (s <= z[k]) { k--; s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]); }
+      k++; v[k] = q; z[k] = s; z[k + 1] = Infinity;
+    }
+    k = 0;
+    for (let q = 0; q < n; q++) { while (z[k + 1] < q) k++; d[q] = (q - v[k]) * (q - v[k]) + f[v[k]]; }
+  };
+  const general = (mask, w, h) => {
+    const m = Math.max(w, h), f = new Float64Array(m), d = new Float64Array(m), v = new Int32Array(m), z = new Float64Array(m + 1), out = new Float64Array(w * h);
+    for (let i = 0; i < w * h; i++) out[i] = mask[i] ? 0 : 1e20;
+    for (let x = 0; x < w; x++) { for (let y = 0; y < h; y++) f[y] = out[y * w + x]; edt1d(f, h, d, v, z); for (let y = 0; y < h; y++) out[y * w + x] = d[y]; }
+    for (let y = 0; y < h; y++) { for (let x = 0; x < w; x++) f[x] = out[y * w + x]; edt1d(f, w, d, v, z); for (let x = 0; x < w; x++) out[y * w + x] = Math.sqrt(d[x]); }
+    return out;
+  };
+  const rr = C.seededRandom(27), cases = [];
+  for (let t = 0; t < 300; t++) {
+    const w = 1 + Math.floor(rr() * 60), h = 1 + Math.floor(rr() * 60), p = rr() * rr(), m = new Uint8Array(w * h);
+    for (let i = 0; i < m.length; i++) m[i] = rr() < p ? 1 : 0;
+    cases.push([m, w, h]);
+  }
+  { const w = 700, h = 260, m = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if ((x - 200) ** 2 + (y - 130) ** 2 < 80 ** 2 || (x > 380 && x < 650 && Math.abs(y - 130 - (x - 380) * 0.3) < 6)) m[y * w + x] = 1;
+    cases.push([m, w, h]); }
+  cases.push([new Uint8Array(40 * 30), 40, 30], [new Uint8Array(40 * 30).fill(1), 40, 30], [new Float32Array(30 * 30).map((_, i) => i % 7 ? 0 : 0.5), 30, 30]);
+  let same = 0;
+  for (const [m, w, h] of cases) { const a = general(m, w, h), b = C.edt(m, w, h); let ok = a.length === b.length; for (let i = 0; ok && i < a.length; i++) ok = a[i] === b[i]; if (ok) same++; }
+  check(same === cases.length, "every distance exactly as the general method gives it: random masks, shapes, an empty and a full one, a mask of fractions",
+    `${same} of ${cases.length}`);
+  const W = 2702, H = 730, M = new Uint8Array(W * H);                                                   // a long name plate's grid
+  for (let y = 150; y < 580; y++) for (let x = 200; x < 2500; x++) if (Math.sin(x / 40) * Math.cos(y / 30) > 0.3) M[y * W + x] = 1;
+  let t0 = Date.now(); general(M, W, H); const tg = Date.now() - t0; t0 = Date.now(); C.edt(M, W, H); const tn = Date.now() - t0;
+  check(true, "a long name plate's grid (2702 × 730)", `${tn} ms, the general method ${tg} ms`);
+}
+
+// the closed-mesh check (Session 27): edges paired up under their lower corner instead of one big sort. The open
+// edge count and the volume must come out exactly as the sorted way (kept here as it was) gave them.
+console.log("\nthe closed-mesh check");
+{
+  const sorted = solid => {
+    const I = solid.idx, P = solid.pos, E = I.length; let vol = 0, nv = P.length / 3;
+    for (let t = 0; t < E; t++) if (I[t] >= nv) nv = I[t] + 1;
+    const keys = new Float64Array(E);
+    for (let t = 0; t < E; t += 3) {
+      for (let k = 0; k < 3; k++) keys[t + k] = I[t + k] * nv + I[t + (k + 1) % 3];
+      const a = I[t] * 3, b = I[t + 1] * 3, c = I[t + 2] * 3;
+      vol += (P[a] * (P[b + 1] * P[c + 2] - P[b + 2] * P[c + 1]) - P[a + 1] * (P[b] * P[c + 2] - P[b + 2] * P[c]) + P[a + 2] * (P[b] * P[c + 1] - P[b + 1] * P[c])) / 6;
+    }
+    keys.sort();
+    const count = key => { let lo = 0, hi = E; while (lo < hi) { const m = (lo + hi) >> 1; if (keys[m] < key) lo = m + 1; else hi = m; } let n = 0; while (lo + n < E && keys[lo + n] === key) n++; return n; };
+    let open = 0;
+    for (let i = 0; i < E;) { let j = i; while (j < E && keys[j] === keys[i]) j++; const k = keys[i], b = k % nv, a = (k - b) / nv; open += Math.abs(j - i - count(b * nv + a)); i = j; }
+    return { tris: E / 3, open, volume: Math.abs(vol) };
+  };
+  const rr = C.seededRandom(4), meshes = [];
+  for (let t = 0; t < 400; t++) {                       // random triangles: open, doubled, flipped, degenerate
+    const nv = 3 + Math.floor(rr() * 30), nt = Math.floor(rr() * 60), pos = new Float32Array(nv * 3).map(() => rr() * 10), idx = new Uint32Array(nt * 3);
+    for (let i = 0; i < idx.length; i++) idx[i] = Math.floor(rr() * nv);
+    if (rr() < 0.3) for (let i = 0; i + 5 < idx.length; i += 6) { idx[i + 3] = idx[i]; idx[i + 4] = idx[i + 2]; idx[i + 5] = idx[i + 1]; }
+    if (rr() < 0.2 && idx.length) idx[0] = nv + 2;                                                     // past the last corner
+    meshes.push({ pos, idx });
+  }
+  const fan = { pos: new Float32Array(3 * 2002).map(() => rr()), idx: new Uint32Array(3 * 2000) };
+  for (let i = 0; i < 2000; i++) fan.idx.set([0, 1 + i, 2 + i], 3 * i);                                 // 2000 edges on one corner
+  meshes.push(sphere, fan, solid);
+  let same = 0;
+  for (const m of meshes) { const a = sorted(m), b = C.checkMesh(m); if (a.open === b.open && a.tris === b.tris && Object.is(a.volume, b.volume)) same++; }
+  check(same === meshes.length, "open edges and volume exactly as the sorted way counts them: random, doubled and flipped triangles, a fan, a sphere, the figure",
+    `${same} of ${meshes.length}`);
+  let t0 = Date.now(); sorted(solid); const ts = Date.now() - t0; t0 = Date.now(); C.checkMesh(solid); const tn = Date.now() - t0;
+  check(true, "the figure (568 680 triangles)", `${tn} ms, the sorted way ${ts} ms`);
+}
+
+// many holes (Session 27): a convex outline with a grid of holes is triangulated in strips between columns of holes,
+// and overlapping square openings are joined first (rectUnion). The same region must come out (area, volume, every
+// opening open, nothing outside), and the walls must close up.
+console.log("\nmany holes");
+{
+  const inRing = (x, y, L) => { let c = false; for (let i = 0, j = L.length - 1; i < L.length; j = i++) { const a = L[i], b = L[j]; if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+  const inTri = (x, y, p, q, r) => { const d1 = (x - q[0]) * (p[1] - q[1]) - (p[0] - q[0]) * (y - q[1]), d2 = (x - r[0]) * (q[1] - r[1]) - (q[0] - r[0]) * (y - r[1]), d3 = (x - p[0]) * (r[1] - p[1]) - (r[0] - p[0]) * (y - p[1]); return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0)); };
+  // a plastic canvas's panel as buildCanvasPanel makes it: corner holes, hanging holes, open squares where open(i, j)
+  const panel = (cells, hang, open, holeSize) => {
+    const pitch = 4.5, gap = 0.7, W = cells * pitch, hs = holeSize / 2, os = (pitch - gap) / 2, rects = [];
+    const hangs = hang ? [[-W / 2 + 4, W / 2 + 2], [W / 2 - 4, W / 2 + 2]] : [];
+    const near = (x, y) => hangs.some(([hx, hy]) => Math.hypot(Math.max(0, Math.abs(hx - x) - hs), Math.max(0, Math.abs(hy - y) - hs)) < 2.4);
+    const op = (i, j) => i >= 0 && j >= 0 && i < cells && j < cells && open(i, j);
+    for (let j = 0; j <= cells; j++) for (let i = 0; i <= cells; i++) {
+      const x = (i - cells / 2) * pitch, y = (cells / 2 - j) * pitch;
+      if (!near(x, y) && !op(i - 1, j - 1) && !op(i, j - 1) && !op(i - 1, j) && !op(i, j)) rects.push([x - hs, y - hs, x + hs, y + hs]);
+    }
+    for (let j = 0; j < cells; j++) for (let i = 0; i < cells; i++) if (op(i, j)) { const x = (i + 0.5 - cells / 2) * pitch, y = (cells / 2 - j - 0.5) * pitch; rects.push([x - os, y - os, x + os, y + os]); }
+    const circles = hangs.map(([hx, hy]) => C.ringCircle(2, 32, true).map(p => [p[0] + hx, p[1] + hy]));
+    const outer = C.ringRect(W + 8, W + 8, 3, 8);
+    return { polys: C.groupLoops([outer, ...C.rectUnion(rects), ...circles]), outer, rects, circles };
+  };
+  const cases = [["a 34-cell canvas with hanging holes", 34, true, () => false, 1.4], ["a 90-cell canvas", 90, false, () => false, 1.4],
+    ["a 24-cell canvas with its background open", 24, true, (i, j) => (i - 12) ** 2 + (j - 12) ** 2 > 30, 1.4],
+    ["corner holes wider than the squares between them, so the middle is all open", 16, false, (i, j) => (i + j) % 5 === 0, 5]];
+  const sig = rs => C.rectUnion(rs).map(L => C.area2(L)).sort((a, b) => a - b).join(" ");
+  check(sig([[0, 0, 2, 2], [1, 1, 3, 3]]) === "-7" && sig([[0, 0, 3, 1], [0, 2, 3, 3], [0, 0, 1, 3], [2, 0, 3, 3]]) === "-9 1" && sig([[0, 0, 1, 1], [1, 1, 2, 2]]) === "-1 -1",
+    "joining squares: two overlapping make one opening, a ring keeps its middle as a loose piece, two touching at a corner stay two",
+    `${sig([[0, 0, 2, 2], [1, 1, 3, 3]])} / ${sig([[0, 0, 3, 1], [0, 2, 3, 3], [0, 0, 1, 3], [2, 0, 3, 3]])} / ${sig([[0, 0, 1, 1], [1, 1, 2, 2]])}`);
+  for (const [what, cells, hang, open, holeSize] of cases) {
+    const P = panel(cells, hang, open, holeSize);
+    let t0 = Date.now(); const { pts, tris } = C.triangulate(P.polys, 0); const ms = Date.now() - t0;
+    const sol = C.extrudePolys(P.polys, 1.6), m = C.checkMesh(sol);
+    let area = 0; for (let i = 0; i < tris.length; i += 3) { const p = pts[tris[i]], q = pts[tris[i + 1]], r = pts[tris[i + 2]]; area += ((q[0] - p[0]) * (r[1] - p[1]) - (r[0] - p[0]) * (q[1] - p[1])) / 2; }
+    const want = P.polys.reduce((a, q) => a + Math.abs(C.area2(q.outer)) - q.holes.reduce((b, h) => b + Math.abs(C.area2(h)), 0), 0);
+    const rr = C.seededRandom(cells), R = (cells * 4.5 + 8) / 2; let wrong = 0;
+    for (let k = 0; k < 3000; k++) {
+      const x = (rr() * 2 - 1) * R, y = (rr() * 2 - 1) * R;
+      const inside = inRing(x, y, P.outer) && !P.rects.some(r => x > r[0] && x < r[2] && y > r[1] && y < r[3]) && !P.circles.some(c => inRing(x, y, c));
+      let n = 0; for (let i = 0; i < tris.length && n < 2; i += 3) if (inTri(x, y, pts[tris[i]], pts[tris[i + 1]], pts[tris[i + 2]])) n++;
+      if (n !== (inside ? 1 : 0)) wrong++;
+    }
+    check(Math.abs(area - want) < want * 1e-9 && m.open === 0 && Math.abs(m.volume - want * 1.6) < want * 1.6 * 1e-6 && wrong === 0,
+      `${what}: the right area and volume, closed, 3000 random points in the right place`,
+      `${P.rects.length} openings in ${P.polys.length} piece${P.polys.length === 1 ? "" : "s"}, ${ms} ms, ${m.open} open edges, ${wrong} points wrong`);
+  }
+}
 
 (async () => {
   if (process.env.CORE || !process.argv[2]) { console.log(fails ? `\n${fails} FAILED` : "\nall passed"); process.exit(fails ? 1 : 0); }

@@ -963,16 +963,129 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
     return polys;
   }
 
+  // A convex outline with many holes (a plastic canvas's grid of holes) cut into upright strips between columns of
+  // holes: earcut joins every hole to the outline one by one, which grows with the square of their number (3.5 s
+  // for a 90-cell canvas). The strips share their cut edges point for point, so the walls still close up.
+  function stripsOf(poly) {
+    const R = poly.outer, n = R.length, H = poly.holes;
+    if (H.length < 64 || n < 3) return null;
+    let sgn = 0;
+    for (let i = 0; i < n; i++) {
+      const a = R[i], b = R[(i + 1) % n], c = R[(i + 2) % n], z = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
+      if (Math.abs(z) < 1e-12) continue;
+      if (sgn && Math.sign(z) !== sgn) return null;    // not convex
+      sgn = Math.sign(z);
+    }
+    const span = H.map(h => { let lo = Infinity, hi = -Infinity; for (const p of h) { if (p[0] < lo) lo = p[0]; if (p[0] > hi) hi = p[0]; } return { h, lo, hi }; }).sort((a, b) => a.lo - b.lo);
+    const per = Math.max(16, Math.ceil(Math.sqrt(H.length) * 1.5)), cuts = [];
+    let reach = -Infinity, since = 0;
+    for (let i = 0; i < span.length; i++) {
+      if (i && since >= per && span[i].lo > reach + 1e-6) {
+        let x = (reach + span[i].lo) / 2;
+        if (R.some(p => Math.abs(p[0] - x) < 1e-7)) x = reach + (span[i].lo - reach) * 0.37;
+        cuts.push(x); since = 0;
+      }
+      reach = Math.max(reach, span[i].hi); since++;
+    }
+    if (!cuts.length) return null;
+    // the outline cut down to x0 <= x <= x1 (Sutherland-Hodgman; the points on a cut come out the same from both sides)
+    const at = (p, q, x) => { const t = (x - p[0]) / (q[0] - p[0]); return [x, p[1] + (q[1] - p[1]) * t]; };
+    const clip = (L, x, keepRight) => {
+      const out = [], inside = p => keepRight ? p[0] >= x : p[0] <= x;
+      for (let i = 0; i < L.length; i++) {
+        const p = L[i], q = L[(i + 1) % L.length], ip = inside(p), iq = inside(q);
+        if (ip) out.push(p);
+        if (ip !== iq) out.push(p[0] < q[0] ? at(p, q, x) : at(q, p, x));
+      }
+      return out;
+    };
+    const edges = [-Infinity, ...cuts, Infinity], out = [];
+    let k = 0;
+    for (let s = 0; s + 1 < edges.length; s++) {
+      let L = R;
+      if (edges[s] > -Infinity) L = clip(L, edges[s], true);
+      if (edges[s + 1] < Infinity) L = clip(L, edges[s + 1], false);
+      const holes = [];
+      while (k < span.length && span[k].hi < edges[s + 1]) holes.push(span[k++].h);
+      if (L.length >= 3) out.push({ outer: L, holes });
+    }
+    out.cuts = cuts;
+    return out;
+  }
+  // The outline of a union of axis-aligned rectangles [x0, y0, x1, y1], exactly (Session 27: a plastic canvas's open
+  // squares overlap the stitch holes at their corners, and overlapping holes made earcut cover parts of them). The
+  // regions come out clockwise and anything they enclose counter-clockwise, so groupLoops reads them as holes in a
+  // panel and islands in those holes.
+  function rectUnion(rects) {
+    rects = rects.filter(r => r[2] > r[0] && r[3] > r[1]);
+    const xs = [...new Set(rects.flatMap(r => [r[0], r[2]]))].sort((a, b) => a - b), ys = [...new Set(rects.flatMap(r => [r[1], r[3]]))].sort((a, b) => a - b);
+    const nx = xs.length - 1, ny = ys.length - 1;
+    if (nx < 1 || ny < 1) return [];
+    const ix = new Map(xs.map((x, i) => [x, i])), iy = new Map(ys.map((y, i) => [y, i])), on = new Uint8Array(nx * ny);
+    for (const r of rects) for (let j = iy.get(r[1]); j < iy.get(r[3]); j++) for (let i = ix.get(r[0]); i < ix.get(r[2]); i++) on[j * nx + i] = 1;
+    const at = (i, j) => i >= 0 && j >= 0 && i < nx && j < ny && on[j * nx + i] === 1;
+    // the edges between a covered and an uncovered cell, each with the covered one on its right
+    const W = nx + 1, out = new Map(), edge = (a, b) => { const l = out.get(a); if (l) l.push(b); else out.set(a, [b]); };
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) if (at(i, j)) {
+      if (!at(i, j - 1)) edge(j * W + i + 1, j * W + i);
+      if (!at(i, j + 1)) edge((j + 1) * W + i, (j + 1) * W + i + 1);
+      if (!at(i - 1, j)) edge(j * W + i, (j + 1) * W + i);
+      if (!at(i + 1, j)) edge((j + 1) * W + i + 1, j * W + i + 1);
+    }
+    const loops = [];
+    for (const [start, list] of out) while (list.length) {
+      const L = [];
+      let prev = start, cur = list.pop();
+      L.push(start);
+      while (cur !== start) {
+        L.push(cur);
+        const nxt = out.get(cur);
+        if (!nxt || !nxt.length) break;
+        // where two regions touch at a corner, turn right: that keeps to the same region, so each is its own loop
+        let k = 0;
+        if (nxt.length > 1) {
+          const dx = cur % W - prev % W, dy = Math.floor(cur / W) - Math.floor(prev / W);
+          k = nxt.findIndex(b => { const ex = b % W - cur % W, ey = Math.floor(b / W) - Math.floor(cur / W); return dx * ey - dy * ex < 0; });
+          if (k < 0) k = 0;
+        }
+        prev = cur; cur = nxt.splice(k, 1)[0];
+      }
+      // corners only: points along a straight side are dropped
+      const P = L.map(v => [xs[v % W], ys[Math.floor(v / W)]]), Q = [];
+      for (let i = 0; i < P.length; i++) {
+        const a = P[(i + P.length - 1) % P.length], b = P[i], c = P[(i + 1) % P.length];
+        if ((b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]) !== 0) Q.push(b);
+      }
+      if (Q.length >= 4) loops.push(Q);
+    }
+    return loops;
+  }
+
   // polygons in a right-handed 2D frame -> {pts, tris} with positive (CCW) winding
   function triangulate(polys, maxLen) {
     const pts = [], tris = [];
+    const cutX = new Set(), seen = new Map();           // points on the strips' cuts, kept once
+    polys = polys.flatMap(p => {
+      const st = stripsOf(p);
+      if (!st) return [p];
+      st.cuts.forEach(x => cutX.add(x));
+      return st.map(q => Object.assign(q, { shared: true }));
+    });
     for (const poly of polys) {
       const flat = [], holeIdx = [], base = pts.length;
       const push = L => { for (const p of L) { flat.push(p[0], p[1]); pts.push([p[0], p[1]]); } };
       push(poly.outer);
       for (const h of poly.holes) { holeIdx.push(flat.length / 2); push(h); }
       const t = global.earcut(flat, holeIdx, 2);
-      for (let i = 0; i < t.length; i += 3) tris.push(t[i] + base, t[i + 1] + base, t[i + 2] + base);
+      const id = new Int32Array(pts.length - base);
+      for (let i = 0; i < id.length; i++) {
+        id[i] = base + i;
+        const p = pts[base + i];
+        if (!poly.shared || !cutX.has(p[0])) continue;  // one index for a point on a cut, from either side
+        const key = p[0] + "," + p[1], had = seen.get(key);
+        if (had === undefined) seen.set(key, base + i); else id[i] = had;
+      }
+      for (let i = 0; i < t.length; i++) tris.push(id[t[i]]);
     }
     for (let i = 0; i < tris.length; i += 3) {
       const a = pts[tris[i]], b = pts[tris[i + 1]], c = pts[tris[i + 2]];
@@ -1069,25 +1182,35 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
     const I = solid.idx, P = solid.pos, E = I.length;
     let vol = 0, nv = P.length / 3;
     for (let t = 0; t < E; t++) if (I[t] >= nv) nv = I[t] + 1;
-    // every directed edge a -> b as one exact number, sorted: a closed mesh has each edge once each way
-    const keys = new Float64Array(E);
+    // A closed mesh has each edge once each way. Every edge goes in a list under its lower corner, with its
+    // other corner and its direction; each corner's few edges are then paired up. Unpaired edges count as
+    // the sorted list of all directed edges counted them (Session 27: that sort was most of the time on big
+    // models): an edge with both directions present counts their difference from each side.
+    const start = new Int32Array(nv + 1);
+    for (let t = 0; t < E; t += 3) for (let k = 0; k < 3; k++) {
+      const a = I[t + k], b = I[t + (k + 1) % 3];
+      if (a !== b) start[(a < b ? a : b) + 1]++;
+    }
+    for (let v = 0; v < nv; v++) start[v + 1] += start[v];
+    const fill = start.slice(0, nv), code = new Float64Array(start[nv]);   // other corner * 2 + (1 if it runs up)
     for (let t = 0; t < E; t += 3) {
-      for (let k = 0; k < 3; k++) keys[t + k] = I[t + k] * nv + I[t + (k + 1) % 3];
+      for (let k = 0; k < 3; k++) {
+        const a = I[t + k], b = I[t + (k + 1) % 3];
+        if (a < b) code[fill[a]++] = b * 2 + 1; else if (b < a) code[fill[b]++] = a * 2;
+      }
       const a = I[t] * 3, b = I[t + 1] * 3, c = I[t + 2] * 3;
       vol += (P[a] * (P[b + 1] * P[c + 2] - P[b + 2] * P[c + 1]) - P[a + 1] * (P[b] * P[c + 2] - P[b + 2] * P[c]) + P[a + 2] * (P[b] * P[c + 1] - P[b + 1] * P[c])) / 6;
     }
-    keys.sort();
-    const count = key => {                               // how often a directed edge occurs
-      let lo = 0, hi = E;
-      while (lo < hi) { const m = (lo + hi) >> 1; if (keys[m] < key) lo = m + 1; else hi = m; }
-      let n = 0; while (lo + n < E && keys[lo + n] === key) n++;
-      return n;
-    };
     let open = 0;
-    for (let i = 0; i < E;) {
-      let j = i; while (j < E && keys[j] === keys[i]) j++;
-      const k = keys[i], b = k % nv, a = (k - b) / nv;
-      open += Math.abs(j - i - count(b * nv + a)); i = j;
+    for (let v = 0; v < nv; v++) {
+      const lo = start[v], hi = start[v + 1];
+      if (hi - lo > 24) code.subarray(lo, hi).sort();
+      else for (let i = lo + 1; i < hi; i++) { const x = code[i]; let j = i - 1; while (j >= lo && code[j] > x) { code[j + 1] = code[j]; j--; } code[j + 1] = x; }
+      for (let i = lo; i < hi;) {
+        const other = Math.floor(code[i] / 2); let up = 0, down = 0;
+        while (i < hi && Math.floor(code[i] / 2) === other) { if (code[i] % 2) up++; else down++; i++; }
+        open += up && down ? 2 * Math.abs(up - down) : up + down;
+      }
     }
     return { tris: E / 3, open, volume: Math.abs(vol) };
   }
@@ -1122,12 +1245,19 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
   }
   // distance in pixels from every pixel to the nearest set pixel
   function edt(mask, w, h) {
-    const m = Math.max(w, h), INF = 1e20;
-    const f = new Float64Array(m), d = new Float64Array(m), v = new Int32Array(m), z = new Float64Array(m + 1);
-    const out = new Float64Array(w * h);
-    for (let i = 0; i < w * h; i++) out[i] = mask[i] ? 0 : INF;
-    for (let x = 0; x < w; x++) { for (let y = 0; y < h; y++) f[y] = out[y * w + x]; edt1d(f, h, d, v, z); for (let y = 0; y < h; y++) out[y * w + x] = d[y]; }
-    for (let y = 0; y < h; y++) { for (let x = 0; x < w; x++) f[x] = out[y * w + x]; edt1d(f, w, d, v, z); for (let x = 0; x < w; x++) out[y * w + x] = Math.sqrt(d[x]); }
+    const INF = 1e20, out = new Float64Array(w * h);
+    // down the columns: for a mask that is just the distance to the nearest set pixel above or below, found in two
+    // sweeps that read the rows in memory order (Session 27: walking each column missed the cache on every pixel).
+    // The squares come out exactly as the general method gave them, so nothing built from them moves.
+    const run = new Float64Array(w).fill(INF);
+    for (let y = 0, i = 0; y < h; y++) for (let x = 0; x < w; x++, i++) out[i] = run[x] = mask[i] ? 0 : run[x] + 1;
+    run.fill(INF);
+    for (let y = h - 1; y >= 0; y--) for (let x = 0, i = y * w; x < w; x++, i++) {
+      const r = run[x] = mask[i] ? 0 : run[x] + 1, a = out[i] < r ? out[i] : r;
+      out[i] = a >= INF ? INF : a * a;
+    }
+    const f = new Float64Array(w), d = new Float64Array(w), v = new Int32Array(w), z = new Float64Array(w + 1);
+    for (let y = 0; y < h; y++) { const o = y * w; for (let x = 0; x < w; x++) f[x] = out[o + x]; edt1d(f, w, d, v, z); for (let x = 0; x < w; x++) out[o + x] = Math.sqrt(d[x]); }
     return out;
   }
   function dilateMask(mask, w, h, r) {
@@ -2939,12 +3069,15 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
     };
     const poly = [], tag = [];
     const tri = (a, ia, b, ib, d, id) => {              // counter-clockwise in (u, v)
-      const vs = [a, b, d], is = [ia, ib, id];
-      if (!sdf) {
+      // all three corners on the sheet, as nearly all are: straight in, with no lists made (Session 27)
+      if (!sdf || (sdf[a] <= 0 && sdf[b] <= 0 && sdf[d] <= 0)) {
         tris.push(a, b, d);
-        for (let k = 0; k < 3; k++) { const p = vs[k], q = vs[(k + 1) % 3]; if (border(p, q, is[k], is[(k + 1) % 3])) walls.push(p, q); }
+        if (border(a, b, ia, ib)) walls.push(a, b);
+        if (border(b, d, ib, id)) walls.push(b, d);
+        if (border(d, a, id, ia)) walls.push(d, a);
         return;
       }
+      const vs = [a, b, d], is = [ia, ib, id];
       const inn = vs.map(inside);
       if (!inn[0] && !inn[1] && !inn[2]) return;
       poly.length = 0; tag.length = 0;
@@ -4800,7 +4933,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
 
   global.PRCore = {
     hexToRgb, rgbToHex, colorDist, luma, kmeans, buildCellMap, makeProjector, buildDecalSolids, weldSoup, parseSTL,
-    prepareParts, make3MF, make3MF_BBL, makeSTL, makeOBJ, traceMask, groupLoops, triangulate, solidFromTris, buildVectorSolid,
+    prepareParts, make3MF, make3MF_BBL, makeSTL, makeOBJ, traceMask, groupLoops, rectUnion, triangulate, solidFromTris, buildVectorSolid,
     extrudePolys, extrudePolysAt, closeMask, smoothMask, revolve, revolveLoop, sweepTube, traceField, fieldToPolys, strokePolys, signedDistanceField, coverageField, blurMask, homography, applyH, warpQuad, quadCorners, refineQuad, fitDimensions, convexHull, outlineSVG, outlineDXF, transformSolid, mirrorSolid, solidBounds, mirrorMaskX, perforate, insideRing, snapToGrid, signedVolume, buildMaskSolid, maskOfSlot, checkMesh, edt, dilateMask, erodeMask, labelMask, maskToPolys, ringCircle, ringRect, ringStar, ringPoly, ringHeart, mergeSolids, area2,
     affineSolid, mat3Mul, rotationDownTo, analyzePrint, analyzePrintSteps, bestOrientation, bestOrientationSteps, orientationScore, brimSolid, bedContact, sliceMask, gridOver, flattenParts,
     seededRandom, jigsawGrid, jigsawCut, jigsawEdge, jigsawPiece, jigsawSVG, jigsawCutLines, ringField, ringDistance, outlineBand, strokeText,
@@ -4821,6 +4954,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
  *  5 artwork     6 scene/rebuild   7 checks     8 interface   9 export
  */
 (function(){
+function makerForge(){
 "use strict";
 const C = window.PRCore, $ = s => document.querySelector(s);
 const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
@@ -5312,10 +5446,12 @@ const PALETTES = {
 };
 const CURVED = { cylinder:1, sphere:1, shell:1, hex:1, stl:1, turned:1, bobble:1 };
 const FLAT = { board:1, nameplate:1, frame:1, box:1, canvas:1, pcb:1, tracer:1, jigsaw:1 };
-const CONSUMES_ART = { cutter:1, pcb:1, lightbox:1, tracer:1, jigsaw:1, lithophane:1 };
+// the picture that becomes the object itself, not laid on it as well (a plastic canvas's stitches: Session 27,
+// it was printed twice, as stitches and as a decal over them)
+const CONSUMES_ART = { cutter:1, pcb:1, lightbox:1, tracer:1, jigsaw:1, lithophane:1, canvas:1 };
 // which of the picture's own settings each of those objects reads; the Art tab shows only these
 const ART_USED_BY = { cutter:["width","mirror","colours","smooth"], lightbox:["mirror","colours","smooth"], enclosure:["mirror","colours","smooth"], phonecase:["mirror","colours","smooth"],
-  jigsaw:["mirror","colours","smooth"], pcb:["mirror"], tracer:[], lithophane:["mirror"] };
+  jigsaw:["mirror","colours","smooth"], pcb:["mirror"], tracer:[], lithophane:["mirror"], canvas:["mirror","colours","smooth"] };
 const SHAPES = [["tracer","Photo to 3D tracer"],["lithophane","Lithophane"],["board","Flat shape"],["nameplate","Name plate & keychain"],["canvas","Plastic canvas / mosaic"],["jigsaw","Jigsaw puzzle"],
   ["bobble","Bobble head"],["cutter","Cookie cutter from artwork"],["turned","Turned shape (vase, egg, cone)"],
   ["pcb","Circuit board from a schematic"],["lightbox","Lightbox / shadow box"],["frame","Photo frame"],["shell","Tea light / lantern"],["box","Plaque / box"],["cylinder","Cylinder"],
@@ -6336,6 +6472,9 @@ async function readShareLink(){
 }
 function saveLocal(){
   if (state.view && state.view.autosave === false) return;
+  // a picture still being written out in the background: save once it is ready, rather than write it out now
+  const waiting = [...usedAssets()].map(k => assets[k] && assets[k].pending).filter(Boolean);
+  if (waiting.length){ Promise.all(waiting).then(() => saveLocal()); return; }
   try { const p = projectPayload(); if (p.length < 3.5e6) localStorage.setItem("makerforge.project", p); } catch(e){}
 }
 function pushRecent(name){
@@ -6486,16 +6625,59 @@ function sourceCanvas(d){
   d._srcCv = cv; d._srcSig = sig; d.aspect = cv.width/cv.height; d._imgKey = "";
   return cv;
 }
-function resample(src, w, h, mirror){
-  let cur = src;
-  while (cur.width/2 >= w && cur.height/2 >= h){
-    const c = document.createElement("canvas"); c.width = Math.round(cur.width/2); c.height = Math.round(cur.height/2);
-    const x = c.getContext("2d"); x.imageSmoothingQuality = "high"; x.drawImage(cur,0,0,c.width,c.height); cur = c;
+// A picture kept with the project (Session 27). Writing a big picture out as PNG text takes up to a second on the
+// page, so it is written in the background (toBlob encodes away from the page) and only written on the spot if
+// something needs it sooner; the autosave waits for it instead (saveLocal). JPEG for photos with no see-through parts.
+function pictureAsset(canvas, type, quality){
+  let url = "";
+  const a = { canvas, pending:null };
+  Object.defineProperty(a, "dataURL", { enumerable:true, get(){ return url || (url = canvas.toDataURL(type || "image/png", quality)); } });
+  if (canvas.toBlob && typeof FileReader === "function"){
+    a.pending = new Promise(done => {
+      setTimeout(done, 8000);                          // never wait for ever: then it is written when asked for
+      try {
+        canvas.toBlob(b => {
+          if (!b || url) return done();
+          const r = new FileReader();
+          r.onload = () => { if (!url && typeof r.result === "string" && r.result.startsWith("data:image/")) url = r.result; done(); };
+          r.onerror = () => done();
+          r.readAsDataURL(b);
+        }, type || "image/png", quality);
+      } catch (e){ done(); }
+    }).then(() => { a.pending = null; });
   }
-  const c = document.createElement("canvas"); c.width = w; c.height = h;
-  const x = c.getContext("2d", { willReadFrequently:true }); x.imageSmoothingQuality = "high";
-  x.drawImage(cur,0,0,w,h);
-  const img = x.getImageData(0,0,w,h);
+  return a;
+}
+// the small picture on an artwork's button (52 px): drawn small, so it is quick to make
+function thumbURL(cv){
+  const k = Math.min(1, 112/Math.max(1, cv.width, cv.height)), c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round(cv.width*k)); c.height = Math.max(1, Math.round(cv.height*k));
+  const x = c.getContext("2d"); x.imageSmoothingQuality = "high"; x.drawImage(cv, 0, 0, c.width, c.height);
+  return c.toDataURL("image/png");
+}
+// A picture's pixels at a size. Reading pixels back from the browser's canvas is slow (Session 27: up to most of
+// a second for a puzzle's picture on a phone or a slow graphics chip), and most changes keep the picture and its
+// size, so the last few sizes of each picture are kept. Pictures are never drawn over once made (a change makes a
+// new canvas), so what is kept stays right; each caller gets its own copy to change as it likes.
+const resampleCache = new WeakMap();
+function resample(src, w, h, mirror){
+  let kept = resampleCache.get(src); if (!kept) resampleCache.set(src, kept = new Map());
+  const key = w + "x" + h, hit = kept.get(key);
+  let img;
+  if (hit) img = new ImageData(new Uint8ClampedArray(hit.data), w, h);
+  else {
+    let cur = src;
+    while (cur.width/2 >= w && cur.height/2 >= h){
+      const c = document.createElement("canvas"); c.width = Math.round(cur.width/2); c.height = Math.round(cur.height/2);
+      const x = c.getContext("2d", { willReadFrequently:true }); x.imageSmoothingQuality = "high"; x.drawImage(cur,0,0,c.width,c.height); cur = c;
+    }
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    const x = c.getContext("2d", { willReadFrequently:true }); x.imageSmoothingQuality = "high";
+    x.drawImage(cur,0,0,w,h);
+    img = x.getImageData(0,0,w,h);
+    kept.delete(key); kept.set(key, new ImageData(new Uint8ClampedArray(img.data), w, h));
+    if (kept.size > 4) kept.delete(kept.keys().next().value);
+  }
   if (mirror){                                  // flip in pixel space: no reliance on canvas transforms
     const d = img.data, row = new Uint8ClampedArray(w*4);
     for (let y=0;y<h;y++){
@@ -6696,24 +6878,23 @@ function buildCanvasPanel(){
   const W = gx*cv.pitch, H = gy*cv.pitch;
   const outer = C.ringRect(W+cv.margin*2, H+cv.margin*2, cv.radius, 8);
   const cellXY = (i,j) => [(i+0.5-gx/2)*cv.pitch, (gy/2-(j+0.5))*cv.pitch];
-  const holes = [];
-  if (cv.holes){                                   // the grid of square holes, at tile corners
-    for (let j=0;j<=gy;j++) for (let i=0;i<=gx;i++){
-      const x = (i-gx/2)*cv.pitch, y = (gy/2-j)*cv.pitch;
-      holes.push(rectPoly(x, y, cv.holeSize, cv.holeSize));
-    }
+  // The openings: square holes at the tile corners, the hanging holes and, with the background left open, open
+  // squares with the bars between them kept, like real canvas. A corner hole that would cut into a hanging hole or
+  // an open square is left out, and openings that still overlap are joined into one (Session 27: they overlapped,
+  // which left bits of plastic inside the hanging holes and made a muddle of an open background).
+  const open = (i,j) => !!(cv.open && idx) && i >= 0 && j >= 0 && i < gx && j < gy && idx[j*gx+i] < 0;
+  const hangs = cv.hang ? [[-W/2+cv.margin, H/2+cv.margin/2], [W/2-cv.margin, H/2+cv.margin/2]] : [];
+  const nearHang = (x, y, r) => hangs.some(([hx, hy]) => Math.hypot(Math.max(0, Math.abs(hx-x)-r), Math.max(0, Math.abs(hy-y)-r)) < cv.hangDia/2 + 0.4);
+  const rects = [], hs = cv.holeSize/2, os = (cv.pitch-cv.gap)/2;
+  if (cv.holes) for (let j=0;j<=gy;j++) for (let i=0;i<=gx;i++){
+    const x = (i-gx/2)*cv.pitch, y = (gy/2-j)*cv.pitch;
+    if (nearHang(x, y, hs) || open(i-1,j-1) || open(i,j-1) || open(i-1,j) || open(i,j)) continue;
+    rects.push([x-hs, y-hs, x+hs, y+hs]);
   }
-  if (cv.open && idx){                             // leave the background open like real canvas
-    for (let j=0;j<gy;j++) for (let i=0;i<gx;i++) if (idx[j*gx+i] < 0){
-      const [x,y] = cellXY(i,j); holes.push(rectPoly(x, y, cv.pitch-cv.gap, cv.pitch-cv.gap));
-    }
-  }
-  if (cv.hang){
-    const y = H/2+cv.margin/2;
-    holes.push(C.ringCircle(cv.hangDia/2,32).map(p=>[p[0]-W/2+cv.margin, p[1]+y]));
-    holes.push(C.ringCircle(cv.hangDia/2,32).map(p=>[p[0]+W/2-cv.margin, p[1]+y]));
-  }
-  const parts = wrap(C.extrudePolys([{ outer, holes }], cv.thick), "Panel", state.base.slot);
+  for (let j=0;j<gy;j++) for (let i=0;i<gx;i++) if (open(i,j)){ const [x,y] = cellXY(i,j); rects.push([x-os, y-os, x+os, y+os]); }
+  const holes = C.rectUnion(rects);
+  hangs.forEach(([hx, hy]) => holes.push(C.ringCircle(cv.hangDia/2, 32, true).map(p=>[p[0]+hx, p[1]+hy])));
+  const parts = wrap(C.extrudePolys(C.groupLoops([outer, ...holes]), cv.thick), "Panel", state.base.slot);
   if (idx){
     const bySlot = new Map();
     for (let j=0;j<gy;j++) for (let i=0;i<gx;i++){
@@ -8620,9 +8801,25 @@ async function buildNamePlate(){
       drawRun(l, x, baseY + i*lineH);
     });
   }
-  let mask = maskFromCtx(ctx, W, H);
-  let coverage = C.coverageField(ctx.getImageData(0,0,W,H).data, W, H);
-  const refresh = () => { mask = maskFromCtx(ctx, W, H); coverage = C.coverageField(ctx.getImageData(0,0,W,H).data, W, H); };
+  let mask, coverage;
+  const refresh = () => {                               // one read of the canvas for both
+    const d = ctx.getImageData(0,0,W,H).data; mask = new Uint8Array(W*H);
+    for (let i=0;i<mask.length;i++) mask[i] = d[i*4+3] >= 128 ? 1 : 0;
+    coverage = C.coverageField(d, W, H);
+  };
+  refresh();
+  // trace a field only in a window round what is set in it, then move the outlines back into place
+  // (Session 27: tracing or measuring distances across the whole canvas was most of a second)
+  const mmPerPx = 1/PLATE_PX;
+  const traceIn = (src, bb, mg, opt, toField) => {
+    if (bb.maxX < 0) return [];
+    const x0 = Math.max(0, bb.minX - mg), y0 = Math.max(0, bb.minY - mg), cw = Math.min(W, bb.maxX + mg + 1) - x0, ch = Math.min(H, bb.maxY + mg + 1) - y0;
+    const sub = new src.constructor(cw*ch);
+    for (let y=0;y<ch;y++) sub.set(src.subarray((y0 + y)*W + x0, (y0 + y)*W + x0 + cw), y*cw);
+    const dx = (x0 + cw/2 - W/2)*mmPerPx, dy = (H/2 - (y0 + ch/2))*mmPerPx, mv = L => L.map(([x, y]) => [x + dx, y + dy]);
+    return C.fieldToPolys(toField ? toField(sub, cw, ch) : sub, cw, ch, opt).map(q => ({ outer:mv(q.outer), holes:q.holes.map(mv) }));
+  };
+  await yieldUI();
 
   if (np.dot !== "none"){
     const { lab, comps } = C.labelMask(mask, W, H);
@@ -8681,16 +8878,22 @@ async function buildNamePlate(){
       const pc = document.createElement("canvas"); pc.width = W; pc.height = H;
       const pctx = pc.getContext("2d", { willReadFrequently:true });
       pctx.drawImage(pic.cutout !== false ? cutoutCanvas(psrc, pic.tolerance||28) : psrc, cx-pw/2, cy-ph/2, pw, ph);
-      const pdata = pctx.getImageData(0,0,W,H);
-      const picField = C.coverageField(pdata.data, W, H);
+      // only the picture's own rectangle (and a little round it) is read and coloured, not the whole plate
+      const qx = clamp(Math.floor(cx-pw/2)-3, 0, W-1), qy = clamp(Math.floor(cy-ph/2)-3, 0, H-1);
+      const qw = Math.max(1, Math.min(W, Math.ceil(cx+pw/2)+3) - qx), qh = Math.max(1, Math.min(H, Math.ceil(cy+ph/2)+3) - qy);
+      const pdata = pctx.getImageData(qx, qy, qw, qh), picField = new Float32Array(W*H);
+      for (let y=0;y<qh;y++) for (let x=0;x<qw;x++) picField[(qy + y)*W + qx + x] = pdata.data[(y*qw + x)*4 + 3]/255;
       if (pic.colour) letterMask = mask.slice();         // the top layer covers the letters, not a picture in its own colours
       for (let i=0;i<mask.length;i++) if (picField[i] >= 0.5) mask[i] = 1;
       if (pic.colour){
-        const cm2 = C.buildCellMap({ data:pdata.data, width:W, height:H },
+        const cm2 = C.buildCellMap({ data:pdata.data, width:qw, height:qh },
           state.slots.map(sl=>C.hexToRgb(sl.hex)), state.slots.map((_,i)=>item.skip.includes(i)), 1);
         state.slots.forEach((sl,i)=>{
           const m2 = new Uint8Array(W*H); let any = false;
-          for (let k=0;k<m2.length;k++) if (cm2.idx[k] === i && picField[k] >= 0.5){ m2[k] = 1; any = true; }
+          for (let y=0;y<qh;y++) for (let x=0;x<qw;x++){
+            const k = (qy + y)*W + qx + x;
+            if (cm2.idx[y*qw + x] === i && picField[k] >= 0.5){ m2[k] = 1; any = true; }
+          }
           if (any) picParts.push({ slot:i, mask:m2 });
         });
       } else {
@@ -8699,13 +8902,20 @@ async function buildNamePlate(){
     }
   }
 
-  let plateMask;
+  // The plate's outline as a field that is positive on the plate, traced where it crosses zero (Session 27). Taken
+  // straight from the distances to the letters it needs one or two distance passes instead of four, and comes out
+  // smoother than tracing a grown and shrunk mask (that was most of a second per change on a long name).
+  const plateField = new Float32Array(W*H);
   if (np.style === "traced"){
-    // grow past the border so separated letters touch, then shrink that extra back off:
-    // the outline keeps its border width but the gaps stay closed
-    const grow = (np.border + (np.join||0))*PLATE_PX;
-    plateMask = C.dilateMask(mask, W, H, grow);
-    if (np.join > 0) plateMask = C.erodeMask(plateMask, W, H, np.join*PLATE_PX);
+    const g = np.border*PLATE_PX, j = (np.join||0)*PLATE_PX, dOut = C.edt(mask, W, H);
+    if (j > 0){
+      // grow past the border so separated letters touch, then shrink that extra back off:
+      // the outline keeps its border width but the gaps stay closed
+      const outside = new Uint8Array(W*H);
+      for (let i=0;i<outside.length;i++) outside[i] = dOut[i] <= g + j ? 0 : 1;
+      const dIn = C.edt(outside, W, H);
+      for (let i=0;i<plateField.length;i++) plateField[i] = dIn[i] - j;
+    } else for (let i=0;i<plateField.length;i++) plateField[i] = g - dOut[i];
   } else {
     const bnd = maskBounds(mask,W,H);
     const pc = document.createElement("canvas"); pc.width = W; pc.height = H;
@@ -8715,32 +8925,35 @@ async function buildNamePlate(){
     if (np.style === "oval"){ p.beginPath(); p.ellipse(x0+w0/2,y0+h0/2,w0*0.62,h0*0.66,0,0,Math.PI*2); p.fill(); }
     else { const r = Math.min(h0/2, np.border*PLATE_PX*2.2); p.beginPath(); p.moveTo(x0+r,y0);
       p.arcTo(x0+w0,y0,x0+w0,y0+h0,r); p.arcTo(x0+w0,y0+h0,x0,y0+h0,r); p.arcTo(x0,y0+h0,x0,y0,r); p.arcTo(x0,y0,x0+w0,y0,r); p.closePath(); p.fill(); }
-    plateMask = maskFromCtx(p,W,H);
+    const d = p.getImageData(0,0,W,H).data;            // the drawn shape's smooth edge, half covered = the outline
+    for (let i=0;i<plateField.length;i++) plateField[i] = d[i*4+3]/255 - 0.5;
   }
-  const pc2 = document.createElement("canvas"); pc2.width = W; pc2.height = H;
-  const p2 = pc2.getContext("2d", { willReadFrequently:true });
-  const pim = p2.createImageData(W,H);
-  for (let i=0;i<W*H;i++) if (plateMask[i]) pim.data[i*4+3] = 255;
-  p2.putImageData(pim,0,0);
-  const bounds = maskBounds(plateMask,W,H);
+  let bounds = { minX:W, maxX:-1, minY:H, maxY:-1 };
+  for (let y=0, i=0;y<H;y++) for (let x=0;x<W;x++, i++) if (plateField[i] > 0){
+    if (x < bounds.minX) bounds.minX = x; if (x > bounds.maxX) bounds.maxX = x;
+    if (y < bounds.minY) bounds.minY = y; if (y > bounds.maxY) bounds.maxY = y;
+  }
   if (bounds.maxX < 0) throw new Error("there is nothing to print yet");
   if (np.hole !== "none"){
+    // the tab joins the plate and the hole goes through both: the larger and the smaller of the fields
     const hy = np.hole.startsWith("top") ? bounds.minY+tabR*0.35 : (bounds.minY+bounds.maxY)/2;
-    const hx = np.hole.endsWith("right") ? bounds.maxX-tabR*0.3 : bounds.minX+tabR*0.3;
-    p2.fillStyle = "#000"; p2.beginPath(); p2.arc(hx,hy,tabR,0,Math.PI*2); p2.fill();
-    p2.globalCompositeOperation = "destination-out";
-    p2.beginPath(); p2.arc(hx,hy,np.holeDia/2*PLATE_PX,0,Math.PI*2); p2.fill();
-    p2.globalCompositeOperation = "source-over";
+    const hx = np.hole.endsWith("right") ? bounds.maxX-tabR*0.3 : bounds.minX+tabR*0.3, hr = np.holeDia/2*PLATE_PX;
+    const x0 = Math.max(0, Math.floor(hx - tabR - 2)), x1 = Math.min(W-1, Math.ceil(hx + tabR + 2));
+    const y0 = Math.max(0, Math.floor(hy - tabR - 2)), y1 = Math.min(H-1, Math.ceil(hy + tabR + 2));
+    for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
+      const r = Math.hypot(x + 0.5 - hx, y + 0.5 - hy), i = y*W + x;
+      plateField[i] = Math.min(Math.max(plateField[i], tabR - r), r - hr);
+    }
   }
-  plateMask = maskFromCtx(p2,W,H);
+  await yieldUI();
 
-  const mmPerPx = 1/PLATE_PX;
   // closeEdges: anything that still reaches the canvas edge is closed along it, not cut across
   const fopt = { mmPerPx, iso:0.5, eps:0.02, minSeg:0.06, closeEdges:true };   // letters: true curves
   const sopt = { mmPerPx, iso:0, eps:0.03, minSeg:0.08, closeEdges:true };     // distance fields: smooth offsets
   const opt = { mmPerPx, smooth:2, eps:0.045 };
-  const platePolys = C.fieldToPolys(C.signedDistanceField(plateMask, W, H), W, H, sopt);
-  const namePolys = C.fieldToPolys(coverage, W, H, fopt);
+  const platePolys = C.fieldToPolys(plateField, W, H, sopt);
+  await yieldUI();
+  const namePolys = traceIn(coverage, maskBounds(coverage, W, H), 2, fopt);
   const parts = [], plateSlot = clamp(state.base.slot,0,state.slots.length-1);
   plateInfo = { pieces:platePolys.length, holes:platePolys.reduce((a,p)=>a+p.holes.length,0) };
 
@@ -8758,27 +8971,21 @@ async function buildNamePlate(){
       // the top layer is the letters shrunk by the border left showing; where a stroke is only a
       // little wider than twice that, a sliver thinner than the nozzle would be left: open the
       // shape (shrink by just over half a nozzle more, then grow back) so those slivers go
-      const sdf = C.signedDistanceField(letterMask || mask, W, H), inset = np.accentInset*PLATE_PX;
+      const lm = letterMask || mask, inset = np.accentInset*PLATE_PX;
       const rOpen = (state.printer.nozzle || 0.4)*0.55*PLATE_PX;
-      let accPolys;
-      if (rOpen >= 1){
-        const core = new Uint8Array(W*H);
+      const accPolys = traceIn(lm, maskBounds(lm, W, H), Math.ceil(rOpen) + 4, { ...sopt, iso: rOpen >= 1 ? -rOpen : inset }, (sub, cw, ch) => {
+        const sdf = C.signedDistanceField(sub, cw, ch);
+        if (rOpen < 1) return sdf;
+        const core = new Uint8Array(cw*ch);
         for (let i=0;i<core.length;i++) core[i] = sdf[i] >= inset + rOpen ? 1 : 0;
-        accPolys = C.fieldToPolys(C.signedDistanceField(core, W, H), W, H, { ...sopt, iso: -rOpen });
-      } else accPolys = C.fieldToPolys(sdf, W, H, { ...sopt, iso: inset });
+        return C.signedDistanceField(core, cw, ch);
+      });
       if (accPolys.length) parts.push({ name:"Top layer", slot:clamp(np.accentSlot,0,state.slots.length-1),
         solid:C.extrudePolysAt(accPolys, np.thick+np.nameH-Math.min(0.3,np.nameH*0.5), np.thick+np.nameH+np.accentH) });
     }
   }
   // each colour of the picture traced in a window round the picture only (a full-plate distance field each is slow)
-  const tracePart = m => {
-    const bb = maskBounds(m, W, H); if (bb.maxX < 0) return [];
-    const x0 = Math.max(0, bb.minX - 4), y0 = Math.max(0, bb.minY - 4), cw = Math.min(W, bb.maxX + 5) - x0, ch = Math.min(H, bb.maxY + 5) - y0;
-    const sub = new Uint8Array(cw*ch);
-    for (let y=0;y<ch;y++) for (let x=0;x<cw;x++) sub[y*cw + x] = m[(y0 + y)*W + x0 + x];
-    const dx = (x0 + cw/2 - W/2)*mmPerPx, dy = (H/2 - (y0 + ch/2))*mmPerPx, mv = L => L.map(([x, y]) => [x + dx, y + dy]);
-    return C.fieldToPolys(C.signedDistanceField(sub, cw, ch), cw, ch, sopt).map(q => ({ outer:mv(q.outer), holes:q.holes.map(mv) }));
-  };
+  const tracePart = m => traceIn(m, maskBounds(m, W, H), 4, sopt, C.signedDistanceField);
   picParts.forEach(pp => {
     const polys = tracePart(pp.mask);
     const sol = polys.length ? C.extrudePolysAt(polys, Math.max(0,np.thick-0.3), np.thick+np.nameH) : null;
@@ -8787,7 +8994,7 @@ async function buildNamePlate(){
   if (np.doubleSided){                    // mirrored copy underneath so it reads from the back too
     const mirrored = new Float32Array(coverage.length);
     for (let y=0;y<H;y++) for (let x=0;x<W;x++) mirrored[y*W+x] = coverage[y*W + (W-1-x)];
-    const backPolys = C.fieldToPolys(mirrored, W, H, fopt);
+    const backPolys = traceIn(mirrored, maskBounds(mirrored, W, H), 2, fopt);
     if (backPolys.length) parts.push({ name:"Name (back)", slot:clamp(np.backSlot,0,state.slots.length-1),
       solid:C.extrudePolysAt(backPolys, -np.backH, 0.3) });
   }
@@ -9492,7 +9699,7 @@ function aiMapAsset(map, S){
   const x = cv.getContext("2d"), img = x.createImageData(S, S);
   for (let i=0;i<S*S;i++){ img.data[4*i] = img.data[4*i+1] = img.data[4*i+2] = map[i]; img.data[4*i+3] = 255; }
   x.putImageData(img, 0, 0);
-  const id = "a"+(uid++); assets[id] = { canvas:cv, dataURL:cv.toDataURL("image/png") };
+  const id = "a"+(uid++); assets[id] = pictureAsset(cv);
   return id;
 }
 const aiMapCache = new WeakMap();
@@ -9571,9 +9778,9 @@ async function aiCutout(d){
     if (kept < W*H*0.01){ notify("The AI found no clear subject in this picture, so it was left as it was."); return false; }
     const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
     const x = cv.getContext("2d"), img = x.createImageData(W, H); img.data.set(rgba); x.putImageData(img, 0, 0);
-    const id = "a"+(uid++); assets[id] = { canvas:cv, dataURL:cv.toDataURL("image/png") };
+    const id = "a"+(uid++); assets[id] = pictureAsset(cv);
     if (!d.uncut) d.uncut = d.asset;
-    d.asset = id; d.src = cv; d.thumb = assets[id].dataURL; d.crop = true;
+    d.asset = id; d.src = cv; d.thumb = thumbURL(cv); d.crop = true;
     d._srcSig = ""; d._srcCv = null; d._imgKey = ""; d.solids = null;
     return true;
   } catch (err){ setBusy(false); aiFailed(err); return false; }
@@ -9581,7 +9788,7 @@ async function aiCutout(d){
 function aiUncut(d){
   if (!d || !d.uncut || !assets[d.uncut]) return false;
   d.asset = d.uncut; delete d.uncut; d.crop = false;
-  d.src = assets[d.asset].canvas; d.thumb = assets[d.asset].dataURL; d._srcSig = ""; d._srcCv = null; d._imgKey = ""; d.solids = null;
+  d.src = assets[d.asset].canvas; d.thumb = thumbURL(d.src); d._srcSig = ""; d._srcCv = null; d._imgKey = ""; d.solids = null;
   return true;
 }
 // the buttons, on the Art tab and beside a keychain's picture; after: what else to do once it is cut out
@@ -9785,8 +9992,7 @@ async function addPaintPhotos(files){
       // a photo with a see-through background keeps it (PNG); any other is kept as a smaller JPEG
       const px = canvas.getContext("2d", { willReadFrequently:true }).getImageData(0, 0, canvas.width, canvas.height).data;
       let clear = 0; for (let i=3;i<px.length;i+=4*7) if (px[i] < 128) clear++;
-      const dataURL = clear > px.length/(4*7)*0.02 ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", 0.9);
-      assets[id] = { canvas, dataURL };
+      assets[id] = clear > px.length/(4*7)*0.02 ? pictureAsset(canvas) : pictureAsset(canvas, "image/jpeg", 0.9);
       const side = PHOTO_SIDES[order[o.views.length]];
       const v = { asset:id, name:cleanStr(file.name.replace(/\.[^.]+$/, ""), 60, "Photo"), cam:{ yaw:side[0], pitch:side[1] }, fit:null, tol:35, match:0 };
       o.views.push(v); paintUI.photo = o.views.length - 1;
@@ -10157,9 +10363,14 @@ function errWhere(err){
   const m = /at ([A-Za-z_$][\w$.]*) \(|^([A-Za-z_$][\w$]*)@/m.exec(String(err && err.stack || ""));
   return m ? ` (in ${m[1] || m[2]})` : "";
 }
-let timer = 0, busy = false, queued = false, buildRev = 0, rebuildPending = false;
-// a rebuild a moment from now (sliders call this on every move); MakerForge.busy counts it as work under way
-function schedule(){ clearTimeout(timer); rebuildPending = true; timer = setTimeout(()=>{ rebuildPending = false; rebuildAll(false); }, 130); }
+let timer = 0, busy = false, queued = false, buildRev = 0, rebuildPending = false, lastBuildMs = 0;
+// a rebuild a moment from now (sliders call this on every move); MakerForge.busy counts it as work under way.
+// A model that takes long to build waits a little longer for the slider to stop (Session 27), so dragging
+// doesn't start a slow build at every pause and lock the page up.
+function schedule(){
+  clearTimeout(timer); rebuildPending = true;
+  timer = setTimeout(()=>{ rebuildPending = false; rebuildAll(false); }, clamp(Math.round(lastBuildMs*0.4), 130, 450));
+}
 async function rebuildAll(resetItems){
   if (busy){ queued = true; return; }
   busy = true;
@@ -10208,7 +10419,7 @@ async function rebuildAll(resetItems){
       try {
         if (d.text && !d.src){ await document.fonts.load(`${d.text.weight} 180px "${d.text.font}"`); d.src = textCanvas(d.text); d.aspect = d.src.width/d.src.height; }
         if (!d.src && d.asset && assets[d.asset]) d.src = assets[d.asset].canvas;
-        if (d.src && !d.thumb) d.thumb = d.src.toDataURL("image/png");
+        if (d.src && !d.thumb) d.thumb = thumbURL(d.src);
         if (d.src && !d.solids) buildItem(d);
       } catch (err){ d.solids = null; console.error(err); artFailed.push(`"${d.name || "artwork"}" (${err.message}${errWhere(err)})`); }
     }
@@ -10234,7 +10445,7 @@ async function rebuildAll(resetItems){
     }
     if (artFailed.length) notify(`This artwork could not be laid on the model, so it is left out: ${artFailed.join(", ")}. Move it, or remove it on the Art tab.`);
   } catch (err){ notify("Could not build the model: " + err.message + errWhere(err) + ". Undo (Ctrl+Z) takes back the last change."); console.error(err); }
-  busy = false; buildRev++;
+  busy = false; buildRev++; lastBuildMs = performance.now() - t0;
   setBusy(false);
   if (!queued) logLine(`Built ${modelParts.length} part${modelParts.length===1?"":"s"} in ${Math.round(performance.now()-t0)} ms`);
   if (queued){ queued = false; schedule(); }
@@ -12505,7 +12716,7 @@ function tabArt(p){
     g2.appendChild(w);
     const retext = async ()=>{
       await document.fonts.load(`${d.text.weight} 180px "${d.text.font}"`);
-      d.src = textCanvas(d.text); d.aspect = d.src.width/d.src.height; d.thumb = d.src.toDataURL("image/png");
+      d.src = textCanvas(d.text); d.aspect = d.src.width/d.src.height; d.thumb = thumbURL(d.src);
       d._imgKey = ""; d._srcSig = ""; renderItemList(); ch();
     };
     w.querySelector("textarea").oninput = e => { d.text.value = e.target.value; retext(); pushHistory(); };
@@ -12641,14 +12852,14 @@ async function addFiles(files){
       const svg = /svg/i.test(file.type) || /\.svg$/i.test(file.name) ? await loadSvgFile(file) : null;
       const canvas = svg ? svg.canvas : toCanvas(await loadImageFile(file));
       const id = "a"+(uid++);
-      assets[id] = { canvas, dataURL:canvas.toDataURL("image/png") };
+      assets[id] = pictureAsset(canvas);
       // switch earlier pictures off so the new one does not land on top of them
       const wereOn = state.items.filter(x=>!x.text && x.enabled !== false);
       wereOn.forEach(x=>{ x.enabled = false; x.solids = null; });
       if (wereOn.length) notify("Earlier pictures were switched off so they don't overlap. Click a thumbnail to switch one back on.");
       const it = newItem(file.name.replace(/\.[^.]+$/,""), canvas, { asset:id, enabled:true });
       if (svg && svg.mm) it.mm = svg.mm.map(v => +v.toFixed(3));        // the drawing's real size, for the tracer
-      it.src = canvas; it.thumb = assets[id].dataURL;
+      it.src = canvas; it.thumb = thumbURL(canvas);
       state.items.push(it); state.active = state.items.length-1;
     } catch (err){ notify(err.message); }
   }
@@ -12661,7 +12872,7 @@ async function addTextItem(){
   await document.fonts.load('800 180px "Manrope"');
   const canvas = textCanvas(t);
   const it = newItem("Text", canvas, { text:t, forceSlot:state.slots.length>1?1:0, mode:"flat", quality:"ultra", height:0.8 });
-  it.src = canvas; it.thumb = canvas.toDataURL("image/png");
+  it.src = canvas; it.thumb = thumbURL(canvas);
   state.items.push(it); state.active = state.items.length-1;
   renderTab(); schedule(); pushHistory();
 }
@@ -13632,13 +13843,13 @@ async function modelColourIn(r, others, notes){
       if (im && im.bytes) cv = await bytesToCanvas(im.bytes, im.mime);
       else if (im && im.name){ const f = files.find(x => x.name.toLowerCase() === im.name.toLowerCase()) || (files.length === 1 ? files[0] : null); if (f) cv = toCanvas(await loadImageFile(f), 2048); }
     } catch(e){}
-    if (cv){ const id = "a"+(uid++); assets[id] = { canvas:cv, dataURL:cv.toDataURL("image/png") }; tex.push(id); }
+    if (cv){ const id = "a"+(uid++); assets[id] = pictureAsset(cv); tex.push(id); }
     else tex.push(null);
   }
   let texOf = r.texOf;
   // an OBJ with picture places but no MTL file: the one picture chosen with it
   if (r.uv && !r.images.length && files.length === 1){
-    const cv = toCanvas(await loadImageFile(files[0]), 2048), id = "a"+(uid++); assets[id] = { canvas:cv, dataURL:cv.toDataURL("image/png") }; tex.push(id);
+    const cv = toCanvas(await loadImageFile(files[0]), 2048), id = "a"+(uid++); assets[id] = pictureAsset(cv); tex.push(id);
     texOf = Int16Array.from(texOf, () => 0);
   }
   if (texOf){
@@ -14118,7 +14329,7 @@ async function loadProject(data){
   uid = Math.max(1, ...state.items.map(i=>i.id||0)) + 1;
   state.items.forEach(it=>{
     normalizeItem(it); it.solids = null; it._imgKey = ""; it._srcSig = "";
-    if (it.asset && assets[it.asset]){ it.src = assets[it.asset].canvas; it.thumb = assets[it.asset].dataURL; it.aspect = it.src.width/Math.max(1, it.src.height); }
+    if (it.asset && assets[it.asset]){ it.src = assets[it.asset].canvas; it.thumb = thumbURL(it.src); it.aspect = it.src.width/Math.max(1, it.src.height); }
   });
   applyTheme(); renderTab(); renderStarts(); await rebuildAll(true); renderTab();
   logLine("Project opened");
@@ -14257,7 +14468,7 @@ function exampleNote(key){
   if (ex.view === "flip") return EXAMPLE_NOTE + " It is shown turned over so you can see the picture: the ⟳ button above the model turns it back.";
   return EXAMPLE_NOTE;
 }
-const exampleCanvases = new Map();        // art key → { canvas, url }, drawn once per visit
+const exampleCanvases = new Map();        // art key → { canvas, asset, thumb }, drawn once per visit
 const exampleSized = new WeakSet();       // example pictures with a width of their own
 let exampleBusy = 0, exampleToken = 0, examplePaintSig = "", exampleSlotSig = "";
 const slotSig = () => state.slots.map(s => s.hex + "/" + s.name).join("|");
@@ -14268,7 +14479,7 @@ async function exampleCanvas(key){
   const art = encHas(EXAMPLE_ART, key) ? EXAMPLE_ART[key] : null; if (!art) return null;
   const canvas = document.createElement("canvas"); canvas.width = art.w; canvas.height = art.h;
   await art.draw(canvas.getContext("2d"), art.w, art.h);
-  const out = { canvas, url:canvas.toDataURL("image/png") };
+  const out = { canvas, asset:pictureAsset(canvas), thumb:thumbURL(canvas) };
   exampleCanvases.set(key, out); return out;
 }
 // takes the example pictures away (and an example's paint, while it is untouched); true when there were some
@@ -14305,11 +14516,11 @@ async function loadExample(key, preset){
     }
   if (ex.paint){ state.paint.ops = JSON.parse(JSON.stringify(ex.paint)); state.paint.on = true; paintPrepared = false; examplePaintSig = JSON.stringify(state.paint.ops); }
   if (art){
-    const id = "a" + (uid++); assets[id] = { canvas:art.canvas, dataURL:art.url };
+    const id = "a" + (uid++); assets[id] = art.asset;
     const it = newItem("Example: " + EXAMPLE_ART[ex.art].name, art.canvas, Object.assign({ asset:id, enabled:true, example:true }, JSON.parse(JSON.stringify(ex.item || {}))));
     if (ex.width){ it.width = ex.width; exampleSized.add(it); }
     if (ex.place === "top" && state.base.type === "hex") it.place = { c:[0, state.base.hex.h, 0], n:[0,1,0] };
-    it.src = art.canvas; it.thumb = art.url;
+    it.src = art.canvas; it.thumb = art.thumb;
     state.items.push(it); state.active = state.items.length - 1;
   }
   if (ex.view) setViewFlags({ [ex.view]:true });
@@ -14343,8 +14554,14 @@ function applyPreset(key){
     if (added){ renderTab(); notify(pr.tip + " " + exampleNote(key)); }
     // still busy until the last rebuild is under way (a test waiting for "not busy" would otherwise act
     // between the two rebuilds, and a measurement it started would be cleared by the second)
+    // The pictures' sizes depend on the model, so they are set after it is built, and it is built again
+    // with them. Only when a size changed and the pictures are laid on the model: a puzzle, a lithophane,
+    // a box or a phone case was built twice for nothing (Session 27).
     try { await rebuildAll(false); await new Promise(r=>setTimeout(r,60));
-      state.items.forEach(d=>{ if (!exampleSized.has(d)) d.width = defaultWidth(d.aspect); d.solids = null; }); schedule(); }
+      const unlaid = { jigsaw:1, lithophane:1, enclosure:1, phonecase:1 }[state.base.type];
+      let changed = false;
+      state.items.forEach(d=>{ if (exampleSized.has(d)) return; const w = defaultWidth(d.aspect); if (w !== d.width){ d.width = w; if (!unlaid) changed = true; } });
+      if (changed){ state.items.forEach(d=>{ d.solids = null; }); schedule(); } }
     finally { exampleBusy--; }
     exampleSlotSig = slotSig(); pushHistory();
   })();
@@ -14517,6 +14734,31 @@ window.MakerForge = {
     try { window.history.replaceState(null, "", location.pathname + location.search); } catch(e){}
     notify("Opened a shared project. Undo takes you back to what you had before.");
   }
+})();
+}
+/* The geometry library runs from its own <script id="prcore"> above, and the app starts once it has. A website
+   whose Content-Security-Policy forbids scripts written into the page (Session 27: the owner's site, where every
+   build failed with "Cannot read properties of undefined (reading 'coverageField')") does not run that one: the
+   same text then runs from a blob: URL, which such a policy usually allows. A page that blocks both says so. */
+(function start(){
+  if (window.PRCore) return makerForge();
+  const fail = () => {
+    const n = document.getElementById("notice");
+    if (n){ n.textContent = "Maker Forge could not start: this page's security settings block its geometry code. Download index.html from GitHub and open that instead."; n.classList.add("show"); }
+  };
+  const fromText = () => {
+    if (window.PRCore) return makerForge();
+    const el = document.getElementById("prcore"), text = el && el.textContent;
+    if (!text || !text.trim() || typeof Blob !== "function" || !URL.createObjectURL) return fail();
+    const sc = document.createElement("script");
+    sc.src = URL.createObjectURL(new Blob([text], { type:"text/javascript" }));
+    sc.onload = () => window.PRCore ? makerForge() : fail();
+    sc.onerror = fail;
+    document.head.appendChild(sc);
+  };
+  // a page that puts this script before the library's (the owner's site does) has not read that one yet
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fromText, { once:true });
+  else fromText();
 })();
 })();
 </script>

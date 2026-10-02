@@ -5,7 +5,7 @@
 Free and open source (MIT). One HTML file: no install, no account, no uploads. It runs on your own computer, tablet or phone, even offline.
 
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-2a9d8f)](LICENSE)
-[![Version 0.24](https://img.shields.io/badge/version-0.24-1f6f8b)](CHANGELOG.md)
+[![Version 0.24](https://img.shields.io/badge/version-0.25-1f6f8b)](CHANGELOG.md)
 [![Runs in the browser](https://img.shields.io/badge/runs%20in-your%20browser-e9c46a)](#get-started-in-a-minute)
 [![Exports 3MF, STL, OBJ](https://img.shields.io/badge/exports-3MF%20·%20STL%20·%20OBJ-d1495b)](#printers-and-slicers)
 
@@ -82,7 +82,7 @@ More pictures of the painter, phone cases, project boxes and printers are in [Wh
 
 ## Get started in a minute
 
-1. **Get the app.** Download [`index.html`](index.html) (on GitHub: open it, then **Download raw file**), or clone this repository. Open it in Chrome, Edge, Firefox or Safari. That is the whole install.
+1. **Get the app.** Download [`index.html`](index.html) (on GitHub: open it, then **Download raw file**), or clone this repository. Open it in Chrome, Edge, Firefox or Safari. That is the whole install. Every earlier version is on the [Releases page](https://github.com/Retr0Plus95/Maker-Forge/releases) too.
 2. **Pick something** under **Start from**: a keychain, a patch, a puzzle, a phone case. A finished example appears.
 3. **Add your picture** on the **Art** tab. It takes the example's place.
 4. **Choose your printer** and set your filament colours on the **Colours** tab.

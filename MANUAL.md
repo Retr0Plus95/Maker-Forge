@@ -307,6 +307,10 @@ On a Mac, use Cmd instead of Ctrl.
 
 **An opened project has no model.** Projects saved in the browser and share links leave out imported models. Open the same model file again and its paint comes back.
 
+**"Could not build the model" or "This artwork could not be laid on the model".** The message says what went wrong and where. Undo (Ctrl+Z) takes back the last change; artwork that cannot be laid on the model is left out until you move or remove it on the Art tab. If it keeps happening, a screenshot of the message helps the developers find it.
+
+**I want an earlier version.** Every version is on the [Releases page](https://github.com/Retr0Plus95/Maker-Forge/releases) (also linked from About, ⓘ). Download the file of the one you want and open it in your browser. Projects saved in one version open in later ones.
+
 **The app feels slow.** In Settings, lower **Maximum preview detail**. On the Paint tab, choose coarser **Paint detail**.
 
 **My slicer shows one colour.** Open the 3mf that matches your slicer (see Export → Slicer notes). In Bambu Studio, if the 3mf will not open, import `model.obj` and accept the colour dialog.

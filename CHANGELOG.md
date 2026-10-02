@@ -3,6 +3,18 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.25.0
+
+- **Pick any earlier version.** Every version is now on the [Releases page](https://github.com/Retr0Plus95/Maker-Forge/releases) as a file to download and open, with what changed in it. The About dialog (ⓘ) links to it.
+- **No long freeze while a photo is lined up.** Lining a photo up with the model now runs on the helper thread. On a 370 000-triangle figure the page used to freeze for 7.5 seconds; now it stays usable, with at most 2 seconds of freeze while the colours are painted.
+- **More accurate colour from a photo.** On five test product photos (lit hard from one side, taken from close by, a grey copy of the figure behind), the parts each photo shows came out 94.5% right instead of 91.8%, and the whole figure 80.6% instead of 76.9%.
+
+**Fixed**
+- A model with artwork on it could stop building, with "Could not build the model: Cannot read properties of undefined". Artwork that cannot be laid on the model is now left out, and the message says which and why, so the rest of the model still builds.
+- Black paint in half shade (hair, boots) took the colour round it, like the socks' red, when colouring from a photo.
+- Red in deep shade could still take a filament of its own when the light came from the other side, pushing out another colour, such as the hair's.
+- A second figure standing against the first in a photo pulled the line-up off by up to 10°.
+
 ## 0.24.2
 
 - **Bambu Studio's message about our files, explained.** Opening the Bambu 3mf as a project, Bambu Studio says *"The 3mf is not from Bambu Lab, load geometry data and color data only"*. Its own source code shows it says this about every 3mf made by another app; the model, its paint and each part's filament still load, and your printer settings are kept. To skip the message, drag the file in and choose **Import geometry only**. The Slicer notes, the notes in the download and the manual now say so.

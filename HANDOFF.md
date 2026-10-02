@@ -937,6 +937,32 @@ Asked: "bambu slicer still shows invalid config", and "did you optimize for phon
 
 **Not checked**: Bambu Studio itself (it is a desktop app; the advice comes from its source). A real phone.
 
+## Session 27: bugs, freezing, photo accuracy, earlier versions (v0.25.0)
+
+Asked: "a lot of things has broken in the app ... make a prio to hunt for bugs", "cannot build the model, cant read properties of undefined", then "when i removed all the art work from the art tab it worked again", "i imported the file without a problem", "its freezing and slow", "still not the best result from painting from a picture" (two screenshots of the owner's figurine), and "i want a way to add the older versions so the user just picks themselfs".
+
+**Hunting** (Chromium through Playwright; scripts kept out of the repository, described here):
+- Projects saved by v0.17.1, v0.20, v0.22, v0.23, v0.24.0 and v0.24.1 (every quick start, each version's `index.html` from git history, the same browser storage), then the current version opened over each: all build (v0.17.1's six artwork-only quick starts ask for artwork, as they should).
+- Imports of 900 000-triangle STL, OBJ and both 3MF layouts: 3 to 6 s, no errors. A brush stroke on an imported model paints from the first stroke (a test that seemed to show otherwise had missed the figure).
+- The owner's way through the app, for seven quick starts with artwork: import (the test footballer, then a two-part Bambu 3MF of 284 000 triangles with two filaments), a photo, Number of colours, the model's size, Add text, artwork clicked onto the model, its width, Line it up again, a filament removed, Undo, Export: no error. **The owner's "Cannot read properties of undefined" was not reproduced.**
+- So `rebuildAll` now builds each piece of artwork on its own (try/catch): one that fails is left out (`d.solids = null`) and the notice names it, with the error and where it happened (`errWhere(err)`: the first function named in the stack, e.g. "(in buildItem)"); "Could not build the model" says where too. A screenshot of either now points at the cause.
+- The "Far away or zoomed in" in the owner's second screenshot is set only by that button (or a project where it was pressed); **Work it out** puts it back.
+
+**Freezing** (`longtask` observer in Chromium, a 372 842-triangle figure): adding a photo froze the page 7.5 s in one go (10.8 s in all); a size change 4.4 s; each artwork change about 0.8 s. Lining a photo up (`photoFitFull` / `photoFitCloseness` / `photoFit`) now runs on the helper thread (`helperMain` job "photoFit", `photoFitView` async): adding a photo now freezes at most 2.1 s (4.1 s in all). A line-up turned down because the thread was restarted for other work is asked for again; a newer line-up of the same photo makes an older one's result be dropped (`photoFitLatest`, a WeakMap, so nothing is saved). In Node on that model: the line-up 1.0 s, `photoLight` 0.7 s, `paintFromPhotos` 0.5 s, `meshTopology` 0.4 s, the paint mesh 0.4 s, the rest about 0.1 s each: a size change reruns all of it on the page. **Next**: the paint steps (light, unshading, `photoView`, `paintFromPhotos`) on the helper thread too, or caching them across a size change.
+
+**Accuracy** (a five-scene benchmark: the product photo of the photo test and four more, a grey copy touching or overlapping the figure, light from either side, turned 25°; the AI's mask, five colours):
+- `photoUnshade` brightens up to 10× (was 5×): with the light from the side the camera was turned away from, the red in deep shade stayed dark red, took a filament and pushed the hair into the skin's colour.
+- Pixels too dark to read in shade: only under 8 (was 24). At 24, black boots and hair in half shade went unread and the fill gave them the socks' red: the legs were 9 to 13% wrong with the true line-up, now 2 to 8%.
+- `photoFit` trims a second time at 3% of the model's height (6%, then 3%): a grey copy touching the figure pulled the angle 10° off.
+- Mean of the five scenes, as the app lines them up: what each photo shows 91.8% → 94.5%, the whole figure 76.9% → 80.6% (with the true line-up 94.5% → 99.4% and 83.8% → 86.0%). Still wrong: a test figure turned 25° is lined up as from 1° (its round limbs barely change outline as it turns); the back from one photo.
+- `tools-photo-test.js` passes (75 checks); the product photo's seen part 98.2%, the two close-ups 86.0% and 84.3% (84.2% and 87.1% before).
+
+**Earlier versions**: `tools-release.js` and `.github/workflows/release.yml`. After each merge to `main` (and by hand), every version on `main` without a release gets one: tag `v<version>` on that version's last commit, its `index.html` attached as `maker-forge-<version>.html`, its CHANGELOG.md section (or the `major.minor` one, or today's) as the notes. The first run makes eleven: 0.15.0, 0.16.0, 0.17.0, 0.17.1, 0.20.0, 0.22.0, 0.23.0, 0.24.0, 0.24.1, 0.24.2 and 0.25.0 (versions squashed together into one pull request, like 0.18 to 0.19, have no commit of their own on `main`). `npm run release:dry` shows what it would do. The About dialog, the README and the manual link the Releases page.
+
+**Tests**: photo (75), smoke, paint, project, speed and the browser check; the squash test is unchanged.
+
+**Not checked**: the owner's own figurine and photo (not in the repository); the release workflow on GitHub (it runs once this is on `main`; the Actions tab shows it); a real phone.
+
 ## Unfinished (in priority order)
 
 - **P4**: none outstanding beyond polish.

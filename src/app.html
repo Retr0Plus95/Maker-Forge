@@ -430,7 +430,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.24.2</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.25.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -3559,6 +3559,12 @@ function helperMain(){
       let r, tr = [];
       if (fn === "print"){ const it = PRCore.analyzePrintSteps(args[0], args[1]); let st; do { st = it.next(); } while (!st.done); r = st.value; }
       else if (fn === "bvh"){ r = PRCore.meshBVH(args[0], args[1]); tr = [...new Set([r.box.buffer, r.left.buffer, r.start.buffer, r.count.buffer, r.order.buffer])]; }
+      else if (fn === "photoFit"){
+        // lining a photo up (Session 27): seconds of work on a big model, which froze the page
+        const [pos, idx, cam, mask, w, h, mirror, angles, opt, near, search] = args, solid = { pos, idx };
+        r = typeof near === "number" ? PRCore.photoFit(solid, cam, mask, w, h, mirror, angles, false, Object.assign({ k:near }, opt))
+          : search ? PRCore.photoFitFull(solid, cam, mask, w, h, mirror, angles, opt) : PRCore.photoFitCloseness(solid, cam, mask, w, h, mirror, opt);
+      }
       else if (fn === "ping") r = "pong";
       else throw new Error("no such job: " + fn);
       self.postMessage({ id, r }, tr);
@@ -4264,21 +4270,32 @@ function aiCutoutRow(p, d, after){
   }
 }
 // line a photo up with the model; search: also look for the angle it was taken from (±45° round, ±20° up)
-function photoFitView(v, search){
+// returns true when lined up, false when no figure was found, null when a newer line-up of the photo took over
+let photoFitSeq = 0; const photoFitLatest = new WeakMap();
+async function photoFitView(v, search){
   const model = photoModel(), px = photoPixels(v.asset, 480);
   if (!model || !px) return false;
   const mask = photoFigure(v, px), mirror = !!(v.fit && v.fit.mirror), angles = search ? { yaw:45, pitch:20 } : null;
   // the AI's outline may take in a little background: a part of it the model does not cover counts less
   const opt = aiMapOf(v.ai) ? { extra:0.7 } : {};
+  const cam = photoCamOf(v), near = typeof v.near === "number" ? v.near : null, seq = ++photoFitSeq; photoFitLatest.set(v, seq);
+  // a set closeness: lined up at it. Worked out (Session 23, v0.24.1): a new photo or Line it up again looks
+  // for the angle both as from far away and as from close by, then for how close (photoFitFull: a product
+  // picture of a figure on a base, taken from about its chest, was lined up as from 22° to the side when the
+  // angle was found far away first). At a given angle only how close is looked for. A close camera has to
+  // fit clearly better, so a photo from far away lines up as before.
+  const here = () => near != null ? C.photoFit(model, cam, mask, px.w, px.h, mirror, angles, false, Object.assign({ k:near }, opt))
+    : search ? C.photoFitFull(model, cam, mask, px.w, px.h, mirror, angles, opt) : C.photoFitCloseness(model, cam, mask, px.w, px.h, mirror, opt);
+  // on the helper thread when there is one (Session 27: seven seconds of a frozen page on a 370 000-triangle
+  // figure); a job turned down because the thread was restarted for other work is asked for again
   let r;
-  if (typeof v.near === "number") r = C.photoFit(model, photoCamOf(v), mask, px.w, px.h, mirror, angles, false, Object.assign({ k:v.near }, opt));
-  // worked out (Session 23, v0.24.1): a new photo or Line it up again looks for the angle both as from far
-  // away and as from close by, then for how close (photoFitFull: a product picture of a figure on a base,
-  // taken from about its chest, was lined up as from 22° to the side when the angle was found far away
-  // first). At a given angle only how close is looked for. A close camera has to fit clearly better, so a
-  // photo from far away lines up as before.
-  else r = search ? C.photoFitFull(model, photoCamOf(v), mask, px.w, px.h, mirror, angles, opt)
-    : C.photoFitCloseness(model, photoCamOf(v), mask, px.w, px.h, mirror, opt);
+  for (let tries = 0; tries < 2 && r === undefined; tries++){
+    const job = onHelper("photoFit", [model.pos, model.idx, cam, mask, px.w, px.h, mirror, angles, opt, near, !!search]);
+    if (!job) break;
+    try { r = await job; } catch (err){ if (!/replaced/.test(err.message)) break; }
+  }
+  if (photoFitLatest.get(v) !== seq) return null;
+  if (r === undefined) r = here();
   if (!r) return false;
   if (r.cam) v.cam = { yaw:wrapYaw(r.cam.yaw), pitch:clamp(Math.round(r.cam.pitch), -89, 89) };
   v.fit = photoFitKept(r.fit); if (v.fit.k) v.fit.k = +v.fit.k.toFixed(3);
@@ -4288,8 +4305,10 @@ function photoFitView(v, search){
 }
 async function photoFitNow(o, v, search){
   setBusy(true, "Lining the photo up with the model…"); await new Promise(r => setTimeout(r, 30));
-  let ok = false; try { ok = photoFitView(v, search); } catch (err){ console.error(err); }
-  setBusy(false); if (ok) logLine(`Lined ${v.name} up with the model (outline ${Math.round(100 * v.match)}%)`);
+  let ok = false; try { ok = await photoFitView(v, search); } catch (err){ console.error(err); }
+  setBusy(false);
+  if (ok === null) return false;                    // a newer line-up of this photo is under way
+  if (ok) logLine(`Lined ${v.name} up with the model (outline ${Math.round(100 * v.match)}%)`);
   if (!ok) notify("The photo could not be lined up: no figure was found in it. Try a photo on a plain background, or change the background setting.");
   return ok;
 }
@@ -4803,6 +4822,11 @@ renderer.domElement.addEventListener("pointerup", endStroke);
 renderer.domElement.addEventListener("pointercancel", endStroke);
 renderer.domElement.addEventListener("pointerleave", () => { brushRing.visible = false; brushPreview.visible = false; });
 
+// where an error happened, from the first line of its stack that names a function: " (in buildItem)"
+function errWhere(err){
+  const m = /at ([A-Za-z_$][\w$.]*) \(|^([A-Za-z_$][\w$]*)@/m.exec(String(err && err.stack || ""));
+  return m ? ` (in ${m[1] || m[2]})` : "";
+}
 let timer = 0, busy = false, queued = false, buildRev = 0, rebuildPending = false;
 // a rebuild a moment from now (sliders call this on every move); MakerForge.busy counts it as work under way
 function schedule(){ clearTimeout(timer); rebuildPending = true; timer = setTimeout(()=>{ rebuildPending = false; rebuildAll(false); }, 130); }
@@ -4838,7 +4862,7 @@ async function rebuildAll(resetItems){
       baseMesh.updateMatrixWorld(true);
     }
     if (resetItems) state.items.forEach(d => { d.solids = null; d._imgKey = ""; d._srcSig = ""; });
-    const consumed = CONSUMES_ART[t] ? (state.items[state.active] || state.items[0]) : null;
+    const consumed = CONSUMES_ART[t] ? (state.items[state.active] || state.items[0]) : null, artFailed = [];
     for (const d of state.items){
       normalizeItem(d);
       if (d === consumed){ d.solids = null; continue; }   // it became the object itself
@@ -4849,10 +4873,14 @@ async function rebuildAll(resetItems){
       if (t === "phonecase"){ d.solids = null; continue; }   // a case takes its picture as an inlay in the back
       if (t === "nameplate" && state.base.nameplate.pic && state.base.nameplate.pic.on &&
           state.items.indexOf(d) === clamp(state.base.nameplate.pic.item,0,state.items.length-1)){ d.solids = null; continue; }
-      if (d.text && !d.src){ await document.fonts.load(`${d.text.weight} 180px "${d.text.font}"`); d.src = textCanvas(d.text); d.aspect = d.src.width/d.src.height; }
-      if (!d.src && d.asset && assets[d.asset]) d.src = assets[d.asset].canvas;
-      if (d.src && !d.thumb) d.thumb = d.src.toDataURL("image/png");
-      if (d.src && !d.solids) buildItem(d);
+      // one piece of artwork that cannot be laid on the model leaves the rest of the model buildable
+      // (Session 27: a model with artwork on it would not build at all, "Cannot read properties of undefined")
+      try {
+        if (d.text && !d.src){ await document.fonts.load(`${d.text.weight} 180px "${d.text.font}"`); d.src = textCanvas(d.text); d.aspect = d.src.width/d.src.height; }
+        if (!d.src && d.asset && assets[d.asset]) d.src = assets[d.asset].canvas;
+        if (d.src && !d.thumb) d.thumb = d.src.toDataURL("image/png");
+        if (d.src && !d.solids) buildItem(d);
+      } catch (err){ d.solids = null; console.error(err); artFailed.push(`"${d.name || "artwork"}" (${err.message}${errWhere(err)})`); }
     }
     modelParts = parts.slice(); partsVer++;
     if (t === "jigsaw" && tab === "make"){ drawJigsawPreview(); updateJigsawSummary(); }
@@ -4874,7 +4902,8 @@ async function rebuildAll(resetItems){
         else a.addEventListener("blur", () => { if (tab === "make" && state.base.type === "enclosure") renderTab(); }, { once:true });
       }
     }
-  } catch (err){ notify("Could not build the model: "+err.message); console.error(err); }
+    if (artFailed.length) notify(`This artwork could not be laid on the model, so it is left out: ${artFailed.join(", ")}. Move it, or remove it on the Art tab.`);
+  } catch (err){ notify("Could not build the model: " + err.message + errWhere(err) + ". Undo (Ctrl+Z) takes back the last change."); console.error(err); }
   busy = false; buildRev++;
   setBusy(false);
   if (!queued) logLine(`Built ${modelParts.length} part${modelParts.length===1?"":"s"} in ${Math.round(performance.now()-t0)} ms`);
@@ -8245,6 +8274,7 @@ $("#aboutBtn").onclick = ()=>openModal("About Maker Forge", b => {
     Turn names, photos, logos and measurements into multi-colour printable parts.</p>
     <p class="hint">Everything runs in your browser. Nothing is uploaded; your pictures never leave this computer.</p>
     <p class="hint">Open source under the MIT licence. Built with three.js, earcut and JSZip. Fonts from Fontsource, built in (SIL Open Font License and Apache 2.0).</p>
+    <p class="hint"><b>Earlier versions.</b> Every version of Maker Forge is on the <a href="https://github.com/Retr0Plus95/Maker-Forge/releases" target="_blank" rel="noopener">Releases page</a>, each with what changed in it. Download the file of the one you want and open it in your browser. Projects saved in one version open in later ones.</p>
     <p class="hint"><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redo · <kbd>Ctrl</kbd>+<kbd>S</kbd> save ·
     <kbd>Delete</kbd> remove artwork · arrow keys nudge it · <kbd>Esc</kbd> closes dialogs</p>`);
 });

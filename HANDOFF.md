@@ -963,8 +963,52 @@ Asked: "a lot of things has broken in the app ... make a prio to hunt for bugs",
 
 **Not checked**: the owner's own figurine and photo (not in the repository); the release workflow on GitHub (it runs once this is on `main`; the Actions tab shows it); a real phone.
 
+## Session 28: the website error, and freezing (v0.25.1)
+
+Asked: "when i launch the site through my website or through mobile i got the error. when i download the package from git it works fine" (https://retr0plus.se/maker-forge/app/), then "slow down and fix all the bugs and issues and why the app is so slow and freezes all the time, i thought the workers were gonna speed things up ... make a new pr".
+
+**The website error.** The owner's site (the Website repository's `tools/import-maker-forge.py`) serves the app under a Content-Security-Policy with `script-src 'self' blob: 'wasm-unsafe-eval'` and `worker-src 'none'`. The importer moves the vendored libraries and the app's main script into `app.<hash>.js`, placed *before* the inline `<script id="prcore">`, and the policy blocks that inline script. So `PRCore` was undefined and every build failed with "Cannot read properties of undefined (reading 'coverageField')"; phones visiting the site saw the same, while a downloaded `index.html` worked. Now the main script is a function, `makerForge()`, behind a small starter at its end. If `window.PRCore` is missing, the starter waits for the page (DOMContentLoaded, since the site puts the app first), loads the library's own text as a `blob:` script (the policy allows `blob:`) and then starts; if that fails as well, the notice says to download `index.html`. Checked against a copy of the site's layout and policy served locally (scratch `sitesim.js`): v0.25.0 shows the owner's exact message, v0.25.1 builds. **The site still serves v0.25.0 until it is imported again.** Its `worker-src 'none'` also blocks the helper thread, so on the site the printability check and the photo line-up run on the page: allowing `worker-src 'self' blob:` there would bring them back (the Website repository was not changed).
+
+**Freezing** was measured with a `longtask` observer in headless Chromium (software WebGL): every quick start opened, then its first slider moved (scratch `freeze.js`), plus CPU profiles of the worst (scratch `profile.js`). In headless Chromium with software graphics, the longest single freeze, v0.25.0 → v0.25.1:
+
+| Quick start | Opening it | Its first slider |
+|---|---|---|
+| Name keychain | 2783 → 439 ms | 1393 → 278 ms |
+| Double-sided tag | 1244 → 247 | 1217 → 232 |
+| Kids' puzzle | 3398 → 302 | 515 → 385 |
+| Lithophane | 1702 → 194 | 800 → 277 |
+| Lithophane lamp | 733 → 345 | 794 → 341 |
+| Jigsaw puzzle | 816 → 423 | 629 → 461 |
+| Trace a part | 824 → 227 | 524 → 222 |
+| Plastic canvas | 669 → 97 | 740 → 100 |
+| Phone case | 740 → 403 | 487 → 152 |
+| Cookie cutter | 341 → 220 | 257 → 188 |
+
+The other twelve were under 0.4 s before and stay there (within a few tens of milliseconds, which is the measurement's own spread). The page was frozen in all, opening the Name keychain, for 4.9 s, now 0.9 s.
+
+What took the time, and what changed (each core change is checked number by number against the old way in `tools-speed-test.js`):
+- `edt` (distance fields, used by name plates, the tracer, puzzles and the photo painter): the pass down the columns read memory a column at a time. For a mask it is the distance to the nearest set pixel above or below, now found in two sweeps in row order: the same values, about twice as fast.
+- `checkMesh` sorted every directed edge (0.6 s on the 569 000-triangle figure). Edges now go in a list under their lower corner and are paired there: the same open-edge count and volume, about 7 times faster.
+- `heightSheet` (lithophanes, phone cases): triangles with all three corners on the sheet skip the per-triangle lists. The same solid.
+- **Name plate**: the outline is a field taken straight from the distances to the letters (`border − distance`, or for joined letters the distance into the grown shape minus the join), with the keyring tab and its hole as the larger and smaller of that and their circles: two distance passes instead of four, and smoother. On four test names it lies within 0.08 mm of the old outline with the same pieces and holes (scratch `fieldcmp.js`). Working on a half-size grid was tried first and dropped: it closed a small hole and joined two pieces. Letters, the top layer, the picture's colours and the back are traced in a window round them (`traceIn`); the picture's colours are read from its own rectangle; the mask and the letters' coverage come from one canvas read; the build pauses between steps.
+- **Pictures**: `resample` keeps the last four sizes of each picture (every caller gets a copy). Source pictures, examples and thumbnails are drawn in memory (`willReadFrequently`), not on the graphics chip: every read back from the chip stalled the page (a puzzle's picture: 0.9 s). Pictures kept with the project are written as PNG in the background (`pictureAsset`: `toBlob`, the getter writes it on the spot if asked sooner), and the autosave waits for them (`saveLocal`). Artwork buttons use small thumbnails (`thumbURL`).
+- Opening a quick start built the model twice. It now builds again only when a picture whose width changed is laid on the model, or is a cookie cutter's outline.
+- An imported model's geometry, the copy pictures are laid on, and so its picking boxes are kept from build to build while its solid is the same (`keptGeom`, `keptSoup`): on a 373 000-triangle figure coloured from a photo, opening the Export tab froze 0.7 s, now 0.2 s; a picture's width 0.86 s, now 0.6 s; adding a photo 3.1 s, now 2.1 s at most.
+- `schedule()` waits `clamp(lastBuildMs × 0.4, 130, 450)` ms after a slider stops, so a slow model is not rebuilt at every pause in a drag.
+- The tracer pauses between its four steps; a box's or phone case's logo is split and traced once per picture, size, scale and filaments (`encLogoCache`).
+- **Plastic canvas**: since v0.20 (examples on the Start buttons) its picture was built twice, as stitches and as a decal over them: it is now in `CONSUMES_ART` (the Art tab shows mirror, colours and smoothing for it). Each hanging hole overlapped a corner hole, and with **Leave the background open** every open square overlapped its four corner holes; earcut then left plastic inside holes. Corner holes that would touch a hanging hole or an open square are left out (so an open background keeps its bars, like real canvas), overlapping openings are joined exactly (`rectUnion`, core), and a convex outline with 64 or more holes is triangulated in upright strips between columns of holes (`stripsOf` in `triangulate`; earcut's cost grows with the square of the number of holes: 90 stitches across took 3.5 s, now 0.35 s).
+
+**Tests**: all pass on the final build: smoke (every quick start, object and button), print, jigsaw, lithophane, project (every quick start comes back unchanged; out-of-range values), art, tracer, speed (with the new number-by-number checks of `edt`, `checkMesh`, strips and `rectUnion`), enclosure, phone case, paint, photo, opening models with their own colours, and the browser check in Chromium. `tools-audit.js` finds no dead controls on the plastic canvas, name plate or tracer. The print survey against v0.25.0 shows no new warning; the Plastic canvas quick start's 27 bridges, 0.1 mm² of support and 11 walls thinner than the nozzle are gone (they were the decal over the stitches), the canvas object's 2 bridges too (the hanging holes).
+
+**Still slow**: changing the size of a big imported model coloured from a photo (4.2 s in one go on the 373 000-triangle figure, 5.3 s before). The scale is built into the model's solid (`stlCache` is keyed on it), so the weld (0.5 s), the paint mesh and its topology (0.7 s), the light and the shade taken out of the photo (1.1 s) and the painting (0.6 s) all start again. Next: keep the solid at 100% and apply the size as a transform (the print frame already scales, `modelMatrix`), or move the paint steps to the helper thread (Session 27's next step).
+
+The release workflow ran when v0.25.0 was merged: the Releases page has 0.15.0 to 0.25.0, each with its file.
+
+**Not checked**: a real phone; the live site (it needs the new version imported); Firefox and Safari; whether `toBlob` keeps the page free in every browser (Chromium encodes away from the page).
+
 ## Unfinished (in priority order)
 
+- **Speed next** (Session 28): the size of an imported model applied as a transform instead of built into its solid (a size change on a big model coloured from a photo still freezes 4 s); the photo paint steps on the helper thread; the owner's website allowing `worker-src 'self' blob:` and importing v0.25.1.
 - **P4**: none outstanding beyond polish.
 - **P5**: an actual 3D view cube widget; dimension lines drawn along the model; bed resize already follows the printer; more layout modes next to Explode (e.g. lay layered parts flat).
 - **P6**: done in Session 19: example images for every start. Still open: picking several pictures for use in other sections (the `enabled` flag is the start of this); traceable pictures on keychains (silhouette mode exists via "Print it in its own colours" off).

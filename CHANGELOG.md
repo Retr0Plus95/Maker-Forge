@@ -3,6 +3,14 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.24.2
+
+- **Bambu Studio's message about our files, explained.** Opening the Bambu 3mf as a project, Bambu Studio says *"The 3mf is not from Bambu Lab, load geometry data and color data only"*. Its own source code shows it says this about every 3mf made by another app; the model, its paint and each part's filament still load, and your printer settings are kept. To skip the message, drag the file in and choose **Import geometry only**. The Slicer notes, the notes in the download and the manual now say so.
+
+**Fixed**
+- On a phone, the Export tab's last four section buttons (Share a link, Project file, Slicer notes, Help) and the Make tab's last one sat past the edge of the screen; the buttons now wrap onto a second row.
+- The export notes said Bambu Studio takes the filament colours from the file. It doesn't for files from other apps: it keeps the filaments you have set up.
+
 ## 0.24.1
 
 - **More accurate colour from a photo**, worked out on a real case: a figurine of a footballer in a red and green kit and its product picture, where the shaded half of the shirt, arms and legs came out green, the face partly green and the top of the base in stripes.

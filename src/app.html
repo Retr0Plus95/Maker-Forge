@@ -402,7 +402,8 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
 :root[data-layout="phone"] .toptabs button{justify-content:center;padding:9px 2px}
 :root[data-layout="phone"] #startBtn,:root[data-layout="phone"] #dockExport{padding:8px 11px}
 :root[data-layout="phone"] .stage{grid-row:2;grid-column:1}
-:root[data-layout="phone"] .secrail{grid-row:3;grid-column:1;flex-direction:row;overflow-x:auto;overflow-y:hidden;border-right:none;
+/* every section in reach: the icons wrap onto a second row rather than running off the edge (the Export tab has 11) */
+:root[data-layout="phone"] .secrail{grid-row:3;grid-column:1;flex-direction:row;flex-wrap:wrap;overflow:visible;border-right:none;
   border-top:1px solid var(--line);padding:5px 8px;gap:6px}
 :root[data-layout="phone"] .secrail button{flex:none;width:44px;height:44px}
 :root[data-layout="phone"] .secrail button .tip,:root[data-layout="phone"] .secrail .sep{display:none}
@@ -429,7 +430,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.24.1</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.24.2</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -5537,7 +5538,7 @@ const SECTION_HELP = [
   [/adjust/i, "Adjust brightness and contrast until the colour preview shows clean, separate areas."],
   [/before you print/i, "Fix anything red first. Yellow items are advice."],
   [/printab/i, "Red in the preview needs support. Optimize turns the model to need the least of it; Revert undoes that."],
-  [/files/i, "PrusaSlicer and OrcaSlicer: open the prusa-orca 3mf. Bambu Studio: open the bambu 3mf."],
+  [/files/i, "PrusaSlicer and OrcaSlicer: open the prusa-orca 3mf. Bambu Studio: drag in the bambu 3mf and choose Import geometry only."],
   [/every name/i, "One name per line. Each becomes its own ready-to-print file using the current settings."],
   [/loaded filaments/i, "Set these to the spools you actually have loaded. Slot numbers become extruder numbers."],
   [/printer/i, "Choosing your printer sets the bed size, nozzle and how many colours the checks allow."],
@@ -8052,7 +8053,7 @@ function tabExport(p){
   });
   group(p,"Slicer notes", g2 => {
     note(g2, `<b>PrusaSlicer, OrcaSlicer:</b> open <code>model-prusa-orca.3mf</code>, parts and extruders are assigned.<br>
-      <b>Bambu Studio:</b> open <code>model-bambu.3mf</code>. If it refuses, import <code>model.obj</code> and accept the colour dialog.<br>
+      <b>Bambu Studio:</b> drag <code>model-bambu.3mf</code> in and choose <b>Import geometry only</b>: the parts, paint and filament numbers load and your printer settings stay. Opened as a project instead, it says <i>"The 3mf is not from Bambu Lab, load geometry data and color data only"</i>: that is normal for files from other apps, and the model loads the same. Either way, set the filament colours in Bambu Studio's filament list.<br>
       <b>One-colour printers:</b> use the swap heights above, or print each STL separately.`);
   });
   group(p,"Help and shortcuts", g2 => {
@@ -8826,9 +8827,11 @@ async function buildZip(parts, title){
     "Filaments:",
     ...P.map(p=>`  Slot ${p.slot+1}: ${state.slots[p.slot].name} (${state.slots[p.slot].hex}, ${state.slots[p.slot].mat})`), "",
     "PrusaSlicer / OrcaSlicer: open model-prusa-orca.3mf. Parts and extruders are already assigned.",
-    "Bambu Studio: open model-bambu.3mf. It uses Bambu's own layout: one part per filament with the",
-    "  extruder numbers set and the spool colours in project_settings. If your version refuses it,",
-    "  import model.obj and accept the colour dialog, or import every file in /stl together as one object.",
+    "Bambu Studio: drag model-bambu.3mf in and choose \"Import geometry only\". The parts, the paint and",
+    "  each part's filament number load, and your own printer and filament settings stay as they are.",
+    "  Opened as a project instead, Bambu Studio says \"The 3mf is not from Bambu Lab, load geometry data",
+    "  and color data only\". That is normal for any file not made in Bambu Studio, and the model loads",
+    "  the same. Either way, set the filament colours in Bambu Studio's filament list.",
     "One colour at a time: print stl/all-parts-merged.stl, or use the swap heights from the Check tab.",
     ...(P.some(p => p.paint) ? ["Painted on the Paint tab: both 3mf files carry the paint, so the slicer shows it painted and",
       "  prints it without painting again. The OBJ groups faces by colour. The STL files have no colour."] : []), "",

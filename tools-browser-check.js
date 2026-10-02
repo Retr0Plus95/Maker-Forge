@@ -59,7 +59,8 @@ function pageLayout() {
     (el.textContent.trim() ? ` "${el.textContent.trim().replace(/\s+/g, " ").slice(0, 40)}"` : "");
   if (de.scrollWidth > vw + 1 && getComputedStyle(document.body).overflowX !== "hidden") out.push(`page scrolls sideways (${de.scrollWidth} px in a ${vw} px window)`);
   // the app bar (Session 21): every button on the screen (a Download button past the edge cannot be pressed)
-  for (const b of document.querySelectorAll(".appbar button")) {
+  // and the section icons (Session 26: on a phone the Export tab's last four were past the edge)
+  for (const b of document.querySelectorAll(".appbar button, .secrail button")) {
     if (!vis(b)) continue; const r = b.getBoundingClientRect();
     if (r.right > vw + 1 || r.left < -1) out.push(`off the screen: ${name(b)}`);
   }

@@ -217,7 +217,7 @@ The paint goes into the 3mf files as slicer paint, so there is nothing to paint 
 
 **Files.** **Download print files** makes a zip with:
 
-- `model-bambu.3mf` for Bambu Studio, and `model-prusa-orca.3mf` for PrusaSlicer and OrcaSlicer, with every part assigned to its filament;
+- `model-bambu.3mf` for Bambu Studio (drag it in and choose **Import geometry only**), and `model-prusa-orca.3mf` for PrusaSlicer and OrcaSlicer, with every part assigned to its filament;
 - a coloured OBJ, one STL per filament and one merged STL;
 - printing notes and the project file.
 
@@ -310,6 +310,8 @@ On a Mac, use Cmd instead of Ctrl.
 **The app feels slow.** In Settings, lower **Maximum preview detail**. On the Paint tab, choose coarser **Paint detail**.
 
 **My slicer shows one colour.** Open the 3mf that matches your slicer (see Export → Slicer notes). In Bambu Studio, if the 3mf will not open, import `model.obj` and accept the colour dialog.
+
+**Bambu Studio says "The 3mf is not from Bambu Lab, load geometry data and color data only".** That is normal: Bambu Studio says it about every 3mf made by another app, and the model, its paint and each part's filament still load. To skip the message, drag the file in and choose **Import geometry only** (or use File → Import). Your own printer and filament settings stay as they are, so set the filament colours in Bambu Studio's filament list.
 
 ## 14. Privacy
 

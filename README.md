@@ -5,7 +5,7 @@
 Free and open source (MIT). One HTML file: no install, no account, no uploads. It runs on your own computer, tablet or phone, even offline.
 
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-2a9d8f)](LICENSE)
-[![Version 0.24](https://img.shields.io/badge/version-0.25-1f6f8b)](CHANGELOG.md)
+[![Version 0.25](https://img.shields.io/badge/version-0.25-1f6f8b)](CHANGELOG.md)
 [![Runs in the browser](https://img.shields.io/badge/runs%20in-your%20browser-e9c46a)](#get-started-in-a-minute)
 [![Exports 3MF, STL, OBJ](https://img.shields.io/badge/exports-3MF%20·%20STL%20·%20OBJ-d1495b)](#printers-and-slicers)
 

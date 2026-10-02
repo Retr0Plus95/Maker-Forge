@@ -3,6 +3,23 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.25.1
+
+- **Much less freezing.** Building a model now does the same work in far less time, and takes short breaks so the page keeps responding. Measured in Chrome on every quick start, the longest freeze while opening one or moving a slider:
+  - Name keychain: 1.6 s → 0.4 s per slider change;
+  - Kids' puzzle: 3.2 s → 1.7 s when it opens; Jigsaw puzzle 1.2 s → 0.6 s;
+  - Lithophane: 0.8 s → 0.3 s per slider change;
+  - Plastic canvas: 0.8 s → SLIDER_CANVAS s per slider change; Trace a part: 0.5 s → SLIDER_TRACE s.
+- Opening a quick start no longer builds the model twice when nothing changed in between (puzzles, lithophanes, boxes, phone cases).
+- Pictures are kept with your project in the background instead of while you wait, and a big model's closed-mesh check is about seven times quicker.
+
+**Fixed**
+- On a website with strict security settings, such as the Maker Forge page on retr0plus.se, and so on phones visiting it, every model failed with "Cannot read properties of undefined (reading 'coverageField')". The app now starts there too; downloading `index.html` always worked.
+- The plastic canvas printed its picture twice: as stitches and again as a flat picture laid over them.
+- On a plastic canvas, each hanging hole overlapped a stitch hole, which left slivers of plastic inside the hanging hole.
+- On a plastic canvas with **Leave the background open**, the open squares overlapped the stitch holes and the panel came out jumbled; the open squares now keep the bars between them, like real canvas.
+- A plastic canvas with many stitches took seconds to build (3.5 s at 90 across); now about 0.4 s.
+
 ## 0.25.0
 
 - **Pick any earlier version.** Every version is now on the [Releases page](https://github.com/Retr0Plus95/Maker-Forge/releases) as a file to download and open, with what changed in it. The About dialog (ⓘ) links to it.

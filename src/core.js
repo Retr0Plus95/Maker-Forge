@@ -3918,7 +3918,8 @@
   // finer round the best; a closer camera has to fit clearly better (2 points of overlap per 1 of k), so a
   // photo from far away stays far away. Every distance is compared at full detail (v0.24.1: the coarse
   // comparison took 0.075 for a camera at 0.2). Returns photoFit's result for the best, or null.
-  function photoFitCloseness(solid, cam, mask, W, H, mirror, opt) {
+  function photoFitCloseness(...a) { return runSteps(photoFitClosenessSteps(...a)); }
+  function* photoFitClosenessSteps(solid, cam, mask, W, H, mirror, opt) {
     const at = new Map(), fitAt = k => {
       k = Math.round(Math.max(0, Math.min(PHOTO_K_MAX, k)) * 1000) / 1000;
       if (!at.has(k)) { const r = photoFit(solid, cam, mask, W, H, mirror, null, false, Object.assign({}, opt, { k, fine: true })); at.set(k, r && Object.assign(r, { score: r.iou - 0.02 * k })); }
@@ -3926,8 +3927,8 @@
     };
     let best = null;
     const tryK = k => { const r = fitAt(k); if (r && (!best || r.score > best.score + 1e-9)) best = r; };
-    for (const k of [0, 0.3, 0.6, 0.9]) tryK(k);
-    for (const step of [0.15, 0.075, 0.04]) { const k0 = best ? best.fit.k || 0 : 0; tryK(k0 - step); tryK(k0 + step); }
+    for (const k of [0, 0.3, 0.6, 0.9]) { tryK(k); yield; }
+    for (const step of [0.15, 0.075, 0.04]) { const k0 = best ? best.fit.k || 0 : 0; tryK(k0 - step); yield; tryK(k0 + step); yield; }
     return best;
   }
   // a new photo, all at once: the angle it was taken from, searched from far away and from close by, then
@@ -3935,12 +3936,13 @@
   // the base is seen from above and the head from below, which a camera far away can only half match, and
   // the search from far away took such a photo of a figure on its base for one taken from below (v0.24.1).
   // A closer camera has to fit clearly better, as in photoFitCloseness. Returns { fit, iou, cam } or null.
-  function photoFitFull(solid, cam, mask, W, H, mirror, angles, opt) {
+  function photoFitFull(...a) { return runSteps(photoFitFullSteps(...a)); }
+  function* photoFitFullSteps(solid, cam, mask, W, H, mirror, angles, opt) {
     const score = r => r ? r.iou - 0.02 * (r.fit.k || 0) : -Infinity;
     let best = null;
-    for (const k of [0, 0.45]) { const r = photoFitAngles(solid, cam, mask, W, H, mirror, angles, Object.assign({}, opt, { k })); if (score(r) > score(best)) best = r; }
+    for (const k of [0, 0.45]) { const r = yield* photoFitAnglesSteps(solid, cam, mask, W, H, mirror, angles, Object.assign({}, opt, { k })); if (score(r) > score(best)) best = r; }
     if (!best) return null;
-    const rk = photoFitCloseness(solid, best.cam, mask, W, H, best.fit.mirror, opt);
+    const rk = yield* photoFitClosenessSteps(solid, best.cam, mask, W, H, best.fit.mirror, opt);
     return score(rk) >= score(best) - 1e-9 ? Object.assign(rk, { cam: best.cam }) : best;
   }
   // the same, also turning the camera: angles.yaw / angles.pitch are how far to look either side of cam
@@ -3948,7 +3950,12 @@
   // a turn away from the side asked for has to fit clearly better (0.1 points of overlap per degree): a
   // figure's outline changes little as it turns, and a noisy outline would otherwise pick a wrong angle
   // (on the test figure a 35° photo gains 15 points, the AI figure finder's outline wandered 1 or 2)
-  function photoFitAngles(solid, cam, mask, W, H, mirror, angles, opt) {
+  // The line-up searches are written as steps (generators), one fit each (Session 29): run in one go as before
+  // (runSteps: the helper thread, the tests), or with a pause between steps on a page that has no helper thread,
+  // so it keeps responding (a website that forbids helper threads froze 5 s on a 370 000-triangle figure).
+  function runSteps(g) { let s = g.next(); while (!s.done) s = g.next(); return s.value; }
+  function photoFitAngles(...a) { return runSteps(photoFitAnglesSteps(...a)); }
+  function* photoFitAnglesSteps(solid, cam, mask, W, H, mirror, angles, opt) {
     const base = typeof cam === "string" ? PHOTO_ANGLES[cam] || [0, 0] : [+cam.yaw || 0, +cam.pitch || 0];
     const ry = Math.max(0, +angles.yaw || 0), rp = Math.max(0, +angles.pitch || 0);
     // quickly at low detail round the model, then up and down at the best two, then finely near the best
@@ -3958,17 +3965,20 @@
     const ys = [], ps = [];
     for (let d = 0; d <= ry + 1e-9; d += 15) { ys.push(d); if (d) ys.push(-d); }
     for (let d = 10; d <= rp + 1e-9; d += 10) ps.push(d, -d);
-    const round = ys.map(dy => quickAt(base[0] + dy, base[1])).filter(Boolean).sort((a, b) => b.score - a.score);
-    const cands = round.slice(0, 2).concat(...round.slice(0, 2).map(r => ps.map(dp => quickAt(r.cam.yaw, base[1] + dp)).filter(Boolean)));
+    const round = [];
+    for (const dy of ys) { const r = quickAt(base[0] + dy, base[1]); if (r) round.push(r); yield; }
+    round.sort((a, b) => b.score - a.score);
+    const cands = round.slice(0, 2);
+    for (const r0 of round.slice(0, 2)) for (const dp of ps) { const r = quickAt(r0.cam.yaw, base[1] + dp); if (r) cands.push(r); yield; }
     cands.sort((a, b) => b.score - a.score);
     if (!cands.length) return null;
     const tryAt = (yaw, pitch) => { const r = photoFit(solid, { yaw, pitch }, mask, W, H, mirror, null, "mid", opt); if (r) { r.score = r.iou - prior(yaw, pitch); if (!best || r.score > best.score) best = Object.assign(r, { cam: { yaw, pitch } }); } };
-    tryAt(cands[0].cam.yaw, cands[0].cam.pitch);
+    tryAt(cands[0].cam.yaw, cands[0].cam.pitch); yield;
     for (const step of [8, 4, 2]) {
       const c = best.cam;
       for (const [a, b] of [[step, 0], [-step, 0], [0, step], [0, -step]]) {
         const yaw = c.yaw + a, pitch = c.pitch + b;
-        if (Math.abs(yaw - base[0]) <= ry + 1e-9 && Math.abs(pitch - base[1]) <= rp + 1e-9) tryAt(yaw, pitch);
+        if (Math.abs(yaw - base[0]) <= ry + 1e-9 && Math.abs(pitch - base[1]) <= rp + 1e-9) { tryAt(yaw, pitch); yield; }
       }
     }
     const fine = opt && opt.k > 0 ? photoFit(solid, best.cam, mask, W, H, mirror, null, false, opt) : null;
@@ -4423,7 +4433,7 @@
     gridAround, heightSheet,
     meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, gradientCuts, gradientLayers, paintGradient, paintSwap, meshShells, paintShells,
     meshRegions, paintRegions, paintNoise, paintPictureWrap, paintCurvature, curvatureClasses, layerSlots, colourChanges, paintBrush, brushTris, symmetryCopies, areaTris, paintFill, paintPicture, parseOBJ, parse3MFModel,
-    PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, photoRef, photoUV, PHOTO_K_MAX, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, photoFitCloseness, photoFitFull, paintFromPhotos, photoLight, photoUnshade, photoLitBy, photoTriNormals, meshBVH, bvhRaycast,
+    PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, photoRef, photoUV, PHOTO_K_MAX, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, photoFitCloseness, photoFitFull, photoFitClosenessSteps, photoFitFullSteps, paintFromPhotos, photoLight, photoUnshade, photoLitBy, photoTriNormals, meshBVH, bvhRaycast,
     photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure, cutoutWithMap, edgeOpacity, photoFixMap, photoFixMask,
     parseGLB, parseGLTF, parseMTL, parseOBJColours, modelTriColours, modelPalette, modelColourLabels
   };

@@ -1006,6 +1006,23 @@ The release workflow ran when v0.25.0 was merged: the Releases page has 0.15.0 t
 
 **Not checked**: a real phone; the live site (it needs the new version imported); Firefox and Safari; whether `toBlob` keeps the page free in every browser (Chromium encodes away from the page).
 
+## Session 29: bug hunt (v0.25.2)
+
+Asked: "fix bugs" (after v0.25.1 was merged).
+
+**Hunting** (Chromium through Playwright; scripts kept in the scratchpad, not in the repository):
+- `chromehunt.js`: every quick start and the objects without one (turned, box, cylinder, hex, sphere); on the Make, Art and Colours tabs every slider at its lowest and highest, every drop-down's choices, every tick box both ways, each followed by a check for page and console errors, failure notices, empty parts, NaN or out-of-range corners, open edges and builds still running after 90 s. 2 602 changes over 27 quick starts and objects: nothing found (one false alarm: "NaN" inside "banana socket").
+- `phonehunt.js`: an iPhone-sized touch screen (390 × 844) on a copy of the owner's website (its layout and security policy, `sitesim.js`); every quick start, every tab and section tapped; page errors, failed builds, controls past the screen's edge, sideways scrolling: nothing found.
+- The owner's way of working on that copy, phone-sized: import the test figure (372 842 triangles), add its photo: lined up (89% outline), all painted, no errors, but the page froze 5.0 s at once (no helper thread there).
+- With helper threads blocked, the printability check still finishes on the page (1 to 3 s after a build).
+
+**Fixed**:
+- **Lining a photo up without a helper thread** froze the page for the whole search. `photoFitAngles`, `photoFitCloseness` and `photoFitFull` are now generators (`…Steps`), one fit per step; the old names run them in one go (`runSteps`: the helper thread and the tests get the same results), and `photoFitView` runs them a step at a time with `yieldUI()` when no helper answered, dropping the result if a newer line-up of the photo started or the photo was removed meanwhile (`removePhoto` forgets it in `photoFitLatest`). On the website copy: 5.0 s → 2.1 s at most (the painting after it), the same line-up.
+- **The AI figure finder on a website that only allows its own downloads** (`connect-src 'self'`, as the owner's): its engine came only from jsDelivr. `AI_FIGURE` now looks for `ort.wasm.bundle.min.mjs` and `ort-wasm-simd-threaded.wasm` in `models/` first, like the model (the same SHA-256 checks); the runtime is still told its jsDelivr address for `import.meta.url`. On the website copy with the three files in `models/`, the AI cut-out works and nothing is fetched from elsewhere. `models/LICENSE.md`, the message and the manual say what to put there. **The website needs those two files from `onnxruntime-web@1.30.0/dist/` copied into its `models` folder.**
+- **"Bigger than the print bed"** measured the parts where the view showed them (`partOffset`): a layered lightbox laid out wider than the bed passed with Layout off, and Explode could push a model that fits over the bed's height. `runChecks` now measures the print frame (`printBounds()`) whenever the parts have a layout, the model is turned, or Explode is on. `tools-printability-app-test.js` checks a layered lightbox of eight 100 mm layers (822 mm laid out) with the view showing it put together; it fails on v0.25.1.
+
+**Tests**: TESTS_LINE29
+
 ## Unfinished (in priority order)
 
 - **Speed next** (Session 28): the size of an imported model applied as a transform instead of built into its solid (a size change on a big model coloured from a photo still freezes 4 s); the photo paint steps on the helper thread; the owner's website allowing `worker-src 'self' blob:` and importing v0.25.1.
@@ -1051,7 +1068,7 @@ The release workflow ran when v0.25.0 was merged: the Releases page has 0.15.0 t
 - `jsdom` cannot run JSZip's async zip generation in-realm, so zip contents are verified separately in Node.
 - Printability is a heuristic, not a slicer: the overhang limit is one angle for the whole model, bridges are judged by anchors on two sides (not by bridge direction or cooling), thin walls are found in up to 7 slices per part at a resolution of `max(nozzle/4, extent/1200)` (coarser than nozzle/2.5 on parts over about 130 mm), and support area is the area of the faces, not the support volume. Models over 800k triangles are not checked.
 - The problem-area overlay and the brim preview are hidden while Explode or Layout moves parts away from their print positions.
-- The "Bigger than the print bed" check measures the parts where the view shows them (`partOffset`), but the files always use the laid-out positions (`p.layout`): with Layout off, a model whose parts are laid out wider than the bed passes the check and exports too big. Seen on the lightbox (fixed by a tighter layout in Session 19); the layered lightbox's row of layers is still wider than most beds. The check should use the layout positions.
+- Fixed in Session 29: the "Bigger than the print bed" check now measures the parts where they print (laid out, turned), not where the view shows them. The layered lightbox's row of layers is still wider than most beds with many layers, and now says so.
 - The Optimize turn and the brim have been checked on exported geometry (closed, outward, on the bed, same volume) but not yet in a real slicer.
 - **Jigsaw: not yet printed.** The gap is exact in the geometry (within 0.02 mm), but the right default for real printers (0.25 mm) needs a test print on at least one printer; so does the engraved-label depth and whether the first-layer squish fuses pieces with the slicer's own elephant-foot compensation.
 - Jigsaw: all pieces are one object with one part per filament in the 3mf, so a slicer cannot arrange pieces separately; a puzzle bigger than the bed is flagged but not split.

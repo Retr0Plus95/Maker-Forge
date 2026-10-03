@@ -3,6 +3,15 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.25.2
+
+A bug hunt: every setting of every quick start and object tried at its lowest and highest in a real browser, every tab and section tapped on a phone-sized screen, and the owner's own way of working (import a figure, colour it from a photo) on a copy of the Maker Forge website. All of them came through without an error; these are the problems found on the way.
+
+**Fixed**
+- On a website that does not allow helper threads (such as the Maker Forge page on retr0plus.se), lining a photo up with a big model froze the page for up to 5 seconds at once; it now pauses between steps (2 s at most, as in the downloaded file).
+- On a website that blocks downloads from other sites, the AI figure finder could not load its engine. It now looks for it in the `models` folder next to the page first, and the message says which files go there.
+- "Bigger than the print bed" measured the parts where the view showed them, not where they print: a layered lightbox laid out wider than the bed passed the check, and **Explode** could make a model that fits look too tall.
+
 ## 0.25.1
 
 - **Much less freezing.** Building a model now does the same work in far less time, and takes short breaks so the page keeps responding. Measured in Chrome on every quick start, the longest freeze while opening one and while moving its first slider:

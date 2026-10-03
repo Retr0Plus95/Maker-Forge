@@ -311,6 +311,8 @@ On a Mac, use Cmd instead of Ctrl.
 
 **"Maker Forge could not start".** A website that serves Maker Forge with very strict security settings can block the part of the app that makes the shapes. Download `index.html` from GitHub (or a version from the Releases page) and open that file instead.
 
+**"The AI figure finder could not be loaded".** It downloads once from the internet (about 19 MB). A website that blocks downloads from other sites needs its files in a `models` folder next to `index.html` (the file `models/LICENSE.md` on GitHub says which). Finding the figure by colour, and the downloaded `index.html`, work without that.
+
 **I want an earlier version.** Every version is on the [Releases page](https://github.com/Retr0Plus95/Maker-Forge/releases) (also linked from About, ⓘ). Download the file of the one you want and open it in your browser. Projects saved in one version open in later ones.
 
 **The app feels slow.** In Settings, lower **Maximum preview detail**. On the Paint tab, choose coarser **Paint detail**. Some websites do not let the app use a helper thread, so the printability check works on the page itself there and changes take a little longer than in the downloaded file.

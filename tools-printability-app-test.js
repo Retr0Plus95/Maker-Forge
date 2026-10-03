@@ -132,6 +132,20 @@ async function setFile(input, name, bytes, type) {
   check(m.brim === 15 && m.mirror === false, "brim clamped to 15 mm, mirror a real boolean", `${m.brim}, ${m.mirror}`);
   check(pr.overhang === 20 && pr.bridge === 60, "overhang and bridge limits clamped", `${pr.overhang}, ${pr.bridge}`);
 
+  // the bed check measures the parts where they print (Session 29): a layered lightbox's layers lie side by side
+  // in the files, so eight 100 mm layers need about 840 mm of bed although the box itself is 100 mm wide
+  [...document.querySelectorAll("#presetGallery button")].find(b => b.dataset.k === "Lightbox").click(); await settle();
+  const bedRow = () => MF.checks.list.find(r => /bed/i.test(r.t)) || { t:"none", s:"" };
+  const vLayout = document.querySelector("#vLayout");         // the view shows the box put together, not laid out
+  if (vLayout.getAttribute("aria-pressed") === "true") vLayout.click();
+  Object.assign(MF.state.base.lightbox, { mode:"layered", layers:8, width:100 }); await MF.rebuild(false); await settle();
+  const wide = bedRow();
+  Object.assign(MF.state.base.lightbox, { layers:2 }); await MF.rebuild(false); await settle();
+  const narrow = bedRow();
+  check(/Bigger than the print bed/.test(wide.t) && /Fits the bed/.test(narrow.t),
+    "with the view showing it put together, a layered lightbox laid out wider than the bed is reported, two layers that fit are not",
+    `${wide.t}: ${wide.s.split(" does")[0]} / ${narrow.t}`);
+
   const errs = env.errors.filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
   check(!errs.length, "no page errors", errs.slice(0, 3).map(e => e.split("\n")[0]).join(" / "));
   console.log(fails ? `\n${fails} FAILED` : "\nall passed");

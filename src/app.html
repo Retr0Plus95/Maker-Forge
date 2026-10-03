@@ -430,7 +430,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.25.1</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.25.2</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -4185,8 +4185,10 @@ const wrapYaw = y => { y = ((y + 180) % 360 + 360) % 360 - 180; return y === -18
    as a small grey picture (v.ai, 320 x 320) in the project, so a saved project colours the same without
    the model. */
 const AI_FIGURE = {
-  runtime:{ urls:["https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.wasm.bundle.min.mjs"], sha256:"11e64bd8ffe11bd1a2a2f0d6275fdfbbba7262f0b76b99b53d228a8a22ef3d90" },
-  wasm:{ urls:["https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort-wasm-simd-threaded.wasm"], sha256:"3398c10d07d229bd91b364548e130e0e51a8e5704b88c7c083ebbeb78842dee2" },
+  // each file is looked for next to the page first (models/), then on jsDelivr: a website whose security settings
+  // allow downloads from itself only (connect-src 'self', as the owner's does) can keep all three there (Session 29)
+  runtime:{ urls:["models/ort.wasm.bundle.min.mjs", "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.wasm.bundle.min.mjs"], sha256:"11e64bd8ffe11bd1a2a2f0d6275fdfbbba7262f0b76b99b53d228a8a22ef3d90" },
+  wasm:{ urls:["models/ort-wasm-simd-threaded.wasm", "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort-wasm-simd-threaded.wasm"], sha256:"3398c10d07d229bd91b364548e130e0e51a8e5704b88c7c083ebbeb78842dee2" },
   model:{ urls:["models/u2netp.onnx", "https://cdn.jsdelivr.net/gh/Retr0Plus95/Maker-Forge@main/models/u2netp.onnx"], sha256:"309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8" },
   mb:19, size:320
 };
@@ -4221,7 +4223,7 @@ function aiLoad(){
     let got = 0; const step = n => { got += n; setBusy(true, `Downloading the AI figure finder… ${Math.min(AI_FIGURE.mb, Math.round(got / 1e6))} of ${AI_FIGURE.mb} MB`); };
     const [code, wasm, model] = await Promise.all([aiGet(AI_FIGURE.runtime, step), aiGet(AI_FIGURE.wasm, step), aiGet(AI_FIGURE.model, step)]);
     // the checked code runs from a local copy; where it looks for its own address it is told the jsDelivr one
-    const text = new TextDecoder().decode(code).split("import.meta.url").join(JSON.stringify(AI_FIGURE.runtime.urls[0]));
+    const text = new TextDecoder().decode(code).split("import.meta.url").join(JSON.stringify(AI_FIGURE.runtime.urls.find(u => /^https:/.test(u))));
     const url = URL.createObjectURL(new Blob([text], { type:"text/javascript" }));
     let ort; try { ort = await import(url); } finally { URL.revokeObjectURL(url); }
     ort.env.wasm.numThreads = 1; ort.env.wasm.proxy = false; ort.env.wasm.wasmBinary = wasm;
@@ -4304,7 +4306,7 @@ async function aiFindFigures(o, only){
 function aiFailed(err){
   console.warn(err);
   notify(err.unexpected ? "A file of the AI figure finder was not the one it should be, so it was not used (it may have been changed on the way). Nothing was run. Try again later."
-    : `The AI figure finder could not be loaded (${err.message}). Check the internet connection. On your own website, put the models folder next to index.html.`);
+    : `The AI figure finder could not be loaded (${err.message}). Check the internet connection. A website that blocks downloads from other sites needs the models folder next to index.html, with ort.wasm.bundle.min.mjs and ort-wasm-simd-threaded.wasm from ONNX Runtime Web 1.30.0 in it. Finding the figure by colour works without it.`);
 }
 /* ---- the AI cut-out (Session 20) ----
    The same figure finder takes a picture's background away: the subject stays, the rest turns clear, and
@@ -4384,7 +4386,18 @@ async function photoFitView(v, search){
     try { r = await job; } catch (err){ if (!/replaced/.test(err.message)) break; }
   }
   if (photoFitLatest.get(v) !== seq) return null;
-  if (r === undefined) r = here();
+  if (r === undefined){
+    // no helper thread (a website can forbid them): the search runs here, a breath after each of its steps, so
+    // the page keeps responding (Session 29: five seconds frozen in one go on a 370 000-triangle figure)
+    const steps = near != null ? null : search ? C.photoFitFullSteps(model, cam, mask, px.w, px.h, mirror, angles, opt)
+      : C.photoFitClosenessSteps(model, cam, mask, px.w, px.h, mirror, opt);
+    if (!steps) r = here();
+    else for (let st = steps.next(); ; st = steps.next()){
+      if (st.done){ r = st.value; break; }
+      await yieldUI();
+      if (photoFitLatest.get(v) !== seq) return null;
+    }
+  }
   if (!r) return false;
   if (r.cam) v.cam = { yaw:wrapYaw(r.cam.yaw), pitch:clamp(Math.round(r.cam.pitch), -89, 89) };
   v.fit = photoFitKept(r.fit); if (v.fit.k) v.fit.k = +v.fit.k.toFixed(3);
@@ -5285,7 +5298,10 @@ function runChecks(){
     const off = partOffset(p,i);
     box.union(p.geom.boundingBox.clone().translate(new THREE.Vector3(off[0],off[1],off[2])));
   });
-  const pb = state.model.orient ? printBounds() : null;
+  // measured where the parts print, not where the view shows them: laid out side by side (a lightbox's layers, a
+  // bobble head's pieces), turned by Optimize. A layout wider than the bed used to pass, and Explode, which only
+  // spreads the parts on screen, could make a model that fits look too tall (Session 29).
+  const pb = state.model.orient || viewOpts.explode || modelParts.some(p => p.layout) ? printBounds() : null;
   const size = box.isEmpty() ? new THREE.Vector3() : pb ? new THREE.Vector3(pb.size[0], pb.size[1], pb.size[2]) : box.getSize(new THREE.Vector3()).multiplyScalar(sc);
   const vols = state.slots.map(()=>0);
   let open = 0, tris = 0;
@@ -7816,6 +7832,7 @@ function photoCard(c){
   }
   if (!v) return;
   const removePhoto = () => {
+    photoFitLatest.delete(v);                         // a line-up of it still under way is dropped, not reported
     o.views.splice(i, 1); paintUI.photo = Math.max(0, i - 1);
     if (!o.views.length){ state.paint.ops.splice(state.paint.ops.indexOf(o), 1); notify("The photo step is gone. Undo (Ctrl+Z) brings it back."); }
     renderTab(); photoRepaint();

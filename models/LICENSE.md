@@ -13,7 +13,10 @@ Maker Forge uses it, only when asked, to find a figure in a photo on a busy back
   this before it uses it, wherever it comes from.
 
 On your own website, put this `models` folder next to `index.html` and the app loads the model from there;
-otherwise it loads it from this repository through jsDelivr.
+otherwise it loads it from this repository through jsDelivr. A website whose security settings allow downloads
+from itself only (`connect-src 'self'`) also needs the figure finder's engine in this folder: `ort.wasm.bundle.min.mjs`
+and `ort-wasm-simd-threaded.wasm` from ONNX Runtime Web 1.30.0 (MIT, `onnxruntime-web/dist/` in npm). The app looks
+for them here first and checks them against the SHA-256 values in `AI_FIGURE` (`src/app.html`) as well.
 
 ## Apache License 2.0
 

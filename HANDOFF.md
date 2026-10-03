@@ -1021,7 +1021,7 @@ Asked: "fix bugs" (after v0.25.1 was merged).
 - **The AI figure finder on a website that only allows its own downloads** (`connect-src 'self'`, as the owner's): its engine came only from jsDelivr. `AI_FIGURE` now looks for `ort.wasm.bundle.min.mjs` and `ort-wasm-simd-threaded.wasm` in `models/` first, like the model (the same SHA-256 checks); the runtime is still told its jsDelivr address for `import.meta.url`. On the website copy with the three files in `models/`, the AI cut-out works and nothing is fetched from elsewhere. `models/LICENSE.md`, the message and the manual say what to put there. **The website needs those two files from `onnxruntime-web@1.30.0/dist/` copied into its `models` folder.**
 - **"Bigger than the print bed"** measured the parts where the view showed them (`partOffset`): a layered lightbox laid out wider than the bed passed with Layout off, and Explode could push a model that fits over the bed's height. `runChecks` now measures the print frame (`printBounds()`) whenever the parts have a layout, the model is turned, or Explode is on. `tools-printability-app-test.js` checks a layered lightbox of eight 100 mm layers (822 mm laid out) with the view showing it put together; it fails on v0.25.1.
 
-**Tests**: TESTS_LINE29
+**Tests**: smoke, print (with the new bed test), speed, project, art and photo pass on the final code (the photo test runs in jsdom, which has no helper thread, so it lines photos up step by step). The browser check, the model test and the paint test were still running when the pull request was opened; see the pull request for their results.
 
 ## Unfinished (in priority order)
 

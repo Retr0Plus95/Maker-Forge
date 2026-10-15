@@ -97,6 +97,26 @@ async function settle() {
     check(!MF.state.items.some(d => d.example) && MF.state.items.some(d => d.name === "mine"), "adding a picture of your own takes the example's place", MF.state.items.map(d => d.name).join(", "));
   }
 
+  // Session 30: an imported model's Scale (%) is applied when it is drawn and printed, no longer built into its
+  // shape. A project from before (version 5) with artwork on a model at 150% has it moved onto the model at its
+  // own size and made smaller by as much, so it prints where and as big as before; a version 6 project is kept.
+  {
+    console.log("\nartwork on an imported model saved before its scale became a transform");
+    const proj = v => JSON.stringify({ app: "Maker Forge", v, state: Object.assign(JSON.parse(MF.projectPayload()).state, {
+      base: Object.assign(JSON.parse(MF.projectPayload()).state.base, { type: "stl", stl: { name: "figure.stl", scale: 150 } }),
+      items: [{ id: 1, name: "Text", text: { value: "Hi", font: "Manrope", weight: 800 }, mode: "flat", width: 30, height: 0.9, offU: 3, offV: -6,
+        place: { c: [30, 15, 0], n: [1, 0, 0] }, skip: [], quality: "high" }], active: 0 }) });
+    await open(proj(5));
+    const a = MF.state.items[0];
+    const near = (x, y) => Math.abs(x - y) < 1e-9;
+    await open(proj(6));
+    const b = MF.state.items[0];
+    check(a && near(a.width, 20) && near(a.height, 0.6) && near(a.offU, 2) && near(a.offV, -4) && a.place.c.every((x, k) => near(x, [20, 10, 0][k])) && near(MF.state.base.stl.scale, 150)
+      && b && b.width === 30 && b.height === 0.9 && b.place.c[0] === 30,
+      "a version 5 project: the artwork moved and made smaller by the scale (it prints as before); a version 6 project unchanged",
+      a && `${a.width} mm wide at (${a.place.c.join(", ")}); version 6: ${b && b.width} mm at (${b && b.place.c.join(", ")})`);
+  }
+
   const errs = env.errors.filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
   check(!errs.length, "no page errors", errs.slice(0, 2).join(" / "));
   console.log(fails ? `\n${fails} FAILED` : "\nall passed");

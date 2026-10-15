@@ -257,6 +257,27 @@ async function settle() {
   check(document.querySelectorAll(".oprow").length === methods.length, "the paint list shows every step", document.querySelectorAll(".oprow").length);
   document.querySelectorAll(".oprow")[methods.length - 1].querySelector("button[aria-label^='Remove']").click(); await sleep(200); await settle();
   check(st().paint.ops.length === methods.length - 1, "a step can be removed");
+  // Session 30: a step can be hidden for now (left out of the paint and the print) and given a name
+  st().paint.ops = [{ k: "height", slots: [0, 1], cuts: [30] }]; MF.paint.repaint(); await settle();
+  const shown = painted()[1]; MF.render(); await sleep(30); toPage("Paint list"); await sleep(30);
+  document.querySelector(".oprow button[aria-label='Hide step 1']").click(); await sleep(200); await settle();
+  const hidRow = MF.checks.list.find(l => /paint step is hidden/.test(l.t));
+  check(st().paint.ops[0].hide === true && !painted()[1] && hidRow && hidRow.k === "warn" && /Height bands won't print/.test(hidRow.s) && /\(hidden\)/.test(document.querySelector(".oprow").textContent),
+    "hiding a step leaves it out of the model, and the checks say it won't print", hidRow && hidRow.s);
+  document.querySelector(".oprow button[aria-label='Show step 1']").click(); await sleep(200); await settle();
+  check(!("hide" in st().paint.ops[0]) && painted()[1] === shown && !MF.checks.list.some(l => /hidden/.test(l.t)), "showing it again brings the same paint back", `${shown} → ${painted()[1]}`);
+  document.querySelector(".oprow button[aria-label='Rename step 1']").click(); await sleep(20);
+  const nameBox = document.querySelector(".oprow input[aria-label='Name for step 1']");
+  nameBox.value = "  Top half  "; nameBox.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Enter" })); await sleep(200); await settle();
+  check(st().paint.ops[0].name === "Top half" && /1\. Top half/.test(document.querySelector(".oprow").textContent) && /Height bands: 2 bands/.test(document.querySelector(".oprow").textContent),
+    "a step can be given a name, shown with what it does", document.querySelector(".oprow .grow").textContent);
+  document.querySelector(".oprow button[aria-label='Rename step 1']").click(); await sleep(20);
+  const nameBox2 = document.querySelector(".oprow input[aria-label='Name for step 1']"); nameBox2.value = "Something else";
+  nameBox2.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Escape" })); await sleep(50);
+  check(st().paint.ops[0].name === "Top half", "Escape leaves the name as it was");
+  st().paint.ops[0].name = "<img src=x>"; MF.render(); await sleep(30); toPage("Paint list"); await sleep(30);
+  check(!document.querySelector(".oprow img") && /<img src=x>/.test(document.querySelector(".oprow").textContent), "a name is shown as text, never as markup");
+  delete st().paint.ops[0].name;
   // a height band slider changes the paint live
   st().paint.ops = [{ k: "height", slots: [0, 1], cuts: [30] }]; MF.paint.repaint(); await settle();
   const before = painted()[1];
@@ -272,11 +293,42 @@ async function settle() {
   // the colour count check sees painted colours
   st().paint.ops = [{ k: "height", slots: [0, 1, 2, 3, 0, 1], cuts: [10, 20, 30, 40, 50] }]; st().printer.colors = 2; MF.paint.repaint(); await settle();
   check(MF.checks.list.some(l => /Uses 4 colours/.test(l.t)), "the colour check counts painted colours", MF.checks.list.map(l => l.t).find(t => /colours/.test(t)));
+  // Session 30: on a one-filament printer, height bands become pauses to swap the spool by hand
+  st().printer.colors = 1; st().printer.layer = 0.2; MF.paint.repaint(); await settle();
+  const pz = MF.checks.swaps, cutsAt = [10, 20, 30, 40, 50], loads = [1, 2, 3, 0, 1];
+  check(pz.length === 6 && pz[0].z === 0 && pz[0].slot === 0 && pz.slice(1).every((w, i) => w.slot === loads[i] && w.z > cutsAt[i] - 1e-6 && w.z <= cutsAt[i] + 0.2 + 1e-6 && Math.abs(w.z - w.layer*0.2) < 1e-6),
+    "one filament: a swap at the start of each band, with its layer number", pz.map(w => `${w.z} mm (layer ${w.layer}) → ${w.slot}`).join(", "));
+  const pzRow = MF.checks.list.find(l => /one-filament printer/.test(l.t));
+  check(pzRow && pzRow.k === "warn" && /5 swaps by hand/.test(pzRow.t), "and the check says how many swaps, as a warning rather than a problem", pzRow && pzRow.t);
+  const pzTxt = MF.paint.swapText("vase");
+  check(/Start with/.test(pzTxt) && (pzTxt.match(/Before the layer at/g) || []).length === 5 && /PrusaSlicer/.test(pzTxt) && /Bambu Studio/.test(pzTxt) && !/NaN|undefined/.test(pzTxt), "colour-changes.txt for the zip: every pause, and how to add it in each slicer", pzTxt.split("\r\n").slice(0, 3).join(" | "));
+  // a stripe of one colour inside another's layers can't be printed with pauses: a problem, naming it
+  st().paint.ops = [{ k: "height", slots: [0, 1], cuts: [30] }, { k: "brush", slot: 2, r: 6, facing: null, pts: [[20, 45, 33.5]] }]; MF.paint.repaint(); await settle();
+  const pzBad = MF.checks.list.find(l => l.k === "bad" && /colours/.test(l.t));
+  check(MF.checks.pauses && MF.checks.pauses.never.includes(2) && pzBad && /cannot print it/.test(pzBad.s), "a spot of colour beside another on the same layers is named as one pauses can't print", pzBad && pzBad.s.slice(0, 120));
   st().printer.colors = 4;
   // brush strokes as the pointer would leave them, and undo
   st().paint.ops = []; MF.paint.repaint(); await settle();
   st().paint.ops.push({ k: "brush", slot: 3, r: 6, facing: null, pts: [[20, 45, 33.5], [22, 45, 32.3]] }); MF.paint.repaint(); await settle();
   check((painted()[3] || 0) > 0 && MF.paint.info.edge <= 1.2 + 1e-9, "a brush stroke refines the model and paints near the points", `${painted()[3]} triangles, edge ${MF.paint.info.edge}`);
+  // Session 30: "Mirror the whole model" keeps each triangle's paint, and the print stays closed, outward facing and on the bed
+  {
+    const sVol = s => { let v = 0; const P = s.pos, I = s.idx; for (let t = 0; t < I.length; t += 3) { const a = 3*I[t], b = 3*I[t+1], c = 3*I[t+2];
+      v += P[a]*(P[b+1]*P[c+2] - P[b+2]*P[c+1]) - P[a+1]*(P[b]*P[c+2] - P[b+2]*P[c]) + P[a+2]*(P[b]*P[c+1] - P[b+1]*P[c]); } return v/6; };
+    const sideOf = s => { let sx = 0, n = 0; for (let t = 0; t < s.paint.length; t++) if (s.paint[t] === 3) { for (let k = 0; k < 3; k++) sx += s.pos[3*s.idx[3*t+k]]; n += 3; } return n ? sx/n : 0; };
+    const lowY = s => { let m = Infinity; for (let i = 1; i < s.pos.length; i += 3) m = Math.min(m, s.pos[i]); return m; };
+    const f0 = MF.printParts()[0], v0 = sVol(f0), side0 = sideOf(f0), paint0 = Array.from(f0.paint);
+    const same = f => f.paint && f.paint.length === paint0.length && Array.from(f.paint).every((v, i) => v === paint0[i]);
+    st().model.mirror = true;
+    const f1 = MF.printParts()[0], e1 = MF.exportParts();
+    check(v0 > 0 && Math.abs(sVol(f1) - v0) < 1e-3*v0 && same(f1) && side0 > 5 && Math.abs(sideOf(f1) + side0) < 1e-3*side0,
+      "a painted model mirrored: same paint on every triangle, the stroke on the other side, still outward facing", `volume ${v0.toFixed(0)} → ${sVol(f1).toFixed(0)}, stroke at x ${side0.toFixed(1)} → ${sideOf(f1).toFixed(1)}`);
+    check(e1.length === 1 && e1[0].paint && e1[0].paint.length === C.checkMesh(e1[0]).tris && C.checkMesh(e1[0]).open === 0, "and its export is closed, with paint for every triangle", e1[0].paint && e1[0].paint.length);
+    st().model.orient = [1, 0, 0, 0, 0, -1, 0, 1, 0];
+    const f2 = MF.printParts()[0];
+    check(sVol(f2) > 0 && Math.abs(sVol(f2) - v0) < 1e-3*v0 && same(f2) && Math.abs(lowY(f2)) < 1e-4, "mirrored and laid on its side: the same, and sitting on the bed", `volume ${sVol(f2).toFixed(0)}, lowest ${lowY(f2).toFixed(4)}`);
+    st().model.mirror = false; st().model.orient = null;
+  }
   const one = painted()[3]; st().paint.ops[0].mirror = true; MF.paint.repaint(); await settle();
   check(painted()[3] > one * 1.6, "a mirrored stroke paints both sides", `${one} → ${painted()[3]}`);
   // the fill tool on the base: everything that faces down, in one go
@@ -435,6 +487,11 @@ async function settle() {
     "repeats round the middle at most 12, the smart brush's edge 0 to 89; ordinary strokes keep no extra settings", JSON.stringify(h18.map(o => [o.radial, o.edge])));
   const hA = MF.paint.cleanPaint({ ops: [{ k: "area", m: Array(16).fill(1e9), poly: [[0, 0], [1e9, "x"], [1, 0], [1, 1]].concat(Array(3000).fill([0.5, 0.5])), slot: 99, through: "yes" },
     { k: "area", m: Array(15).fill(1), poly: [[0, 0], [1, 0], [1, 1]] }, { k: "area", m: Array(16).fill(1), poly: [[0, 0], [1, 1]] }, { k: "area", m: Array(16).fill(NaN), poly: [[0, 0], [1, 0], [1, 1]] }] }).ops;
+  // Session 30: a step's name is plain text of at most 40 characters; only true hides a step
+  const hN = MF.paint.cleanPaint({ ops: [{ k: "height", slots: [0, 1], cuts: [5], name: "<img src=x onerror=alert(1)>\u0007" + "x".repeat(100), hide: "yes" },
+    { k: "swap", from: 0, to: 1, name: 42, hide: true }, { k: "swap", from: 0, to: 1, name: "   ", hide: 1 }] }).ops;
+  check(hN.length === 3 && hN[0].name.length === 40 && !/\u0007/.test(hN[0].name) && !("hide" in hN[0]) && !("name" in hN[1]) && hN[1].hide === true && !("name" in hN[2]) && !("hide" in hN[2]),
+    "a loaded step's name: text only, cut to 40 characters; a step is hidden only by true", JSON.stringify(hN.map(o => [o.name && o.name.length, o.hide])));
   const hC = MF.paint.cleanPaint({ ops: [{ k: "curve", edges: 99, hollows: "x", flat: 1, radius: 1e9, band: -1 }, { k: "picture", item: 0, wrap: "sphere", turn: 1e9, start: -1e9 }, { k: "picture", item: 0, wrap: "ball", turn: -5, start: 1e9 }] }).ops;
   check(hC[0].edges === 255 && hC[0].hollows === 255 && hC[0].flat === 1 && hC[0].radius === 50 && hC[0].band === 0.3 && !("wrap" in hC[1]) && !("turn" in hC[1]) && hC[2].wrap === "ball" && hC[2].turn === 10 && hC[2].start === 180,
     "edges and hollows: colours and sizes clamped; a wrapped picture: a known way of wrapping, 10 to 360°", JSON.stringify(hC).slice(0, 160));
@@ -519,6 +576,17 @@ async function settle() {
   toTab("make"); await choose("turned");
   const bellyField = $$("#panel .field").find(f => /Belly/.test(f.textContent));
   check(bellyField && bellyField._reset && MF.paint.findDefault(() => st().base.turned.belly) === 1.3, "a slider knows its default (the vase's belly: 1.3)");
+  // Session 30: a name plate on a one-filament printer: the name is sunk into the plate, so its foot prints in the
+  // plate's colour and its swap comes at the first layer above the plate (it used to be where the name starts)
+  toTab("make"); await choose("nameplate");
+  st().printer.colors = 1; st().printer.layer = 0.2; MF.paint.repaint(); await settle();
+  const kw = MF.checks.swaps, kp = MF.printParts();
+  const yOf = (slot, f, from) => kp.filter(q => q.slot === slot).reduce((m, q) => { for (let i = 1; i < q.pos.length; i += 3) m = f(m, q.pos[i]); return m; }, from);
+  const plateTop = kw.length ? yOf(kw[0].slot, Math.max, -Infinity) : NaN, nameFoot = kw.length > 1 ? yOf(kw[1].slot, Math.min, Infinity) : NaN;
+  check(kw.length >= 2 && nameFoot < plateTop - 0.1 && kw[1].z > plateTop - 1e-6 && kw[1].z <= plateTop + 0.2 + 1e-6 && Math.abs(kw[1].layer*0.2 - kw[1].z) < 1e-6
+    && !MF.checks.list.some(l => l.k === "bad" && /colours/.test(l.t)) && MF.checks.list.some(l => l.k === "warn" && /one-filament printer/.test(l.t)),
+    "a name plate on one filament: the name's swap at the first layer above the plate", `plate top ${plateTop.toFixed(2)}, name from ${nameFoot.toFixed(2)}, swaps at ${kw.map(w => w.z).join(", ")} mm`);
+  st().printer.colors = 4;
   console.log("errors:", env.errors.length ? env.errors.slice(0, 3) : "none");
   if (env.errors.length) fails++;
   console.log(fails ? `\n${fails} FAILED` : "\nall passed");

@@ -3,6 +3,17 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.26.0
+
+- **Printers that load one filament at a time can print painted colours.** The Export tab's **Colour swap heights** now follows the paint too: each height band or stripe becomes a pause to swap the spool, given as the layer the slicer's slider shows. The print files include `colour-changes.txt` with the same list and how to add the pauses in PrusaSlicer, Bambu Studio and OrcaSlicer. A colour that only shares its layers with another (a spot of paint on the side of a vase) can't be printed that way, and the check names it.
+- **Hide or name a paint step.** In the Paint list, **◉** hides a step for now (it is left out of the model and the print, and the Export tab reminds you), and **✎** gives it a name such as "Eyes" or "Hair".
+- **Resizing an imported model is instant.** Its **Scale (%)** no longer rebuilds the model; the paint and any pictures on it grow and shrink with it. On a 373 000-triangle figure coloured from a photo, changing its size froze the page for 4.2 s; now it does not freeze at all (measured in Chromium).
+- Projects saved with an earlier version open the same: pictures placed on a resized imported model keep their size and place.
+
+**Fixed**
+- On a one-filament printer, the colour swap heights left out painted colours (height bands, stripes), and listed a colour that comes back higher up only once.
+- Those heights were where each part starts. For a name sunk into its plate that is below the plate's top, so the swap came too early and the top of the plate printed in the name's colour. The swap now comes at the first layer above the plate.
+
 ## 0.25.2
 
 A bug hunt: every setting of every quick start and object tried at its lowest and highest in a real browser, every tab and section tapped on a phone-sized screen, and the owner's own way of working (import a figure, colour it from a photo) on a copy of the Maker Forge website. All of them came through without an error; these are the problems found on the way.

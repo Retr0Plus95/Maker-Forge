@@ -302,11 +302,16 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
   check(sig() === sig0 && kept.length === 2 && MF.parts[0].paint && MF.parts[0].paint.every((s, t) => s === paintBefore[t]), "saved and opened again: the same photos, fit, colours and paint",
     `${kept.length} pictures in the file, ${(payload.length / 1024).toFixed(0)} KB`);
 
-  // the imported model made bigger on the Make tab: the photos follow it
-  const acc100 = accuracy(MF.parts[0], 1).acc;
+  // the imported model made bigger on the Make tab (Session 30: its Scale (%) is applied when it is drawn and
+  // printed, so nothing is built or painted again): the same shape and paint, printed 1.5 times bigger
+  const acc100 = accuracy(MF.parts[0], 1).acc, shape0 = MF.parts[0].solid, paint0 = Array.from(MF.parts[0].paint);
+  const tall = () => { const b = MF.printParts().map(q => C.solidBounds(q)); return Math.max(...b.map(x => x.mx[1])) - Math.min(...b.map(x => x.mn[1])); };
+  const h100 = tall(), rev0 = MF.rev;
   MF.state.base.stl.scale = 150; MF.rebuild(false); await settle();
-  const big = MF.parts[0], acc150 = accuracy(big, 1.5).acc;
-  check(acc150 > acc100 - 0.01, "the model made 1.5 times bigger afterwards: the photos follow it", `${(acc100 * 100).toFixed(1)}% of the surface right with four colours, ${(acc150 * 100).toFixed(1)}% at 150%`);
+  const big = MF.parts[0], acc150 = accuracy(big, 1).acc, h150 = tall();
+  check(big.solid === shape0 && big.paint.every((s, t) => s === paint0[t]) && Math.abs(h150 / h100 - 1.5) < 1e-6 && acc150 > acc100 - 1e-9,
+    "the model made 1.5 times bigger afterwards: the same shape and paint, printed 1.5 times as tall",
+    `${(acc100 * 100).toFixed(1)}% of the surface right with four colours; ${h100.toFixed(1)} mm tall, ${h150.toFixed(1)} mm at 150%`);
   MF.state.base.stl.scale = 100; MF.rebuild(false); await settle();
 
   // ---- 7b. a photo on a busy background, and the AI figure finder (the network run here in Node) ----

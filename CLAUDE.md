@@ -100,5 +100,9 @@ tests accept `CORE=1` for the fast geometry-only part.
 - Every release note, the `CHANGELOG.md` entry and the pull request description alike, lists that release's bug fixes
   under **Fixed**, one line each, as a user would notice them (asked for in Session 21).
 - Updating ONNX Runtime Web or the model means new SHA-256 values in `AI_FIGURE` (`src/app.html`) and in `models/LICENSE.md`.
+- The owner's website (forge.retr0plus.se) updates itself from `main`: the Website repository's
+  `tools/import-maker-forge.py` finds `AI_FIGURE`, the runtime's address line and `<script id="prcore">` by pattern and
+  stops if they change shape, so keep them as they are or say so in the pull request. Website work is done in the
+  Website repository's own session, not from here (the owner, Session 30).
 - Tests run headlessly only; say clearly when something still needs checking in a real browser,
   slicer or on a real print.

@@ -46,7 +46,7 @@ Every button in the **Start from** sidebar opens with a finished example, so you
 
 ## Why Maker Forge
 
-- **Multi-colour without painting in the slicer.** Every colour of your picture becomes its own part, assigned to its own filament, so the 3MF opens in Bambu Studio, OrcaSlicer or PrusaSlicer ready to print on an AMS, AMS lite, MMU3, CFS or ACE. One-colour printers get a list of heights at which to swap filament.
+- **Multi-colour without painting in the slicer.** Every colour of your picture becomes its own part, assigned to its own filament, so the 3MF opens in Bambu Studio, OrcaSlicer or PrusaSlicer ready to print on an AMS, AMS lite, MMU3, CFS or ACE. One-colour printers get a list of the layers at which to pause and swap filament, painted colours included, and a `colour-changes.txt` that says how to add the pauses in each slicer.
 - **Printer-aware checks.** Choose your printer (39 models) and the app checks that the design fits the bed, uses no more colours than the printer loads, has no walls thinner than the nozzle and needs no surprise supports. It estimates grams, cost and time, including the filament flushed at every colour change.
 - **Photo to 3D.** Trace a real part from a photo, turn a photo into a lithophane or a relief, or colour a 3D model from a photo of the real thing (with an optional small AI model that finds the figure on a busy background, and a brush to fix what it found by hand).
 - **AI where it helps, on your computer.** Cut the subject out of a photo with one click, so only your pet or your face prints on a keychain or a badge. Open a textured model from an AI 3D generator and print it in its own colours. The AI runs in your browser; nothing is sent anywhere.

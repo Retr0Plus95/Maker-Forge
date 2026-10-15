@@ -319,6 +319,9 @@ button.pchip.toggle[aria-pressed="false"]{opacity:.5;text-decoration:line-throug
 .oprow{display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:10px;background:var(--field);padding:8px 10px;margin:6px 0}
 .oprow .grow{flex:1;min-width:0}
 .oprow small{color:var(--muted)}
+.oprow.hidden-op{border-style:dashed}
+.oprow.hidden-op .grow{opacity:.75}
+.oprow .grow input{width:100%;font-weight:700}
 .seg.five{grid-template-columns:repeat(5,1fr)}
 .seg.four{grid-template-columns:repeat(4,1fr)}
 .seg.tools{grid-template-columns:repeat(3,1fr)}
@@ -430,7 +433,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.25.2</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.26.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -843,7 +846,7 @@ function phoneSpec(key){
 
 /* ---------- 2. state ---------- */
 const DEFAULTS = () => ({
-  v:5,
+  v:6,
   slots:[ { hex:"#f4f1ea", name:"Cream", mat:"PLA", price:22 }, { hex:"#22303c", name:"Charcoal", mat:"PLA", price:22 },
           { hex:"#d1495b", name:"Red", mat:"PLA", price:22 }, { hex:"#edae49", name:"Gold", mat:"PLA", price:22 } ],
   base:{
@@ -968,7 +971,7 @@ function projectPayload(withModel){
     tris:b64url(new Uint8Array(stlData.buffer, stlData.byteOffset, stlData.byteLength)), paint:stlPaint ? b64url(stlPaint) : null,
     colour:stlColour ? { cc:b64url(stlColour.cc), uv:stlColour.uv ? b64url(new Uint8Array(stlColour.uv.buffer, stlColour.uv.byteOffset, stlColour.uv.byteLength)) : null,
       texOf:stlColour.texOf ? b64url(new Uint8Array(stlColour.texOf.buffer, stlColour.texOf.byteOffset, stlColour.texOf.byteLength)) : null, tex:stlColour.tex.slice() } : undefined } : undefined;
-  return JSON.stringify({ app:"Maker Forge", v:5, saved:new Date().toISOString(),
+  return JSON.stringify({ app:"Maker Forge", v:6, saved:new Date().toISOString(),
     state:JSON.parse(serialize()), assets:Object.fromEntries(Object.entries(assets).filter(([k]) => usedAssets().has(k)).map(([k,v])=>[k,v.dataURL])), model });
 }
 function usedAssets(){
@@ -993,7 +996,7 @@ async function squeeze(text, back){
 async function makeShareLink(){
   const st = JSON.parse(serialize()), pics = st.items.filter(it => !it.text).length;
   st.items = st.items.filter(it => it.text); st.active = st.items.length ? 0 : -1;
-  const json = JSON.stringify({ app:"Maker Forge", v:5, state:st }), packed = await squeeze(json);
+  const json = JSON.stringify({ app:"Maker Forge", v:6, state:st }), packed = await squeeze(json);
   const tail = packed ? "#p=" + b64url(packed) : "#j=" + b64url(new TextEncoder().encode(json));
   return { url: location.href.split("#")[0] + tail, pics };
 }
@@ -1347,17 +1350,17 @@ function buildSimpleObject(){
   else if (b.type === "hex"){ g = new THREE.CylinderGeometry(b.hex.dia/2,b.hex.dia/2,b.hex.h,6,1).rotateY(Math.PI/6).translate(0,b.hex.h/2,0).toNonIndexed(); g.computeVertexNormals(); }
   else if (b.type === "sphere") g = new THREE.SphereGeometry(b.sphere.dia/2,160,80).translate(0,b.sphere.dia/2,0);
   else if (b.type === "stl" && stlData){
-    // welding a big model takes a while: keep the result until the file or the scale changes
-    if (stlCache && stlCache.data === stlData && stlCache.scale === b.stl.scale && stlCache.colourOf === stlColour)
+    // welding a big model takes a while: keep the result until the file changes. It is built at its own size;
+    // Scale (%) is applied when it is drawn and printed, like the whole model's scale (modelScale)
+    if (stlCache && stlCache.data === stlData && stlCache.colourOf === stlColour)
       return [{ name:"Object", slot, solid:stlCache.solid, importPaint:stlCache.paint, importColour:stlCache.colour }];
-    const s = b.stl.scale/100, p = new Float32Array(stlData.length);
-    for (let i=0;i<p.length;i++) p[i] = stlData[i]*s;
+    const p = Float32Array.from(stlData);
     g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(p,3));
     g.computeBoundingBox(); const bb = g.boundingBox;
     g.translate(-(bb.min.x+bb.max.x)/2, -bb.min.y, -(bb.min.z+bb.max.z)/2);
     const w = C.weldSoup(g.attributes.position.array, null, true);
     const paint = stlPaint ? Uint8Array.from(w.src, t => stlPaint[t] || 0) : null;
-    stlCache = { data:stlData, scale:b.stl.scale, solid:{ pos:w.pos, idx:w.idx }, paint, colourOf:stlColour, colour:stlColour ? modelColourFor(stlColour, w.src) : null };
+    stlCache = { data:stlData, solid:{ pos:w.pos, idx:w.idx }, paint, colourOf:stlColour, colour:stlColour ? modelColourFor(stlColour, w.src) : null };
     g.dispose();
     return [{ name:"Object", slot, solid:stlCache.solid, importPaint:paint, importColour:stlCache.colour }];
   }
@@ -3654,6 +3657,30 @@ function helperMain(){
         r = typeof near === "number" ? PRCore.photoFit(solid, cam, mask, w, h, mirror, angles, false, Object.assign({ k:near }, opt))
           : search ? PRCore.photoFitFull(solid, cam, mask, w, h, mirror, angles, opt) : PRCore.photoFitCloseness(solid, cam, mask, w, h, mirror, opt);
       }
+      else if (fn === "photoPaint"){
+        // colour from photos (Session 30): each photo's light found and taken out, then the model's colours read
+        // from them, as photoLightOf, photoReadPixels and photoLabels do on the page. Without a solid, only the
+        // light and the evened-out pixels (for picking the colours)
+        const [solid, model, views, pal, opt] = args, lights = [], shaded = [], ready = [];
+        const figOf = (s, px, w, h) => { const f = s.ai ? PRCore.photoMaskFromMap(s.ai.v, s.ai.w, s.ai.h, w, h) : PRCore.photoMask(px, w, h, s.tol); return s.fix ? PRCore.photoFixMask(f, w, h, s.fix) : f; };
+        for (const v of views){
+          const fig = figOf(v.fig, v.raw, v.w, v.h); let px = v.rgba || v.raw, L = v.shade && v.shade.L || null;
+          if (v.shade && v.shade.light){
+            const lp = v.shade.light, use = PRCore.photoModelMask(model, v.cam, v.fit, lp.w, lp.h, 3), lf = figOf(v.fig, lp.rgba, lp.w, lp.h);
+            for (let i = 0; i < use.length; i++) if (!lf[i]) use[i] = 0;
+            try { L = PRCore.photoLight(lp.rgba, lp.w, lp.h, model, v.cam, v.fit, use); } catch (err){ L = null; }
+          }
+          if (v.shade && L) px = PRCore.photoUnshade(v.raw, v.w, v.h, model, v.cam, v.fit, L, fig);
+          lights.push(L); shaded.push(v.shade && L ? px : null);
+          if (solid) ready.push(PRCore.photoView(px, v.w, v.h, solid, v.cam, v.fit, pal, fig, v.strict));
+        }
+        let lab = null, info = null;
+        if (solid){
+          const topo = PRCore.meshTopology(solid); lab = new Uint8Array(topo.n).fill(255);
+          info = ready.length && pal.length ? PRCore.paintFromPhotos(solid, topo, lab, ready, opt) : { seen:0, painted:0, n:topo.n };
+        }
+        r = { lights, shaded, lab, info }; tr = shaded.filter(Boolean).map(q => q.buffer).concat(lab ? [lab.buffer] : []);
+      }
       else if (fn === "ping") r = "pong";
       else throw new Error("no such job: " + fn);
       self.postMessage({ id, r }, tr);
@@ -3683,7 +3710,12 @@ function helperStop(broken, why){
 // a job for the worker; null when there is none (the caller does it on the page). kind "print": a newer one
 // replaces the one still running
 function onHelper(fn, args, transfer, kind){
-  if (kind && [...helper.kinds.values()].includes(kind)) helperStop(false, "replaced");
+  if (kind){
+    const old = [...helper.kinds].filter(e => e[1] === kind).map(e => e[0]);
+    // other work waiting in the thread (a photo being coloured): the old job runs out and its answer is dropped
+    if (old.length && helper.jobs.size > old.length) for (const id of old){ const j = helper.jobs.get(id); helper.jobs.delete(id); helper.kinds.delete(id); if (j) j.reject(new Error("replaced")); }
+    else if (old.length) helperStop(false, "replaced");
+  }
   const w = helperWorker(); if (!w) return null;
   return new Promise((resolve, reject) => {
     const id = ++helper.seq; helper.jobs.set(id, { resolve, reject }); if (kind) helper.kinds.set(id, kind);
@@ -4363,7 +4395,14 @@ function aiCutoutRow(p, d, after){
 // line a photo up with the model; search: also look for the angle it was taken from (±45° round, ±20° up)
 // returns true when lined up, false when no figure was found, null when a newer line-up of the photo took over
 let photoFitSeq = 0; const photoFitLatest = new WeakMap();
+// a line-up under way counts as busy (Session 30: one done step by step, with no helper thread, did not, so
+// the tests, and a project saved meanwhile, could catch it half way)
+let photoFitting = 0;
 async function photoFitView(v, search){
+  photoFitting++;
+  try { return await photoFitViewNow(v, search); } finally { photoFitting--; }
+}
+async function photoFitViewNow(v, search){
   const model = photoModel(), px = photoPixels(v.asset, 480);
   if (!model || !px) return false;
   const mask = photoFigure(v, px), mirror = !!(v.fit && v.fit.mirror), angles = search ? { yaw:45, pitch:20 } : null;
@@ -4421,10 +4460,12 @@ async function photoFitNow(o, v, search){
    fill, and the model's own shadow), and taken out before the colours are read (core photoUnshade). */
 const photoLightCache = new Map(), photoShadeCache = new Map();
 const cacheSet = (m, k, v, n) => { m.set(k, v); if (m.size > n) m.delete(m.keys().next().value); return v; };
+const photoLightKey = (v, f) => JSON.stringify([v.asset, photoCamOf(v), f, v.ai || "", v.tol, photoFixKey(v)]);
+const photoShadeKey = (v, w, f, L) => JSON.stringify([v.asset, w, photoCamOf(v), f, L, v.ai || "", v.tol, photoFixKey(v)]);
 function photoLightOf(v){
   const model = photoModel(), f = v.fit && model && photoFitNowFor(v), px = f && photoPixels(v.asset, 480);
   if (!px) return null;
-  const key = JSON.stringify([v.asset, photoCamOf(v), f, v.ai || "", v.tol, photoFixKey(v)]);
+  const key = photoLightKey(v, f);
   if (photoLightCache.has(key)) return photoLightCache.get(key);
   // learned from the figure as found, away from the model's edge
   const use = C.photoModelMask(model, photoCamOf(v), f, px.w, px.h, 3), fig = photoFigure(v, px);
@@ -4437,7 +4478,7 @@ function photoReadPixels(o, v, px){
   if (o.shade !== true) return px.rgba;
   const model = photoModel(), f = v.fit && model && photoFitNowFor(v), L = f && photoLightOf(v);
   if (!L) return px.rgba;
-  const key = JSON.stringify([v.asset, px.w, photoCamOf(v), f, L, v.ai || "", v.tol, photoFixKey(v)]);
+  const key = photoShadeKey(v, px.w, f, L);
   if (photoShadeCache.has(key)) return photoShadeCache.get(key);
   return cacheSet(photoShadeCache, key, C.photoUnshade(px.rgba, px.w, px.h, model, photoCamOf(v), f, L, photoFigure(v, px)), 6);
 }
@@ -4510,6 +4551,11 @@ function photoLabels(pc, o){
   const key = JSON.stringify([o.views.map((v, i) => [v.asset, v.cam, fits[i], v.tol, v.ai || "", photoFixKey(v)]), o.pal, o.fill, o.speck, o.smooth, o.shade === true]);
   if (!pc.photo) pc.photo = new Map();
   let r = pc.photo.get(key); if (r) return r;
+  // a big model: the helper thread does the work, and the model keeps its last colours from the photos meanwhile
+  if (pc.topo.n >= photoHelperMin && !pc.photoOnPage && photoLabelsOnHelper(pc, o, key, fits)){
+    const last = pc.photoLast && pc.photoLast.pal === o.pal.length ? pc.photoLast : null;
+    return Object.assign({}, last || { lab:new Int16Array(pc.topo.n).fill(-1), info:{ seen:0, painted:0, n:pc.topo.n }, views:0 }, { pending:true });
+  }
   const B = C.solidBounds(pc.solid), D = Math.hypot(B.mx[0]-B.mn[0], B.mx[1]-B.mn[1], B.mx[2]-B.mn[2]) || 1, views = [];
   o.views.forEach((v, i) => {
     const f = fits[i], px = f && photoPixels(v.asset, PHOTO_RES);
@@ -4524,15 +4570,99 @@ function photoLabels(pc, o){
     info = C.paintFromPhotos(pc.solid, pc.topo, tmp, views, { slots:o.pal.map((_, i) => i), fill:o.fill, speck:o.speck, smooth:o.smooth });
     for (let t=0;t<n;t++) if (tmp[t] !== PAINT_LEAVE) lab[t] = tmp[t];
   }
-  r = { lab, info, views:views.length };
+  r = { lab, info, views:views.length, pal:o.pal.length };
   pc.photo.set(key, r); if (pc.photo.size > 3) pc.photo.delete(pc.photo.keys().next().value);
+  pc.photoLast = r;
   return r;
 }
+/* colour from photos on the helper thread (Session 30): finding the light in a photo, taking it out and reading
+   the model's colours from the photos took seconds on a big model, with the page frozen. The helper does all
+   three; the page keeps its answers in the same caches the steps read (photoLightCache, photoShadeCache,
+   pc.photo), so nothing is worked out twice, and repaints. Without a helper (a website that forbids them, the
+   tests' jsdom) the page does it as before. */
+let photoHelperMin = 40000, photoJobsOut = 0, photoHelperRuns = 0, photoWaiting = 0, photoBusy = 0;
+// one photo as the helper needs it: the pixels (and the evened-out ones when already known), the figure's
+// recipe (its outline is found again there), and the light: known, or the smaller photo to find it in
+function photoHelperView(o, v, f, res){
+  const px = photoPixels(v.asset, res); if (!px) return null;
+  const m = aiMapOf(v.ai), spec = { raw:px.rgba, rgba:null, w:px.w, h:px.h, cam:photoCamOf(v), fit:f, strict:photoStrict(v), shade:null,
+    fig:{ tol:v.tol, ai:m ? { v:m.v, w:m.w, h:m.h } : null, fix:v.fix && v.fix.length ? v.fix : null } };
+  if (o.shade !== true || !f) return spec;
+  const lk = photoLightKey(v, f);
+  if (photoLightCache.has(lk)){
+    const L = photoLightCache.get(lk); if (!L) return spec;
+    const sk = photoShadeKey(v, px.w, f, L);
+    if (photoShadeCache.has(sk)) spec.rgba = photoShadeCache.get(sk); else spec.shade = { L };
+  } else { const lp = photoPixels(v.asset, 480); if (lp) spec.shade = { light:{ rgba:lp.rgba, w:lp.w, h:lp.h } }; }
+  return spec;
+}
+// the helper's lights and evened-out photos, into the page's caches
+function photoKeep(views, specs, res){
+  specs.forEach((sp, j) => {
+    if (!sp.shade) return;
+    const v = views[j], L = res.lights[j];
+    if (sp.shade.light) cacheSet(photoLightCache, photoLightKey(v, sp.fit), L, 12);
+    if (L && res.shaded[j]) cacheSet(photoShadeCache, photoShadeKey(v, sp.w, sp.fit, L), res.shaded[j], 6);
+  });
+}
+function photoLabelsOnHelper(pc, o, key, fits){
+  if (!pc.photoJobs){ pc.photoJobs = new Map(); pc.photoTries = 0; }
+  if (pc.photoJobs.has(key)) return true;
+  const model = photoModel(), B = C.solidBounds(pc.solid), D = Math.hypot(B.mx[0]-B.mn[0], B.mx[1]-B.mn[1], B.mx[2]-B.mn[2]) || 1, views = [], specs = [];
+  o.views.forEach((v, i) => {
+    const f = fits[i]; if (!f || !photoPixels(v.asset, PHOTO_RES) || !(f.a * D < 4)) return;
+    views.push(v); specs.push(photoHelperView(o, v, f, PHOTO_RES));
+  });
+  const pal = o.pal.length, job = onHelper("photoPaint", [{ pos:pc.solid.pos, idx:pc.solid.idx }, model ? { pos:model.pos, idx:model.idx } : null, specs, o.pal,
+    { slots:o.pal.map((_, i) => i), fill:o.fill, speck:o.speck, smooth:o.smooth }]);
+  if (!job) return false;
+  photoJobsOut++; pc.photoJobs.set(key, job);
+  job.then(res => {
+    photoKeep(views, specs, res); photoHelperRuns++;
+    const n = pc.topo.n, lab = new Int16Array(n).fill(-1);
+    for (let t=0;t<n;t++) if (res.lab[t] !== PAINT_LEAVE) lab[t] = res.lab[t];
+    const r = { lab, info:res.info, views:specs.length, pal };
+    pc.photo.set(key, r); if (pc.photo.size > 3) pc.photo.delete(pc.photo.keys().next().value);
+    pc.photoLast = r;
+  }).catch(err => {
+    // asked for again on the repaint below: on the helper if it was only restarted, else on the page
+    if (!/replaced/.test(err.message) || ++pc.photoTries > 3){ if (!/replaced/.test(err.message)) console.error(err); pc.photoOnPage = true; } })
+    .finally(() => { pc.photoJobs.delete(key); photoJobsOut--; if (!photoWaiting) repaint(true); });   // photoRepaint repaints itself
+  return true;
+}
+// before the colours are picked from the photos: their light and evened-out pixels, from the helper
+async function photoShadeAhead(o){
+  const model = photoModel();
+  if (o.shade !== true || !model || model.idx.length/3 < photoHelperMin) return;
+  const views = [], specs = [];
+  for (const v of o.views){
+    const f = v.fit && photoFitNowFor(v), sp = f && photoHelperView(o, v, f, 400);
+    if (sp && sp.shade){ views.push(v); specs.push(sp); }
+  }
+  if (!specs.length) return;
+  const job = onHelper("photoPaint", [null, { pos:model.pos, idx:model.idx }, specs, [], null]); if (!job) return;
+  photoJobsOut++;
+  try { photoKeep(views, specs, await job); photoHelperRuns++; } catch (err){ if (!/replaced/.test(err.message)) console.error(err); } finally { photoJobsOut--; }
+}
+// pick the colours, with the slow part on the helper thread when there is one
+async function photoColoursNow(o){ photoBusy++; try { await photoShadeAhead(o); photoPickColours(o); } finally { photoBusy--; } }
 // the photo steps' results need a moment the first time: show that the app is working
 async function photoRepaint(){
+  photoBusy++;
+  try { await photoRepaintNow(); } finally { photoBusy--; }
+}
+async function photoRepaintNow(){
   setBusy(true, "Colouring the model from the photos…"); await new Promise(r => setTimeout(r, 30));
-  const t0 = performance.now();
+  const t0 = performance.now(), wait = async () => { for (let i = 0; photoJobsOut > 0 && i < 2000; i++) await new Promise(r => setTimeout(r, 60)); };
+  // the helper thread's colours first (Session 30), so the model is repainted once, with them
+  photoWaiting++;
+  try {
+    const o = photoOpOf(), targets = paintTargets();
+    if (o && !o.hide && state.paint.on !== false) modelParts.forEach(p => { if (p.pc && p.pc.topo && !p.decal && targets.includes(p)) photoLabels(p.pc, o); });
+    await wait();
+  } catch (err){ console.error(err); } finally { photoWaiting--; }
   try { repaint(true); } catch (err){ console.error(err); }
+  await wait();                                                                // the helper thread colouring it
   setBusy(false); pushHistory(); logLine(`Painted in ${Math.round(performance.now() - t0)} ms`);
 }
 function newPhotoOp(){ return { k:"photo", views:[], pal:[], slots:[], colours:clamp(Math.round(state.printer.colors || 4), 2, MAX_SLOTS), use:"photo", fill:true, speck:1, smooth:true, shade:true }; }
@@ -4566,7 +4696,7 @@ async function addPaintPhotos(files){
     } catch (err){ notify(err.message || "That photo could not be read."); }
   }
   if (!o.views.length){ state.paint.ops.splice(state.paint.ops.indexOf(o), 1); renderTab(); return false; }
-  photoPickColours(o);
+  await photoColoursNow(o);
   if (fresh && o.use === "photo") notify(`Your filaments were set to the photo's ${o.pal.length} colours. Undo (Ctrl+Z) brings the old ones back.`);
   renderTab(); await photoRepaint();
   return true;
@@ -4626,8 +4756,10 @@ function runPaintOps(p, pc, ops, B){
     else if (o.k === "photo" && !p.decal){
       const r = photoLabels(pc, o), sl = (o.slots || []).map(s => s === PAINT_LEAVE ? s : S(s));
       for (let t=0;t<topo.n;t++){ const c = r.lab[t]; if (c >= 0 && sl[c] != null && sl[c] !== PAINT_LEAVE) paint[t] = sl[c]; }
-      const was = photoInfo.get(o), add = was && was.rev === paintRev ? was : { rev:paintRev, seen:0, n:0, views:0 };
-      add.seen += r.info.seen; add.n += r.info.n; add.views = Math.max(add.views, r.views); photoInfo.set(o, add);
+      if (!r.pending){
+        const was = photoInfo.get(o), add = was && was.rev === paintRev ? was : { rev:paintRev, seen:0, n:0, views:0 };
+        add.seen += r.info.seen; add.n += r.info.n; add.views = Math.max(add.views, r.views); photoInfo.set(o, add);
+      }
     }
     else if (o.k === "brush"){
       if (!pc.grid) pc.grid = C.triangleGrid(topo, Math.max(1, (o.r||3)));
@@ -4661,7 +4793,7 @@ function nearestTri(pc, pt){
 // after a build (or when only the paint changed): refine and cut where needed, then replay the steps
 let paintRev = 0;
 function applyPaint(repaintOnly){
-  const ops = paintOps(); paintRev++;
+  const ops = paintOps().filter(o => !o.hide); paintRev++;
   const targets = paintTargets();
   modelParts.forEach(p => { if (!p.solid0) p.solid0 = p.solid; });
   if (!ops.length && !modelParts.some(p => p.importPaint) && !(paintPrepared && state.paint.on !== false)){
@@ -4842,7 +4974,7 @@ function paintArea(polyNdc, through, rubOut){
 function showBrush(h){
   showPreview(h);
   if (!h || ["fill","pick","recolour","area"].includes(paintUI.tool)){ brushRing.visible = false; return; }
-  const sc = (state.model.scale||100)/100;
+  const sc = modelScale();
   brushRing.visible = true; brushRing.position.copy(h.world).addScaledVector(h.wn, 0.05);
   brushRing.lookAt(h.world.clone().add(h.wn)); brushRing.scale.setScalar(paintUI.r*sc);
   brushRing.material.color.set(paintUI.tool === "erase" ? "#ffffff" : (state.slots[paintUI.slot] || {}).hex || "#ffffff");
@@ -5043,7 +5175,7 @@ function refreshScene(){
     box.union(p.geom.boundingBox.clone().translate(new THREE.Vector3(off[0],off[1],off[2])));
     modelGroup.add(mesh);
   });
-  const sc = (state.model.scale||100)/100;
+  const sc = modelScale();
   modelGroup.scale.set(state.model.mirror ? -sc : sc, sc, sc);
   // turned for printing: rotate, then set back down on the bed where it stood
   const R = state.model.orient, t = printShift();
@@ -5078,17 +5210,24 @@ function refreshScene(){
 let lastChecks = { list:[], rows:[], totals:{}, swaps:[], layers:null };
 /* The print frame: the model scaled, mirrored and (after Optimize) turned, standing on the bed.
    Without a turn this is exactly the old export: scale, then mirror, nothing else moves. */
+// How big the model prints: the whole model's scale and, for an imported model, its own Scale (%). Both are kept
+// out of the model's shape (Session 30: an imported model's scale used to be built into it, so a size change
+// welded it again and repainted it from its photos: 4 s frozen on a 370 000-triangle figure).
+function modelScale(){
+  const own = state.base.type === "stl" && state.base.stl ? (+state.base.stl.scale || 100)/100 : 1;
+  return (state.model.scale||100)/100 * own;
+}
 function modelMatrix(){
-  const sc = (state.model.scale||100)/100, S = [state.model.mirror ? -sc : sc,0,0, 0,sc,0, 0,0,sc];
+  const sc = modelScale(), S = [state.model.mirror ? -sc : sc,0,0, 0,sc,0, 0,0,sc];
   return state.model.orient ? C.mat3Mul(state.model.orient, S) : S;
 }
 const cacheOf = { shift:{ key:"" }, printed:{ key:"" }, brim:{ key:"" } };
-const frameKey = () => partsVer + "|" + JSON.stringify(state.model);
+const frameKey = () => partsVer + "|" + JSON.stringify(state.model) + "|" + modelScale();
 function printShift(){
   if (!state.model.orient || !modelParts.length) return [0,0,0];
   const c = cacheOf.shift, key = frameKey();
   if (c.key === key) return c.t;
-  const M = modelMatrix(), S = [state.model.mirror ? -1 : 1, 1, 1].map(v => v*(state.model.scale||100)/100);
+  const M = modelMatrix(), S = [state.model.mirror ? -1 : 1, 1, 1].map(v => v*modelScale());
   const mn = [Infinity,Infinity,Infinity], mx = [-Infinity,-Infinity,-Infinity], mn0 = [Infinity,Infinity,Infinity], mx0 = [-Infinity,-Infinity,-Infinity];
   modelParts.forEach(p => {
     const P = p.solid.pos, off = p.layout || [0,0,0];
@@ -5103,9 +5242,11 @@ function printShift(){
 }
 // every part in the print frame, one solid each (colours not merged yet)
 function printedParts(){
-  const c = cacheOf.printed, key = frameKey();
+  // the paint too (Session 30): a repaint that keeps the mesh (a band's colour, a second stroke, the colours from a
+  // photo) left the export, the colour changes and the swap list with the paint from before
+  const c = cacheOf.printed, key = frameKey() + "|" + paintRev;
   if (c.key === key) return c.list;
-  const sc = (state.model.scale||100)/100, R = state.model.orient, M = modelMatrix(), t = printShift();
+  const sc = modelScale(), R = state.model.orient, M = modelMatrix(), t = printShift();
   c.list = modelParts.map(p => {
     const off = p.layout || [0,0,0];
     // nothing painted (the model only split, ready for the brush): the original model, not the split one
@@ -5254,7 +5395,7 @@ let optimizing = false;
 async function optimizePrint(){
   if (!modelParts.length || optimizing || busy) return;
   const P = state.printer, before = { orient:state.model.orient, brim:state.model.brim }, ver0 = partsVer;
-  const sc = (state.model.scale||100)/100, S = [state.model.mirror ? -sc : sc,0,0, 0,sc,0, 0,0,sc];
+  const sc = modelScale(), S = [state.model.mirror ? -sc : sc,0,0, 0,sc,0, 0,0,sc];
   const flat = modelParts.map(p => { const off = p.layout || [0,0,0]; return Object.assign(C.affineSolid(p.solid, S, [S[0]*off[0], S[4]*off[1], S[8]*off[2]]), { name:p.name }); });
   const cur = state.model.orient;               // the current "down", in the unturned frame
   const prefer = cur ? [-cur[3], -cur[4], -cur[5]] : [0,-1,0];
@@ -5291,7 +5432,7 @@ function revertOptimize(){
 }
 function runChecks(){
   state.slots.forEach(s => { if (!s.mat || !MATERIALS[s.mat]) s.mat = "PLA"; if (s.price == null) s.price = MATERIALS[s.mat].p; });
-  const list = [], P = state.printer, bed = P.bed || [256,256,256], sc = (state.model.scale||100)/100;
+  const list = [], P = state.printer, bed = P.bed || [256,256,256], sc = modelScale();
   const box = new THREE.Box3();
   modelParts.forEach((p,i)=>{
     p.geom.computeBoundingBox();
@@ -5321,6 +5462,10 @@ function runChecks(){
   // the paint switched off on the Paint tab is left out of the files too
   if (state.paint && state.paint.on === false && Array.isArray(state.paint.ops) && state.paint.ops.length)
     list.push({ k:"warn", t:"The paint is switched off", s:`${state.paint.ops.length} paint step${state.paint.ops.length === 1 ? " is" : "s are"} left out, so the model prints in its own colours. Tick “Use the paint” on the Paint tab to print them.` });
+  else if (state.paint && Array.isArray(state.paint.ops) && state.paint.ops.some(o => o.hide)){
+    const hid = state.paint.ops.filter(o => o.hide), names = hid.map(o => o.name || PAINT_OP_NAME[o.k] || o.k);
+    list.push({ k:"warn", t:`${hid.length} paint step${hid.length === 1 ? " is" : "s are"} hidden`, s:`${names.slice(0, 4).join(", ")}${names.length > 4 ? " and more" : ""} won't print. Show ${hid.length === 1 ? "it" : "them"} again in the Paint list on the Paint tab (◌ button) to print ${hid.length === 1 ? "it" : "them"}.` });
+  }
   // a picture laid on the model that lands off it (in a photo frame's window, past an edge) prints nothing
   const missed = state.items.filter(d => d.enabled !== false && Array.isArray(d.solids) && !d.solids.some(q => q && q.idx && q.idx.length));
   if (missed.length) list.push({ k:"warn", t: missed.length === 1 ? `The picture “${missed[0].name}” misses the model` : `${missed.length} pictures miss the model`,
@@ -5329,9 +5474,24 @@ function runChecks(){
 
   const usedSlots = new Set(modelParts.map(p=>p.slot));
   modelParts.forEach(p => { if (p.paint) for (const s of new Set(p.paint)) if (s !== PAINT_LEAVE && s < state.slots.length) usedSlots.add(s); });
-  if (usedSlots.size > (P.colors||1))
+  // one filament at a time (Session 30): one colour per layer, the spool swapped by hand at a pause before
+  // each change (an M600). Worked out layer by layer, so painted bands count and a name sunk into its plate
+  // waits for the plate's top
+  let pauses = null;
+  if ((P.colors||1) === 1 && usedSlots.size > 1){
+    const h = P.layer || 0.2, pc = C.pauseColours(C.layerSlots(printedParts(), h));
+    pauses = { h, start:pc.start, mixed:pc.mixed, lost:pc.lost, never:pc.never,
+      swaps:pc.swaps.map(w => ({ slot:w.slot, layer:w.layer + 1, z:+((w.layer + 1)*h).toFixed(3) })) };
+  }
+  const slotName = i => state.slots[i] ? state.slots[i].name : `filament ${i+1}`;
+  if (usedSlots.size > (P.colors||1) && pauses && !pauses.never.length)
+    list.push({ k:"warn", t:`Uses ${usedSlots.size} colours on a one-filament printer: ${pauses.swaps.length} swap${pauses.swaps.length === 1 ? "" : "s"} by hand`,
+      s:"Pause the print at the heights in Colour swap heights below and change the spool." +
+        (pauses.mixed ? ` ${pauses.mixed} layer${pauses.mixed === 1 ? " has" : "s have"} two colours at once; there ${pauses.lost.map(slotName).join(", ")} print${pauses.lost.length === 1 ? "s" : ""} in the colour loaded.` : "") });
+  else if (usedSlots.size > (P.colors||1))
     list.push({ k:"bad", t:`Uses ${usedSlots.size} colours, the ${P.model} handles ${P.colors}`,
-      s: P.colors === 1 ? "Print the parts separately, or use the colour swap list below." : "Reduce the number of filaments or split the print." });
+      s: P.colors === 1 ? `${pauses && pauses.never.length ? `${pauses.never.map(slotName).join(", ")} only ${pauses.never.length === 1 ? "shares" : "share"} layers with other colours, so swapping the spool at pauses cannot print ${pauses.never.length === 1 ? "it" : "them"}. ` : ""}Print the parts separately, or use the colour swap heights below for the rest.`
+        : "Reduce the number of filaments or split the print." });
 
   if (state.base.type === "jigsaw" && jigsawInfo){
     const J = jigsawInfo, neck = (J.neck - J.gap)*sc;
@@ -5401,19 +5561,9 @@ function runChecks(){
   const seconds = totals.cm3*1000/(P.flow||12) + layers*2.5 + (P.colors>1 ? (layerInfo ? layerInfo.seconds : 0) : swapsCount*30);
   totals.minutes = seconds/60;
 
-  // colour swap list, useful on a single-colour printer
-  const swaps = [];
-  if (P.colors === 1){
-    const zs = new Map();
-    const printed = state.model.orient ? printedParts() : null;
-    modelParts.forEach((p,i)=>{
-      const b = C.solidBounds(printed ? printed[i] : p.solid), off = printed ? [0,0,0] : partOffset(p,i);
-      const z = printed ? b.mn[1] : (b.mn[1]+off[1])*sc;
-      if (!zs.has(p.slot) || z < zs.get(p.slot)) zs.set(p.slot, z);
-    });
-    [...zs.entries()].sort((a,b)=>a[1]-b[1]).forEach(([slot,z])=>swaps.push({ slot, z:Math.max(0,z) }));
-  }
-  lastChecks = { list, rows, totals, swaps, layers:layerInfo };
+  // the colour swap list on a single-colour printer: the colour to start with, then each pause (see above)
+  const swaps = pauses ? [{ slot:pauses.start, z:0, layer:0 }, ...pauses.swaps] : [];
+  lastChecks = { list, rows, totals, swaps, pauses, layers:layerInfo };
   const worst = list.some(l=>l.k==="bad") ? "bad" : list.some(l=>l.k==="warn") ? "warn" : "ok";
   const pill = $("#checkPill");
   pill.className = "pill" + (worst === "ok" ? "" : " "+worst);
@@ -6461,7 +6611,8 @@ function stlFields(p){
   buttonRow(p, [[stlData?"Open a different model":missing?"Open "+missing+" again":"Choose a model file", ()=>$("#stlInput").click()]]);
   note(p, stlData ? esc(state.base.stl.name) + (stlColour ? " · with its own colours" : "") : "STL, OBJ, 3MF, GLB or glTF. Models from AI model makers keep their colours (GLB, or an OBJ chosen together with its MTL file and pictures). 3mf files from Bambu Studio or PrusaSlicer keep their painting.");
   if (stlData) note(p, "Colour it on the <b>Paint</b> tab: by height, by face, from a picture, or with a brush.");
-  if (stlData) numField(p,{ label:"Scale (%)", min:5,max:400,step:1, get:()=>state.base.stl.scale, set:v=>state.base.stl.scale=v, onChange:baseChanged });
+  if (stlData) numField(p,{ label:"Scale (%)", min:5,max:400,step:1, get:()=>state.base.stl.scale, set:v=>state.base.stl.scale=v,
+    onChange:()=>{ refreshScene(); runChecks(); }, sub:()=>{ const z = lastSize; return z ? `Prints ${mm(z.x)} × ${mm(z.z)} × ${mm(z.y)}` : ""; } });
 }
 function noneFields(p){
   note(p, "Artwork prints on its own as flat pieces. Turn on the outline in the Art tab if the pieces need something to hold them together.");
@@ -7880,7 +8031,7 @@ function photoCard(c){
   const fixR = () => clamp(paintUI.photoFixR || 4, 0.5, 20) / 100;
   const fixNumbers = () => (v.fix || []).reduce((n, q) => n + q.p.length, 0);
   // after a fix: the colours are read again and the model painted again, once the brush rests
-  const fixed = () => photoLater(() => { photoPickColours(o); renderKeepFocus(); photoRepaint(); }, 600);
+  const fixed = () => photoLater(async () => { await photoColoursNow(o); renderKeepFocus(); photoRepaint(); }, 600);
   cv.addEventListener("pointerdown", e => {
     if (fixTool()){
       e.preventDefault(); clearTimeout(photoTimer);
@@ -7931,7 +8082,7 @@ function photoCard(c){
   showMatch();
   // where it was taken from
   segField(c, [["front","Front"],["right","Right"],["back","Back"],["left","Left"],["top","Top"]], () => photoSideOf(v), async k => {
-    const s0 = PHOTO_SIDES[k]; v.cam = { yaw:s0[0], pitch:s0[1] }; await photoFitNow(o, v, true); photoPickColours(o); renderKeepFocus(); photoRepaint(); }, "five");
+    const s0 = PHOTO_SIDES[k]; v.cam = { yaw:s0[0], pitch:s0[1] }; await photoFitNow(o, v, true); await photoColoursNow(o); renderKeepFocus(); photoRepaint(); }, "five");
   // a new angle or background: line up again at that angle (the card stays as it is, so a slider keeps the focus)
   const refit = () => photoLater(async () => { await photoFitNow(o, v, false); redraw(); showMatch(); photoRepaint(); }, 500);
   numField(c, { label:"Taken from (° round the model)", min:-180, max:180, step:1, get:()=>v.cam.yaw, set:x=>v.cam.yaw = Math.round(x), onChange:refit, noReset:true,
@@ -7948,21 +8099,21 @@ function photoCard(c){
     : typeof v.near === "number" ? "Lined up as taken from far away, or zoomed in: no part looks bigger for being nearer." : "It looks taken from far away, or zoomed in. A photo taken close up is worked out when it is lined up.");
   if (aiMapOf(v.ai)){
     note(c, "The AI figure finder found the figure in this photo.");
-    buttonRow(c, [["Find the figure by colour instead", async () => { v.ai = null; photoToSide(v); await photoFitNow(o, v, true); photoPickColours(o); renderKeepFocus(); photoRepaint(); }]]);
+    buttonRow(c, [["Find the figure by colour instead", async () => { v.ai = null; photoToSide(v); await photoFitNow(o, v, true); await photoColoursNow(o); renderKeepFocus(); photoRepaint(); }]]);
   } else {
     numField(c, { label:"Background (how different the figure is from it)", min:0, max:100, step:1, def:35, get:()=>v.tol, set:x=>v.tol = Math.round(x), onChange:refit,
       sub:()=>"Lower it when parts of the figure go missing; raise it when the background is busy." });
-    buttonRow(c, [["Busy background? Find the figure with AI", async () => { if (await aiFindFigures(o)){ photoPickColours(o); renderKeepFocus(); photoRepaint(); } }]]);
+    buttonRow(c, [["Busy background? Find the figure with AI", async () => { if (await aiFindFigures(o)){ await photoColoursNow(o); renderKeepFocus(); photoRepaint(); } }]]);
     note(c, aiState.session ? "The AI figure finder is ready. It looks at every photo of this step."
       : `The AI figure finder looks at every photo of this step. It downloads once (about ${AI_FIGURE.mb} MB) and runs on this computer: your photos are not sent anywhere.`);
   }
   // lined up anew, the colours are read anew (they are read inside the lined-up model: hand fixes picked
   // them with the old fit, and missed the base, v0.24.1)
-  buttonRow(c, [["Line it up again", async () => { await photoFitNow(o, v, true); photoPickColours(o); renderKeepFocus(); photoRepaint(); }], ["Remove this photo", removePhoto]]);
+  buttonRow(c, [["Line it up again", async () => { await photoFitNow(o, v, true); await photoColoursNow(o); renderKeepFocus(); photoRepaint(); }], ["Remove this photo", removePhoto]]);
 
   // the colours
   c.insertAdjacentHTML("beforeend", `<h3>Colours</h3>`);
-  checkField(c, "Even out light and shadow", () => o.shade === true, x => { o.shade = x; photoPickColours(o); renderKeepFocus(); photoRepaint(); });
+  checkField(c, "Even out light and shadow", () => o.shade === true, async x => { o.shade = x; await photoColoursNow(o); renderKeepFocus(); photoRepaint(); });
   {
     const L = o.shade === true && v.fit ? photoLightOf(v) : null;
     note(c, o.shade !== true ? "Off: a colour in deep shade can come out as a colour of its own (a dark red beside the red)."
@@ -7971,7 +8122,7 @@ function photoCard(c){
       : "This photo looks evenly lit: there is no shading to take out.");
   }
   numField(c, { label:"Number of colours", min:2, max:MAX_SLOTS, step:1, def:clamp(Math.round(state.printer.colors || 4), 2, MAX_SLOTS), get:()=>o.colours, set:x=>o.colours = Math.round(x),
-    onChange:() => photoLater(() => { photoPickColours(o); renderKeepFocus(); photoRepaint(); }, 500) });
+    onChange:() => photoLater(async () => { await photoColoursNow(o); renderKeepFocus(); photoRepaint(); }, 500) });
   if (o.pal.length > (state.printer.colors || 4)) note(c, `Your printer is set to load ${state.printer.colors} filaments, and this uses ${o.pal.length}. Fewer colours, or colour swaps during the print, get round that.`);
   o.pal.forEach((col, j) => {
     const hex = C.rgbToHex(...col.rgb);
@@ -7980,7 +8131,7 @@ function photoCard(c){
   });
   buttonRow(c, [["Set my filaments to these colours", () => { photoSetFilaments(o); renderTab(); repaint(true); pushHistory(); }],
     ["Use my nearest filaments", () => { photoNearestFilaments(o); renderTab(); repaint(true); pushHistory(); }],
-    ["Pick the colours again", () => { photoPickColours(o); renderTab(); photoRepaint(); }]]);
+    ["Pick the colours again", async () => { await photoColoursNow(o); renderTab(); photoRepaint(); }]]);
   // clean-up
   c.insertAdjacentHTML("beforeend", `<h3>Finishing</h3>`);
   checkField(c, "Colour what the photos cannot see from the nearest colour", () => o.fill, x => { o.fill = x; photoRepaint(); });
@@ -8090,15 +8241,31 @@ function tabPaint(p){
   if (!ops.length) p.insertAdjacentHTML("beforeend", `<div class="card empty">No paint yet. Use Auto colour, or the brush.</div>`);
   ops.forEach((o, i) => {
     const r = document.createElement("div"); r.className = "oprow";
-    r.innerHTML = `<span class="grow"><b>${i+1}. ${esc(PAINT_OP_NAME[o.k] || o.k)}</b><br><small>${esc(paintOpText(o))}</small></span>
-      <button class="icon" aria-label="Move step ${i+1} up" ${i===0?"disabled":""}>↑</button><button class="icon" aria-label="Move step ${i+1} down" ${i===ops.length-1?"disabled":""}>↓</button><button class="icon" aria-label="Remove step ${i+1}">✕</button>`;
-    const [up, dn, rm] = r.querySelectorAll("button");
+    const kind = PAINT_OP_NAME[o.k] || o.k;
+    if (o.hide) r.classList.add("hidden-op");
+    r.innerHTML = `<span class="grow"><b>${i+1}. ${esc(o.name || kind)}</b>${o.hide ? ` <small>(hidden)</small>` : ""}<br><small>${esc((o.name ? kind + ": " : "") + paintOpText(o))}</small></span>
+      <button class="icon" aria-label="${o.hide ? "Show" : "Hide"} step ${i+1}" aria-pressed="${o.hide ? "true" : "false"}" title="${o.hide ? "Hidden: left out of the model and the print. Click to show it." : "Hide this step for now"}">${o.hide ? "◌" : "◉"}</button><button class="icon" aria-label="Rename step ${i+1}" title="Give this step a name">✎</button><button class="icon" aria-label="Move step ${i+1} up" ${i===0?"disabled":""}>↑</button><button class="icon" aria-label="Move step ${i+1} down" ${i===ops.length-1?"disabled":""}>↓</button><button class="icon" aria-label="Remove step ${i+1}">✕</button>`;
+    const [eye, nm, up, dn, rm] = r.querySelectorAll("button");
+    eye.onclick = () => { if (o.hide) delete o.hide; else o.hide = true; renderTab(); paintChanged(); };
+    // renaming happens in the row itself: Enter or leaving the box keeps it, Escape leaves it as it was
+    nm.onclick = () => {
+      const b = r.querySelector("b"), box = document.createElement("input");
+      box.type = "text"; box.maxLength = 40; box.value = o.name || ""; box.placeholder = kind; box.setAttribute("aria-label", `Name for step ${i+1}`);
+      b.replaceWith(box); box.focus(); box.select && box.select();
+      let done = false;
+      const finish = keep => { if (done) return; done = true;
+        const v = box.value.replace(/[\u0000-\u001f]/g, "").trim().slice(0, 40);
+        if (keep && v !== (o.name || "")){ if (v) o.name = v; else delete o.name; paintChanged(); }
+        renderTab(); };
+      box.onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); finish(true); } else if (e.key === "Escape"){ e.preventDefault(); finish(false); } };
+      box.onblur = () => finish(true);
+    };
     up.onclick = () => { [ops[i-1], ops[i]] = [ops[i], ops[i-1]]; renderTab(); paintChanged(); };
     dn.onclick = () => { [ops[i+1], ops[i]] = [ops[i], ops[i+1]]; renderTab(); paintChanged(); };
     rm.onclick = () => { ops.splice(i, 1); renderTab(); paintChanged(); };
     p.appendChild(r);
   });
-  note(p, "Steps are painted in this order, so a later step covers an earlier one.");
+  note(p, "Steps are painted in this order, so a later step covers an earlier one. ◉ hides a step for now (it is left out of the print until you show it again); ✎ gives it a name, such as “Eyes” or “Hair”.");
 
   p.insertAdjacentHTML("beforeend", `<h2>Layers and colour changes</h2>`);
   paintLayersPage(p);
@@ -8145,11 +8312,14 @@ function tabExport(p){
   const LC = lastChecks.layers;
   if (LC && LC.changes) note(p, `About <b>${LC.changes.toLocaleString()} colour changes</b>: about ${Math.round(LC.grams).toLocaleString()} g of filament flushed and ${fmtTime(LC.seconds)} of changing (in the time above). Paint → Layers and colour changes shows them layer by layer.`);
   if ((lastChecks.swaps||[]).length > 1) group(p,"Colour swap heights", g2 => {
-    note(g2, "Your printer is set to one filament. Add a pause or an M600 at these heights and swap the spool by hand.");
+    note(g2, "Your printer is set to one filament. Start with the first colour, and add a colour change (a pause or M600) in your slicer before each layer below, then swap the spool by hand when the printer stops. " +
+      "In PrusaSlicer, move the layer slider in the preview to that height and click the + beside it. In Bambu Studio and OrcaSlicer, right-click the slider there and add a pause or a filament change. The same list is in colour-changes.txt in the download.");
     const s2 = document.createElement("table"); s2.className = "stats";
-    s2.innerHTML = `<tr><th>At height</th><th>Load</th></tr>` + lastChecks.swaps.map(w=>
-      `<tr><td class="n">${w.z.toFixed(2)} mm</td><td><span class="sw-inline" style="background:${state.slots[w.slot].hex}"></span>${esc(state.slots[w.slot].name)}</td></tr>`).join("");
+    s2.innerHTML = `<tr><th>Before the layer at</th><th>Load</th></tr>` + lastChecks.swaps.map((w, i)=>
+      `<tr><td class="n">${i ? `${w.z.toFixed(2)} mm (layer ${w.layer})` : "Start"}</td><td><span class="sw-inline" style="background:${state.slots[w.slot].hex}"></span>${esc(state.slots[w.slot].name)}</td></tr>`).join("");
     g2.appendChild(s2);
+    const pz = lastChecks.pauses;
+    if (pz && pz.mixed) note(g2, `${pz.mixed} layer${pz.mixed === 1 ? " has" : "s have"} more than one colour. With one filament each layer prints in one: the one loaded when it is there, else the one that carries on furthest up.`);
   }, true);
   group(p,"Parts in this model", g2 => {
     const pt = document.createElement("table"); pt.className = "stats";
@@ -8650,8 +8820,7 @@ function cleanPaint(P0){
   const slots = (a, max) => (Array.isArray(a) ? a : []).slice(0, max || 8).map(slotOrKeep);
   const v3 = a => Array.isArray(a) && a.length === 3 && a.every(x => typeof x === "number" && isFinite(x)) ? a.map(x => Math.min(1e4, Math.max(-1e4, x))) : null;
   let budget = 100000;
-  const ops = (Array.isArray(P.ops) ? P.ops : []).slice(0, 400).map(o => {
-    if (!o || typeof o !== "object") return null;
+  const cleanOp = o => {
     switch (o.k){
       case "height": { const sl = slots(o.slots, 8); if (sl.length < 2) return null;
         return { k:"height", slots:sl, cuts:(Array.isArray(o.cuts) ? o.cuts : []).slice(0, sl.length - 1).map(h => num(h, -1000, 1000, 0)).concat(Array(Math.max(0, sl.length - 1 - (Array.isArray(o.cuts) ? o.cuts.length : 0))).fill(0)) }; }
@@ -8715,6 +8884,15 @@ function cleanPaint(P0){
       }
       default: return null;
     }
+  };
+  // each step can carry its own name and be hidden (left out of the paint and the print) (Session 30)
+  const ops = (Array.isArray(P.ops) ? P.ops : []).slice(0, 400).map(o => {
+    if (!o || typeof o !== "object") return null;
+    const c = cleanOp(o); if (!c) return null;
+    const name = cleanStr(o.name, 400, "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 40);
+    if (name) c.name = name;
+    if (o.hide === true) c.hide = true;
+    return c;
   }).filter(Boolean);
   return { on:P.on !== false, detail:one(P.detail, ["auto","coarse","normal","fine"]), part:Math.round(num(P.part, -1, 200, -1)), ops };
 }
@@ -8776,6 +8954,15 @@ function sanitizeProject(data){
     if (it.example !== true) delete it.example;
     it.mm = Array.isArray(it.mm) && it.mm.length === 2 && it.mm.every(v => typeof v === "number" && isFinite(v) && v > 0.1 && v < 5000) ? it.mm.slice() : undefined;
     return it;
+  });
+  // Before version 6 (Session 30) an imported model's Scale (%) was built into its shape, and artwork on it was
+  // placed and sized on the scaled model. The scale is now applied when the model is drawn and printed, so such
+  // artwork is moved onto the model at its own size and made smaller by the same amount: it prints as before.
+  const oldScale = (+data.v || 0) < 6 && st.base && st.base.type === "stl" && st.base.stl
+    ? Math.min(4, Math.max(0.05, cleanNum(st.base.stl.scale, 100)/100)) : 1;
+  if (Math.abs(oldScale - 1) > 1e-9) st.items.forEach(it => {
+    if (it.place) it.place.c = it.place.c.map(x => x/oldScale);
+    for (const k of ["width","offU","offV","height","minH","maxH","embed"]) if (typeof it[k] === "number") it[k] /= oldScale;
   });
   if (st.view){ if (!["auto","light","dark"].includes(st.view.theme)) st.view.theme = "auto"; if (st.view.units !== "in") st.view.units = "mm"; }
   if (st.printer) st.printer = cleanPrinter(st.printer);
@@ -8952,6 +9139,26 @@ async function exportOutlineCAD(){
   const blob = await zip.generateAsync({ type:"blob", compression:"DEFLATE" });
   await offerDownload(modelName().replace(/\s+/g,"-").toLowerCase()+"-outline.zip", blob);
 }
+// one filament at a time: where to pause and swap the spool, and how to add the pauses in each slicer (Session 30)
+function colourChangesText(title){
+  const sw = lastChecks.swaps || [], pz = lastChecks.pauses;
+  if (sw.length < 2) return "";
+  return [
+    `Maker Forge: colour changes for ${title}`,
+    `Printer: ${state.printer.model}, one filament at a time, ${pz ? pz.h : state.printer.layer} mm layers.`, "",
+    `Start with: ${state.slots[sw[0].slot].name} (${state.slots[sw[0].slot].hex})`,
+    ...sw.slice(1).map(w => `Before the layer at ${w.z.toFixed(2)} mm (layer ${w.layer}): pause and load ${state.slots[w.slot].name} (${state.slots[w.slot].hex})`), "",
+    "The heights are the top of the first layer in the new colour, as the slicer's layer slider shows them.",
+    "A slicer with a thicker first layer moves every height up by the difference: pick the layer nearest.", "",
+    "PrusaSlicer: slice, then in the preview move the vertical layer slider to each height and click the",
+    "  + beside it (Add colour change, M600).",
+    "Bambu Studio and OrcaSlicer: slice, then in the preview move the layer slider to each height,",
+    "  right-click it and choose Add pause (or Change filament).",
+    "Other slicers: add M600 (or your printer's pause command) before each of those layers.",
+    ...(pz && pz.mixed ? ["", `${pz.mixed} layer${pz.mixed === 1 ? " has" : "s have"} more than one colour: there each prints in the colour loaded.`] : []),
+    ...(pz && pz.never.length ? [`Not printed this way (it only shares layers with other colours): ${pz.never.map(i => state.slots[i].name).join(", ")}.`] : [])
+  ].join("\r\n");
+}
 async function buildZip(parts, title){
   const { parts:P, size } = C.prepareParts(parts);
   const zip = new JSZip(), mf = new JSZip();
@@ -8970,6 +9177,8 @@ async function buildZip(parts, title){
     zip.file("cad/outline.svg", C.outlineSVG(tracerInfo.polys, title));
     zip.file("cad/outline.dxf", C.outlineDXF(tracerInfo.polys));
   }
+  const swapText = colourChangesText(title);
+  if (swapText) zip.file("colour-changes.txt", swapText);
   zip.file("README.txt", [
     `Maker Forge export: ${title}`,
     `Size: ${size.map(v=>v.toFixed(1)).join(" x ")} mm`,
@@ -8983,7 +9192,8 @@ async function buildZip(parts, title){
     "  Opened as a project instead, Bambu Studio says \"The 3mf is not from Bambu Lab, load geometry data",
     "  and color data only\". That is normal for any file not made in Bambu Studio, and the model loads",
     "  the same. Either way, set the filament colours in Bambu Studio's filament list.",
-    "One colour at a time: print stl/all-parts-merged.stl, or use the swap heights from the Check tab.",
+    (lastChecks.swaps || []).length > 1 ? "One filament at a time: colour-changes.txt says where to pause and swap the spool."
+      : "One colour at a time: print stl/all-parts-merged.stl.",
     ...(P.some(p => p.paint) ? ["Painted on the Paint tab: both 3mf files carry the paint, so the slicer shows it painted and",
       "  prints it without painting again. The OBJ groups faces by colour. The STL files have no colour."] : []), "",
     "Flat pieces print face down, no supports. project.json reopens this design in Maker Forge."
@@ -9271,7 +9481,7 @@ window.MakerForge = {
   get parts(){ return modelParts; },
   get checks(){ return lastChecks; },
   get rev(){ return buildRev; },
-  get busy(){ return busy || queued || rebuildPending || exampleBusy > 0; },
+  get busy(){ return busy || queued || rebuildPending || exampleBusy > 0 || photoJobsOut > 0 || photoFitting > 0 || photoBusy > 0; },
   thumb: modelThumb,
   art: { cutout: aiCutout, uncut: aiUncut, hasBackground: pictureHasBackground },
   examples: { list: EXAMPLES, forType: EXAMPLE_FOR_TYPE, art: EXAMPLE_ART, canvas: exampleCanvas, load: loadExample, drop: dropExamples },
@@ -9284,11 +9494,14 @@ window.MakerForge = {
   printNow: runPrintability, optimize: optimizePrint, revertOptimize, exportParts,
   // the painter, for the tests: its tool settings, a repaint now, the last result, a model import and the zip
   model: { get colour(){ return stlColour; }, pick: modelPickColours, bytesToCanvas },
-  paint: { ui: paintUI, repaint: () => repaint(true), changed: paintChanged, get info(){ return paintInfo; }, importModel: importModelFile, buildZip,
+  paint: { ui: paintUI, repaint: () => repaint(true), changed: paintChanged, get info(){ return paintInfo; }, importModel: importModelFile, buildZip, swapText: colourChangesText,
     hit: paintHit, pick: paintPick, recolour: paintRecolour, colourAt, area: paintArea, previewTris, prepare: preparePaint, get previewCount(){ return previewCount; }, cleanPrinter, showLayerCut, get prefs(){ return prefs; }, applyPrefs, findDefault, cleanPaint,
     photo: { ai: { hooks: aiHooks, find: aiFindFigures, config: AI_FIGURE, state: aiState, sha256: sha256Hex, get: aiGet, mapOf: aiMapOf },
       figure: (v, w, h) => { const px = photoPixels(v.asset, Math.max(w, h)); return px && photoFigure(v, px); },
-      add: addPaintPhotos, fit: photoFitView, colours: photoPickColours, setFilaments: photoSetFilaments, nearest: photoNearestFilaments, get op(){ return photoOpOf(); }, info: o => photoInfo.get(o), labels: photoLabels, colourWord } },
+      add: addPaintPhotos, fit: photoFitView, colours: photoPickColours,
+      // the helper thread's share (Session 30): from how many triangles it colours, and forgetting every result
+      get helperMin(){ return photoHelperMin; }, set helperMin(n){ photoHelperMin = n; }, get jobs(){ return photoJobsOut; }, get helperRuns(){ return photoHelperRuns; },
+      forget: () => { photoLightCache.clear(); photoShadeCache.clear(); modelParts.forEach(p => { if (p.pc){ p.pc.photo = null; p.pc.photoLast = null; p.pc.photoOnPage = false; } }); }, setFilaments: photoSetFilaments, nearest: photoNearestFilaments, get op(){ return photoOpOf(); }, info: o => photoInfo.get(o), labels: photoLabels, colourWord } },
   phone: { spec: phoneSpec, get info(){ return phoneInfo; }, list: PHONES },
   get overlay(){ return overlay.children.length; },
   rebuild: rebuildAll,

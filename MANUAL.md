@@ -112,7 +112,9 @@ At the bottom of the Basics page:
 
 - **Object filament** says which of your filaments the object prints in.
 - **Change the object** opens the Start from sidebar.
-- **Size and mirror** scales the whole model, or mirrors it.
+- **Size and mirror** scales the whole model, or mirrors it. Paint stays on the same spots when you do.
+
+An imported model has its own **Scale (%)** on the Make tab. Changing it is instant, even on a big model: the paint and any pictures or text on it grow and shrink with it.
 
 Some objects in brief:
 
@@ -155,7 +157,7 @@ On some objects the picture *becomes* the object: a cookie cutter, a lightbox, a
 
 **Loaded filaments.** One row per spool: its colour, name, material and price per kilo. Set these to the spools you really have loaded; slot 1 is the first spool in your AMS or first extruder. **Add filament** goes up to eight. **Palettes** fill in a set of colours at once, and **Match to artwork** picks colours from the selected picture.
 
-**Printer.** Choose your printer from the list (39 models, grouped by maker). It sets the bed size, the nozzle and how many colours the printer loads at once, and the app remembers it for every new project. For a printer that loads one colour at a time, the Export tab lists the heights at which to swap filament.
+**Printer.** Choose your printer from the list (39 models, grouped by maker). It sets the bed size, the nozzle and how many colours the printer loads at once, and the app remembers it for every new project. For a printer that loads one colour at a time, the Export tab lists the layers at which to pause and swap the spool by hand (see **Colour swap heights** in section 7).
 
 ## 6. Paint: colouring a whole model
 
@@ -203,7 +205,7 @@ GLB files are measured in metres; the app turns them into millimetres. A model t
 
 Keys **1** to **8** pick a filament, **[** and **]** make the brush smaller or bigger. **Mirror** paints both sides at once, **Repeat round the middle** copies each stroke 2 to 12 times round the model, and the **smart brush** stops at sharp edges.
 
-**Paint list** shows every step in order; a later step paints over an earlier one. **Layers and colour changes** counts how many times the printer swaps colour, how much filament that flushes away and how long it takes, and can cut the model open at any layer. **Paint detail** decides how finely the model is split: finer follows small shapes better but makes bigger files.
+**Paint list** shows every step in order; a later step paints over an earlier one. **◉** hides a step for now: it is left out of the model and the print until you press **◌** to show it again, and the Export tab reminds you. **✎** gives a step a name, such as "Eyes" or "Hair"; press Enter to keep it or Escape to leave it as it was. **Layers and colour changes** counts how many times the printer swaps colour, how much filament that flushes away and how long it takes, and can cut the model open at any layer. **Paint detail** decides how finely the model is split: finer follows small shapes better but makes bigger files.
 
 The paint goes into the 3mf files as slicer paint, so there is nothing to paint again in Bambu Studio, OrcaSlicer or PrusaSlicer.
 
@@ -213,13 +215,21 @@ The paint goes into the 3mf files as slicer paint, so there is nothing to paint 
 
 **Before you print** lists what the app checked: that every part is closed, fits on your bed, has no walls thinner than your nozzle, uses no more colours than your printer loads, and so on. Fix anything red first; yellow items are advice. The **Printability** page shows where the model needs support, and **Optimize** turns it to need the least.
 
-**Material and time** gives the grams, metres and cost of each filament and a rough print time. **Colour swap heights** is for printers that load one colour at a time.
+**Material and time** gives the grams, metres and cost of each filament and a rough print time.
+
+**Colour swap heights** is for printers that load one colour at a time. It lists the colour to start with, then each layer where the printer should pause so you can load the next spool. Painted colours count too: each height band or stripe is a swap. To add the pauses:
+
+- **PrusaSlicer**: slice, move the layer slider in the preview to each height and click the **+** beside it.
+- **Bambu Studio** and **OrcaSlicer**: slice, move the layer slider to each height, right-click it and choose **Add pause** (or **Change filament**).
+
+The heights are the top of the first layer in the new colour, as the slider shows them. A layer that has two colours at once (the foot of a name sunk into its plate, say) prints in the colour already loaded. A colour that only ever shares its layers with another, such as a spot of paint on the side of a vase, can't be printed this way: the check names it, so print it as a separate part or paint it in bands.
 
 **Files.** **Download print files** makes a zip with:
 
 - `model-bambu.3mf` for Bambu Studio (drag it in and choose **Import geometry only**), and `model-prusa-orca.3mf` for PrusaSlicer and OrcaSlicer, with every part assigned to its filament;
 - a coloured OBJ, one STL per filament and one merged STL;
-- printing notes and the project file.
+- printing notes and the project file;
+- for a one-colour-at-a-time printer, `colour-changes.txt`: where to pause and which spool to load.
 
 Also on this tab: **A keychain for every name**, **Share a link**, the **Project file** buttons and **Slicer notes**.
 

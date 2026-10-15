@@ -409,11 +409,22 @@ function pageCoverage() {
       [...document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "paint").click(); await new Promise(r => setTimeout(r, 100));
       const b = [...document.querySelectorAll("#secrail button")].find(b => b.dataset.title === "Auto colour"); if (b) b.click();
     });
+    // Session 30: the helper thread colours it, whatever its size (below, the page does it again from nothing)
+    await page.evaluate(() => { window.MakerForge.paint.photo.helperMin = 0; });
     const t0 = Date.now();
     await page.setInputFiles("#photoInput", [fFront, fBack]);
     await page.waitForFunction(() => { const MF = window.MakerForge, o = MF.paint.photo.op; return o && o.views.length === 2 && MF.paint.photo.info(o) && !MF.busy; }, null, { timeout: 240000 }).catch(() => {});
     await settle(page);
     const ms = Date.now() - t0;
+    const same = await page.evaluate(async () => {
+      const MF = window.MakerForge, o = MF.paint.photo.op, runs = MF.paint.photo.helperRuns, a = { pal: JSON.stringify(o.pal), paint: Array.from(MF.parts[0].paint || []) };
+      MF.paint.photo.helperMin = 1e12; MF.paint.photo.forget(); MF.paint.photo.colours(o); MF.paint.repaint(); await new Promise(r => setTimeout(r, 300));
+      const b = { pal: JSON.stringify(o.pal), paint: Array.from(MF.parts[0].paint || []) };
+      MF.paint.photo.helperMin = 40000;
+      return { runs, pal: a.pal === b.pal, paint: a.paint.length > 0 && a.paint.length === b.paint.length && a.paint.every((v, i) => v === b.paint[i]) };
+    });
+    if (!(same.runs >= 2) || !same.pal || !same.paint) findings.push({ where: "paint from a photo", what: `the helper thread's colours differ from the page's: ${JSON.stringify(same)}` });
+    notes.push(`colour from a photo on the helper thread (${same.runs} jobs): the same colours and paint as the page works out, ${same.pal && same.paint ? "yes" : "NO"}`);
     const r = await page.evaluate(() => {
       const MF = window.MakerForge, o = MF.paint.photo.op, p = MF.parts[0], cv = document.querySelector("canvas.photoPrev");
       let yellow = 0; if (cv){ const d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data; for (let i = 0; i < d.length; i += 4) if (d[i] === 255 && d[i + 1] === 214 && d[i + 2] === 0) yellow++; }

@@ -3269,6 +3269,34 @@
     }
     return bits;
   }
+  // One colour per layer, for a printer with one nozzle and nothing to change filament by itself: the spool is
+  // swapped by hand at a pause (M600) between layers (Session 30). A layer with more than one colour keeps the
+  // one already loaded when it has it (a name's foot, sunk into its plate, prints in the plate's colour), else
+  // takes the one that goes on furthest up. bits: layerSlots. Returns { start, swaps: [{ layer, slot }],
+  // mixed: layers that had more than one colour, lost: colours printed in another colour on some layer,
+  // never: colours that never print }.
+  function pauseColours(bits) {
+    let cur = -1, start = -1, mixed = 0, seen = 0, used = 0;
+    const swaps = [], lost = new Set();
+    for (let l = 0; l < bits.length; l++) {
+      const b = bits[l]; if (!b) continue;
+      seen |= b;
+      let pick = -1;
+      if (cur >= 0 && (b >> cur & 1)) pick = cur;
+      else {
+        let reach = -1;
+        for (let s = 0; s < 32; s++) if (b >> s & 1) {
+          let m = l; while (m + 1 < bits.length && (bits[m + 1] >> s & 1)) m++;
+          if (m > reach) { reach = m; pick = s; }
+        }
+      }
+      if (b & ~(1 << pick)) { mixed++; for (let s = 0; s < 32; s++) if ((b >> s & 1) && s !== pick) lost.add(s); }
+      if (start < 0) start = pick; else if (pick !== cur) swaps.push({ layer: l, slot: pick });
+      used |= 1 << pick; cur = pick;
+    }
+    const never = []; for (let s = 0; s < 32; s++) if ((seen >> s & 1) && !(used >> s & 1)) never.push(s);
+    return { start, swaps, mixed, lost: [...lost].sort((a, b) => a - b), never };
+  }
   // how many times the filament changes printing those layers in order, each layer starting with the
   // filament the last one ended with when it can and ending with one the next layer uses; returns
   // { changes, busiest (most filaments in a layer), at (that layer) }
@@ -4432,7 +4460,7 @@
     seededRandom, jigsawGrid, jigsawCut, jigsawEdge, jigsawPiece, jigsawSVG, jigsawCutLines, ringField, ringDistance, outlineBand, strokeText,
     gridAround, heightSheet,
     meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, gradientCuts, gradientLayers, paintGradient, paintSwap, meshShells, paintShells,
-    meshRegions, paintRegions, paintNoise, paintPictureWrap, paintCurvature, curvatureClasses, layerSlots, colourChanges, paintBrush, brushTris, symmetryCopies, areaTris, paintFill, paintPicture, parseOBJ, parse3MFModel,
+    meshRegions, paintRegions, paintNoise, paintPictureWrap, paintCurvature, curvatureClasses, layerSlots, pauseColours, colourChanges, paintBrush, brushTris, symmetryCopies, areaTris, paintFill, paintPicture, parseOBJ, parse3MFModel,
     PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, photoRef, photoUV, PHOTO_K_MAX, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, photoFitCloseness, photoFitFull, photoFitClosenessSteps, photoFitFullSteps, paintFromPhotos, photoLight, photoUnshade, photoLitBy, photoTriNormals, meshBVH, bvhRaycast,
     photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure, cutoutWithMap, edgeOpacity, photoFixMap, photoFixMask,
     parseGLB, parseGLTF, parseMTL, parseOBJColours, modelTriColours, modelPalette, modelColourLabels

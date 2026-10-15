@@ -286,6 +286,11 @@ async function settle() {
   const band = $$("#panel .field").find(f => /Band 2 starts at/.test(f.textContent));
   band.querySelector("input[type=range]").value = "60"; band.querySelector("input[type=range]").dispatchEvent(new win.Event("input")); await sleep(200); await settle();
   check(st().paint.ops[0].cuts[0] === 60 && painted()[1] < before, "moving a band edge repaints", `${before} → ${painted()[1]} triangles in the top colour`);
+  // Session 30: the export follows a repaint that keeps the mesh (it kept the colours from before, since v0.17)
+  st().paint.ops[0].slots = [0, 2]; MF.paint.repaint(); await settle();
+  const exCols = new Set(); MF.exportParts().forEach(q => q.paint && q.paint.forEach(v => exCols.add(v)));
+  check(exCols.has(2) && !exCols.has(1), "a band's colour changed: the print files get the new colour, not the old one", [...exCols].join(", "));
+  st().paint.ops[0].slots = [0, 1]; MF.paint.repaint(); await settle();
   // export
   const ex = MF.exportParts();
   check(ex.length === 1 && ex[0].paint && ex[0].paint.length === C.checkMesh({ pos: ex[0].pos, idx: ex[0].idx }).tris, "export parts carry the paint", ex[0].paint && ex[0].paint.length);
@@ -579,7 +584,7 @@ async function settle() {
   // Session 30: a name plate on a one-filament printer: the name is sunk into the plate, so its foot prints in the
   // plate's colour and its swap comes at the first layer above the plate (it used to be where the name starts)
   toTab("make"); await choose("nameplate");
-  st().printer.colors = 1; st().printer.layer = 0.2; MF.paint.repaint(); await settle();
+  st().model.scale = 100; st().printer.colors = 1; st().printer.layer = 0.2; MF.paint.repaint(); await settle();
   const kw = MF.checks.swaps, kp = MF.printParts();
   const yOf = (slot, f, from) => kp.filter(q => q.slot === slot).reduce((m, q) => { for (let i = 1; i < q.pos.length; i += 3) m = f(m, q.pos[i]); return m; }, from);
   const plateTop = kw.length ? yOf(kw[0].slot, Math.max, -Infinity) : NaN, nameFoot = kw.length > 1 ? yOf(kw[1].slot, Math.min, Infinity) : NaN;

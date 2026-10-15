@@ -50,7 +50,9 @@ Plus, depending on what changed:
 - pictures on objects (placement, the Art tab), or the keys that move artwork → `npm run test:art`
 - colour from a photo (the `photo*` functions in `src/core.js`, the Paint tab's photo step) or the AI figure finder
   (`AI_FIGURE`, `models/`) → `npm run test:photo` (`CORE=1` for the engine only; the test figure and its photos are in
-  `tools-photo-figure.js`; the model runs in Node through the `onnxruntime-web` dev dependency)
+  `tools-photo-figure.js`; the model runs in Node through the `onnxruntime-web` dev dependency). The photo steps on the
+  helper thread (the `photoPaint` job, `photoHelperMin`) only run in a real browser: `npm run check:browser` colours a
+  model there and again on the page, and compares every triangle
 - opening models with their own colours (GLB/glTF, OBJ with vertex colours or an MTL picture: `parseGLB`, `parseGLTF`,
   `parseOBJColours`, `modelTriColours`, the Paint tab's "model" step) or the AI cut-out → `npm run test:aimodel` for
   the models (`CORE=1` for the readers only) and `npm run test:photo` for the cut-out

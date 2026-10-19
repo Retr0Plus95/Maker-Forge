@@ -70,6 +70,15 @@ for (const [gap, want] of [[8, "bridge"], [20, "support"]]) {
   check(want === "bridge" ? r.overhang.area < 0.5 : near(r.overhang.area, gap * 10, 6), `  needs support: ${want === "bridge" ? "none" : gap * 10 + " mm²"}`, r.overhang.area.toFixed(1));
 }
 
+console.log("\na slot with rounded ends through a wall (Session 31: a phone case's button openings)");
+{ // the wall stands upright, 1.6 mm thick; the slot is 12 mm long and 4 mm tall, its ends rounded (radius 2)
+  const hole = C.ringRect(12, 4, 2, 16).map(([u, v]) => [u, v + 6]).reverse();
+  const flat = C.extrudePolysAt([{ outer: [[-15, 0], [15, 0], [15, 12], [-15, 12]], holes: [hole] }], 0, 1.6);
+  const wall = C.affineSolid(flat, [1, 0, 0, 0, 0, -1, 0, 1, 0], [0, 0, 0]);
+  const r = run([part("wall", wall)]), top = r.flats.filter(f => Math.abs(f.y - 8) < 0.1);
+  check(top.length === 1 && top[0].kind === "bridge" && near(top[0].span, 8, 1.5), "its flat top is a bridge between the rounded ends, not a ceiling in the air",
+    top.map(f => `${f.kind} span ${f.span && f.span.toFixed(2)}`).join(", ") || "no flat top found"); }
+
 console.log("\nroof over a closed room (held all round), 9 mm across");
 { const walls = [box(-6.5, 0, -6.5, 6.5, 8, -4.5), box(-6.5, 0, 4.5, 6.5, 8, 6.5), box(-6.5, 0, -4.5, -4.5, 8, 4.5), box(4.5, 0, -4.5, 6.5, 8, 4.5)];
   const r = run([part("walls", C.mergeSolids(walls)), part("roof", box(-6.5, 8, -6.5, 6.5, 10, 6.5))]);

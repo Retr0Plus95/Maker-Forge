@@ -433,7 +433,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.26.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.26.1</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -940,7 +940,7 @@ function newItem(name, canvas, extra){
   }, extra||{});
 }
 const history = { past:[], future:[], timer:0 };
-const runtimeKeys = new Set(["src","thumb","solids","_img","_imgKey","_cm","_raw","_srcCv","_srcSig","_frameW"]);
+const runtimeKeys = new Set(["src","thumb","solids","_img","_imgKey","_cm","_inlay","_raw","_srcCv","_srcSig","_frameW"]);
 const serialize = () => JSON.stringify(state, (k,v)=> runtimeKeys.has(k) ? undefined : v);
 function pushHistory(){
   clearTimeout(history.timer);
@@ -1676,6 +1676,24 @@ function newOpening(kind, face){
   return c;
 }
 function encOrient(L, ccw){ return (C.area2(L) > 0) === ccw ? L : L.slice().reverse(); }
+// An inlaid picture's pocket (Session 31): each region of the picture is cut out of the layer round it, and the
+// islands of that layer inside the picture (the middle of an O, the gap between two stripes) come back, less any
+// picture inside them again. A region nested in another's hole used to become a hole inside a hole, and its
+// island was filled back over it, so case and picture overlapped there in the print.
+// union: the picture's regions [{ outer, holes }], as maskToPolys gives them. Returns the holes for the layer
+// round the picture and the islands, as polygons.
+function inlayPocket(union){
+  const rings = [];
+  union.forEach(q => q.holes.forEach(h => rings.push({ ring:h, inside:C.insideRing(h), area:Math.abs(C.area2(h)), holes:[] })));
+  const top = [];
+  for (const q of union){
+    const [x, y] = q.outer[0];
+    let best = null;
+    for (const r of rings) if ((!best || r.area < best.area) && r.inside(x, y)) best = r;
+    (best ? best.holes : top).push(encOrient(q.outer, false));
+  }
+  return { holes:top, islands:rings.map(r => ({ outer:encOrient(r.ring, true), holes:r.holes })) };
+}
 function encRect(x0, y0, x1, y1){ return [[x0,y0],[x1,y0],[x1,y1],[x0,y1]]; }
 // what an opening's label can say: the engraving font has capitals, digits and - + / . : % and spaces
 function encLabelText(v){ return typeof v === "string" ? v.toUpperCase().replace(/[^A-Z0-9\-+\/.:% ]/g, "").replace(/\s+/g, " ").trim().slice(0, 24) : ""; }
@@ -1832,10 +1850,40 @@ function encLogo(E, lidSlot, area, R, taken, warn){
       let left = false; for (let i=0;i<m.length;i++) if (m[i]){ U[i] = 1; left = true; }
       if (left) masks.push({ slot:k, m });
     });
-    v = masks.length ? { key, U, union:C.maskToPolys(U, gw, gh, { mmPerPx:s }),
-      colours: engrave ? [] : masks.map(({ slot, m }) => ({ slot, polys:C.maskToPolys(m, gw, gh, { mmPerPx:s }) })).filter(c => c.polys.length) } : { key, empty:true };
+    // a gap between colours narrower than the nozzle would leave a strip of lid or case too thin to print (0.19 mm
+    // between the cells of a honeycomb, Session 31): it takes the colour beside it
+    if (rOpen > 0 && masks.length){
+      const Uc = C.closeMask(U, gw, gh, rOpen), owner = new Int16Array(gw*gh).fill(-1), e = rOpen + 1;
+      masks.forEach((mk, n) => { for (let i=0;i<mk.m.length;i++) if (mk.m[i]) owner[i] = n; });
+      let todo = [];
+      for (let j=e;j<gh-e;j++) for (let i=e;i<gw-e;i++){ const k = j*gw + i; if (Uc[k] && !U[k]) todo.push(k); }
+      for (let pass = 0; todo.length && pass < 2*rOpen + 4; pass++){
+        const next = [], got = [];
+        for (const k of todo){ const o = [owner[k-1], owner[k+1], owner[k-gw], owner[k+gw]].find(q => q >= 0); if (o != null) got.push([k, o]); else next.push(k); }
+        for (const [k, o] of got){ owner[k] = o; masks[o].m[k] = 1; U[k] = 1; }
+        todo = next;
+      }
+    }
+    // how well the filaments can show it: a photo (shading, many colours) or colours far from every loaded
+    // filament print as flat areas in the nearest filament, which can look nothing like the picture (Session 31)
+    let far = 0, n = 0; const seen = new Set(), rgb = state.slots.map(sl => C.hexToRgb(sl.hex)), px = img.data;
+    for (let i=0;i<idx.length;i++){
+      if (idx[i] < 0 || px[4*i + 3] < 128) continue;
+      const c = rgb[idx[i]] || rgb[0], r = px[4*i], g = px[4*i + 1], b = px[4*i + 2];
+      if (Math.hypot(r - c[0], g - c[1], b - c[2]) > 80) far++;
+      seen.add((r >> 4) << 8 | (g >> 4) << 4 | (b >> 4)); n++;
+    }
+    const advice = n < 50 ? null : seen.size > 400 ? "photo" : far > n*0.25 ? "colours" : null;
+    // the Art tab's preview shows the colours as they are inlaid (the background left out), and a click on it
+    // leaves a colour out (Session 31: it stayed blank for a case's back and a box's lid)
+    const preview = { cm:{ gx:gw, gy:gh, idx:Int16Array.from(idx, q => bg.has(q) ? -1 : q) }, raw:Int16Array.from(cm.idx) };
+    v = masks.length ? { key, U, preview, advice, union:C.maskToPolys(U, gw, gh, { mmPerPx:s }),
+      colours: engrave ? [] : masks.map(({ slot, m }) => ({ slot, polys:C.maskToPolys(m, gw, gh, { mmPerPx:s }) })).filter(c => c.polys.length) } : { key, preview, empty:true };
     encLogoCache.set(src, v);
   }
+  item._cm = v.preview.cm; item._raw = v.preview.raw; item._inlay = true;
+  if (v.advice === "photo") warn.push({ t:"This looks like a photo", s:`It is inlaid in your ${state.slots.length} loaded filaments as flat areas, so shading and fine detail are lost and it can look rough. A logo, a drawing or text with a few flat colours works best. Colours → Match to artwork sets your filaments to its colours, and Art → Cut out the subject with AI takes the background away.` });
+  else if (v.advice === "colours") warn.push({ t:"The picture's colours aren't loaded", s:"Much of it is far from every loaded filament, so it prints in the nearest ones and may look different. Colours → Match to artwork sets your filaments to its colours." });
   if (v.empty){ warn.push({ t:"The logo came out empty", s:"All of its colours match the lid or the background. Pick a different lid colour, or switch colours back on on the Art tab." }); return null; }
   // keep clear of openings, screw holes and labels on the lid
   const U = v.U;
@@ -2010,8 +2058,8 @@ function buildEnclosure(){
   // engraved labels: the outer skin of a face (depth labDepth) has the strokes cut out of it; the
   // insides of letters (the middle of an O or an A) stay as islands
   const labDepth = th => clamp(+E.labelDepth || 0.4, 0.2, Math.max(0.2, th - 0.6));
-  const labHoles = list => list.map(q => encOrient(q.outer, false));
-  const labIslands = list => list.flatMap(q => q.holes.map(hl => ({ outer: encOrient(hl, true), holes: [] })));
+  const labHoles = list => inlayPocket(list).holes;
+  const labIslands = list => inlayPocket(list).islands;
   for (const [face, F] of Object.entries(faceInfo)){
     const Hw = wallH(face), outer = [[-F.L/2, 0], [F.L/2, 0], [F.L/2, Hw]];
     notchesOn[face].slice().sort((p, q) => q[0] - p[0]).forEach(([x0, x1, yb]) => outer.push([x1, Hw], [x1, yb], [x0, yb], [x0, Hw]));
@@ -3594,7 +3642,7 @@ function heightOf(d, slot){
   return d.height + Math.max(0, order.indexOf(slot))*d.step;
 }
 function buildItem(d){
-  const cm = cellMapFor(d); d._cm = cm;
+  const cm = cellMapFor(d); d._cm = cm; d._inlay = false;
   const W = d.width, H = d.width/d.aspect, embed = baseSoup ? d.embed : 0;
   const proj = C.makeProjector(baseSoup, frameFor(d), W/2, H/2);
   const solids = state.slots.map(()=>null);
@@ -3945,7 +3993,12 @@ $("#vBottom").onclick = ()=>frameCamera(lastSize,"bottom");
 $("#vAngle").onclick = ()=>frameCamera(lastSize,"angle");
 $("#vWire").onclick = e => { viewOpts.wire = !viewOpts.wire; e.currentTarget.setAttribute("aria-pressed", viewOpts.wire); refreshScene(); };
 $("#vLayout").onclick = e => { viewOpts.layout = !viewOpts.layout; e.currentTarget.setAttribute("aria-pressed", viewOpts.layout); refreshScene(); };
-$("#vFlip").onclick = () => { setViewFlags({ flip:!viewOpts.flip }); userMoved = false; refreshScene(); };
+$("#vFlip").onclick = () => { flipChosen = true; setViewFlags({ flip:!viewOpts.flip }); userMoved = false; refreshScene(); };
+// a phone case with a picture in its back is shown turned over, so the picture is in sight: it prints face down,
+// and the right way up it was hidden under the case (Session 31). ⟳ still turns it back, and that choice stays
+// until another object is opened
+let flipChosen = false;
+function autoFlip(want){ if (flipChosen || viewOpts.flip === want) return; setViewFlags({ flip:want }); userMoved = false; }
 // the view's switches that an example may set: turned over (to see a picture on the underside) and laid out
 function setViewFlags(f){
   if ("flip" in f){ viewOpts.flip = !!f.flip; $("#vFlip").setAttribute("aria-pressed", viewOpts.flip); }
@@ -5151,6 +5204,12 @@ async function rebuildAll(resetItems){
         else a.addEventListener("blur", () => { if (tab === "make" && state.base.type === "enclosure") renderTab(); }, { once:true });
       }
     }
+    // the Art tab shows an inlaid picture's preview and its messages (a case's back, a box's lid): they come from the
+    // build, so they are brought up to date when it finishes (Session 31: the preview stayed blank)
+    if (tab === "art" && (t === "phonecase" || t === "enclosure")){
+      const a = document.activeElement, typing = a && a.closest && a.closest("#panel") && a.matches("input,textarea,select");
+      if (artWarnSig() !== renderedArtWarn && !typing) renderTab(); else drawPreview();
+    }
     if (artFailed.length) notify(`This artwork could not be laid on the model, so it is left out: ${artFailed.join(", ")}. Move it, or remove it on the Art tab.`);
   } catch (err){ notify("Could not build the model: " + err.message + errWhere(err) + ". Undo (Ctrl+Z) takes back the last change."); console.error(err); }
   busy = false; buildRev++; lastBuildMs = performance.now() - t0;
@@ -5349,7 +5408,10 @@ function printChecks(info){
     out.push({ k:"warn", t:`Needs support under about ${mm1(oh.area)} mm²`,
       s:`Overhangs steeper than ${oh.angle}° from upright${oh.lowest!=null?`, the lowest at ${oh.lowest.toFixed(1)} mm`:""}.${where}` +
         (long.length ? ` A ${mm1(long[0].span)} mm gap is too long to bridge.` : "") +
-        ` Turn on supports in your slicer, or try Optimize under Export → Printability.` });
+        // a case's openings (Session 31): supports there would fill them, and slicers bridge their tops
+        (state.base.type === "phonecase" && !state.model.orient
+          ? ` On a phone case this is usually the top edge of the button and port openings: slicers bridge them, and supports would fill the openings, so leave supports off. A little sag there is hidden inside the opening.`
+          : ` Turn on supports in your slicer, or try Optimize under Export → Printability.`) });
   } else out.push({ k:"ok", t:"No overhangs need support", s: bridgeNote || `Nothing is steeper than ${oh.angle}° from upright.` });
   if (info.thin.length){
     const t = info.thin[0], n = info.thin.length;
@@ -5511,6 +5573,7 @@ function runChecks(){
       s:`${(I.total*sc).toFixed(1)} mm tall with the lid on. ${I.count} opening${I.count === 1 ? "" : "s"}. ${I.fastenText}` });
     I.warn.forEach(w => list.push({ k:"warn", t:w.t, s:w.s }));
   }
+  if (state.base.type === "phonecase" && phoneInfo) phoneInfo.warn.forEach(w => list.push({ k:"warn", t:w.t, s:w.s }));
   if (state.base.type === "lithophane" && lithoInfo && lithoInfo.shape === "strip")
     list.push({ k:"ok", t:"Print it like the lithophane", s:"Same filament, 100% infill, lying flat. Then hold it to the light you will use." });
   else if (state.base.type === "lithophane" && lithoInfo){
@@ -5526,7 +5589,8 @@ function runChecks(){
       : { k:"ok", t:plateInfo.count ? `${plateInfo.count} name plates, each one solid piece` : "Plate is one solid piece", s:"The letters and the plate print as a single object." });
 
   for (const d of state.items){
-    if (!d._cm || d.mode === "relief") continue;
+    // not a picture that is switched off, nor one inlaid in a case or lid (that inlay clears its own thin bits)
+    if (!d._cm || d.mode === "relief" || d._inlay || d.enabled === false) continue;
     const cell = d.width/d._cm.gx, all = new Uint8Array(d._cm.gx*d._cm.gy);
     for (let i=0;i<all.length;i++) all[i] = d._cm.idx[i] >= 0 ? 1 : 0;
     const before = C.labelMask(all, d._cm.gx, d._cm.gy).comps.length;
@@ -6173,15 +6237,21 @@ function buildPhoneCase(){
     const flipX = list => list.map(q => ({ outer: encOrient(q.outer.map(([x, y]) => [-x, y]), true), holes: q.holes.map(hl => encOrient(hl.map(([x, y]) => [-x, y]), false)) }));
     const depth = clamp(cleanNum(LG.depth, 0.6), 0.2, Math.max(0.2, bT - 0.6));
     if (logo && plate.length){
-      const u = flipX(logo.union), lower = plate.map((q, i) => i === 0 ? { outer:q.outer, holes:[...q.holes, ...u.map(p => encOrient(p.outer, false))] } : q);
-      solids.push(C.extrudePolysAt([...lower, ...u.flatMap(p => p.holes.map(hl => ({ outer:encOrient(hl, true), holes:[] })))], 0, depth), C.extrudePolysAt(plate, depth, bT));
+      // each region's pocket goes into the piece of the back it sits on: a camera bar right across the back
+      // (Pixel 8) splits it in two, and the pocket used to go into the first piece only, leaving the picture
+      // inside solid case (Session 31)
+      const pk = inlayPocket(flipX(logo.union)), lower = plate.map(q => ({ outer:q.outer, holes:q.holes.slice() }));
+      for (const h of pk.holes){ const [x, y] = h[0]; (lower.find(q => C.insideRing(q.outer)(x, y)) || lower[0]).holes.push(h); }
+      solids.push(C.extrudePolysAt([...lower, ...pk.islands], 0, depth), C.extrudePolysAt(plate, depth, bT));
     } else if (plate.length) solids.push(C.extrudePolysAt(plate, 0, bT));
     const parts = [{ name:"Case", slot, solid:C.mergeSolids(solids.filter(Boolean)) }];
     if (logo) logo.colours.forEach(col => parts.push({ name:`Back picture (${state.slots[col.slot].name})`, slot:col.slot, solid:C.extrudePolysAt(flipX(col.polys), 0, depth) }));
     phoneInfo = { spec:{ W, H, D }, outside:[W + 2*(fit + t), H + 2*(fit + t), Ht], inside:[W + 2*fit, H + 2*fit], holes:holes.length, warn, bumper:false, logo:!!logo, bumpOut:Math.max(0, (+S.bump || 0) - bT) };
+    autoFlip(!!logo);
     return parts;
   }
   phoneInfo = { spec:{ W, H, D }, outside:[W + 2*(fit + t), H + 2*(fit + t), Ht], inside:[W + 2*fit, H + 2*fit], holes:holes.length, warn, bumper:true, logo:false, bumpOut:0 };
+  autoFlip(false);
   if (K.test) phoneInfo.test = true;
   // a bumper or the fit test: the wall alone, with a narrow ledge inside at the bottom to hold the phone
   const ledge = C.extrudePolysAt([{ outer:encOrient(C.ringRect(W + 2*(fit + 0.4), H + 2*(fit + 0.4), R + fit + 0.4, 12), true), holes:[encOrient(C.ringRect(W - 4, H - 4, Math.max(1, R - 2), 12), false)] }], 0, bT);
@@ -6249,6 +6319,7 @@ function phonecaseFields(p){
     checkField(g, "Inlay the artwork into the back", () => K.logo.on === true, v => { K.logo.on = v; renderTab(); baseChanged(); });
     if (!K.logo.on) { note(g, "The picture from the Art tab, in your loaded filaments, set flush into the back's first layers: crisp and support-free."); return; }
     if (!state.items.length) g.insertAdjacentHTML("beforeend", `<div class="card empty">Add a picture or some text on the <b>Art</b> tab first.</div>`);
+    note(g, "The case is shown turned over, so you can see the picture: the back prints face down on the bed, picture first. The ⟳ button above the model turns it back.");
     segField(g, [["inlay","Inlaid in colour"],["engrave","Engraved"]], () => K.logo.mode, v => { K.logo.mode = v; renderTab(); baseChanged(); }, "two");
     numField(g,{ label:"Width (mm)", min:5, max:120, step:1, get:()=>K.logo.width, set:v=>K.logo.width=v, onChange:baseChanged });
     numField(g,{ label:"Move right (mm, seen from the back)", min:-60, max:60, step:0.5, get:()=>K.logo.x, set:v=>K.logo.x=v, onChange:baseChanged });
@@ -7329,6 +7400,37 @@ function turnedFields(p){
 }
 
 /* ---- Art ---- */
+// "Match to artwork": the loaded filaments set to the picture's main colours. With a picture inlaid in a phone case's
+// back or a box's lid, the case's (or lid's) own filament stays as it is, the picture's background (the colour round
+// most of its border) is left out, and each changed filament is named after its colour (Session 31: it used to turn
+// the case itself into one of the picture's colours, and spend a filament on the background)
+function matchToArtwork(){
+  const d = state.items[state.active] || state.items[0];
+  if (!d || !sourceCanvas(d)){ notify("Add some artwork first."); return; }
+  const w = 160, h = Math.max(2, Math.round(160/d.aspect)), img = resample(sourceCanvas(d), w, h, false), px = img.data;
+  const T = state.base.type, P0 = state.base.phonecase, E0 = state.base.enclosure;
+  const keepSlot = T === "phonecase" && P0 && P0.style !== "bumper" && P0.logo && P0.logo.on ? clamp(state.base.slot, 0, state.slots.length - 1)
+    : T === "enclosure" && E0 && E0.lid !== "none" && E0.logo && E0.logo.on ? clamp(+E0.lidSlot || 0, 0, state.slots.length - 1) : -1;
+  if (keepSlot >= 0){
+    const q = i => (px[i] >> 5) << 6 | (px[i + 1] >> 5) << 3 | (px[i + 2] >> 5), count = new Map(), add = i => count.set(q(i), (count.get(q(i)) || 0) + 1);
+    for (let x=0;x<w;x++){ add(4*x); add(4*((h - 1)*w + x)); }
+    for (let y=1;y<h-1;y++){ add(4*y*w); add(4*(y*w + w - 1)); }
+    const [top, n] = [...count].sort((a, b) => b[1] - a[1])[0];
+    if (n >= (2*w + 2*h - 4)*0.5) for (let i=0;i<px.length;i+=4) if (q(i) === top) px[i + 3] = 0;
+  }
+  const free = state.slots.map((_, i) => i).filter(i => i !== keepSlot), cs = C.kmeans(px, free.length), used = new Map();
+  cs.forEach((c, j) => {
+    const sl = state.slots[free[j]]; sl.hex = C.rgbToHex(c[0], c[1], c[2]);
+    if (keepSlot >= 0){ const wd = colourWord(c), k = (used.get(wd) || 0) + 1; used.set(wd, k); sl.name = (k > 1 ? `${wd} ${k}` : wd) + (sl.mat && sl.mat !== "PLA" ? " " + sl.mat : ""); }
+  });
+  renderTab(); dirty(); pushHistory();
+  notify(keepSlot >= 0 ? `Your other filaments now match the picture; ${state.slots[keepSlot].name} stays for the ${T === "phonecase" ? "case" : "lid"}. Nudge them towards spools you own.` : "Colours matched. Nudge them towards spools you own.");
+}
+// the messages about a picture inlaid in a case's back or a box's lid, for the Art tab (Session 31)
+const artWarnings = () => (((state.base.type === "phonecase" ? phoneInfo : state.base.type === "enclosure" ? enclosureInfo : null) || {}).warn || [])
+  .filter(w => /logo|picture|photo/i.test(w.t));
+const artWarnSig = () => artWarnings().map(w => w.t + w.s).join("|");
+let renderedArtWarn = "";
 function tabArt(p){
   p.insertAdjacentHTML("beforeend", `
     <label class="drop" id="drop" for="fileInput" tabindex="0">
@@ -7375,10 +7477,16 @@ function tabArt(p){
     drawPreview();
     return;
   }
+  if (lidLogo || backLogo){
+    renderedArtWarn = artWarnSig();
+    const aw = artWarnings();
+    aw.forEach(w => p.insertAdjacentHTML("beforeend", `<div class="result warn"><span class="dot"></span><div><b>${esc(w.t)}</b><span class="s">${esc(w.s)}</span></div></div>`));
+    if (aw.some(w => /photo|colours aren't loaded/.test(w.t))) buttonRow(p, [["Match my filaments to this picture", matchToArtwork]]);
+  }
   if (consumer){
     p.insertAdjacentHTML("beforeend", `<h2>Size and place</h2>`);
     note(p, lidLogo ? "This picture is inlaid into the lid. Its size and place are set on the Make tab, under <b>Logo on the lid</b>."
-      : backLogo ? "This picture is inlaid into the back of the case. Its size and place are set on the Make tab, under <b>Picture on the back</b>."
+      : backLogo ? "This picture is inlaid into the back of the case, which prints face down: the case is shown turned over so you can see it. Its size and place are set on the Make tab, under <b>Picture on the back</b>."
       : `This picture becomes the <b>${esc((SHAPE_LABEL[state.base.type]||state.base.type).toLowerCase())}</b> itself, so its size and shape are set on the Make tab.`);
     buttonRow(p, [["Open the Make tab", ()=>{ tab = "make"; renderTab(); }]]);
     if (uses("width")) numField(p,{ label:"Width (mm)", min:5,max:250,step:0.5, get:()=>d.width, set:v=>d.width=v, onChange:ch, sub:()=>`Height ${(d.width/d.aspect).toFixed(1)} mm` });
@@ -7636,13 +7744,7 @@ function tabColour(p){
     ["Add filament", ()=>{ if (state.slots.length >= MAX_SLOTS){ notify("Eight filaments is the maximum."); return; }
       state.slots.push({ hex:"#8a8f94", name:`Filament ${state.slots.length+1}`, mat:"PLA", price:22 });
       renderTab(); dirty(); pushHistory(); }],
-    ["Match to artwork", ()=>{
-      const d = state.items[state.active] || state.items[0];
-      if (!d || !sourceCanvas(d)){ notify("Add some artwork first."); return; }
-      const img = resample(sourceCanvas(d), 160, Math.max(2,Math.round(160/d.aspect)), false);
-      C.kmeans(img.data, state.slots.length).forEach((c,i)=>state.slots[i].hex = C.rgbToHex(c[0],c[1],c[2]));
-      renderTab(); dirty(); pushHistory(); notify("Colours matched. Nudge them towards spools you own.");
-    }]
+    ["Match to artwork", matchToArtwork]
   ]);
   group(p,"Palettes", g2 => {
     Object.entries(PALETTES).forEach(([name,cols])=>{
@@ -8689,7 +8791,7 @@ async function importModelFile(file, others){
   // its paint steps, scale and filaments are kept
   const again = state.base.type === "stl" && !stlData && !!state.base.stl && state.base.stl.name === name;
   if (!again) clearPaintForNewModel();
-  dropExamples(); setViewFlags({ flip:false, layout:false });      // an example's picture would be stamped on the imported model
+  dropExamples(); flipChosen = false; setViewFlags({ flip:false, layout:false });      // an example's picture would be stamped on the imported model
   if (!again && !paint) paintUI.method = own ? "model" : "photo";   // a plain model: colouring it from a photo comes first
   stlData = y; stlPaint = paint; stlColour = own; stlCache = null; stlName = name; state.base.type = "stl";
   rememberModel(name, y, paint, own);
@@ -9291,7 +9393,7 @@ function exampleBaseFree(base){
 }
 async function loadExample(key, preset){
   const token = ++exampleToken, ex = key && encHas(EXAMPLES, key) ? EXAMPLES[key] : null;
-  dropExamples(); setViewFlags({ flip:false, layout:false });
+  dropExamples(); flipChosen = false; setViewFlags({ flip:false, layout:false });
   if (!ex || state.items.some(it => !it.example)) return false;
   const art = ex.art ? await exampleCanvas(ex.art) : null;
   if (token !== exampleToken) return false;            // another start was picked meanwhile

@@ -1736,7 +1736,8 @@
       for (let q = s; q < order.length && ys[order[q]] - y < 0.05; q++) if (!used[order[q]]) { used[order[q]] = 1; group.push(flatTris[order[q]]); }
       let mn0 = Infinity, mn2 = Infinity, mx0 = -Infinity, mx2 = -Infinity;
       group.forEach(t => { for (let k = 0; k < 3; k++) { const x = V[t * 9 + k * 3], z = V[t * 9 + k * 3 + 2]; mn0 = Math.min(mn0, x); mx0 = Math.max(mx0, x); mn2 = Math.min(mn2, z); mx2 = Math.max(mx2, z); } });
-      const c = Math.max(0.2, Math.max(mx0 - mn0, mx2 - mn2) / 250), g = gridOver(mn0, mn2, mx0, mx2, c, 3);
+      // the window reaches 3 mm round the ceilings: as far as a rounded corner that holds one is looked for
+      const c = Math.max(0.2, Math.max(mx0 - mn0, mx2 - mn2) / 250), g = gridOver(mn0, mn2, mx0, mx2, c, Math.max(3, Math.ceil(3.2 / c)));
       const R = new Uint8Array(g.w * g.h), owner = new Int32Array(g.w * g.h).fill(-1);
       group.forEach(t => {
         const o9 = t * 9, x0 = V[o9], z0 = V[o9 + 2], x1 = V[o9 + 3], z1 = V[o9 + 5], x2 = V[o9 + 6], z2 = V[o9 + 8];
@@ -1756,10 +1757,53 @@
       // one pass for the whole height level: which cells hold a region up, how far every cell is
       // from such a cell, how deep every cell sits inside its region, and which anchors connect
       const anchor = new Uint8Array(g.w * g.h), notR = new Uint8Array(g.w * g.h);
+      // A rounded corner under a ceiling's edge holds it as a wall does (Session 31). Just below the ceiling there
+      // is no material beside the edge (the corner curves away), but a little lower there is, close by and all the
+      // way down: the rounded ends of a slot in a wall, whose top is a bridge between them. A cell beside the
+      // region counts when, for some depth d, material lies within 2.5 d of it at d and at every shallower depth
+      // (a circular corner reaches its 45° point at 2.4 times its depth); a ledge over a lower step, with only air
+      // in between, does not.
+      // The distance is measured round the region, never across it: under a lip the slope that carries it lies
+      // beneath the region, which holds its root, not its free edge.
+      const DEPTHS = [0.3, 0.6, 0.9, 1.2], dist = [];
+      const roundDist = mat => {
+        const d = new Float32Array(g.w * g.h), W = g.w, H = g.h, D2 = Math.SQRT2;
+        for (let i = 0; i < d.length; i++) d[i] = R[i] || !mat[i] ? 1e9 : 0;
+        for (let it = 0; it < 2; it++) {
+          for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+            const k = j * W + i; if (R[k]) continue; let v = d[k];
+            if (i > 0) v = Math.min(v, d[k - 1] + 1);
+            if (j > 0) { v = Math.min(v, d[k - W] + 1); if (i > 0) v = Math.min(v, d[k - W - 1] + D2); if (i < W - 1) v = Math.min(v, d[k - W + 1] + D2); }
+            d[k] = v;
+          }
+          for (let j = H - 1; j >= 0; j--) for (let i = W - 1; i >= 0; i--) {
+            const k = j * W + i; if (R[k]) continue; let v = d[k];
+            if (i < W - 1) v = Math.min(v, d[k + 1] + 1);
+            if (j < H - 1) { v = Math.min(v, d[k + W] + 1); if (i < W - 1) v = Math.min(v, d[k + W + 1] + D2); if (i > 0) v = Math.min(v, d[k + W - 1] + D2); }
+            d[k] = v;
+          }
+        }
+        return d;
+      };
+      // And the cell must be solid just above the ceiling's level, as the wall over a slot's end is: beside a beam
+      // between two posts, or past a lip's free edge, there is only air there.
+      let above = null;
+      const nearHold = i => {
+        if (!above) above = sliceMask(F, y + 0.05, g);
+        if (!above[i]) return false;
+        for (let k = 0; k < DEPTHS.length; k++) {
+          if (!dist[k]) dist[k] = roundDist(sliceMask(F, y - DEPTHS[k], g));
+          const lim = 2.5 * DEPTHS[k] / c;
+          let ok = true;
+          for (let m = 0; m <= k && ok; m++) if (dist[m][i] > lim) ok = false;
+          if (ok) return true;
+        }
+        return false;
+      };
       for (let i = 0; i < R.length; i++) {
         notR[i] = R[i] ? 0 : 1;
-        if (R[i] || !below[i]) continue;
-        if (R[i - 1] || R[i + 1] || R[i - g.w] || R[i + g.w]) anchor[i] = 1;
+        if (R[i] || !(R[i - 1] || R[i + 1] || R[i - g.w] || R[i + g.w])) continue;
+        if (below[i] || nearHold(i)) anchor[i] = 1;
       }
       const toAnchor = edt(anchor, g.w, g.h), din = edt(notR, g.w, g.h);
       const runsLab = labelMask(dilateMask(anchor, g.w, g.h, 1), g.w, g.h).lab;
@@ -1784,8 +1828,10 @@
         const frac = c0.edge ? held / c0.edge : 0, twoSided = runs >= 2 || frac >= 0.9;
         // how far the region sticks out: twice its deepest point, measured from its own edge
         const width = Math.max(c, (2 * c0.deep - 1) * c);
-        const kind = held && twoSided && reach * 2 <= (o.bridge ?? 10) ? "bridge" : held && Math.min(width, reach) <= (o.ledge ?? 1) ? "ledge" : "support";
-        out.push({ kind, y, area: areaMM, span: isFinite(reach) ? (twoSided ? reach * 2 : Math.min(width, reach)) : null, part: c0.part,
+        // a narrow strip held along its root is a ledge, even where openings break that root into several stretches
+        // (Session 31: those stretches looked like holds on two sides, so a phone case's lip read as a bridge)
+        const kind = held && width <= (o.ledge ?? 1) ? "ledge" : held && twoSided && reach * 2 <= (o.bridge ?? 10) ? "bridge" : held && Math.min(width, reach) <= (o.ledge ?? 1) ? "ledge" : "support";
+        out.push({ kind, y, area: areaMM, span: isFinite(reach) ? (twoSided && kind !== "ledge" ? reach * 2 : Math.min(width, reach)) : null, part: c0.part,
           x: g.x0 + (cp.cx + 0.5) * c, z: g.z0 + (cp.cy + 0.5) * c });
       });
     }

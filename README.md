@@ -5,7 +5,7 @@
 Free and open source (MIT). One HTML file: no install, no account, no uploads. It runs on your own computer, tablet or phone, even offline.
 
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-2a9d8f)](LICENSE)
-[![Version 0.25](https://img.shields.io/badge/version-0.25-1f6f8b)](CHANGELOG.md)
+[![Version 0.27](https://img.shields.io/badge/version-0.27-1f6f8b)](CHANGELOG.md)
 [![Runs in the browser](https://img.shields.io/badge/runs%20in-your%20browser-e9c46a)](#get-started-in-a-minute)
 [![Exports 3MF, STL, OBJ](https://img.shields.io/badge/exports-3MF%20·%20STL%20·%20OBJ-d1495b)](#printers-and-slicers)
 
@@ -48,6 +48,7 @@ Every button in the **Start from** sidebar opens with a finished example, so you
 
 - **Multi-colour without painting in the slicer.** Every colour of your picture becomes its own part, assigned to its own filament, so the 3MF opens in Bambu Studio, OrcaSlicer or PrusaSlicer ready to print on an AMS, AMS lite, MMU3, CFS or ACE. One-colour printers get a list of the layers at which to pause and swap filament, painted colours included, and a `colour-changes.txt` that says how to add the pauses in each slicer.
 - **Printer-aware checks.** Choose your printer (39 models) and the app checks that the design fits the bed, uses no more colours than the printer loads, has no walls thinner than the nozzle and needs no surprise supports. It estimates grams, cost and time, including the filament flushed at every colour change.
+- **Engrave, inlay and cut.** Text and pictures can stand out, be cut into the surface, or be set in flush in their own colours, on anything from a coaster to an imported figure. An imported model can be cut flat at the bottom so it stands.
 - **Photo to 3D.** Trace a real part from a photo, turn a photo into a lithophane or a relief, or colour a 3D model from a photo of the real thing (with an optional small AI model that finds the figure on a busy background, and a brush to fix what it found by hand).
 - **AI where it helps, on your computer.** Cut the subject out of a photo with one click, so only your pet or your face prints on a keychain or a badge. Open a textured model from an AI 3D generator and print it in its own colours. The AI runs in your browser; nothing is sent anywhere.
 - **Private.** Nothing is uploaded, ever. No account, no tracking, no adverts.
@@ -67,6 +68,8 @@ Every button in the **Start from** sidebar opens with a finished example, so you
 | ![A bracket traced from a photo, with its holes found](docs/images/tracer-example.jpg) | ![A sunset lightbox laid out as it prints, fitting a 256 mm bed](docs/images/lightbox-example.jpg) |
 | **Colours**: the filaments you have loaded | **Export**: checks, material, time and files |
 | ![The Colours tab with four filaments for the jigsaw](docs/manual/colours-tab.jpg) | ![The Export tab with the car badge ready to print](docs/manual/export-tab.jpg) |
+| **Engrave or inlay** text and pictures, into imported models too: a number set flush in a figure's shirt, the figure cut flat to stand | **Inlaid**: a picture set flush into a coaster, in its own colours |
+| ![A footballer figure in its own colours, cut flat at the feet, with a dark 10 inlaid flush in the white patch on its back](docs/images/cut-figure.jpg) | ![The Art tab's How it prints page with Inlaid chosen, and a bee and honeycomb inlaid flush into a hexagonal coaster](docs/manual/art-cut.jpg) |
 | **Models with their own colours**: a GLB like AI model makers give | **Fix the figure by hand**: the background darkened, brush strokes to correct it |
 | ![A footballer figure opened from a GLB with a colour picture, painted in its six colours on the Paint tab](docs/images/model-colours.jpg) | ![The photo card with a bookshelf photo: the figure found, the background darkened, and the Take away and Add to the figure brushes](docs/images/photo-fix.jpg) |
 | **The user manual**, built in (press ?) | **Easy reading**: bigger text and high contrast |

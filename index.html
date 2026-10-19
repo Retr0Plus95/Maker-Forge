@@ -11702,7 +11702,7 @@ const SECTION_HELP = [
   [/letters and colou?rs/i, "Raised letters show a second colour. Engraved letters need only one filament and survive pockets better."],
   [/fine tuning/i, "Bridge gaps joins letters that almost touch. Curving the name breaks the joins of handwriting fonts."],
   [/size and place|nudge/i, "Click the model to move the selected artwork there, or nudge it with the arrow keys."],
-  [/how it prints/i, "Flat colour suits logos; stepped adds depth per colour; relief and lithophane turn brightness into thickness."],
+  [/how it prints/i, "Flat colour suits logos; stepped adds depth per colour; relief and lithophane turn brightness into thickness. On an object, a picture can stand out (raised), be cut in (engraved) or be set in flush in its colours (inlaid)."],
   [/outline/i, "An outline in one colour holds separate pieces together, like the border of a sticker."],
   [/adjust/i, "Adjust brightness and contrast until the colour preview shows clean, separate areas."],
   [/before you print/i, "Fix anything red first. Yellow items are advice."],
@@ -13969,9 +13969,9 @@ function photoCard(c){
       e.preventDefault(); clearTimeout(photoTimer);
       if ((v.fix || []).length >= PHOTO_FIX_MAX.strokes || fixNumbers() >= PHOTO_FIX_MAX.numbers - 2){ notify("This photo has as many fixes as it can keep. Clear them, or undo some, to fix more."); return; }
       const [fx, fy] = photoAt(e); stroke = { add:paintUI.photoTool === "add", r:+fixR().toFixed(4), p:[+fx.toFixed(4), +fy.toFixed(4)] };
-      (v.fix || (v.fix = [])).push(stroke); cv.setPointerCapture && cv.setPointerCapture(e.pointerId); ring = [fx, fy]; later(); return;
+      (v.fix || (v.fix = [])).push(stroke); if (cv.setPointerCapture) try { cv.setPointerCapture(e.pointerId); } catch(err){} ring = [fx, fy]; later(); return;
     }
-    if (!v.fit) return; photoBake(v); drag = { x:e.clientX, y:e.clientY }; cv.setPointerCapture && cv.setPointerCapture(e.pointerId); });
+    if (!v.fit) return; photoBake(v); drag = { x:e.clientX, y:e.clientY }; if (cv.setPointerCapture) try { cv.setPointerCapture(e.pointerId); } catch(err){} });
   cv.addEventListener("pointermove", e => {
     if (stroke){
       const [fx, fy] = photoAt(e), p = stroke.p, n = p.length, asp = cv.width / Math.max(1, cv.height);

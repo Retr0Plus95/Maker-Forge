@@ -21,6 +21,9 @@ const LIBS = [
   [/three@[\d.]+\/examples\/js\/controls\/OrbitControls\.js/, "three/examples/js/controls/OrbitControls.js"],
   [/earcut@[\d.]+\/dist\/earcut\.min\.js/, "earcut/dist/earcut.min.js"],
   [/jszip@[\d.]+\/dist\/jszip\.min\.js/, "jszip/dist/jszip.min.js"],
+  // Manifold (Session 32), which the app downloads when artwork is engraved or inlaid: from its copy in models/
+  [/manifold-3d@[\d.]+\/manifold\.js/, "../models/manifold.js"],
+  [/manifold-3d@[\d.]+\/manifold\.wasm/, "../models/manifold.wasm"],
 ];
 const ONLY = process.env.ONLY ? process.env.ONLY.split(",") : null;
 const MANUAL = path.join(__dirname, "docs/manual"), IMAGES = path.join(__dirname, "docs/images");
@@ -48,6 +51,9 @@ const figureKit = () => { globalThis.earcut = globalThis.earcut || require("earc
     const i = await page.evaluate(src => [...document.querySelectorAll("#secrail button")].findIndex(b => new RegExp(src, "i").test(b.textContent)), re);
     if (i >= 0) { await page.click(`#secrail button >> nth=${i}`); await page.waitForTimeout(400); }
   };
+  // the Art tab's How it prints page (Raised, Engraved, Inlaid): its own page on a wide screen, a heading on a narrow one
+  const howItPrints = async page => { await page.evaluate(() => { const b = document.querySelector('#secrail button[data-title="How it prints"]');
+    if (b) b.click(); else { const h = [...document.querySelectorAll("#panel h2")].find(x => /How it prints/.test(x.textContent)); if (h) h.scrollIntoView({ block: "start" }); } }); await page.waitForTimeout(500); };
   const quiet = page => page.evaluate(() => document.querySelector("#notice").classList.remove("show"));
   const shot = async (page, file, clip) => { await quiet(page); await page.waitForTimeout(200); await page.screenshot({ path: file, type: "jpeg", quality: 84, clip }); console.log("  " + path.relative(__dirname, file)); };
 
@@ -156,6 +162,41 @@ const figureKit = () => { globalThis.earcut = globalThis.earcut || require("earc
       await shot(page, path.join(IMAGES, "photo-fix.jpg"));
       [fPhoto, fObj].forEach(f => fs.unlinkSync(f)); await ctx.close();
     },
+    // Session 32: the footballer opened in its own colours, cut flat at the feet, with a 10 inlaid in the white patch on its back
+    async cutfigure() {
+      const { F, PC } = figureKit(), small = F.figure(2.5), cls = F.truth(PC.meshTopology(small.solid), small.partOf), f = path.join(TMP, "footballer.glb");
+      fs.writeFileSync(f, F.figureGLB(small.solid, cls, encodePNG));
+      const { ctx, page } = await open();
+      await page.evaluate(() => { const MF = window.MakerForge; MF.state.items.length = 0; MF.state.active = -1; MF.state.printer.colors = 6; document.querySelector("#objectSel").value = "stl"; });
+      await page.setInputFiles("#stlInput", f);
+      await page.waitForFunction(() => window.MakerForge.model.colour && window.MakerForge.state.paint.ops.some(o => o.k === "model"), null, { timeout: 180000 });
+      await idle(page);
+      await page.evaluate(() => { window.MakerForge.state.base.stl.flat = 3; window.MakerForge.rebuild(true); }); await idle(page);
+      await tab(page, "art");
+      await page.evaluate(() => [...document.querySelectorAll("#panel button")].find(b => b.textContent.trim() === "Add text").click()); await idle(page);
+      await page.evaluate(() => {
+        const MF = window.MakerForge, C = MF.core, b = C.solidBounds(MF.parts[0].solid0 || MF.parts[0].solid), d = MF.state.items[MF.state.items.length - 1];
+        const lum = h => { const n = parseInt(h.slice(1), 16); return 0.3 * (n >> 16) + 0.59 * (n >> 8 & 255) + 0.11 * (n & 255); };
+        d.text.value = "10"; d.text.font = "Bebas Neue"; d.text.weight = 400; d.src = null; d.thumb = null; d._imgKey = ""; d._srcSig = "";
+        d.place = { c: [(b.mn[0] + b.mx[0]) / 2, b.mn[1] + (b.mx[1] - b.mn[1]) * 0.62, b.mn[2]], n: [0, 0, -1] };
+        d.width = (b.mx[0] - b.mn[0]) * 0.3; d.cut = "inlay"; d.depth = 0.8;
+        d.forceSlot = MF.state.slots.map((s, i) => [lum(s.hex), i]).sort((x, y) => x[0] - y[0])[0][1]; d.solids = null;   // the darkest, on the shirt's white number patch
+        MF.render(); MF.rebuild(false);
+      });
+      await idle(page);
+      await page.evaluate(() => { const MF = window.MakerForge, c = MF.controls, cam = MF.camera, t = c.target; MF.render(); cam.position.set(t.x + 55, t.y + 30, t.z - 150); c.update(); MF.requestRender(); });
+      await howItPrints(page);
+      if (process.env.DEBUG) console.log(await page.evaluate(() => { const MF = window.MakerForge, C = MF.core, d = MF.state.items[MF.state.items.length - 1];
+        let ink = 0; for (const v of d._cm.idx) if (v >= 0) ink++;
+        return JSON.stringify({ cells: d._cm.idx.length, ink, src: [d.src.width, d.src.height], parts: MF.parts.map(q => [q.name, q.inlay ? "inlay" : "", C.checkMesh(q.solid).tris, C.checkMesh(q.solid).volume.toFixed(1), !!q.paint]), info: d._cutInfo }); }));
+      await shot(page, path.join(IMAGES, "cut-figure.jpg")); fs.unlinkSync(f); await ctx.close();
+    },
+    // Session 32: the coaster's picture inlaid flush (a smooth top), with Raised, Engraved and Inlaid on the Art tab
+    async artcut() {
+      const { ctx, page } = await open(); await object(page, "hex"); await tab(page, "art");
+      await page.evaluate(() => { const b = [...document.querySelectorAll("#panel .seg button")].find(x => x.dataset.k === "inlay"); if (b) b.click(); });
+      await idle(page); await howItPrints(page); await shot(page, path.join(MANUAL, "art-cut.jpg")); await ctx.close();
+    },
     async tracer() { const { ctx, page } = await open(); await preset(page, "Trace a part"); await shot(page, path.join(IMAGES, "tracer-example.jpg")); await ctx.close(); },
     async lightbox() { const { ctx, page } = await open(); await preset(page, "Lightbox"); await shot(page, path.join(IMAGES, "lightbox-example.jpg")); await ctx.close(); },
     // a gallery of examples, rendered large on a clear background and set out in a grid with their names
@@ -172,7 +213,8 @@ const figureKit = () => { globalThis.earcut = globalThis.earcut || require("earc
         await ctx.close(); process.stdout.write(".");
       }
       console.log("");
-      const { ctx, page } = await open(1500, 900);
+      // a blank page, not the app's: the app's own timers would look for its elements after they are replaced
+      const ctx = await browser.newContext({ viewport: { width: 1500, height: 900 }, colorScheme: "light" }), page = await ctx.newPage();
       await page.setContent(`<body style="margin:0;background:#eef1f4;font:600 17px system-ui,sans-serif;color:#22303c">
         <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;padding:14px;width:1472px;box-sizing:border-box">${tiles.map(([n, u]) =>
         `<figure style="margin:0;background:#fff;border-radius:12px;padding:6px 6px 8px;text-align:center"><img src="${u}" style="width:100%;display:block">${n.replace(/</g, "&lt;")}</figure>`).join("")}</div></body>`);

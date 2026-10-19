@@ -153,6 +153,8 @@ The **Art** tab puts pictures and words on the object.
 
 On an object, a flat or stepped picture can also be cut into it. Choose under **How it prints**:
 
+![The How it prints page with Inlaid chosen: a bee and honeycomb set flush into a coaster](docs/manual/art-cut.jpg)
+
 - **Raised**: the picture stands out from the surface.
 - **Engraved**: the picture is cut into the surface, in the object's own colour. **Depth** sets how deep.
 - **Inlaid**: the picture is cut in and filled with its own colours, flush with the surface. A colour that is the object's own stays part of the object. Three or four layers deep (0.6 to 0.8 mm) is enough for the colours to show.

@@ -102,12 +102,70 @@ async function settle() {
   P = await build({ logo: Object.assign(K().logo, { on: true, width: 40, x: 0, y: -20 }) });
   check(P.length >= 2 && P.every(closed) && P.slice(1).every(p => C.solidBounds(p.solid).mn[1] < 1e-6 && C.solidBounds(p.solid).mx[1] <= K().logo.depth + 1e-6),
     "the picture is inlaid in the back's first layers, one part per colour", P.map(p => p.name).join(", "));
+  // Session 31: the picture prints face down, so the case is shown turned over; the Art tab's preview has its colours
+  const flipped = () => document.querySelector("#vFlip").getAttribute("aria-pressed") === "true", item = st().items[st().active];
+  check(flipped(), "with a picture in the back, the case is shown turned over so the picture is in sight");
+  check(item._cm && item._cm.idx.some(v => v >= 0) && item._cm.idx.some(v => v < 0) && item._inlay, "the Art tab's preview has the picture in its colours, the background left out", item._cm && `${item._cm.gx} × ${item._cm.gy}`);
+  K().logo.on = false; MF.rebuild(false); await settle();
+  check(!flipped(), "without one it is shown the right way up again");
+  K().logo.on = true; MF.rebuild(false); await settle();
+  document.querySelector("#vFlip").click(); await settle(); MF.rebuild(false); await settle();
+  check(!flipped(), "turned back with ⟳, it stays that way after the next change");
+  document.querySelector("#vFlip").click(); await settle();
+  P = MF.parts;
   const pic = P.slice(1).map(p => C.solidBounds(p.solid)), cx = (Math.min(...pic.map(b => b.mn[0])) + Math.max(...pic.map(b => b.mx[0]))) / 2;
   await build({ logo: Object.assign(K().logo, { x: 10 }) });
   const pic2 = MF.parts.slice(1).map(p => C.solidBounds(p.solid)), cx2 = (Math.min(...pic2.map(b => b.mn[0])) + Math.max(...pic2.map(b => b.mx[0]))) / 2;
   check(near(cx2 - cx, -10, 0.5), "moving it right (seen from the back) moves it left seen from above", `${(cx2 - cx).toFixed(2)} mm`);
   await build({ logo: Object.assign(K().logo, { x: 0, y: 60, width: 60 }) });
   check(MF.parts.length === 1 && MF.phone.info.warn.some(w => /camera|back/i.test(w.t + w.s)), "over the camera opening it is left off, with a message", MF.phone.info.warn.map(w => w.t).join(" / "));
+  // Session 31: the picture's pocket is cut where the picture is. The back's first layers (z = 0) are case or
+  // picture, never both: a camera bar right across the back (Pixel 8) splits it in two, and the pocket used to go
+  // into the first piece only, so the whole picture sat inside solid case; a part of the picture inside a gap of
+  // another (a bullseye) used to be covered by case too
+  const downArea = s => { let a = 0; const Q = s.pos, I = s.idx; for (let t = 0; t < I.length; t += 3) { const A = 3 * I[t], B = 3 * I[t + 1], D = 3 * I[t + 2];
+    if (Math.max(Math.abs(Q[A + 1]), Math.abs(Q[B + 1]), Math.abs(Q[D + 1])) > 1e-4) continue;
+    a += Math.abs((Q[B] - Q[A]) * (Q[D + 2] - Q[A + 2]) - (Q[B + 2] - Q[A + 2]) * (Q[D] - Q[A])) / 2; } return a; };
+  const overlap = async () => {
+    K().logo.on = false; MF.rebuild(false); await settle(); const plain = downArea(MF.parts[0].solid);
+    K().logo.on = true; MF.rebuild(false); await settle();
+    const pic = MF.parts.slice(1).reduce((a, q) => a + downArea(q.solid), 0);
+    return { pic, over: downArea(MF.parts[0].solid) + pic - plain };
+  };
+  const bull = new Uint8ClampedArray(W * H * 4);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const o = (y * W + x) * 4, r = Math.hypot(x - 60, y - 60), c = r < 14 ? [230, 60, 50] : r < 26 ? [255, 255, 255] : r < 44 ? [240, 200, 60] : [255, 255, 255]; bull[o] = c[0]; bull[o + 1] = c[1]; bull[o + 2] = c[2]; bull[o + 3] = 255; }
+  for (const [ph, file] of [["Pixel 8", null], ["iPhone 17 Pro", null], ["iPhone 17 Pro", "bullseye"]]) {
+    if (file) { $$("#tabs button").find(b => b.dataset.k === "art").click(); await sleep(40); const n0 = st().items.length;
+      const e2 = new win.Event("drop", { bubbles: true, cancelable: true }); e2.dataTransfer = { files: [new win.File([encodePNG(W, H, bull)], "bullseye.png", { type: "image/png" })] };
+      document.querySelector("#drop").dispatchEvent(e2); for (let i = 0; i < 100 && st().items.length === n0; i++) await sleep(30); await settle();
+      $$("#tabs button").find(b => b.dataset.k === "make").click(); await sleep(40); }
+    K().phone = ph; K().spec = MF.phone.spec(ph); Object.assign(K().logo, { on: true, width: 40, x: 0, y: -20 });
+    const r = await overlap();
+    check(r.pic > 50 && Math.abs(r.over) < 0.01 * r.pic, `${ph}${file ? ", a " + file : ""}: the picture's pocket is cut where the picture is, nothing of the case over it`, `${r.pic.toFixed(0)} mm² of picture, ${r.over.toFixed(1)} mm² overlapping`);
+  }
+  K().phone = "iPhone 17 Pro"; K().spec = MF.phone.spec("iPhone 17 Pro");
+  // Session 31: gaps between two colours narrower than the nozzle take a neighbour's colour, so no strip of case
+  // too thin to print is left between them (0.19 mm walls between a honeycomb's cells)
+  const bars = new Uint8ClampedArray(W * H * 4);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const o = (y * W + x) * 4, inside = x >= 20 && x < 100 && y >= 30 && y < 90, k = (x - 20) % 9;
+    const c = !inside || k === 8 ? [255, 255, 255] : (Math.floor((x - 20) / 9) % 2 ? [240, 200, 60] : [230, 60, 50]); bars[o] = c[0]; bars[o + 1] = c[1]; bars[o + 2] = c[2]; bars[o + 3] = 255; }
+  { $$("#tabs button").find(b => b.dataset.k === "art").click(); await sleep(40); const n0 = st().items.length;
+    const e3 = new win.Event("drop", { bubbles: true, cancelable: true }); e3.dataTransfer = { files: [new win.File([encodePNG(W, H, bars)], "bars.png", { type: "image/png" })] };
+    document.querySelector("#drop").dispatchEvent(e3); for (let i = 0; i < 100 && st().items.length === n0; i++) await sleep(30); await settle();
+    $$("#tabs button").find(b => b.dataset.k === "make").click(); await sleep(40); }
+  Object.assign(K().logo, { on: true, width: 24, x: 0, y: -20 }); MF.rebuild(false); await settle();      // 0.2 mm gaps
+  let pb = null; MF.printNow && await MF.printNow(); for (let i = 0; i < 400 && !(pb = MF.print); i++) await sleep(50);
+  const thinBack = pb ? pb.thin.filter(t => t.y < K().logo.depth + 0.05) : null;
+  check(MF.parts.length >= 3 && thinBack && !thinBack.length, "stripes 0.2 mm apart: the gaps take a colour, no wall thinner than the nozzle at the back (v0.26.0: four of 0.19 mm)",
+    thinBack && (thinBack.map(t => `${t.name} ${t.width.toFixed(2)} mm at ${t.y.toFixed(2)}`).join(", ") || "none"));
+  // Session 31: Match to artwork with a picture in the back keeps the case's own filament, and names the others
+  { const caseSlot = st().base.slot, before = JSON.parse(JSON.stringify(st().slots));
+    $$("#tabs button").find(b => b.dataset.k === "colour").click(); await sleep(60);
+    const mb = $$("#panel button").find(b => /Match to artwork/.test(b.textContent)); mb && mb.click(); await settle();
+    const after = st().slots, changed = after.filter((s, i) => i !== caseSlot && s.hex !== before[i].hex);
+    check(mb && after[caseSlot].hex === before[caseSlot].hex && after[caseSlot].name === before[caseSlot].name && changed.length >= 1 && changed.every(s => s.name.startsWith(MF.paint.photo.colourWord(C.hexToRgb(s.hex)))),
+      "Match to artwork keeps the case's own filament and names the others after their colours", after.map(s => `${s.name} ${s.hex}`).join(", "));
+    $$("#tabs button").find(b => b.dataset.k === "make").click(); await sleep(40); }
   console.log("\nhostile project file");
   const evil = { app: "Maker Forge", v: 4, state: JSON.parse(JSON.stringify(Object.assign({}, st(), { items: [] }))) };
   evil.state.items = [];

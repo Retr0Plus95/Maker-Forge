@@ -73,7 +73,7 @@ While you have no pictures of your own, every button opens with a finished examp
 - **Add your own picture** and it takes the example's place, with all the same settings. On a phone case or a project box, your picture goes onto the back or the lid, just as the example did.
 - The example also picks **filaments** that match its picture, but only while you have not changed them yourself. Undo (Ctrl+Z) brings your old colours back.
 - The vase and the planet show off the **Paint** tab instead: their colours are painted on, and you can change or clear them there.
-- A phone case and the project boxes carry their picture on the side that prints on the bed, so they open **turned over** to show it. The **⟳** button above the model turns them back.
+- A phone case and the project boxes carry their picture on the side that prints on the bed, so they open **turned over** to show it. A phone case also turns over by itself whenever you put a picture in its back. The **⟳** button above the model turns it back, and the case stays that way until you open something else.
 
 All the example pictures were drawn for Maker Forge and are free to use, like the rest of the app.
 
@@ -124,6 +124,10 @@ Some objects in brief:
 - **Jigsaw puzzle.** Choose the number of pieces, the style of the knobs and the gap. **Shuffle** draws a new cut. A frame or a tray can print with it.
 - **Project box.** Openings for USB, buttons, switches, fans, displays and pilot lights, each with an optional engraved label. Screwed, magnet or sliding lids. **Fit test** prints a small box with one of each opening, to try before the real thing.
 - **Phone case.** Pick your phone; the sizes come from the makers' spec sheets. Print the **fit test rim** first. Print the case in TPU.
+  - **A picture in the back** (Make tab, **Picture on the back**) is set flush into the back's first layers, in your loaded filaments. It works best with a logo, a drawing or text in a few flat colours. A photo is reduced to flat areas of your filaments and can look rough; the app says so. **Colours → Match to artwork** (or the button under the message on the Art tab) sets your other filaments to the picture's colours, keeping the case's own, and **Art → Cut out the subject with AI** takes a photo's background away.
+  - The Art tab shows the picture in the colours it prints in. Click a colour there to leave it out.
+  - Gaps between two colours narrower than the nozzle are filled with the colour beside them, so no strip of case too thin to print is left.
+  - The check under **Before you print** may say the case needs a little support: that is the top edge of the button and port openings. Slicers bridge them; leave supports off, or they fill the openings.
 
 ## 4. Art: pictures and text
 

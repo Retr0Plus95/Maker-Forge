@@ -3,6 +3,22 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.26.1
+
+Pictures in the back of a phone case, found from the owner's screenshots and a look at every phone.
+
+- **A phone case turns over by itself when its back has a picture,** so you see the picture. It prints face down on the bed, so the right way up it was hidden under the case. The **⟳** button turns it back.
+- **The Art tab shows a case's or a lid's picture in the colours it prints in,** and a click on a colour leaves it out. The preview was blank.
+- **The app says when a picture won't come out well inlaid:** a photo (shading and fine detail are lost in a few filaments), or colours far from every loaded filament. It points to **Match to artwork** and the AI cut-out. These messages, and the case's others, now also show on the Art tab and under **Before you print**.
+- **Phone cases no longer ask for supports for their button and port openings** when the slicer can bridge them. The print check now sees that the rounded ends of a slot hold its top, as any wall would. On the iPhone 17 Pro case the area flagged went from 115 to 68 mm²: what's left is the two right-hand button openings (15 and 17 mm, over the 10 mm bridge setting), and the message now says to leave supports off there.
+
+**Fixed**
+- On the Pixel 8 and 8a, whose camera bar runs right across the back, a picture in the back sat inside solid case: it looked shredded and flickering, and would have printed muddled.
+- A part of a picture inside a gap of another (a dot in a ring, the middle of a letter) was covered by case or lid in the print. This affected phone cases and project box lids.
+- Gaps between two colours of a picture narrower than the nozzle left strips of case or lid too thin to print (0.19 mm between the cells of a honeycomb). They now take the colour beside them.
+- The "Fine detail is thinner than the nozzle" check also warned about pictures that were switched off.
+- **Match to artwork** with a picture in a case's back or a box's lid turned the case itself into one of the picture's colours (a black case became white) and spent a filament on the picture's background. It now keeps the case's filament, leaves the background out and names the other filaments after their colours. The photo message has a button for it.
+
 ## 0.26.0
 
 - **Printers that load one filament at a time can print painted colours.** The Export tab's **Colour swap heights** now follows the paint too: each height band or stripe becomes a pause to swap the spool, given as the layer the slicer's slider shows. The print files include `colour-changes.txt` with the same list and how to add the pauses in PrusaSlicer, Bambu Studio and OrcaSlicer. A colour that only shares its layers with another (a spot of paint on the side of a vase) can't be printed that way, and the check names it.

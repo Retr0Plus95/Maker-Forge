@@ -4498,6 +4498,135 @@
     return { tris: new Float32Array(out), paint: paint.some(v => v > 0) ? Uint8Array.from(paint) : null };
   }
 
+  // ---------- cutting with Manifold (Session 32) ----------
+  // Manifold (manifold-3d, Apache 2.0) cuts solids: artwork engraved or inlaid into an object, a model cut flat. The
+  // app downloads it only when a cut is asked for and passes it in as M; nothing here downloads anything. Its objects
+  // live outside JavaScript's memory, so each one is deleted when done with. Every triangle of a cut solid knows where
+  // it came from: `from` is -1 for the base and k for cutter k (or the flat face of a cut), `face` the triangle of that
+  // solid it lies in.
+  function manifoldOf(M, solid, id, inward, keepPieces) {
+    const n = solid.idx.length / 3, face = new Uint32Array(n);
+    for (let t = 0; t < n; t++) face[t] = t;
+    let tv = solid.idx instanceof Uint32Array ? solid.idx : Uint32Array.from(solid.idx);
+    if (inward) { tv = Uint32Array.from(tv); for (let t = 0; t < tv.length; t += 3) { const x = tv[t + 1]; tv[t + 1] = tv[t + 2]; tv[t + 2] = x; } }
+    const mesh = new M.Mesh({ numProp: 3, vertProperties: solid.pos instanceof Float32Array ? solid.pos : Float32Array.from(solid.pos),
+      triVerts: tv, faceID: face, runIndex: Uint32Array.of(0, tv.length), runOriginalID: Uint32Array.of(id) });
+    let man = null;
+    try { man = new M.Manifold(mesh); }
+    catch (e) { try { if (mesh.merge()) man = new M.Manifold(mesh); } catch (e2) { } }   // corners repeated at one place
+    if (!man) return null;
+    // a solid that faces inward (its triangles wound the other way) is read again the right way out
+    if (!inward && man.volume() < 0) { man.delete(); return manifoldOf(M, solid, id, true, keepPieces); }
+    // pieces that overlap (eyes set into a head, a floor inside its walls) are joined into one solid first; a cutter's
+    // pieces (the letters of a word) never overlap, and joining hundreds of them takes a while
+    if (keepPieces) return man;
+    const parts = man.decompose();
+    if (parts.length > 1) { const u = M.Manifold.union(parts); man.delete(); man = u; }
+    parts.forEach(q => q.delete());
+    return man;
+  }
+  function solidOfManifold(man, ids) {
+    const m = man.getMesh(), np = m.numProp, vp = m.vertProperties, nv = vp.length / np, pos = new Float32Array(3 * nv);
+    for (let v = 0; v < nv; v++) { pos[3 * v] = vp[np * v]; pos[3 * v + 1] = vp[np * v + 1]; pos[3 * v + 2] = vp[np * v + 2]; }
+    const idx = Uint32Array.from(m.triVerts), n = idx.length / 3, from = new Int32Array(n).fill(-2), face = Uint32Array.from(m.faceID);
+    for (let r = 0; r < m.runOriginalID.length; r++) {
+      const k = ids.indexOf(m.runOriginalID[r]), f = k < 0 ? ids.length - 1 : k - 1;
+      for (let t = m.runIndex[r] / 3; t < m.runIndex[r + 1] / 3; t++) from[t] = f;
+    }
+    return { pos, idx, from, face };
+  }
+  // a solid ready to be cut, kept by the caller for the next cut (reading a big model in is most of the work);
+  // null when it is not closed and so cannot be cut. Free it with cutFree.
+  function cutBase(M, solid) {
+    const id = M.Manifold.reserveIDs(1), man = manifoldOf(M, solid, id);
+    return man ? { M, man, id, solid, volume: man.volume() } : null;
+  }
+  function cutFree(prep) { if (prep && prep.man) { prep.man.delete(); prep.man = null; } }
+  // The base with the cutters taken out. A cutter marked keep also comes back as the piece of the base it took out:
+  // an inlay, flush with the surface because it is the surface. Where two cutters overlap, the earlier one has it.
+  // removed[k]: how much of the base cutter k took (mm³); bad[k]: that cutter is not a closed solid and was left out.
+  function cutSolid(prep, cutters) {
+    const M = prep.M, live = [], ids = [prep.id], own = x => { live.push(x); return x; };
+    try {
+      const K = cutters.map(c => {
+        const id = M.Manifold.reserveIDs(1); ids.push(id);
+        return c && c.solid && c.solid.idx.length ? manifoldOf(M, c.solid, id, false, true) : null;
+      });
+      K.forEach(k => k && own(k));
+      const used = K.filter(Boolean), removed = cutters.map(() => 0), pieces = cutters.map(() => null);
+      const bad = cutters.map((c, k) => !!(c && c.solid && c.solid.idx.length) && !K[k]);
+      if (!used.length) return { solid: solidOfManifold(prep.man, ids), pieces, removed, bad };
+      const all = used.length > 1 ? own(M.Manifold.union(used)) : used[0];
+      const rest = own(prep.man.subtract(all));
+      // Each piece is cut from the base itself, not from what the cutters took together: that has the cutters' own
+      // walls, and cutting along walls that lie exactly on each other is slow (0.8 s rather than 25 ms for a detailed
+      // picture). A big model is first cut down to a box round the artwork, so each piece is cut from a small part of it.
+      let near = prep.man;
+      if (prep.man.numTri() > 20000) {
+        const bb = all.boundingBox(), lo = bb.min, hi = bb.max;
+        near = own(prep.man.intersect(own(own(M.Manifold.cube({ x: hi[0] - lo[0] + 2, y: hi[1] - lo[1] + 2, z: hi[2] - lo[2] + 2 })).translate({ x: lo[0] - 1, y: lo[1] - 1, z: lo[2] - 1 }))));
+      }
+      const box = k => { const b = k.boundingBox(); return [b.min, b.max]; }, boxes = K.map(k => k && box(k));
+      const meets = (a, b) => a[0][0] <= b[1][0] && b[0][0] <= a[1][0] && a[0][1] <= b[1][1] && b[0][1] <= a[1][1] && a[0][2] <= b[1][2] && b[0][2] <= a[1][2];
+      K.forEach((k, i) => {
+        if (!k) return;
+        let piece = own(near.intersect(k));
+        for (let j = 0; j < i; j++) if (K[j] && meets(boxes[i], boxes[j])) piece = own(piece.subtract(K[j]));
+        removed[i] = piece.volume();
+        if (cutters[i].keep && !piece.isEmpty()) pieces[i] = solidOfManifold(piece, ids);
+      });
+      return { solid: solidOfManifold(rest, ids), pieces, removed, bad };
+    } finally { live.forEach(x => x.delete()); }
+  }
+  // Everything below height y (along the up axis) cut off, leaving a flat face at y.
+  function cutFlat(prep, y) {
+    const t = prep.man.trimByPlane({ x: 0, y: 1, z: 0 }, y);      // {x, y, z}: the library only takes [x, y, z] made in its own window
+    try { return { solid: solidOfManifold(t, [prep.id]), volume: t.volume() }; } finally { t.delete(); }
+  }
+  // For each triangle of a cut solid, the base triangle whose colour it takes: its own for the base's triangles; for
+  // the walls and floor of a cut, or a flat face, that of the base's triangle beside it, spreading in from the edge
+  // of the cut one triangle at a time (so a cut's floor takes the colour round its rim)
+  function cutSources(cut) {
+    const { idx: I, from, face } = cut, n = I.length / 3, src = new Int32Array(n).fill(-1);
+    let nv = 0; for (let i = 0; i < I.length; i++) if (I[i] >= nv) nv = I[i] + 1;
+    const queue = new Int32Array(n); let head = 0, tail = 0;
+    for (let t = 0; t < n; t++) if (from[t] === -1) { src[t] = face[t]; queue[tail++] = t; }
+    if (tail === n) return src;
+    // the triangle across each edge (3t + k is edge k of triangle t), an edge known by its two corners, lower first
+    const seen = new Map(), across = new Int32Array(3 * n).fill(-1);
+    for (let t = 0; t < n; t++) for (let k = 0; k < 3; k++) {
+      const a = I[3 * t + k], b = I[3 * t + (k + 1) % 3], key = a < b ? a * nv + b : b * nv + a, e = seen.get(key);
+      if (e === undefined) seen.set(key, 3 * t + k); else { across[3 * t + k] = (e / 3) | 0; across[e] = t; }
+    }
+    while (head < tail) {
+      const t = queue[head++];
+      for (let k = 0; k < 3; k++) { const o = across[3 * t + k]; if (o >= 0 && src[o] < 0) { src[o] = src[t]; queue[tail++] = o; } }
+    }
+    for (let t = 0; t < n; t++) if (src[t] < 0) src[t] = 0;    // a hollow inside, touching nothing of the base
+    return src;
+  }
+  // per-corner data (an imported model's colours: 9 bytes and 6 texture numbers per triangle) carried over to a cut
+  // solid: each new corner takes the value at its place in its source triangle
+  function cutCorners(cut, src, source, data) {
+    const { pos: P, idx: I } = cut, SI = source.idx, SP = source.pos, n = I.length / 3;
+    const cc = data.cc ? new Uint8Array(9 * n) : null, uv = data.uv ? new Float32Array(6 * n) : null, texOf = data.texOf ? new Int16Array(n) : null;
+    for (let t = 0; t < n; t++) {
+      const s = src[t], a = 3 * SI[3 * s], b = 3 * SI[3 * s + 1], c = 3 * SI[3 * s + 2];
+      const e0 = [SP[b] - SP[a], SP[b + 1] - SP[a + 1], SP[b + 2] - SP[a + 2]], e1 = [SP[c] - SP[a], SP[c + 1] - SP[a + 1], SP[c + 2] - SP[a + 2]];
+      const d00 = e0[0] * e0[0] + e0[1] * e0[1] + e0[2] * e0[2], d01 = e0[0] * e1[0] + e0[1] * e1[1] + e0[2] * e1[2], d11 = e1[0] * e1[0] + e1[1] * e1[1] + e1[2] * e1[2], den = d00 * d11 - d01 * d01;
+      if (texOf) texOf[t] = data.texOf[s];
+      for (let j = 0; j < 3; j++) {
+        const p = 3 * I[3 * t + j], e2 = [P[p] - SP[a], P[p + 1] - SP[a + 1], P[p + 2] - SP[a + 2]];
+        const d20 = e2[0] * e0[0] + e2[1] * e0[1] + e2[2] * e0[2], d21 = e2[0] * e1[0] + e2[1] * e1[1] + e2[2] * e1[2];
+        let v = den > 1e-18 ? (d11 * d20 - d01 * d21) / den : 1 / 3, w = den > 1e-18 ? (d00 * d21 - d01 * d20) / den : 1 / 3;
+        v = Math.min(1, Math.max(0, v)); w = Math.min(1 - v, Math.max(0, w)); const u = 1 - v - w;
+        if (cc) for (let k = 0; k < 3; k++) cc[9 * t + 3 * j + k] = Math.round(u * data.cc[9 * s + k] + v * data.cc[9 * s + 3 + k] + w * data.cc[9 * s + 6 + k]);
+        if (uv) for (let k = 0; k < 2; k++) uv[6 * t + 2 * j + k] = u * data.uv[6 * s + k] + v * data.uv[6 * s + 2 + k] + w * data.uv[6 * s + 4 + k];
+      }
+    }
+    return { cc, uv, texOf };
+  }
+
   global.PRCore = {
     hexToRgb, rgbToHex, colorDist, luma, kmeans, buildCellMap, makeProjector, buildDecalSolids, weldSoup, parseSTL,
     prepareParts, make3MF, make3MF_BBL, makeSTL, makeOBJ, traceMask, groupLoops, rectUnion, triangulate, solidFromTris, buildVectorSolid,
@@ -4509,6 +4638,7 @@
     meshRegions, paintRegions, paintNoise, paintPictureWrap, paintCurvature, curvatureClasses, layerSlots, pauseColours, colourChanges, paintBrush, brushTris, symmetryCopies, areaTris, paintFill, paintPicture, parseOBJ, parse3MFModel,
     PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, photoRef, photoUV, PHOTO_K_MAX, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, photoFitCloseness, photoFitFull, photoFitClosenessSteps, photoFitFullSteps, paintFromPhotos, photoLight, photoUnshade, photoLitBy, photoTriNormals, meshBVH, bvhRaycast,
     photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure, cutoutWithMap, edgeOpacity, photoFixMap, photoFixMask,
-    parseGLB, parseGLTF, parseMTL, parseOBJColours, modelTriColours, modelPalette, modelColourLabels
+    parseGLB, parseGLTF, parseMTL, parseOBJColours, modelTriColours, modelPalette, modelColourLabels,
+    cutBase, cutFree, cutSolid, cutFlat, cutSources, cutCorners
   };
 })(typeof window !== "undefined" ? window : globalThis);

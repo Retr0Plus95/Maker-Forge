@@ -4,6 +4,8 @@
 //   node tools-audit.js index.html                 all generators
 //   node tools-audit.js index.html nameplate,board just these
 //   node tools-audit.js index.html board art       the Art tab's controls on the board
+//   CUT=inlay node tools-audit.js index.html box art   ... with the artwork cut in (engrave or inlay, Session 32;
+//                                                  Manifold runs in Node from models/)
 const boot = require("./tools-test-env.js");
 const env = boot(process.argv[2]);
 const win = env.window, document = win.document, $$ = s => [...document.querySelectorAll(s)];
@@ -114,7 +116,9 @@ function find(c) {
 (async () => {
   await sleep(800);
   const MF = win.MakerForge;
+  if (process.env.CUT) MF.cut.hooks.module = await require("./tools-test-env.js").manifold();
   await addPicture(MF);
+  if (process.env.CUT) MF.state.items.forEach(d => { d.cut = process.env.CUT; });
   const all = [...document.querySelector("#objectSel").options].map(o => o.value).filter(v => v !== "stl");
   const pick = process.argv[3] ? process.argv[3].split(",") : all, tabName = process.argv[4] || "make"; auditTab = tabName;
   const snapshot = JSON.stringify(MF.state.base), itemsSnap = MF.state.items.map(d => JSON.stringify({ ...d, src: undefined, thumb: undefined, _srcCv: undefined, solids: undefined }));

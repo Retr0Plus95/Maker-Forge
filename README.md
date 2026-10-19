@@ -39,7 +39,7 @@ Every button in the **Start from** sidebar opens with a finished example, so you
 | **Photo frames, plaques, coasters, cylinders, spheres, vases** | A picture, or paint | Turned shapes: vase, egg, cone, dome, ring |
 | **Project boxes and electronics enclosures** | Openings and a lid logo | USB-C, buttons, switches, fans, displays, pilot lights, labels; Raspberry Pi case, power bank box, PSU box; fit test |
 | **Replacement parts from a photo** | A photo of a flat part on paper | Photo to 3D tracer, true circles for holes, SVG and DXF outlines |
-| **Your own model, painted** | An STL, OBJ, 3MF, GLB or glTF | Up to 8 colours, by hand, automatically or from a photo |
+| **Your own model, painted** | An STL, OBJ, 3MF, GLB or glTF | Up to 8 colours, by hand, automatically or from a photo; text and pictures raised, engraved or inlaid; cut flat to stand |
 | **AI-made 3D models, in colour** | A GLB, or an OBJ with its MTL and pictures, from Meshy, Tripo, Rodin or any 3D app | Opens in its own colours, turned into the filaments you have |
 
 ---
@@ -158,6 +158,7 @@ npm run test:paint && npm run test:photo         # the colour painter and colour
 npm run test:enclosure && npm run test:phonecase # project boxes and phone cases
 npm run test:jigsaw && npm run test:litho        # puzzles and lithophanes
 npm run test:tracer && npm run test:print        # traced parts against known sizes; printability
+npm run test:cut                                 # engraving, inlays and cutting flat (Manifold from models/)
 npm run check:browser                            # the real app in Chromium: layout, fonts, errors, screenshots
 node tools-thumbs.js index.html                  # re-render the Start pictures after changing an example
 node tools-screenshots.js index.html             # re-take the README and manual screenshots
@@ -180,6 +181,9 @@ image / text  ->  mask per filament (colour quantisation, k-means palette)
                       |
                   top + bottom + boundary walls  ->  closed solid per filament
                       |
+                  engraved or inlaid: Manifold cuts it into the object (and keeps
+                  what it cut out, for an inlay)
+                      |
                   3mf / obj / stl with extruder assignment
 ```
 
@@ -193,11 +197,11 @@ Two 3MF flavours are written: `model-prusa-orca.3mf` uses the PrusaSlicer volume
 
 ### Security
 
-Everything runs locally; the threats worth defending are a hostile **project file** and a compromised **CDN**. Every project file passes through `sanitizeProject` (prototype-pollution keys stripped, numbers finite and clamped, colours and images validated, text length-capped, fonts and object types whitelisted), and each test suite throws a hostile file at it. User text reaches the page only through `textContent` or `esc()`. The three runtime libraries (three.js r128, earcut 2.2.4, JSZip 3.10.1, from jsDelivr) are pinned by version and Subresource Integrity hash; the fonts are built in. The AI figure finder's runtime and model load only when asked for, and each file is checked against a SHA-256 fingerprint before it runs.
+Everything runs locally; the threats worth defending are a hostile **project file** and a compromised **CDN**. Every project file passes through `sanitizeProject` (prototype-pollution keys stripped, numbers finite and clamped, colours and images validated, text length-capped, fonts and object types whitelisted), and each test suite throws a hostile file at it. User text reaches the page only through `textContent` or `esc()`. The three runtime libraries (three.js r128, earcut 2.2.4, JSZip 3.10.1, from jsDelivr) are pinned by version and Subresource Integrity hash; the fonts are built in. The AI figure finder's runtime and model, and Manifold (which engraves and cuts), load only when asked for, and each file is checked against a SHA-256 fingerprint before it runs.
 
 ### Known limitations
 
-- No boolean CSG yet: engraving works on name plates, box lids, phone case backs and circuit boards, not on imported models.
+- Engraving, inlays and cutting flat need a closed model: a model with gaps in its surface has to be repaired first (a slicer's **Fix model** does it). On a very big model (300 000 triangles and more) each change to engraved artwork takes about a second.
 - Compressed GLB files (Draco, meshopt, KTX2 pictures) cannot be opened yet; export them again without compression.
 - Artwork projected onto a cylinder covers about 120° before the edges fall away; the painter can wrap a picture all the way round.
 - Cost and material figures assume solid parts, so treat them as a worst case.
@@ -208,6 +212,6 @@ Everything runs locally; the threats worth defending are a hostile **project fil
 
 ## Licence
 
-MIT: see [LICENSE](LICENSE). The example pictures are part of the app and share its licence. The fonts in `fonts/`, also built into `index.html`, keep their own licences (SIL Open Font License 1.1, or Apache 2.0 for five of them): see [fonts/LICENSES.md](fonts/LICENSES.md). The AI figure finder's model in `models/` is U²-Net under the Apache License 2.0: see [models/LICENSE.md](models/LICENSE.md).
+MIT: see [LICENSE](LICENSE). The example pictures are part of the app and share its licence. The fonts in `fonts/`, also built into `index.html`, keep their own licences (SIL Open Font License 1.1, or Apache 2.0 for five of them): see [fonts/LICENSES.md](fonts/LICENSES.md). The AI figure finder's model in `models/` is U²-Net, and the copy of Manifold there (which engraves and cuts) is Manifold 3.5.4, both under the Apache License 2.0: see [models/LICENSE.md](models/LICENSE.md).
 
 <sub>Keywords: multi-colour 3D printing, multi-color 3D print, multicolor, 3MF generator, image to STL, photo to STL, logo to 3D print, SVG to STL, keychain generator, name tag maker, lithophane maker, lithophane lamp, jigsaw puzzle generator, cookie cutter generator, phone case generator, iPhone case STL, project box generator, electronics enclosure, Raspberry Pi case, PCB art, lightbox, shadow box, plastic canvas, pixel art, bobble head, iron-on patch, car badge, Christmas ornament, color painting, GLB to 3MF, glTF to 3MF, GLB to STL, AI 3D model printing, Meshy, Tripo, Rodin, textured model to multi-colour, OBJ vertex colors, remove background, background remover, AI cut-out, Bambu Lab AMS, AMS lite, Prusa MMU3, Creality CFS, Anycubic ACE, Bambu Studio, OrcaSlicer, PrusaSlicer, TPU, PETG, PLA, free, open source, browser-based, offline, no install, works on phone, mobile, tablet, iPad, Android.</sub>

@@ -3,6 +3,18 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.27.0
+
+Cutting: pictures and text engraved or inlaid into an object, and an imported model cut flat so it stands.
+
+- **Engrave or inlay a picture or text into an object.** On the Art tab, **How it prints** now offers **Raised**, **Engraved** and **Inlaid**. Engraved cuts the picture into the surface, in the object's own colour. Inlaid cuts it in and fills it with the picture's colours, flush with the surface. **Depth** sets how deep. It works on every object a picture can go on, imported models too: a name in the side of a figure's base, a logo inlaid in a box or a vase.
+- **Cut an imported model flat.** **Cut it flat** on the Make tab cuts off the bottom of the model, so it stands on a flat face: a bust, or a figure on round feet. Paint and pictures stay where they were on the model.
+- An imported model keeps its own colours and painting through a cut: the walls and floor of an engraving, and a new flat bottom, take the colour round them.
+- The cutting tool (Manifold, 0.6 MB) downloads the first time it is needed, and is checked before it runs. **Before you print** says when an engraving is deeper than the model is thick, and when a model has gaps in its surface and can't be cut, with how to repair it.
+
+**Fixed**
+- The licence notes for the AI figure finder's model (`models/LICENSE.md`) ended with another project's copyright line.
+
 ## 0.26.1
 
 Pictures in the back of a phone case, found from the owner's screenshots and a look at every phone.

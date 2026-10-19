@@ -71,6 +71,10 @@ Plus, depending on what changed:
   screenshots and `report.html` land in `browser-check/`, which is git-ignored)
 - an example (`src/examples.js`) or anything that changes how an example looks → `npm run thumbs` (then build again)
   and, if the README or manual shows it, `npm run screenshots`
+- cutting (`cutBase` / `cutSolid` / `cutFlat` / `cutSources` / `cutCorners` in `src/core.js`, engraved or inlaid artwork,
+  an imported model cut flat, `cutLoad` and `AI_FIGURE.manifold`) → `npm run test:cut` (`CORE=1` for the library only; Manifold
+  runs in Node from its copy in `models/`, not an npm package: that one brings 60 others, `sharp` among them) and
+  `CUT=inlay node tools-audit.js index.html box art`; the real download and run is in `npm run check:browser`
 - `tools-after-squash.js` or `.github/workflows/after-squash.yml` → `npm run test:squash`
 - a change a user would notice → update `MANUAL.md` and `CHANGELOG.md`
 
@@ -81,7 +85,8 @@ tests accept `CORE=1` for the fast geometry-only part.
 
 - Keep the app a single self-contained file with no build toolchain beyond `build.py`.
   Runtime libraries load from CDNs (three.js r128, OrbitControls, earcut 2.2.4, JSZip 3.10.1; ONNX Runtime Web 1.30.0
-  only when the AI figure finder is asked for, checked by SHA-256 in `AI_FIGURE`). The fonts are
+  only when the AI figure finder is asked for, and Manifold 3.5.4 only when a cut is asked for, each checked by SHA-256
+  in `AI_FIGURE`). The fonts are
   built in (`fonts/`, packed by `build.py`, used by `fontFaceCSS` in `src/app.html`); the page never downloads a font.
 - Every new generator control must actually change the model (the audit flags "dead controls").
 - Every loaded project goes through `sanitizeProject`: clamp numbers, never inject markup.
@@ -99,7 +104,9 @@ tests accept `CORE=1` for the fast geometry-only part.
   and comments on any with real conflicts.
 - Every release note, the `CHANGELOG.md` entry and the pull request description alike, lists that release's bug fixes
   under **Fixed**, one line each, as a user would notice them (asked for in Session 21).
-- Updating ONNX Runtime Web or the model means new SHA-256 values in `AI_FIGURE` (`src/app.html`) and in `models/LICENSE.md`.
+- Updating ONNX Runtime Web, Manifold or the model means new SHA-256 values in `AI_FIGURE` (`src/app.html`) and in `models/LICENSE.md`.
+  Every file the page downloads by itself is listed in `AI_FIGURE` in its `name:{ urls:[...], sha256:"..." }` form (Manifold
+  too, though it is not part of the figure finder): the owner's website hosts its own copy of each file it finds there.
 - The owner's website (forge.retr0plus.se) updates itself from `main`: the Website repository's
   `tools/import-maker-forge.py` finds `AI_FIGURE`, the runtime's address line and `<script id="prcore">` by pattern and
   stops if they change shape, so keep them as they are or say so in the pull request. Website work is done in the

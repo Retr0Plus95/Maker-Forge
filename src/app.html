@@ -433,7 +433,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.26.1</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.27.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -887,7 +887,7 @@ const DEFAULTS = () => ({
     frame:{ w:120, h:160, r:6, winW:85, winH:115, thick:5 },
     shell:{ shape:"round", dia:70, w:70, d:70, h:80, wall:0.8, floor:2 },
     box:{ w:90, d:70, h:4 }, cyl:{ dia:70, h:90 }, hex:{ dia:80, h:6 }, sphere:{ dia:70 },
-    stl:{ name:"", scale:100 },
+    stl:{ name:"", scale:100, flat:0 },
     enclosure:{ w:100, d:64, h:36, wall:2, floor:2, radius:4, lid:"screw", lidThick:2.4, lipH:3, lipW:1.2, fit:0.2,
       fasten:"insert", screw:"M3", head:"sink", teardrop:false, grow:true, lensSlot:0, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
       labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
@@ -940,7 +940,7 @@ function newItem(name, canvas, extra){
   }, extra||{});
 }
 const history = { past:[], future:[], timer:0 };
-const runtimeKeys = new Set(["src","thumb","solids","_img","_imgKey","_cm","_inlay","_raw","_srcCv","_srcSig","_frameW"]);
+const runtimeKeys = new Set(["src","thumb","solids","_img","_imgKey","_cm","_inlay","_raw","_srcCv","_srcSig","_frameW","_cut","_cutInfo"]);
 const serialize = () => JSON.stringify(state, (k,v)=> runtimeKeys.has(k) ? undefined : v);
 function pushHistory(){
   clearTimeout(history.timer);
@@ -3641,9 +3641,17 @@ function heightOf(d, slot){
   const order = state.slots.map((_,i)=>i).filter(i=>!d.skip.includes(i));
   return d.height + Math.max(0, order.indexOf(slot))*d.step;
 }
+// artwork cut into the object (Session 32): "engrave" cuts it in, "inlay" cuts it in and fills the cut with the
+// artwork's colours, flush with the surface. Its solids are then the cutters: from CUT_OUT above the surface (so the
+// whole surface is cut, also between the points it was laid on) to its depth below it
+const CUT_OUT = 0.6, NO_DECALS = { jigsaw:1, lithophane:1, enclosure:1, phonecase:1 };
+let cutBlocked = "";                                 // why artwork cannot be cut into this model ("open", "load"), or ""
+const cutWanted = d => d.enabled !== false && d.mode !== "relief" && (d.cut === "engrave" || d.cut === "inlay") && !NO_DECALS[state.base.type];
+const cutMode = d => baseSoup && !cutBlocked && cutWanted(d) ? d.cut : null;
 function buildItem(d){
   const cm = cellMapFor(d); d._cm = cm; d._inlay = false;
-  const W = d.width, H = d.width/d.aspect, embed = baseSoup ? d.embed : 0;
+  const cut = cutMode(d); d._cut = cut;
+  const W = d.width, H = d.width/d.aspect, embed = cut ? d.depth : baseSoup ? d.embed : 0;
   const proj = C.makeProjector(baseSoup, frameFor(d), W/2, H/2);
   const solids = state.slots.map(()=>null);
   if (d.mode === "relief"){
@@ -3655,7 +3663,7 @@ function buildItem(d){
     const opts = { maxLen, smoothEdges:2, eps:Math.max(0.03,(W/cm.gx)*0.5) };
     state.slots.forEach((_,s)=>{
       const m = C.maskOfSlot(cm, s);
-      if (m) solids[s] = C.buildMaskSolid(m, cm.gx, cm.gy, W, H, proj, heightOf(d,s), embed, opts);
+      if (m) solids[s] = C.buildMaskSolid(m, cm.gx, cm.gy, W, H, proj, cut ? CUT_OUT : heightOf(d,s), embed, opts);
     });
     if (d.outline && d.outline.on && d.outline.width > 0){
       const all = new Uint8Array(cm.gx*cm.gy);
@@ -3667,7 +3675,7 @@ function buildItem(d){
       const W2 = cell*P.w, H2 = (H/cm.gy)*P.h;
       const proj2 = C.makeProjector(baseSoup, frameFor(d), W2/2, H2/2);
       const slot = clamp(d.outline.slot,0,state.slots.length-1);
-      const halo = C.buildMaskSolid(grown, P.w, P.h, W2, H2, proj2, heightOf(d,slot), embed, opts);
+      const halo = C.buildMaskSolid(grown, P.w, P.h, W2, H2, proj2, cut ? CUT_OUT : heightOf(d,slot), embed, opts);
       solids[slot] = solids[slot] ? C.mergeSolids([solids[slot], halo]) : halo;
     }
   }
@@ -3676,7 +3684,7 @@ function buildItem(d){
 function normalizeItem(d){
   const base = { offU:0, offV:0, mirror:false, side:"front", quality:"high", res:150, smooth:1, embed:0.2,
     height:0.8, step:0.4, minH:0.3, maxH:2.2, invert:true, skip:[], forceSlot:null, mode:"flat", rot90:0, crop:false,
-    previewMode:"colours", zoom:1 };
+    previewMode:"colours", zoom:1, cut:"raised", depth:0.8 };
   for (const k in base) if (d[k] === undefined) d[k] = base[k];
   if (!d.outline) d.outline = { on:false, width:0.8, slot:Math.min(1,state.slots.length-1) };
   if (!d.adjust) d.adjust = { bright:0, contrast:0, sat:0 };
@@ -4275,6 +4283,10 @@ const AI_FIGURE = {
   runtime:{ urls:["models/ort.wasm.bundle.min.mjs", "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.wasm.bundle.min.mjs"], sha256:"11e64bd8ffe11bd1a2a2f0d6275fdfbbba7262f0b76b99b53d228a8a22ef3d90" },
   wasm:{ urls:["models/ort-wasm-simd-threaded.wasm", "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort-wasm-simd-threaded.wasm"], sha256:"3398c10d07d229bd91b364548e130e0e51a8e5704b88c7c083ebbeb78842dee2" },
   model:{ urls:["models/u2netp.onnx", "https://cdn.jsdelivr.net/gh/Retr0Plus95/Maker-Forge@main/models/u2netp.onnx"], sha256:"309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8" },
+  // not the figure finder: Manifold (Apache 2.0), which cuts artwork into models and cuts them flat (Session 32). It is
+  // listed here so a website that hosts its own copies of these files (the owner's import does) gets it too
+  manifold:{ urls:["models/manifold.js", "https://cdn.jsdelivr.net/npm/manifold-3d@3.5.4/manifold.js"], sha256:"ca3c8a88df63bb3083013d1eb7f700bf23216594f6e98a2566e34f55d7341ce8" },
+  manifoldWasm:{ urls:["models/manifold.wasm", "https://cdn.jsdelivr.net/npm/manifold-3d@3.5.4/manifold.wasm"], sha256:"73e3b419ad31294f6b1cc478173944e50efc4a34bfdeeff0107bdfc12975f11c" },
   mb:19, size:320
 };
 const aiState = { ort:null, session:null, loading:null };
@@ -4317,6 +4329,98 @@ function aiLoad(){
     aiState.ort = ort;
   })().catch(err => { aiState.loading = null; throw err; });
   return aiState.loading;
+}
+/* ---- cutting (Session 32) ----
+   Engraving or inlaying artwork into a model, and cutting a model flat, are done by Manifold (manifold-3d 3.5.4,
+   Apache 2.0, 0.6 MB). It downloads the first time a cut is asked for, from models/ next to the page or else from
+   jsDelivr, and each file is checked against its SHA-256 (AI_FIGURE.manifold, .manifoldWasm) before it runs. */
+const cutState = { M:null, loading:null, error:"" };
+const cutHooks = { module:null };                    // tests: the library, loaded in Node
+function cutLoad(){
+  if (cutState.M) return Promise.resolve(cutState.M);
+  if (cutHooks.module){ cutState.M = cutHooks.module; return Promise.resolve(cutState.M); }
+  if (!cutState.loading) cutState.loading = (async () => {
+    if (!(window.crypto && crypto.subtle)) throw new Error("the page has to be opened over https (or as a file) so the download can be checked");
+    const none = () => {};
+    const [code, wasm] = await Promise.all([aiGet(AI_FIGURE.manifold, none), aiGet(AI_FIGURE.manifoldWasm, none)]);
+    const url = URL.createObjectURL(new Blob([code], { type:"text/javascript" }));
+    let mod; try { mod = await import(url); } finally { URL.revokeObjectURL(url); }
+    // it is given its machine code, so it never looks for it by address (which a copy from a blob has none of)
+    const M = await mod.default({ wasmBinary:wasm, locateFile:f => f });
+    M.setup();
+    cutState.M = M; cutState.error = "";
+    return M;
+  })().catch(err => { cutState.loading = null; cutState.error = err.message || String(err); throw err; });
+  return cutState.loading;
+}
+// a model read in for cutting is kept while it is in use (reading a big one is most of the work); two at most, as an
+// imported model cut flat and then engraved needs both
+const cutPreps = [];
+function cutPrep(solid){
+  const hit = cutPreps.find(p => p.solid === solid); if (hit) return hit.prep;
+  const prep = C.cutBase(cutState.M, solid);
+  cutPreps.unshift({ solid, prep });
+  while (cutPreps.length > 2) C.cutFree(cutPreps.pop().prep);
+  return prep;
+}
+async function cutReady(){
+  if (!cutState.M && !cutHooks.module) setBusy(true, "Downloading the cutting tool (0.6 MB, once)…");
+  await cutLoad();
+  setBusy(true, "Cutting the model…");
+}
+// a cut solid as a part: an imported model's paint and own colours go with it, each new triangle taking them from
+// the triangle it lies in or, on a cut's walls and floor or a flat face, from the model's triangle beside it
+function cutPart(base, cut){
+  const src = C.cutSources(cut), ic = base.importColour;
+  return { solid:{ pos:cut.pos, idx:cut.idx },
+    importPaint: base.importPaint ? Uint8Array.from(src, s => base.importPaint[s]) : null,
+    importColour: ic ? Object.assign(C.cutCorners(cut, src, base.solid, ic), { tex:ic.tex }) : null };
+}
+// An imported model cut flat (Session 32): everything below a share of its height cut off, so it stands on a flat face.
+// The model keeps its place, so paint and pictures stay where they were on it; it is lowered onto the bed by cutDrop
+// where it is drawn and printed (printShift), as its Scale (%) is applied there too.
+let cutDrop = 0, flatInfo = null, flatCache = null;
+async function cutModelFlat(parts){
+  const f = state.base.stl ? +state.base.stl.flat || 0 : 0, base = parts[0];
+  if (f <= 0 || !base) return parts;
+  try { await cutReady(); } catch (err){ flatInfo = { error:cutState.error || err.message }; console.error(err); return parts; }
+  const b = C.solidBounds(base.solid), y = b.mn[1] + (b.mx[1] - b.mn[1])*f/100;
+  if (!flatCache || flatCache.solid !== base.solid || flatCache.y !== y){
+    const prep = cutPrep(base.solid);
+    if (!prep){ flatInfo = { open:true }; return parts; }
+    const r = C.cutFlat(prep, y);
+    flatCache = { solid:base.solid, y, part:r.volume > 0 ? cutPart(base, r.solid) : null };
+  }
+  if (!flatCache.part){ flatInfo = { empty:true }; return parts; }
+  cutDrop = y - b.mn[1]; flatInfo = { cut:cutDrop };
+  return [Object.assign({}, base, flatCache.part), ...parts.slice(1)];
+}
+// Artwork engraved or inlaid into the object: every cutter taken out of the first part, and for an inlay the pieces it
+// took, flush with the surface, in the artwork's colours. A colour that is the object's own stays part of the object.
+// Returns the pieces; each item's _cutInfo says how much it took out and how much it should have.
+let cutCache = null;
+function cutArtwork(parts, list){
+  list.forEach(d => { d._cutInfo = null; });
+  if (!list.length || !parts.length || cutBlocked) return [];
+  const base = parts[0], prep = cutPrep(base.solid); if (!prep) return [];
+  const cutters = [], owner = [];
+  list.forEach(d => d.solids.forEach((s, slot) => {
+    if (!s || (d._cut === "inlay" && slot === base.slot)) return;
+    cutters.push({ solid:s, keep:d._cut === "inlay" }); owner.push({ d, slot });
+  }));
+  const c = cutCache;
+  if (!(c && c.base === base.solid && c.cutters.length === cutters.length && c.cutters.every((x, i) => x.solid === cutters[i].solid && x.keep === cutters[i].keep))){
+    const r = C.cutSolid(prep, cutters);
+    cutCache = { base:base.solid, cutters, r, part:cutPart(base, r.solid) };
+  }
+  const { r, part } = cutCache;
+  list.forEach(d => { d._cutInfo = { removed:0, expect:0, bad:false }; });
+  cutters.forEach((q, i) => {
+    const inf = owner[i].d._cutInfo, dep = owner[i].d.depth;
+    inf.removed += r.removed[i]; inf.expect += meshCheck(q.solid).volume*dep/(dep + CUT_OUT); if (r.bad[i]) inf.bad = true;
+  });
+  parts[0] = Object.assign({}, base, part, { geom:solidToGeometry(part.solid) });
+  return r.pieces.map((s, i) => s ? { solid:{ pos:s.pos, idx:s.idx }, slot:owner[i].slot } : null).filter(Boolean);
 }
 // a photo's figure map (0..255, size x size) from the network
 async function aiFigureMap(canvas){
@@ -5143,6 +5247,8 @@ async function rebuildAll(resetItems){
     else if (t === "enclosure") parts = buildEnclosure();
     else if (t === "phonecase") parts = buildPhoneCase();
     else parts = buildSimpleObject();
+    cutDrop = 0; flatInfo = null;                    // only an imported model is cut flat: nothing else is lowered
+    if (t === "stl") parts = await cutModelFlat(parts);
     // an imported model is the same solid from build to build: its geometry, the copy pictures are laid on and
     // its picking boxes are kept, not made again for every change to artwork or paint (Session 28)
     parts.forEach(p => {
@@ -5165,8 +5271,15 @@ async function rebuildAll(resetItems){
     }
     if (resetItems) state.items.forEach(d => { d.solids = null; d._imgKey = ""; d._srcSig = ""; });
     const consumed = CONSUMES_ART[t] ? (state.items[state.active] || state.items[0]) : null, artFailed = [];
+    // artwork to be cut in needs the cutting tool, and a model it can cut: else it is laid on raised, and the checks say why
+    cutBlocked = "";
+    if (baseSoup && state.items.some(d => d !== consumed && (normalizeItem(d), cutWanted(d)))){
+      try { await cutReady(); if (!cutPrep(parts[0].solid)) cutBlocked = "open"; }
+      catch (err){ cutBlocked = "load"; console.error(err); }
+    }
     for (const d of state.items){
       normalizeItem(d);
+      if (d.solids && (d._cut || null) !== cutMode(d)) d.solids = null;     // built as cutters, now raised, or the other way
       if (d === consumed){ d.solids = null; continue; }   // it became the object itself
       if (d.enabled === false){ d.solids = null; continue; }
       if (t === "jigsaw"){ d.solids = null; continue; }      // a decal across the pieces would glue them together
@@ -5184,11 +5297,13 @@ async function rebuildAll(resetItems){
         if (d.src && !d.solids) buildItem(d);
       } catch (err){ d.solids = null; console.error(err); artFailed.push(`"${d.name || "artwork"}" (${err.message}${errWhere(err)})`); }
     }
+    const inlays = cutArtwork(parts, state.items.filter(d => d._cut && d.solids && d !== consumed));
     modelParts = parts.slice(); partsVer++;
     if (t === "jigsaw" && tab === "make"){ drawJigsawPreview(); updateJigsawSummary(); }
     if (t === "lithophane" && tab === "make"){ drawLithoPreview(); updateLithoSummary(); }
     if (t === "tracer" && tab === "make"){ const cv = document.getElementById("tracerPreview"); if (cv) drawTracerPreview(cv); }
-    state.items.forEach(d => (d.solids||[]).forEach((s,i)=>{ if (s) modelParts.push({ name:state.slots[i].name, slot:i, solid:s, geom:solidToGeometry(s), decal:true }); }));
+    state.items.forEach(d => { if (!d._cut) (d.solids||[]).forEach((s,i)=>{ if (s) modelParts.push({ name:state.slots[i].name, slot:i, solid:s, geom:solidToGeometry(s), decal:true }); }); });
+    inlays.forEach(q => modelParts.push({ name:state.slots[q.slot].name, slot:q.slot, solid:q.solid, geom:solidToGeometry(q.solid), decal:true, inlay:true }));
     applyPaint(false);
     refreshScene(); runChecks();
     if (tab === "paint") updatePaintSummary();
@@ -5283,7 +5398,8 @@ function modelMatrix(){
 const cacheOf = { shift:{ key:"" }, printed:{ key:"" }, brim:{ key:"" } };
 const frameKey = () => partsVer + "|" + JSON.stringify(state.model) + "|" + modelScale();
 function printShift(){
-  if (!state.model.orient || !modelParts.length) return [0,0,0];
+  if (!modelParts.length) return [0,0,0];
+  if (!state.model.orient) return [0, -cutDrop*modelScale(), 0];      // an imported model cut flat, lowered onto the bed
   const c = cacheOf.shift, key = frameKey();
   if (c.key === key) return c.t;
   const M = modelMatrix(), S = [state.model.mirror ? -1 : 1, 1, 1].map(v => v*modelScale());
@@ -5311,7 +5427,7 @@ function printedParts(){
     // nothing painted (the model only split, ready for the brush): the original model, not the split one
     const bare = !p.paint || p.paint.every(v => v === PAINT_LEAVE), solid = bare && p.solid0 ? p.solid0 : p.solid;
     let s;
-    if (!R){ s = C.transformSolid(solid, sc, off[0]*sc, off[1]*sc, off[2]*sc); if (state.model.mirror) s = C.mirrorSolid(s); }
+    if (!R){ s = C.transformSolid(solid, sc, off[0]*sc, off[1]*sc + t[1], off[2]*sc); if (state.model.mirror) s = C.mirrorSolid(s); }
     else s = C.affineSolid(solid, M, [M[0]*off[0]+M[1]*off[1]+M[2]*off[2]+t[0], M[3]*off[0]+M[4]*off[1]+M[5]*off[2]+t[1], M[6]*off[0]+M[7]*off[1]+M[8]*off[2]+t[2]]);
     return { name:p.name, slot:p.slot, pos:s.pos, idx:s.idx, paint:bare ? null : p.paint };
   });
@@ -5533,6 +5649,19 @@ function runChecks(){
   if (missed.length) list.push({ k:"warn", t: missed.length === 1 ? `The picture “${missed[0].name}” misses the model` : `${missed.length} pictures miss the model`,
     s: (state.base.type === "frame" ? "It sits in the frame's window, so none of it prints. " : "None of it lands on the model, so none of it prints. ") +
       "Move it onto the model or make it bigger on the Art tab (Size and place)." });
+  // cutting (Session 32): why artwork is shown raised or a model is not cut flat, and cuts deeper than the model is thick
+  const cutters = state.items.filter(d => cutWanted(d) && Array.isArray(d.solids));
+  if ((cutters.length && cutBlocked === "open") || (flatInfo && flatInfo.open))
+    list.push({ k:"warn", t:"This model has gaps in its surface, so it can't be cut", s:(cutters.length && cutBlocked ? "Engraved and inlaid artwork is shown raised instead. " : "") +
+      "Repair it and open it again: in Bambu Studio or OrcaSlicer, right-click it and choose Fix model, then export it as STL or 3MF." });
+  if ((cutters.length && cutBlocked === "load") || (flatInfo && flatInfo.error))
+    list.push({ k:"warn", t:"The cutting tool could not be downloaded", s:`${cutState.error || "No reason given"}. Engraving, inlays and cutting flat need it once (0.6 MB). Check the internet connection, then change any setting to try again.` });
+  state.items.forEach(d => {
+    const c = d._cutInfo; if (!c) return;
+    if (c.expect > 0 && c.removed < 0.8*c.expect) list.push({ k:"warn", t:`“${d.name}” is cut deeper than the model is thick`,
+      s:"In places it may go right through. Make its Depth smaller on the Art tab, or move it to a thicker part of the model." });
+    if (c.bad) list.push({ k:"warn", t:`Part of “${d.name}” could not be cut in`, s:"Try a little more Clean up specks on the Art tab (Detail and finish), or make it a little bigger." });
+  });
 
   const usedSlots = new Set(modelParts.map(p=>p.slot));
   modelParts.forEach(p => { if (p.paint) for (const s of new Set(p.paint)) if (s !== PAINT_LEAVE && s < state.slots.length) usedSlots.add(s); });
@@ -5854,7 +5983,7 @@ document.querySelectorAll(".viewtools button[title]").forEach(b => { if (!b.getA
    active page is shown, so panels stay short, and the active page plus its scroll position are
    remembered per tab and object, so changing a setting never loses your place. */
 const SECTION_ICONS = [
-  [/hanging hole/i,"◎"], [/^thickness$/i,"⇕"], [/^feet$/i,"⊥"],
+  [/hanging hole/i,"◎"], [/^thickness$/i,"⇕"], [/^feet$/i,"⊥"], [/cut it flat/i,"✂"],
   [/piece shape/i,"🧩"], [/thickness and gap/i,"⇕"], [/labels on the back/i,"#"], [/cut lines/i,"✂"], [/frame or tray/i,"◫"],
   [/^basics$|^main$/i,"☰"], [/every name|batch/i,"≡"], [/font/i,"𝐅"], [/charm|symbol|decor/i,"✦"], [/picture|photo/i,"▨"],
   [/keyring|hole/i,"◎"], [/both sides|back/i,"⇄"], [/letter/i,"A"], [/colou?r|filament/i,"◉"],
@@ -5896,7 +6025,7 @@ const SECTION_HELP = [
   [/letters and colou?rs/i, "Raised letters show a second colour. Engraved letters need only one filament and survive pockets better."],
   [/fine tuning/i, "Bridge gaps joins letters that almost touch. Curving the name breaks the joins of handwriting fonts."],
   [/size and place|nudge/i, "Click the model to move the selected artwork there, or nudge it with the arrow keys."],
-  [/how it prints/i, "Flat colour suits logos; stepped adds depth per colour; relief and lithophane turn brightness into thickness."],
+  [/how it prints/i, "Flat colour suits logos; stepped adds depth per colour; relief and lithophane turn brightness into thickness. On an object, a picture can stand out (raised), be cut in (engraved) or be set in flush in its colours (inlaid)."],
   [/outline/i, "An outline in one colour holds separate pieces together, like the border of a sticker."],
   [/adjust/i, "Adjust brightness and contrast until the colour preview shows clean, separate areas."],
   [/before you print/i, "Fix anything red first. Yellow items are advice."],
@@ -6684,6 +6813,14 @@ function stlFields(p){
   if (stlData) note(p, "Colour it on the <b>Paint</b> tab: by height, by face, from a picture, or with a brush.");
   if (stlData) numField(p,{ label:"Scale (%)", min:5,max:400,step:1, get:()=>state.base.stl.scale, set:v=>state.base.stl.scale=v,
     onChange:()=>{ refreshScene(); runChecks(); }, sub:()=>{ const z = lastSize; return z ? `Prints ${mm(z.x)} × ${mm(z.z)} × ${mm(z.y)}` : ""; } });
+  const L = state.base.stl;
+  if (stlData) group(p, "Cut it flat", g2 => {
+    note(g2, "Cuts off the bottom of the model so it stands on a flat face: handy for a bust, or a figure on round feet. Paint and pictures stay where they are on it.");
+    numField(g2,{ label:"Cut off the bottom (% of its height)", min:0,max:60,step:0.5, get:()=>+L.flat || 0, set:v=>L.flat=v, onChange:baseChanged,
+      sub:()=> flatInfo && flatInfo.open ? "This model has gaps in its surface, so it can't be cut. See Before you print."
+        : flatInfo && flatInfo.error ? "The cutting tool could not be downloaded. See Before you print."
+        : (+L.flat || 0) > 0 && flatInfo && flatInfo.cut ? `Cuts off ${mm(flatInfo.cut*modelScale())} at this size.` : "0 keeps the whole model." });
+  }, (+L.flat || 0) > 0);
 }
 function noneFields(p){
   note(p, "Artwork prints on its own as flat pieces. Turn on the outline in the Art tab if the pieces need something to hold them together.");
@@ -7456,6 +7593,8 @@ function tabArt(p){
   const consumer = (CONSUMES_ART[state.base.type] || lidLogo || backLogo) && d === (state.items[state.active] || state.items[0])
     ? (ART_USED_BY[state.base.type] || []) : null;
   const uses = k => !consumer || consumer.includes(k);
+  // cut into the object (Session 32): not when the picture is the object itself, nor as a relief
+  const cuttable = !consumer && baseSoup && !NO_DECALS[state.base.type] && d.mode !== "relief", cutting = cuttable && (d.cut === "engrave" || d.cut === "inlay");
 
   segField(p,[["original","Photo"],["colours","Colours"],["split","Split"]],()=>d.previewMode, v=>{ d.previewMode = v; drawPreview(); });
   p.insertAdjacentHTML("beforeend", `<div class="preview-wrap"><canvas id="preview"></canvas></div>`);
@@ -7509,7 +7648,21 @@ function tabArt(p){
   p.insertAdjacentHTML("beforeend", `<h2>How it prints</h2>`);
   selField(p,"Style",[["flat","Flat colour: one height"],["stepped","Stepped: each filament higher"],["relief","Photo relief and lithophane"]],
     ()=>d.mode, v=>{ d.mode = v; d._imgKey = ""; renderTab(); ch(); });
-  if (d.mode !== "relief"){
+  if (cuttable){
+    segField(p,[["raised","Raised"],["engrave","Engraved"],["inlay","Inlaid"]],()=>cutting ? d.cut : "raised", v=>{ d.cut = v; renderTab(); ch(); });
+    if (cutting){
+      note(p, d.cut === "inlay" ? "Cut into the object and filled with the artwork's colours, flush with its surface. A colour that is the object's own stays part of it."
+        : "Cut into the object's surface, in the object's own colour.");
+      numField(p,{ label:"Depth (mm)", min:0.2,max:5,step:0.1, get:()=>d.depth, set:v=>d.depth=v, onChange:ch,
+        sub:()=>d.cut === "inlay" ? "Three or four layers are enough for the colours to show." : "" });
+      if (cutBlocked === "open") note(p, "<b>This model has gaps in its surface</b>, so the artwork can't be cut into it and is shown raised. See <b>Before you print</b>.");
+      if (cutBlocked === "load") note(p, "<b>The cutting tool could not be downloaded</b>, so the artwork is shown raised. See <b>Before you print</b>.");
+    }
+  }
+  if (d.mode !== "relief" && cutting){
+    selField(p,"Edge quality",[["standard","Standard: 0.25 mm detail"],["high","High: 0.15 mm detail"],["ultra","Ultra: 0.08 mm detail"]],
+      ()=>d.quality, v=>{ d.quality = v; d._imgKey = ""; ch(); });
+  } else if (d.mode !== "relief"){
     numField(p,{ label:"Thickness above surface (mm)", min:0.2,max:6,step:0.1, get:()=>d.height, set:v=>d.height=v, onChange:ch });
     if (d.mode === "stepped") numField(p,{ label:"Step per filament (mm)", min:0.1,max:3,step:0.1, get:()=>d.step, set:v=>d.step=v, onChange:ch });
     selField(p,"Edge quality",[["standard","Standard: 0.25 mm detail"],["high","High: 0.15 mm detail"],["ultra","Ultra: 0.08 mm detail"]],
@@ -7574,7 +7727,7 @@ function tabArt(p){
   if (uses("smooth") || !consumer) group(p,"Detail and finish", g2 => {
     numField(g2,{ label:"Clean up specks", min:0,max:4,step:1, get:()=>d.smooth, set:v=>d.smooth=Math.round(v), onChange:ch });
     if (consumer) return;
-    if (baseSoup) numField(g2,{ label:"Sink into surface (mm)", min:0,max:2,step:0.05, get:()=>d.embed, set:v=>d.embed=v, onChange:ch,
+    if (baseSoup && !cutting) numField(g2,{ label:"Sink into surface (mm)", min:0,max:2,step:0.05, get:()=>d.embed, set:v=>d.embed=v, onChange:ch,
       sub:()=>"A small overlap fuses the artwork to the object." });
     if (d.mode !== "relief"){
       checkField(g2,"Square off into pixels (cross-stitch look)",()=>d.pixel.on, v=>{ d.pixel.on = v; renderTab(); ch(); });
@@ -8139,9 +8292,9 @@ function photoCard(c){
       e.preventDefault(); clearTimeout(photoTimer);
       if ((v.fix || []).length >= PHOTO_FIX_MAX.strokes || fixNumbers() >= PHOTO_FIX_MAX.numbers - 2){ notify("This photo has as many fixes as it can keep. Clear them, or undo some, to fix more."); return; }
       const [fx, fy] = photoAt(e); stroke = { add:paintUI.photoTool === "add", r:+fixR().toFixed(4), p:[+fx.toFixed(4), +fy.toFixed(4)] };
-      (v.fix || (v.fix = [])).push(stroke); cv.setPointerCapture && cv.setPointerCapture(e.pointerId); ring = [fx, fy]; later(); return;
+      (v.fix || (v.fix = [])).push(stroke); if (cv.setPointerCapture) try { cv.setPointerCapture(e.pointerId); } catch(err){} ring = [fx, fy]; later(); return;
     }
-    if (!v.fit) return; photoBake(v); drag = { x:e.clientX, y:e.clientY }; cv.setPointerCapture && cv.setPointerCapture(e.pointerId); });
+    if (!v.fit) return; photoBake(v); drag = { x:e.clientX, y:e.clientY }; if (cv.setPointerCapture) try { cv.setPointerCapture(e.pointerId); } catch(err){} });
   cv.addEventListener("pointermove", e => {
     if (stroke){
       const [fx, fy] = photoAt(e), p = stroke.p, n = p.length, asp = cv.width / Math.max(1, cv.height);
@@ -8795,7 +8948,7 @@ async function importModelFile(file, others){
   if (!again && !paint) paintUI.method = own ? "model" : "photo";   // a plain model: colouring it from a photo comes first
   stlData = y; stlPaint = paint; stlColour = own; stlCache = null; stlName = name; state.base.type = "stl";
   rememberModel(name, y, paint, own);
-  state.base.stl = { name, scale: again ? state.base.stl.scale : 100 };
+  state.base.stl = { name, scale: again ? state.base.stl.scale : 100, flat: again ? +state.base.stl.flat || 0 : 0 };
   if (paint && !again){
     // the file's filament colours; a filament it uses but gives no colour for still gets a filament here
     const spare = ["#ffffff","#161616","#c12e1f","#0a2989","#f0b429","#12633f","#7b4bd8","#8fb8c9"];
@@ -9053,6 +9206,9 @@ function sanitizeProject(data){
     it.skip = Array.isArray(it.skip) ? it.skip.filter(x => Number.isInteger(x) && x >= 0 && x < MAX_SLOTS) : [];
     if (it.forceSlot != null && !(Number.isInteger(it.forceSlot) && it.forceSlot >= 0 && it.forceSlot < MAX_SLOTS)) it.forceSlot = null;
     it.enabled = it.enabled !== false;
+    // cut into the object (Session 32): one of three words, and a depth in the slider's range
+    it.cut = ["engrave","inlay"].includes(it.cut) ? it.cut : "raised";
+    it.depth = Math.min(5, Math.max(0.2, cleanNum(it.depth, 0.8)));
     if (it.example !== true) delete it.example;
     it.mm = Array.isArray(it.mm) && it.mm.length === 2 && it.mm.every(v => typeof v === "number" && isFinite(v) && v > 0.1 && v < 5000) ? it.mm.slice() : undefined;
     return it;
@@ -9091,7 +9247,8 @@ function sanitizeProject(data){
   }
   if (st.base && "stl" in st.base){                 // the imported model's name and scale (the model itself is data.model)
     const L = st.base.stl && typeof st.base.stl === "object" ? st.base.stl : {};
-    st.base.stl = { name: cleanStr(L.name, 300, ""), scale: Math.min(400, Math.max(5, cleanNum(L.scale, 100))) };
+    st.base.stl = { name: cleanStr(L.name, 300, ""), scale: Math.min(400, Math.max(5, cleanNum(L.scale, 100))),
+      flat: Math.min(60, Math.max(0, cleanNum(L.flat, 0))) };
   }
   if (st.base && st.base.phonecase && typeof st.base.phonecase === "object"){
     const K = st.base.phonecase, one = (v, list) => list.includes(v) ? v : list[0], num = (v, lo, hi, fb) => Math.min(hi, Math.max(lo, cleanNum(v, fb)));
@@ -9596,6 +9753,8 @@ window.MakerForge = {
   printNow: runPrintability, optimize: optimizePrint, revertOptimize, exportParts,
   // the painter, for the tests: its tool settings, a repaint now, the last result, a model import and the zip
   model: { get colour(){ return stlColour; }, pick: modelPickColours, bytesToCanvas },
+  // cutting (Session 32): tests hand in the library through hooks.module
+  cut: { hooks: cutHooks, state: cutState, load: cutLoad, info: () => ({ blocked:cutBlocked, flat:flatInfo, drop:cutDrop, preps:cutPreps.length }) },
   paint: { ui: paintUI, repaint: () => repaint(true), changed: paintChanged, get info(){ return paintInfo; }, importModel: importModelFile, buildZip, swapText: colourChangesText,
     hit: paintHit, pick: paintPick, recolour: paintRecolour, colourAt, area: paintArea, previewTris, prepare: preparePaint, get previewCount(){ return previewCount; }, cleanPrinter, showLayerCut, get prefs(){ return prefs; }, applyPrefs, findDefault, cleanPaint,
     photo: { ai: { hooks: aiHooks, find: aiFindFigures, config: AI_FIGURE, state: aiState, sha256: sha256Hex, get: aiGet, mapOf: aiMapOf },

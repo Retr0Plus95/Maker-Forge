@@ -116,6 +116,8 @@ At the bottom of the Basics page:
 
 An imported model has its own **Scale (%)** on the Make tab. Changing it is instant, even on a big model: the paint and any pictures or text on it grow and shrink with it.
 
+**Cut it flat** (an imported model's Make tab) cuts off the bottom of the model so it stands on a flat face: handy for a bust, or a figure on round feet. Set how much as a share of the model's height; the line under the slider says how many millimetres that is at its size. Paint and pictures stay where they were on the model. The first time, the app downloads its cutting tool (0.6 MB, checked before it runs).
+
 Some objects in brief:
 
 - **Name plate and keychain.** 34 lettering fonts, charms (♥ ★ and any emoji) on either side, a picture beside the name, raised or engraved letters, a top layer in a second colour, and a mirrored back for double-sided tags. **A keychain for every name** on the Export tab makes one per name from a list.
@@ -148,6 +150,16 @@ The **Art** tab puts pictures and words on the object.
 - **Flat colour**: each colour is a raised layer of one height. Best for logos and drawings.
 - **Stepped**: each filament a little higher than the last, for depth.
 - **Photo relief and lithophane**: brightness becomes thickness.
+
+On an object, a flat or stepped picture can also be cut into it. Choose under **How it prints**:
+
+![The How it prints page with Inlaid chosen: a bee and honeycomb set flush into a coaster](docs/manual/art-cut.jpg)
+
+- **Raised**: the picture stands out from the surface.
+- **Engraved**: the picture is cut into the surface, in the object's own colour. **Depth** sets how deep.
+- **Inlaid**: the picture is cut in and filled with its own colours, flush with the surface. A colour that is the object's own stays part of the object. Three or four layers deep (0.6 to 0.8 mm) is enough for the colours to show.
+
+This works on every object a picture can go on, imported models too. The first time, the app downloads its cutting tool (0.6 MB, checked before it runs). **Before you print** says when an engraving is deeper than the model is thick.
 
 **Colours.** A picture prints in the filament closest to each of its colours. You can print it all in one filament, leave colours out, **Drop the background colour**, add an **outline** that holds separate pieces together, adjust brightness, contrast and saturation, and snap it to squares for a pixel look.
 
@@ -325,6 +337,10 @@ On a Mac, use Cmd instead of Ctrl.
 
 **"Maker Forge could not start".** A website that serves Maker Forge with very strict security settings can block the part of the app that makes the shapes. Download `index.html` from GitHub (or a version from the Releases page) and open that file instead.
 
+**"This model has gaps in its surface, so it can't be cut".** Engraving, inlays and **Cut it flat** need a closed model. Until then the picture is shown raised. Repair the model and open it again: in Bambu Studio or OrcaSlicer, right-click it, choose **Fix model**, and export it as STL or 3MF.
+
+**"The cutting tool could not be downloaded".** Engraving, inlays and cutting flat download a small tool once (0.6 MB). Check the internet connection, then change any setting to try again. A website that blocks downloads from other sites needs `manifold.js` and `manifold.wasm` in a `models` folder next to `index.html`.
+
 **"The AI figure finder could not be loaded".** It downloads once from the internet (about 19 MB). A website that blocks downloads from other sites needs its files in a `models` folder next to `index.html` (the file `models/LICENSE.md` on GitHub says which). Finding the figure by colour, and the downloaded `index.html`, work without that.
 
 **I want an earlier version.** Every version is on the [Releases page](https://github.com/Retr0Plus95/Maker-Forge/releases) (also linked from About, ⓘ). Download the file of the one you want and open it in your browser. Projects saved in one version open in later ones.
@@ -337,6 +353,6 @@ On a Mac, use Cmd instead of Ctrl.
 
 ## 14. Privacy
 
-Maker Forge runs entirely on your computer. Your pictures, photos, models and projects are never uploaded. The page loads three code libraries from jsDelivr, a public service for open-source code, so that service sees the page was opened; the fonts are built in. The AI figure finder downloads only when you ask for it, and runs on your computer too. There are no accounts, no tracking and no adverts.
+Maker Forge runs entirely on your computer. Your pictures, photos, models and projects are never uploaded. The page loads three code libraries from jsDelivr, a public service for open-source code, so that service sees the page was opened; the fonts are built in. The AI figure finder and the cutting tool download only when you ask for them, and run on your computer too. There are no accounts, no tracking and no adverts.
 
 Maker Forge is open source under the MIT licence.

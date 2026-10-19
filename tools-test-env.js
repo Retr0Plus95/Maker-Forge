@@ -389,5 +389,17 @@ function boot(file, opts = {}) {
   });
   return { window: dom.window, dom, errors };
 }
+// Manifold (Session 32), the library that cuts, from its copy in models/ (the app downloads the same two files). Its code
+// is a JavaScript module, which this folder's package.json does not say its files are: it runs from a copy named .mjs
+async function manifold() {
+  const fs = require("fs"), path = require("path"), os = require("os"), crypto = require("crypto");
+  const code = fs.readFileSync(path.join(__dirname, "models", "manifold.js"));
+  const file = path.join(os.tmpdir(), `maker-forge-manifold-${crypto.createHash("sha256").update(code).digest("hex").slice(0, 12)}.mjs`);
+  if (!fs.existsSync(file)) fs.writeFileSync(file, code);
+  const { default: Module } = await import(require("url").pathToFileURL(file).href);
+  const M = await Module({ wasmBinary: fs.readFileSync(path.join(__dirname, "models", "manifold.wasm")), locateFile: f => f });
+  M.setup();
+  return M;
+}
 module.exports = boot;
-module.exports.Ctx2D = Ctx2D; module.exports.encodePNG = encodePNG; module.exports.decodePNG = decodePNG;
+module.exports.Ctx2D = Ctx2D; module.exports.encodePNG = encodePNG; module.exports.decodePNG = decodePNG; module.exports.manifold = manifold;

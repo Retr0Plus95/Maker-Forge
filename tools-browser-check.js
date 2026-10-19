@@ -41,6 +41,9 @@ const LIBS = [
   [/onnxruntime-web@[\d.]+\/dist\/ort\.wasm\.bundle\.min\.mjs/, "onnxruntime-web/dist/ort.wasm.bundle.min.mjs"],
   [/onnxruntime-web@[\d.]+\/dist\/ort-wasm-simd-threaded\.wasm/, "onnxruntime-web/dist/ort-wasm-simd-threaded.wasm"],
   [/gh\/Retr0Plus95\/Maker-Forge@[^/]+\/models\/u2netp\.onnx/, "../models/u2netp.onnx"],
+  // Manifold, which cuts artwork into models and cuts them flat (Session 32), only when a cut is asked for
+  [/manifold-3d@[\d.]+\/manifold\.js/, "../models/manifold.js"],
+  [/manifold-3d@[\d.]+\/manifold\.wasm/, "../models/manifold.wasm"],
 ];
 const TYPES = { js: "application/javascript", mjs: "application/javascript", wasm: "application/wasm", onnx: "application/octet-stream" };
 const env = process.env, ONLY = env.ONLY ? env.ONLY.split(",") : null;
@@ -326,6 +329,49 @@ function pageCoverage() {
     if (sig2 !== r.sig) findings.push({ where:"share link", what:"the design opened from the link is not the one that was shared" });
     notes.push(`browser-only features: SVG ${r.svg && r.svg.map(v => v.toFixed(3)).join(" × ")} mm, measure ${r.measure && r.measure.toFixed(3)} mm, section ${r.section}, share link ${r.link.url.length} characters, name list: ${r.batch && r.batch.check}`);
     await other.context().close();
+  }
+  // ---------- cutting (Session 32): the badge inlaid and engraved into a cylinder, a ball cut flat ----------
+  if (!ONLY || ONLY.includes("cut")) {
+    const s0 = await page.evaluate(() => { const s = document.querySelector("#objectSel"); s.value = "cylinder"; s.dispatchEvent(new Event("change")); return true; });
+    await settle(page);
+    await byText(page, "#tabs button", "art");
+    // only the badge, for now: which pictures were on is put back afterwards, as the later steps expect
+    const wasOn = await page.evaluate(() => window.MakerForge.state.items.map(d => d.enabled !== false));
+    const pickBadge = () => page.evaluate(() => { const MF = window.MakerForge, i = MF.state.items.findIndex(d => d.name === "badge"); MF.state.items.forEach((d, j) => { d.enabled = j === i; }); MF.state.active = Math.max(0, i); MF.render(); });
+    await pickBadge(); await settle(page);
+    const t0 = Date.now();
+    await byText(page, "#panel .seg button", "Inlaid"); await settle(page);
+    const inlay = await page.evaluate(() => {
+      const MF = window.MakerForge, C = MF.core, base = MF.parts[0], pcs = MF.parts.filter(p => p.inlay);
+      return { loaded: !!MF.cut.state.M, error: MF.cut.state.error, blocked: MF.cut.info().blocked, pieces: pcs.length, open: MF.parts.reduce((a, p) => a + C.checkMesh(p.solid).open, 0),
+        top: pcs.length ? Math.max(...pcs.map(p => C.solidBounds(p.solid).mx[2])) : null, warn: MF.checks.list.filter(r => r.k !== "ok").map(r => r.t) };
+    });
+    const ms = Date.now() - t0;
+    await shot(page, "cut-inlay", `The badge inlaid flush into the cylinder (${inlay.pieces} pieces)`, {});
+    await byText(page, "#panel .seg button", "Engraved"); await settle(page);
+    const eng = await page.evaluate(() => { const MF = window.MakerForge, C = MF.core; return { parts: MF.parts.length, decals: MF.parts.filter(p => p.decal).length, open: C.checkMesh(MF.parts[0].solid).open }; });
+    await shot(page, "cut-engrave", "The badge engraved into the cylinder", {});
+    if (!inlay.loaded || inlay.blocked || inlay.pieces < 1 || inlay.open) findings.push({ where: "cutting", what: `inlay into the cylinder: ${JSON.stringify(inlay)}` });
+    if (eng.decals || eng.open) findings.push({ where: "cutting", what: `engraving into the cylinder: ${JSON.stringify(eng)}` });
+    // a ball, opened as a model file, cut flat at 10% of its height: it stands on the bed on a flat face
+    const flat = await page.evaluate(async () => {
+      const MF = window.MakerForge, C = MF.core, sleep = ms => new Promise(q => setTimeout(q, ms));
+      const settle = async () => { const r0 = MF.rev; for (let i = 0; i < 40 && MF.rev === r0 && !MF.busy; i++) await sleep(30); for (let i = 0; i < 1200; i++){ if (!MF.busy){ await sleep(60); if (!MF.busy) break; } await sleep(25); } };
+      const ball = C.revolveLoop(Array.from({ length: 41 }, (_, i) => { const a = -Math.PI / 2 + Math.PI * i / 40; return [Math.max(0, 15 * Math.cos(a)), 15 + 15 * Math.sin(a)]; }), 64);
+      const n = ball.idx.length / 3, buf = new ArrayBuffer(84 + 50 * n), dv = new DataView(buf); dv.setUint32(80, n, true);
+      for (let t = 0; t < n; t++) for (let k = 0; k < 3; k++) { const v = 3 * ball.idx[3 * t + k], o = 84 + 50 * t + 12 + 12 * k; dv.setFloat32(o, ball.pos[v], true); dv.setFloat32(o + 4, -ball.pos[v + 2], true); dv.setFloat32(o + 8, ball.pos[v + 1], true); }
+      MF.state.items.forEach(d => { d.enabled = false; });
+      const dt = new DataTransfer(); dt.items.add(new File([buf], "ball.stl", { type: "model/stl" }));
+      const inp = document.querySelector("#stlInput"); inp.files = dt.files; inp.dispatchEvent(new Event("change")); await sleep(300); await settle();
+      MF.state.base.stl.flat = 10; MF.rebuild(true); await settle();
+      const ex = MF.exportParts(); let low = Infinity; ex.forEach(p => { for (let i = 1; i < p.pos.length; i += 3) low = Math.min(low, p.pos[i]); });
+      return { type: MF.state.base.type, drop: MF.cut.info().drop, low, contact: ex.reduce((a, p) => a + C.bedContact(p, 0.05), 0), open: ex.reduce((a, p) => a + C.checkMesh(p).open, 0) };
+    });
+    await byText(page, "#tabs button", "make");
+    await shot(page, "cut-flat", "A ball opened as a model and cut flat at 10% of its height", {});
+    if (flat.type !== "stl" || Math.abs(flat.drop - 3) > 1e-3 || Math.abs(flat.low) > 1e-4 || flat.contact < 200 || flat.open) findings.push({ where: "cutting", what: `the ball cut flat: ${JSON.stringify(flat)}` });
+    notes.push(`cutting: Manifold downloaded, checked and run in ${ms} ms for the first inlay (${inlay.pieces} pieces); engraved; a ball cut flat stands on ${flat.contact.toFixed(0)} mm²`);
+    await page.evaluate(on => { const MF = window.MakerForge; MF.state.items.forEach((d, i) => { d.enabled = on[i] !== false; d.cut = "raised"; d.solids = null; }); }, wasOn);
   }
   // ---------- the colour painter with a real mouse, and a painted 3mf opened again (Session 13) ----------
   {

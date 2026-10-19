@@ -1,4 +1,10 @@
-# The AI figure finder's model
+# The files in this folder
+
+The AI figure finder's model, and Manifold, which cuts artwork into models. Both are under the Apache License 2.0
+(below). The app downloads each file only when it is needed, from this folder next to `index.html` if it is there,
+else through jsDelivr, and checks it against the SHA-256 in `AI_FIGURE` (`src/app.html`) before it uses it.
+
+## The AI figure finder's model
 
 `u2netp.onnx` is the small U²-Net ("U²-Net-p", about 4.6 MB), a network that marks the main object in a photo.
 Maker Forge uses it, only when asked, to find a figure in a photo on a busy background (the Paint tab's
@@ -17,6 +23,18 @@ otherwise it loads it from this repository through jsDelivr. A website whose sec
 from itself only (`connect-src 'self'`) also needs the figure finder's engine in this folder: `ort.wasm.bundle.min.mjs`
 and `ort-wasm-simd-threaded.wasm` from ONNX Runtime Web 1.30.0 (MIT, `onnxruntime-web/dist/` in npm). The app looks
 for them here first and checks them against the SHA-256 values in `AI_FIGURE` (`src/app.html`) as well.
+
+## Manifold
+
+`manifold.js` and `manifold.wasm` are Manifold 3.5.4, a library for solid geometry, unchanged from the `manifold-3d`
+package on npm. Maker Forge uses it, only when asked, to engrave or inlay artwork into a model and to cut a model flat
+(Session 32). They are kept here, rather than as an npm package for the tests, because that package brings about 60
+others with it.
+
+- **Library:** Manifold by Emmett Lalish and its contributors, <https://github.com/elalish/manifold>, released under
+  the Apache License 2.0 (below).
+- **SHA-256:** `manifold.js` `ca3c8a88df63bb3083013d1eb7f700bf23216594f6e98a2566e34f55d7341ce8`,
+  `manifold.wasm` `73e3b419ad31294f6b1cc478173944e50efc4a34bfdeeff0107bdfc12975f11c`.
 
 ## Apache License 2.0
 
@@ -209,7 +227,7 @@ Apache License
       same "printed page" as the copyright notice for easier
       identification within third-party archives.
 
-   Copyright (c) 2011 by Font Diner, Inc. All rights reserved.
+   Copyright [yyyy] [name of copyright owner]
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.

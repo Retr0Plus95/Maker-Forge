@@ -74,7 +74,7 @@ const figureKit = () => { globalThis.earcut = globalThis.earcut || require("earc
       await railPage(page, "Name and details"); await shot(page, path.join(IMAGES, "business-card.jpg"));
       const close = async () => { await page.evaluate(() => { const MF = window.MakerForge, c = MF.controls, cam = MF.camera, box = new THREE.Box3();
         MF.scene.traverse(o => { if (o.isMesh && o.userData && o.userData.part != null) box.expandByObject(o); });
-        const mid = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3()), d = 1.45*Math.max(sz.x, sz.z*1.6);
+        const mid = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3()), d = 2.15*Math.max(sz.x, sz.z*1.6);
         c.target.copy(mid); cam.position.set(mid.x, mid.y + d*Math.cos(0.5), mid.z + d*Math.sin(0.5)); c.update(); MF.requestRender(); });
         await page.waitForTimeout(600); return (await (await page.$("#view")).screenshot({ type: "jpeg", quality: 90 })).toString("base64"); };
       const front = await close();

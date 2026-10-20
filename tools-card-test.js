@@ -275,7 +275,7 @@ async function appTests(){
 
   console.log("\nthe download");
   // jsdom cannot run JSZip's zip making, so the zip itself is opened in the real-browser check; here, what goes in it
-  await build({ nfc:{ on:true, tag:"s25", place:"logo", mark:"back" } }); I = MF.card.info;
+  await build({ nfc:{ on:true, tag:"s25", place:"centre", mark:"back" } }); I = MF.card.info;
   const nfcTxt = MF.card.nfcText("test card");
   check(nfcTxt.includes(`Pause before the layer at ${I.nfc.pause.z.toFixed(2)} mm (layer ${I.nfc.pause.layer}`) && /PrusaSlicer/.test(nfcTxt) && /Bambu Studio/.test(nfcTxt), "nfc-tag.txt says where to pause, and how in each slicer");
   await build({ nfc:{ on:false } });

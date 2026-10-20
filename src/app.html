@@ -6681,9 +6681,10 @@ function cardIcon(x, kind, cx, cy, s, cut){
     x.arc(cx + 0.2*s, cy - 0.2*s, 0.5*s, 80*Math.PI/180, 190*Math.PI/180); x.stroke(); x.restore();
     x.beginPath(); disc(cx + 0.2*s + 0.5*s*Math.cos(80*Math.PI/180), cy - 0.2*s + 0.5*s*Math.sin(80*Math.PI/180), 0.2*s);
     disc(cx + 0.2*s + 0.5*s*Math.cos(190*Math.PI/180), cy - 0.2*s + 0.5*s*Math.sin(190*Math.PI/180), 0.2*s); x.fill();
-  } else if (kind === "email"){                       // an envelope
-    x.rect(cx - 0.55*s, cy - 0.38*s, 1.1*s, 0.76*s); x.fill();
-    out(() => { x.lineWidth = cut; x.lineCap = "round"; x.moveTo(cx - 0.42*s, cy - 0.26*s); x.lineTo(cx, cy + 0.06*s); x.lineTo(cx + 0.42*s, cy - 0.26*s); x.stroke(); });
+  } else if (kind === "email"){                       // an envelope, drawn as an outline: a solid one cut by its flap left slivers too thin to print
+    const w = Math.max(cut, 0.14*s), hx = 0.55*s - w/2, hy = 0.38*s - w/2;
+    x.save(); x.lineWidth = w; x.lineJoin = "round"; x.lineCap = "round"; x.beginPath();
+    x.rect(cx - hx, cy - hy, 2*hx, 2*hy); x.moveTo(cx - hx, cy - hy); x.lineTo(cx, cy + 0.08*s); x.lineTo(cx + hx, cy - hy); x.stroke(); x.restore();
   } else if (kind === "web"){                         // a globe
     disc(cx, cy, 0.5*s); x.fill();
     out(() => { x.lineWidth = cut; x.moveTo(cx - 0.5*s, cy); x.lineTo(cx + 0.5*s, cy); x.stroke();
@@ -6706,12 +6707,12 @@ function cardTapMark(x, cx, cy, s, w){
 }
 // a pattern as a signed distance (mm, negative inside): sc stretches it, w is its line, grow(x, y) thins it towards a side
 function cardPatternSDF(P, W, H, noz, seed){
-  const sc = clamp(cleanNum(P.scale, 1), 0.4, 3), p = 3*sc, w0 = Math.max(noz, clamp(cleanNum(P.line, 0.6), 0.2, 3));
+  const sc = clamp(cleanNum(P.scale, 1), 0.4, 3), p = 3*sc, w0 = Math.max(noz*1.2, clamp(cleanNum(P.line, 0.6), 0.2, 3));
   const a = clamp(cleanNum(P.angle, 45), -90, 90)*Math.PI/180, ca = Math.cos(a), sa = Math.sin(a), rnd = v => v - Math.round(v);
   const fade = P.fade || "none", R0 = Math.hypot(W, H)/2;
   const grow = fade === "lr" ? (x) => (x + W/2)/W : fade === "rl" ? (x) => (W/2 - x)/W : fade === "tb" ? (x, y) => (y + H/2)/H
     : fade === "bt" ? (x, y) => (H/2 - y)/H : fade === "centre" ? (x, y) => 1 - Math.hypot(x, y)/R0 : fade === "edges" ? (x, y) => Math.hypot(x, y)/R0 : null;
-  const gone = noz*0.8;
+  const gone = noz*1.2;
   const lines = (t, w) => w < gone ? 1 : Math.abs(t) - w/2;                // t: distance to the middle of a line
   const at = (x, y) => grow ? clamp(grow(x, y), 0, 1) : 1;
   switch (P.kind){
@@ -6781,7 +6782,7 @@ function cardBandSDF(B, W, H){
 }
 // the border, in from the outline (a signed distance)
 function cardBorderSDF(Bd, W, H, base, noz){
-  const inset = clamp(cleanNum(Bd.inset, 2.5), 0, Math.min(W, H)/3), w = Math.max(noz, clamp(cleanNum(Bd.line, 0.6), 0.2, 4));
+  const inset = clamp(cleanNum(Bd.inset, 2.5), 0, Math.min(W, H)/3), w = Math.max(noz*1.2, clamp(cleanNum(Bd.line, 0.6), 0.2, 4));
   const ring = (x, y) => Math.abs(base(x, y) + inset) - w/2;
   switch (Bd.style){
     case "double": { const g = w*2.2; return (x, y) => Math.min(ring(x, y), Math.abs(base(x, y) + inset + g) - w/2); }
@@ -7022,7 +7023,8 @@ async function cardFace(K, side, G, who, warn, info, ol){
   const build = () => {
     rows.name = showName && name.trim() ? cardRow(G, K.caps ? name.toUpperCase() : name, nameF, capOf(K.nameSize), sp) : null;
     rows.title = showName && title.trim() ? cardRow(G, title, textF, capOf(K.titleSize), 0) : null;
-    rows.company = (front ? !minimal : minimal) && String(K.company || "").trim() ? cardRow(G, String(K.company).slice(0, 60), nameF, capOf(K.titleSize)*1.05, sp*0.6) : null;
+    // in the font of the rest: at this size the name's font (often condensed, like Bebas Neue) has strokes about as thin as the nozzle
+    rows.company = (front ? !minimal : minimal) && String(K.company || "").trim() ? cardRow(G, String(K.company).slice(0, 60), textF, capOf(K.titleSize)*1.05, sp*0.6) : null;
     rows.lines = showDetails ? details.map(l => Object.assign(cardRow(G, l, textF, capOf(K.textSize), 0), { kind: K.icons !== false ? cardLineKind(l) : "" })) : [];
     rows.back = backText ? cardRow(G, backText, textF, capOf(Bk.size || K.textSize), 0) : null;
     rows.caption = caption ? cardRow(G, caption, textF, capOf(Bk.size || K.textSize), 0) : null;
@@ -7076,7 +7078,7 @@ async function cardFace(K, side, G, who, warn, info, ol){
       const lh = headLogo ? logoSize*sc : 0, lw = lh*logoAspect, cw = rows.company ? Math.min(rows.company.w, colW() - lw - 2.5) : 0, rowW = lw + (lw && cw ? 2.5 : 0) + cw;
       const x0 = align === "right" ? col.x1 - rowW : align === "centre" ? (col.x0 + col.x1)/2 - rowW/2 : col.x0;
       if (lw) logoBox = { x: x0, y, w: lw, h: lh };
-      if (rows.company){ if (rows.company.w > cw + 0.01) rows.company = cardRow(G, rows.company.text, nameF, rows.company.cap*cw/rows.company.w, sp*0.6);
+      if (rows.company){ if (rows.company.w > cw + 0.01) rows.company = cardRow(G, rows.company.text, textF, rows.company.cap*cw/rows.company.w, sp*0.6);
         place.head = { r: rows.company, x: x0 + lw + (lw ? 2.5 : 0), base: y + hh/2 + rows.company.cap/2, align:"left" }; }
       y += hh + gap;
     }
@@ -7172,7 +7174,7 @@ async function cardFace(K, side, G, who, warn, info, ol){
     p.align = "left"; p.x = left + s + g;
   });
   draw(K.textSlot, place.lines);
-  if (icons.length) add(60, K.iconSlot, cardDraw(G, x => icons.forEach(ic => cardIcon(x, ic.kind, ic.cx, ic.cy, ic.s, Math.max(noz*1.1, ic.s*0.13)))), { content:true });
+  if (icons.length) add(60, K.iconSlot, cardDraw(G, x => icons.forEach(ic => cardIcon(x, ic.kind, ic.cx, ic.cy, ic.s, Math.max(noz*1.2, ic.s*0.13)))), { content:true });
   if (place.divider){ const d = place.divider; add(60, K.dividerSlot, cardField(G, (x, y) => rrSDF(x - (d.x0 + d.len/2), y - d.y, d.len/2, d.t/2, d.t/2)), { content:true }); }
   return { layers, logoBox, qrBox, place, align };
 }
@@ -7203,7 +7205,7 @@ function cardClear(face, K, G){
 }
 // circuit traces or confetti, scattered at random (the same each time for the same pattern number)
 function cardScatter(x, P, W, H, noz, seed, area){
-  const R = cardRng(seed), sc = clamp(cleanNum(P.scale, 1), 0.4, 3), w = Math.max(noz*1.1, clamp(cleanNum(P.line, 0.6), 0.2, 3));
+  const R = cardRng(seed), sc = clamp(cleanNum(P.scale, 1), 0.4, 3), w = Math.max(noz*1.2, clamp(cleanNum(P.line, 0.6), 0.2, 3));
   if (P.kind === "circuit"){
     const g = 2.6*sc, nx = Math.ceil(W/g) + 2, ny = Math.ceil(H/g) + 2, used = new Uint8Array(nx*ny), dirs = [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]];
     const at = (i, j) => [(i - nx/2)*g, (j - ny/2)*g], ok = (i, j) => i >= 0 && j >= 0 && i < nx && j < ny && !used[j*nx + i] && area(...at(i, j)) < -w;
@@ -7239,7 +7241,7 @@ function cardScatter(x, P, W, H, noz, seed, area){
 }
 // the drawings of a face stacked: each filament's share, and the card's own colour where it shows on its own
 function cardCompose(layers, G, clip, body){
-  const N = G.Wp*G.Hp, T = new Uint8Array(N), S = new Map(), free = new Uint8Array(N), nb = new Uint8Array(N);
+  const N = G.Wp*G.Hp, T = new Uint8Array(N), S = new Map(), free = new Uint8Array(N), nb = new Uint8Array(N), pat = new Uint8Array(N);
   layers.slice().sort((a, b) => b.z - a.z).forEach(L => {
     const f = L.f, k = L.slot, mine = k === body;
     let s = S.get(k); if (!s && !mine) S.set(k, s = new Uint8Array(N));
@@ -7247,12 +7249,68 @@ function cardCompose(layers, G, clip, body){
       const v = f[i]; if (!v) continue;
       const e = Math.min(v, 255 - T[i]);
       if (mine){ if (e > free[i]) free[i] = e; } else { if (e > s[i]) s[i] = e; if (v > nb[i]) nb[i] = v; }
+      if (L.pattern && e > 127) pat[i] = 1;
       if (v > T[i]) T[i] = v;
     }
   });
   for (const s of S.values()) for (let i=0;i<N;i++) if (s[i] > clip[i]) s[i] = clip[i];
   for (let i=0;i<N;i++) free[i] = Math.min(free[i], 255 - nb[i], clip[i]);
+  cardTrimPattern(S, pat, G);
+  cardFillGaps(S, free, clip, G);
   return { S, free };
+}
+// a pattern's line cut at a slant by the border, the card's edge or the clear space round the words ends in a sliver
+// narrower than the nozzle: those ends are left out (the pattern only: lettering is never thinned here)
+function cardTrimPattern(S, pat, G){
+  const r = Math.round((state.printer.nozzle || 0.4)*0.5*G.PX), W = G.Wp, H = G.Hp;
+  if (r < 1) return;
+  for (const s of S.values()){
+    let x0 = W, x1 = -1, y0 = H, y1 = -1;
+    for (let y=0, i=0;y<H;y++) for (let x=0;x<W;x++, i++) if (pat[i] && s[i] > 127){ if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (x1 < 0) continue;
+    const m = r + 2; x0 = Math.max(0, x0 - m); y0 = Math.max(0, y0 - m); x1 = Math.min(W - 1, x1 + m); y1 = Math.min(H - 1, y1 + m);
+    const cw = x1 - x0 + 1, ch = y1 - y0 + 1, sub = new Uint8Array(cw*ch);
+    for (let y=0;y<ch;y++) for (let x=0;x<cw;x++) sub[y*cw + x] = s[(y0 + y)*W + x0 + x] > 127 ? 1 : 0;
+    const kept = openMask(sub, cw, ch, r);
+    for (let y=0;y<ch;y++) for (let x=0;x<cw;x++){ const i = (y0 + y)*W + x0 + x; if (sub[y*cw + x] && !kept[y*cw + x] && pat[i]) s[i] = 0; }
+  }
+}
+// a gap between colours narrower than the nozzle would leave a strip of card too thin to print (between two letters, in
+// a small letter's middle): it takes the colour beside it, as an inlay in a case's back or a box's lid does (Session 31).
+// Its edge with the other colour stays where that colour's edge is, so the two still fit exactly.
+function cardFillGaps(S, free, clip, G){
+  const r = Math.round((state.printer.nozzle || 0.4)*0.5*G.PX), fs = [...S.values()];
+  if (r < 1 || !fs.length) return;
+  const W = G.Wp, H = G.Hp, N = W*H, owner = new Int8Array(N).fill(-1);
+  let x0 = W, x1 = -1, y0 = H, y1 = -1;
+  for (let y=0, i=0;y<H;y++) for (let x=0;x<W;x++, i++){
+    let best = 127, o = -1;
+    for (let n=0;n<fs.length;n++) if (fs[n][i] > best){ best = fs[n][i]; o = n; }
+    if (o < 0) continue;
+    owner[i] = o; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+  }
+  if (x1 < 0) return;
+  const m = r + 2; x0 = Math.max(0, x0 - m); y0 = Math.max(0, y0 - m); x1 = Math.min(W - 1, x1 + m); y1 = Math.min(H - 1, y1 + m);
+  const cw = x1 - x0 + 1, ch = y1 - y0 + 1, sub = new Uint8Array(cw*ch);
+  for (let y=0;y<ch;y++) for (let x=0;x<cw;x++) sub[y*cw + x] = owner[(y0 + y)*W + x0 + x] >= 0 ? 1 : 0;
+  const closed = C.closeMask(sub, cw, ch, r);
+  let todo = [];
+  for (let y=1;y<ch-1;y++) for (let x=1;x<cw-1;x++){
+    const i = (y0 + y)*W + x0 + x;
+    if (closed[y*cw + x] && owner[i] < 0 && clip[i] > 127 && free[i] < 128) todo.push(i);
+  }
+  const got = [];
+  for (let pass = 0; todo.length && pass < 2*r + 4; pass++){
+    const next = [], now = [];
+    for (const i of todo){ const o = [owner[i - 1], owner[i + 1], owner[i - W], owner[i + W]].find(q => q >= 0); if (o != null) now.push([i, o]); else next.push(i); }
+    for (const [i, o] of now){ owner[i] = o; got.push(i); }
+    todo = next;
+  }
+  for (const i of got){
+    const o = owner[i]; let other = 0;
+    for (let n=0;n<fs.length;n++) if (n !== o && fs[n][i] > other) other = fs[n][i];
+    fs[o][i] = Math.max(fs[o][i], 255 - other);
+  }
 }
 // one card: its parts, at the middle of the bed
 async function cardOne(K, who, G, ol, info, warn){
@@ -7554,7 +7612,7 @@ function cardFields(p){
     selField(g, "Fade", [["none","No fade"],["lr","Fades in from the left"],["rl","Fades in from the right"],["tb","Fades in from the top"],["bt","Fades in from the bottom"],["centre","Strongest in the middle"],["edges","Strongest at the edges"]], () => P.fade, v => { P.fade = v; re(); });
     numField(g,{ label:"Scale", min:0.4, max:3, step:0.05, get:()=>P.scale, set:v=>P.scale=v, onChange:baseChanged });
     if (!["stripes","sunburst","carbon","halftone"].includes(P.kind)) numField(g,{ label:"Line width (mm)", min:0.3, max:2, step:0.05, get:()=>P.line, set:v=>P.line=v, onChange:baseChanged,
-      sub:()=>`At least your nozzle (${state.printer.nozzle || 0.4} mm) is used.` });
+      sub:()=>`At least ${((state.printer.nozzle || 0.4)*1.2).toFixed(2)} mm (1.2 nozzle widths) is used, so every line prints.` });
     if (P.kind === "stripes" || P.kind === "pinstripe") numField(g,{ label:"Angle (°)", min:-90, max:90, step:1, get:()=>P.angle, set:v=>P.angle=v, onChange:baseChanged });
     if (["topo","circuit","confetti"].includes(P.kind)){
       numField(g,{ label:"Pattern number", min:1, max:99999, step:1, get:()=>P.seed, set:v=>P.seed=Math.round(v), onChange:baseChanged });

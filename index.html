@@ -6804,7 +6804,8 @@ const DEFAULTS = () => ({
       name:"Alex Morgan", title:"Designer & maker", company:"Forge Studio", lines:"+46 70 123 45 67\nalex@forgestudio.se\nforgestudio.se",
       nameFont:28, textFont:23, nameSize:6, titleSize:3, textSize:2.8, caps:true, spacing:0.06, lineGap:1.65, icons:true, divider:"short",
       nameSlot:1, titleSlot:2, companySlot:1, textSlot:1, iconSlot:2, dividerSlot:3, textMove:{ x:0, y:0 },
-      logo:{ on:true, src:"art", face:"front", size:10, colours:"art", slot:3, initials:"", shape:"circle", fill:"solid", move:{ x:0, y:0 } },
+      // logo.from, not src: "src" is a working key that saving leaves out (runtimeKeys)
+      logo:{ on:true, from:"art", face:"front", size:10, colours:"art", slot:3, initials:"", shape:"circle", fill:"solid", move:{ x:0, y:0 } },
       qr:{ on:true, face:"both", kind:"link", backKind:"vcard", size:20, backSize:34, ec:"auto", quiet:2, style:"square", eyes:"square", badge:false,
         patch:"auto", slot:1, patchSlot:0, move:{ x:0, y:0 }, caption:"Scan to save my details", url:"", phone:"", email:"", subject:"", message:"", text:"", ssid:"", password:"", security:"WPA", hidden:false },
       border:{ style:"none", line:0.6, inset:2.5, face:"front", slot:3 },
@@ -12902,7 +12903,7 @@ async function cardFace(K, side, G, who, warn, info, ol){
   const qrWant = clamp(cleanNum(side === "back" && bothQR ? Q.backSize : Q.size, 22), 10, Math.min(W, H) - 2*m);
   const qr = qrHere ? cardQR(K, qrKind, qrWant, who, warn, side) : null;
   const logoHere = Lg.on === true && (minimal && side === "front" ? Lg.face !== "back" : mine(Lg.face));
-  const item = state.items[state.active] || state.items[0], art = Lg.src !== "monogram" && item ? sourceCanvas(item) : null;
+  const item = state.items[state.active] || state.items[0], art = Lg.from !== "monogram" && item ? sourceCanvas(item) : null;
   const logoAspect = art ? clamp(art.width/art.height, 0.2, 5) : 1;
   const split = layout === "split" && front;
   const bandOwn = K.band && K.band.on === true && mine(K.band.face);
@@ -13049,8 +13050,9 @@ async function cardFace(K, side, G, who, warn, info, ol){
     const Ql = cardQRLayers(K, G, qr.enc, qrBox, qr.badge, who), dark = cardSlot(Q.slot), bg = cardSlot(Q.patchSlot);
     // a light patch behind the code, unless the card itself is light enough behind it
     const patch = Q.patch === "on" || (Q.patch !== "off" && (dark === body || cardLum(state.slots[dark].hex) > cardLum(state.slots[body].hex) - 0.3));
-    if (patch) add(40, bg, Ql.patch, { patch:true, content:true });
-    add(55, dark, Ql.modules, { content:true });
+    if (patch) add(40, bg, Ql.patch, { patch:true, content:true, qr:true });
+    else layers.push({ z:0, slot:body, f:Ql.patch, keepOnly:true });      // no patch: its square still marks the code, kept as drawn
+    add(55, dark, Ql.modules, { content:true, qr:true });
     const mod = Ql.mod;
     const sideName = `The ${side} QR code`;
     info.qr = info.qr || {}; info.qr[side] = { version:qr.enc.version, ec:qr.enc.ec, n:qr.enc.size, mod, size:qrBox.s, chars:qr.text.length, kind:qrKind, dark, patchSlot:bg, patch, text:qr.text };
@@ -13138,8 +13140,9 @@ function cardScatter(x, P, W, H, noz, seed, area){
 }
 // the drawings of a face stacked: each filament's share, and the card's own colour where it shows on its own
 function cardCompose(layers, G, clip, body){
-  const N = G.Wp*G.Hp, T = new Uint8Array(N), S = new Map(), free = new Uint8Array(N), nb = new Uint8Array(N), pat = new Uint8Array(N);
+  const N = G.Wp*G.Hp, T = new Uint8Array(N), S = new Map(), free = new Uint8Array(N), nb = new Uint8Array(N), pat = new Uint8Array(N), keep = new Uint8Array(N);
   layers.slice().sort((a, b) => b.z - a.z).forEach(L => {
+    if (L.keepOnly){ for (let i=0;i<N;i++) if (L.f[i]) keep[i] = 1; return; }
     const f = L.f, k = L.slot, mine = k === body;
     let s = S.get(k); if (!s && !mine) S.set(k, s = new Uint8Array(N));
     for (let i=0;i<N;i++){
@@ -13147,13 +13150,14 @@ function cardCompose(layers, G, clip, body){
       const e = Math.min(v, 255 - T[i]);
       if (mine){ if (e > free[i]) free[i] = e; } else { if (e > s[i]) s[i] = e; if (v > nb[i]) nb[i] = v; }
       if (L.pattern && e > 127) pat[i] = 1;
+      if (L.qr || (mine && e > 127)) keep[i] = 1;       // a QR code, and what is drawn in the card's own colour, stay as drawn
       if (v > T[i]) T[i] = v;
     }
   });
   for (const s of S.values()) for (let i=0;i<N;i++) if (s[i] > clip[i]) s[i] = clip[i];
   for (let i=0;i<N;i++) free[i] = Math.min(free[i], 255 - nb[i], clip[i]);
   cardTrimPattern(S, pat, G);
-  cardFillGaps(S, free, clip, G);
+  cardFillGaps(S, keep, clip, G);
   return { S, free };
 }
 // a pattern's line cut at a slant by the border, the card's edge or the clear space round the words ends in a sliver
@@ -13175,7 +13179,7 @@ function cardTrimPattern(S, pat, G){
 // a gap between colours narrower than the nozzle would leave a strip of card too thin to print (between two letters, in
 // a small letter's middle): it takes the colour beside it, as an inlay in a case's back or a box's lid does (Session 31).
 // Its edge with the other colour stays where that colour's edge is, so the two still fit exactly.
-function cardFillGaps(S, free, clip, G){
+function cardFillGaps(S, keep, clip, G){
   const r = Math.round((state.printer.nozzle || 0.4)*0.5*G.PX), fs = [...S.values()];
   if (r < 1 || !fs.length) return;
   const W = G.Wp, H = G.Hp, N = W*H, owner = new Int8Array(N).fill(-1);
@@ -13194,7 +13198,7 @@ function cardFillGaps(S, free, clip, G){
   let todo = [];
   for (let y=1;y<ch-1;y++) for (let x=1;x<cw-1;x++){
     const i = (y0 + y)*W + x0 + x;
-    if (closed[y*cw + x] && owner[i] < 0 && clip[i] > 127 && free[i] < 128) todo.push(i);
+    if (closed[y*cw + x] && owner[i] < 0 && clip[i] > 127 && !keep[i]) todo.push(i);
   }
   const got = [];
   for (let pass = 0; todo.length && pass < 2*r + 4; pass++){
@@ -13465,11 +13469,11 @@ function cardFields(p){
     const L = K.logo;
     checkField(g, "Show a logo", () => L.on === true, v => { L.on = v; re(); });
     if (!L.on) return;
-    segField(g, [["art","The picture from the Art tab"],["monogram","My initials"]], () => L.src, v => { L.src = v; re(); }, "two");
-    if (L.src !== "monogram" && !state.items.length) note(g, "No picture yet: add one on the <b>Art</b> tab. Until then your initials are used.");
+    segField(g, [["art","The picture from the Art tab"],["monogram","My initials"]], () => L.from, v => { L.from = v; re(); }, "two");
+    if (L.from !== "monogram" && !state.items.length) note(g, "No picture yet: add one on the <b>Art</b> tab. Until then your initials are used.");
     sideSeg(g, () => L.face, v => L.face = v);
     numField(g,{ label:"Height (mm)", min:4, max:40, step:0.5, get:()=>L.size, set:v=>L.size=v, onChange:baseChanged, sub:()=>"On the back it is drawn half as big again." });
-    if (L.src !== "monogram" && state.items.length){
+    if (L.from !== "monogram" && state.items.length){
       segField(g, [["art","In its own colours"],["one","In one colour"]], () => L.colours, v => { L.colours = v; re(); }, "two");
       if (L.colours === "one") slotField(g, "Logo colour", () => String(L.slot), v => { L.slot = +v; baseChanged(); });
       else note(g, "Its colours are matched to your loaded filaments; the Art tab shows how and leaves a colour out with a click.");
@@ -14714,7 +14718,7 @@ function tabArt(p){
   // placed as a decal: show only the settings that object actually reads
   const E0 = state.base.enclosure, lidLogo = state.base.type === "enclosure" && E0 && E0.lid !== "none" && E0.logo && E0.logo.on;
   const P0 = state.base.phonecase, backLogo = state.base.type === "phonecase" && P0 && P0.style !== "bumper" && P0.logo && P0.logo.on;
-  const K0 = state.base.card, cardLogo = state.base.type === "card" && K0 && K0.logo && K0.logo.on && K0.logo.src !== "monogram";
+  const K0 = state.base.card, cardLogo = state.base.type === "card" && K0 && K0.logo && K0.logo.on && K0.logo.from !== "monogram";
   const consumer = (CONSUMES_ART[state.base.type] || lidLogo || backLogo || cardLogo) && d === (state.items[state.active] || state.items[0])
     ? (ART_USED_BY[state.base.type] || []) : null;
   const uses = k => !consumer || consumer.includes(k);
@@ -14743,7 +14747,7 @@ function tabArt(p){
   }
   if (state.base.type === "card" && !cardLogo){            // a card takes a picture only as its logo
     note(p, "A business card uses a picture as its logo, in its own colours or in one. It is set flush into the card, like the words.");
-    buttonRow(p, [["Use it as the card's logo", ()=>{ K0.logo.on = true; K0.logo.src = "art"; tab = "make"; renderTab(); baseChanged(); pushHistory(); }]]);
+    buttonRow(p, [["Use it as the card's logo", ()=>{ K0.logo.on = true; K0.logo.from = "art"; tab = "make"; renderTab(); baseChanged(); pushHistory(); }]]);
     drawPreview();
     return;
   }
@@ -16153,7 +16157,7 @@ function cleanCard(K0){
     divider: one(K.divider, ["none","short","full"], d.divider),
     nameSlot: slot(K.nameSlot, d.nameSlot), titleSlot: slot(K.titleSlot, d.titleSlot), companySlot: slot(K.companySlot, d.companySlot),
     textSlot: slot(K.textSlot, d.textSlot), iconSlot: slot(K.iconSlot, d.iconSlot), dividerSlot: slot(K.dividerSlot, d.dividerSlot), textMove: mv(K.textMove, d.textMove),
-    logo: { on: bool(L.on, d.logo.on), src: one(L.src, ["art","monogram"], d.logo.src), face: one(L.face, faces, d.logo.face), size: num(L.size, 4, 40, d.logo.size),
+    logo: { on: bool(L.on, d.logo.on), from: one(L.from, ["art","monogram"], d.logo.from), face: one(L.face, faces, d.logo.face), size: num(L.size, 4, 40, d.logo.size),
       colours: one(L.colours, ["art","one"], d.logo.colours), slot: slot(L.slot, d.logo.slot), initials: str(L.initials, 3, d.logo.initials),
       shape: one(L.shape, ["circle","hexagon","diamond","square","shield","none"], d.logo.shape), fill: one(L.fill, ["solid","ring"], d.logo.fill), move: mv(L.move, d.logo.move) },
     qr: { on: bool(Q.on, d.qr.on), face: one(Q.face, faces, d.qr.face), kind: one(Q.kind, kinds, d.qr.kind), backKind: one(Q.backKind, ["same", ...kinds], d.qr.backKind),

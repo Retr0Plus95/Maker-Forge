@@ -249,9 +249,9 @@ async function appTests(){
   await build({ qr:{ slot:0, patchSlot:1 } });
   check(MF.card.lineKind("+46 70 123 45 67") === "phone" && MF.card.lineKind("alex@ex.com") === "email" && MF.card.lineKind("www.ex.com") === "web" && MF.card.lineKind("ex.com/me") === "web"
     && MF.card.lineKind("@alex.m") === "social" && MF.card.lineKind("Instagram: alex") === "social" && MF.card.lineKind("Storgatan 1, Stockholm") === "pin" && MF.card.lineKind("Open late") === "", "each line's icon from what it looks like");
-  await build({ logo:{ src:"monogram", shape:"hexagon", fill:"ring", initials:"" } });
+  await build({ logo:{ from:"monogram", shape:"hexagon", fill:"ring", initials:"" } });
   check(MF.parts.every(closed) && MF.parts.some(p => p.slot === K().logo.slot), "initials in a hexagon instead of the picture");
-  await build({ logo:{ src:"art", colours:"one", slot:2 } });
+  await build({ logo:{ from:"art", colours:"one", slot:2 } });
   check(MF.parts.some(p => p.slot === 2) && st().items[0]._inlay === true, "the picture in one colour; the Art tab gets its preview");
   await build({ logo:{ colours:"art", slot:3 } });
   await build({ textSize:1.8 }); I = MF.card.info;
@@ -283,14 +283,16 @@ async function appTests(){
 
   console.log("\nthe Make tab and the Art tab");
   $$("#tabs button").find(x => x.dataset.k === "make").click(); await sleep(150);
-  const titles = $$("#panel details.group > summary").map(s => s.textContent);
+  const titles = [...$$("#secrail button[data-title]").map(b => b.dataset.title), ...$$("#panel details.group > summary").map(s => s.textContent)];
   check(["Name and details","Fonts and sizes","Colours","QR code","Logo","Border and band","Pattern","Back of the card","Printing the card","NFC tag","Keyring or lanyard hole","Copies"].every(t => titles.includes(t)), "the card's twelve pages", titles.join(", "));
   $$("#tabs button").find(x => x.dataset.k === "art").click(); await sleep(200);
   check(/the card's logo/.test(document.querySelector("#panel").textContent), "the Art tab says the picture is the card's logo");
   $$("#tabs button").find(x => x.dataset.k === "make").click(); await sleep(150);
 
   console.log("\nsaving, and a hostile project");
+  K().logo.from = "monogram";
   const saved = JSON.parse(MF.projectPayload());
+  check(saved.state.base.card.logo.from === "monogram", "initials as the logo are kept in a saved project");
   const clean = MF.card.clean(JSON.parse(JSON.stringify(saved.state.base.card)));
   check(JSON.stringify(clean) === JSON.stringify(saved.state.base.card), "a saved card comes back exactly as it was");
   const evil = { size:"<img src=x onerror=alert(1)>", w:1e9, h:-5, radius:NaN, thick:"9", face:"sideways", frontFinish:"melted", depth:-3, layout:{}, name:"x".repeat(5000), lines:"a\u0000b\nc", nameFont:999, nameSize:-1,

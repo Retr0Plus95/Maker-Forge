@@ -1,11 +1,11 @@
 # Maker Forge: free multi-colour 3D print designer in your browser
 
-**Turn names, photos and logos into multi-colour (multi-color) 3D prints.** Keychains and name tags, iron-on patches, car badges, Christmas ornaments, phone cases, lithophanes and lithophane lamps, jigsaw puzzles, cookie cutters, lightboxes, circuit-board art, plastic canvas pixel art, bobble heads, project boxes and electronics enclosures, and more. Paint any STL, OBJ, 3MF, GLB or glTF model in up to eight colours, and print models from AI 3D generators (Meshy, Tripo, Rodin) in their own colours. Export a **3MF ready for Bambu Studio, OrcaSlicer and PrusaSlicer**, with every colour already assigned for an AMS, MMU3, CFS or ACE, plus STL and OBJ files.
+**Turn names, photos and logos into multi-colour (multi-color) 3D prints.** Keychains and name tags, business cards with QR codes and NFC tags, iron-on patches, car badges, Christmas ornaments, phone cases, lithophanes and lithophane lamps, jigsaw puzzles, cookie cutters, lightboxes, circuit-board art, plastic canvas pixel art, bobble heads, project boxes and electronics enclosures, and more. Paint any STL, OBJ, 3MF, GLB or glTF model in up to eight colours, and print models from AI 3D generators (Meshy, Tripo, Rodin) in their own colours. Export a **3MF ready for Bambu Studio, OrcaSlicer and PrusaSlicer**, with every colour already assigned for an AMS, MMU3, CFS or ACE, plus STL and OBJ files.
 
 Free and open source (MIT). One HTML file: no install, no account, no uploads. It runs on your own computer, tablet or phone, even offline.
 
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-2a9d8f)](LICENSE)
-[![Version 0.27](https://img.shields.io/badge/version-0.27-1f6f8b)](CHANGELOG.md)
+[![Version 0.28](https://img.shields.io/badge/version-0.28-1f6f8b)](CHANGELOG.md)
 [![Runs in the browser](https://img.shields.io/badge/runs%20in-your%20browser-e9c46a)](#get-started-in-a-minute)
 [![Exports 3MF, STL, OBJ](https://img.shields.io/badge/exports-3MF%20·%20STL%20·%20OBJ-d1495b)](#printers-and-slicers)
 
@@ -24,6 +24,7 @@ Every button in the **Start from** sidebar opens with a finished example, so you
 | Make | From | Good to know |
 | --- | --- | --- |
 | **Name keychains, name tags, bag tags** | A name, with charms (♥ ★ any emoji) and a small picture | 34 fonts, raised or engraved letters, double-sided tags, one keychain per name from a list |
+| **Business cards** | Your name and details, and a logo | Bank-card size or any other; QR codes (a link, a contact card, Wi-Fi and more) read straight from the print; an NFC tag sealed inside; borders, bands and 15 patterns; flush colours face down, raised or engraved; a card for each name in a list |
 | **Iron-on and sew-on patches** | A logo or drawing | Thin and flexible in TPU |
 | **Car and bike badges** | A logo | Long badge shape; ASA or PETG |
 | **Christmas ornaments and baubles** | A picture | Round, star or heart, with a hanging hole |
@@ -62,6 +63,8 @@ Every button in the **Start from** sidebar opens with a finished example, so you
 | Start from: every button shows its example | Art: your picture split into your filaments |
 | --- | --- |
 | ![The Start from sidebar with a 3D picture on every button](docs/manual/start-sidebar.jpg) | ![The Art tab with the mountain patch split into navy, cream, marigold and teal](docs/manual/art-tab.jpg) |
+| **Business card**: the front, face down on the bed | **The back**: a contact card's QR code on a banknote pattern |
+| ![A black business card with a gold border, a flame logo, a gold name, details with icons and a QR code](docs/images/business-card.jpg) | ![The back of the card: a cream QR code patch on a red guilloche pattern, with Scan to save my details under it](docs/images/business-card-back.jpg) |
 | **Phone case** with a picture inlaid in the back | **Paint** any model: a fade, stripes and bands |
 | ![A phone case turned over to show a retro sunset inlaid in its back](docs/images/phone-case-example.jpg) | ![The Paint tab with a vase painted in teal, gold and apricot](docs/manual/paint-tab.jpg) |
 | **Trace a part** from a photo on paper | **Lightbox** with a backlit colour panel, frame and stand |
@@ -86,7 +89,7 @@ More pictures of the painter, phone cases, project boxes and printers are in [Wh
 ## Get started in a minute
 
 1. **Get the app.** Download [`index.html`](index.html) (on GitHub: open it, then **Download raw file**), or clone this repository. Open it in Chrome, Edge, Firefox or Safari. That is the whole install. Every earlier version is on the [Releases page](https://github.com/Retr0Plus95/Maker-Forge/releases) too.
-2. **Pick something** under **Start from**: a keychain, a patch, a puzzle, a phone case. A finished example appears.
+2. **Pick something** under **Start from**: a keychain, a business card, a patch, a puzzle, a phone case. A finished example appears.
 3. **Add your picture** on the **Art** tab. It takes the example's place.
 4. **Choose your printer** and set your filament colours on the **Colours** tab.
 5. **Download files** on the **Export** tab and open the 3MF in your slicer.
@@ -162,6 +165,7 @@ npm run test:enclosure && npm run test:phonecase # project boxes and phone cases
 npm run test:jigsaw && npm run test:litho        # puzzles and lithophanes
 npm run test:tracer && npm run test:print        # traced parts against known sizes; printability
 npm run test:cut                                 # engraving, inlays and cutting flat (Manifold from models/)
+npm run test:card                                # business cards: every QR code read back from the printed card
 npm run check:browser                            # the real app in Chromium: layout, fonts, errors, screenshots
 node tools-thumbs.js index.html                  # re-render the Start pictures after changing an example
 node tools-screenshots.js index.html             # re-take the README and manual screenshots
@@ -217,4 +221,4 @@ Everything runs locally; the threats worth defending are a hostile **project fil
 
 MIT: see [LICENSE](LICENSE). The example pictures are part of the app and share its licence. The fonts in `fonts/`, also built into `index.html`, keep their own licences (SIL Open Font License 1.1, or Apache 2.0 for five of them): see [fonts/LICENSES.md](fonts/LICENSES.md). The AI figure finder's model in `models/` is U²-Net, and the copy of Manifold there (which engraves and cuts) is Manifold 3.5.4, both under the Apache License 2.0: see [models/LICENSE.md](models/LICENSE.md).
 
-<sub>Keywords: multi-colour 3D printing, multi-color 3D print, multicolor, 3MF generator, image to STL, photo to STL, logo to 3D print, SVG to STL, keychain generator, name tag maker, lithophane maker, lithophane lamp, jigsaw puzzle generator, cookie cutter generator, phone case generator, iPhone case STL, project box generator, electronics enclosure, Raspberry Pi case, PCB art, lightbox, shadow box, plastic canvas, pixel art, bobble head, iron-on patch, car badge, Christmas ornament, color painting, GLB to 3MF, glTF to 3MF, GLB to STL, AI 3D model printing, Meshy, Tripo, Rodin, textured model to multi-colour, OBJ vertex colors, remove background, background remover, AI cut-out, Bambu Lab AMS, AMS lite, Prusa MMU3, Creality CFS, Anycubic ACE, Bambu Studio, OrcaSlicer, PrusaSlicer, TPU, PETG, PLA, free, open source, browser-based, offline, no install, works on phone, mobile, tablet, iPad, Android.</sub>
+<sub>Keywords: multi-colour 3D printing, 3D printed business card, business card generator, QR code business card, NFC business card, vCard QR code, multi-color 3D print, multicolor, 3MF generator, image to STL, photo to STL, logo to 3D print, SVG to STL, keychain generator, name tag maker, lithophane maker, lithophane lamp, jigsaw puzzle generator, cookie cutter generator, phone case generator, iPhone case STL, project box generator, electronics enclosure, Raspberry Pi case, PCB art, lightbox, shadow box, plastic canvas, pixel art, bobble head, iron-on patch, car badge, Christmas ornament, color painting, GLB to 3MF, glTF to 3MF, GLB to STL, AI 3D model printing, Meshy, Tripo, Rodin, textured model to multi-colour, OBJ vertex colors, remove background, background remover, AI cut-out, Bambu Lab AMS, AMS lite, Prusa MMU3, Creality CFS, Anycubic ACE, Bambu Studio, OrcaSlicer, PrusaSlicer, TPU, PETG, PLA, free, open source, browser-based, offline, no install, works on phone, mobile, tablet, iPad, Android.</sub>

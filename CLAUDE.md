@@ -75,6 +75,9 @@ Plus, depending on what changed:
   an imported model cut flat, `cutLoad` and `AI_FIGURE.manifold`) → `npm run test:cut` (`CORE=1` for the library only; Manifold
   runs in Node from its copy in `models/`, not an npm package: that one brings 60 others, `sharp` among them) and
   `CUT=inlay node tools-audit.js index.html box art`; the real download and run is in `npm run check:browser`
+- business cards (`buildCard`, `cardFace`, `cardOne` and the other `card*` functions in `src/app.html`) or the QR code encoder (`qrEncode`,
+  `qrPayload` in `src/core.js`) → `npm run test:card` (`CORE=1` for the encoder only; every code is read back with the `jsqr` dev
+  dependency, from the printed card's geometry) and `ONLY=card npm run check:browser` (the same with real fonts)
 - `tools-after-squash.js` or `.github/workflows/after-squash.yml` → `npm run test:squash`
 - a change a user would notice → update `MANUAL.md` and `CHANGELOG.md`
 

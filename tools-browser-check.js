@@ -373,6 +373,48 @@ function pageCoverage() {
     notes.push(`cutting: Manifold downloaded, checked and run in ${ms} ms for the first inlay (${inlay.pieces} pieces); engraved; a ball cut flat stands on ${flat.contact.toFixed(0)} mm²`);
     await page.evaluate(on => { const MF = window.MakerForge; MF.state.items.forEach((d, i) => { d.enabled = on[i] !== false; d.cut = "raised"; d.solids = null; }); }, wasOn);
   }
+  // ---------- business cards (Session 33): with real fonts, every QR code read back from the card's geometry ----------
+  if (!ONLY || ONLY.includes("card")) {
+    await page.addScriptTag({ path: path.join(NM, "jsqr/dist/jsQR.js") });
+    const card = await page.evaluate(async () => {
+      const MF = window.MakerForge, C = MF.core, sleep = ms => new Promise(q => setTimeout(q, ms));
+      const settle = async () => { const r0 = MF.rev; for (let i = 0; i < 40 && MF.rev === r0 && !MF.busy; i++) await sleep(30); for (let i = 0; i < 1200; i++){ if (!MF.busy){ await sleep(60); if (!MF.busy) break; } await sleep(25); } };
+      const sel = document.querySelector("#objectSel"); sel.value = "card"; sel.dispatchEvent(new Event("change")); await settle();
+      // a face as it is seen, from its triangles in their filaments' brightness (the bed face from below)
+      const read = side => {
+        const I = MF.card.info, px = 10, w = Math.ceil(I.W*px), h = Math.ceil(I.H*px), depth = new Float32Array(w*h).fill(side === "top" ? -1e9 : 1e9), img = new Uint8ClampedArray(w*h*4).fill(255);
+        const lum = hex => { const n = parseInt(hex.slice(1), 16); return 0.2126*(n >> 16 & 255) + 0.7152*(n >> 8 & 255) + 0.0722*(n & 255); };
+        for (const p of MF.parts){ const P = p.solid.pos, X = p.solid.idx, L = lum(MF.state.slots[p.slot].hex);
+          for (let t=0;t<X.length;t+=3){ const a = X[t]*3, b = X[t + 1]*3, c = X[t + 2]*3, ny = (P[b + 2] - P[a + 2])*(P[c] - P[a]) - (P[b] - P[a])*(P[c + 2] - P[a + 2]);
+            if (side === "top" ? ny <= 1e-9 : ny >= -1e-9) continue; if (side === "bed" && Math.max(P[a + 1], P[b + 1], P[c + 1]) > 1e-4) continue;
+            const pt = k => [((side === "bed" ? -P[k] : P[k]) + I.W/2)*px, (P[k + 2] + I.H/2)*px], A = pt(a), B = pt(b), Q = pt(c), y = P[a + 1];
+            const ar = (B[0] - A[0])*(Q[1] - A[1]) - (B[1] - A[1])*(Q[0] - A[0]); if (Math.abs(ar) < 1e-12) continue;
+            for (let j = Math.max(0, Math.floor(Math.min(A[1], B[1], Q[1]))); j <= Math.min(h - 1, Math.ceil(Math.max(A[1], B[1], Q[1]))); j++)
+              for (let i = Math.max(0, Math.floor(Math.min(A[0], B[0], Q[0]))); i <= Math.min(w - 1, Math.ceil(Math.max(A[0], B[0], Q[0]))); i++){
+                const qx = i + 0.5, qy = j + 0.5, u = ((B[0] - qx)*(Q[1] - qy) - (B[1] - qy)*(Q[0] - qx))/ar, v = ((Q[0] - qx)*(A[1] - qy) - (Q[1] - qy)*(A[0] - qx))/ar;
+                if (u < -1e-9 || v < -1e-9 || u + v > 1 + 1e-9) continue; const k = j*w + i; if (side === "top" ? y < depth[k] : y > depth[k]) continue;
+                depth[k] = y; img[k*4] = img[k*4 + 1] = img[k*4 + 2] = L; } } }
+        const r = window.jsQR(img, w, h, { inversionAttempts:"attemptBoth" }); return r ? (r.binaryData ? new TextDecoder().decode(new Uint8Array(r.binaryData)) : r.data) : null;
+      };
+      const t0 = performance.now(); MF.state.base.card.name = "Alexandra Morgan"; MF.rebuild(false); await settle(); const ms = performance.now() - t0;
+      const I = MF.card.info, out = { ms, parts: MF.parts.length, open: MF.parts.reduce((a, p) => a + C.checkMesh(p.solid).open, 0), warn: I.warn.map(w => w.t),
+        front: I.qr.front && read("bed") === I.qr.front.text, back: I.qr.back && read("top") === I.qr.back.text, eyes: [] };
+      for (const eyes of ["rounded","circle"]){ MF.state.base.card.qr.eyes = eyes; MF.state.base.card.qr.style = eyes === "circle" ? "dots" : "rounded"; MF.rebuild(false); await settle();
+        out.eyes.push(read("bed") === MF.card.info.qr.front.text && read("top") === MF.card.info.qr.back.text); }
+      Object.assign(MF.state.base.card.qr, { eyes:"square", style:"square" }); Object.assign(MF.state.base.card.nfc, { on:true }); Object.assign(MF.state.base.card.hole, { on:true }); MF.rebuild(false); await settle();
+      out.nfc = MF.card.info.nfc && MF.card.info.nfc.pause; out.pauseCheck = MF.checks.list.some(r => /Pause for the NFC tag/.test(r.t));
+      const zip = await MF.paint.buildZip(MF.exportParts(), "card"), txt = zip.file("nfc-tag.txt"), readme = await zip.file("README.txt").async("string");
+      out.zip = !!txt && (await txt.async("string")).includes(`Pause before the layer at ${out.nfc.z.toFixed(2)} mm`) && /nfc-tag\.txt/.test(readme);
+      return out;
+    });
+    await byText(page, "#tabs button", "make");
+    await shot(page, "card-front", "A business card, its front (it prints face down, so the view is turned over), with an NFC tag and a hole", {});
+    await page.click("#vFlip"); await settle(page);
+    await shot(page, "card-back", "The business card's back", {});
+    await page.click("#vFlip"); await settle(page);
+    if (!card.front || !card.back || !card.eyes.every(Boolean) || card.open || !card.nfc || !card.pauseCheck || !card.zip) findings.push({ where: "business card", what: JSON.stringify(card) });
+    notes.push(`business card: rebuilt in ${Math.round(card.ms)} ms after a change of name; both QR codes read back from the geometry with real fonts (and with rounded and round eyes); NFC pause before layer ${card.nfc && card.nfc.layer}; messages: ${card.warn.join("; ") || "none"}`);
+  }
   // ---------- the colour painter with a real mouse, and a painted 3mf opened again (Session 13) ----------
   {
     const s = await page.evaluate(async () => {

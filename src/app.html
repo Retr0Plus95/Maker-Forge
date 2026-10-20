@@ -433,7 +433,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.27.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.28.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -675,9 +675,9 @@ const FLAT = { board:1, nameplate:1, frame:1, box:1, canvas:1, pcb:1, tracer:1, 
 // it was printed twice, as stitches and as a decal over them)
 const CONSUMES_ART = { cutter:1, pcb:1, lightbox:1, tracer:1, jigsaw:1, lithophane:1, canvas:1 };
 // which of the picture's own settings each of those objects reads; the Art tab shows only these
-const ART_USED_BY = { cutter:["width","mirror","colours","smooth"], lightbox:["mirror","colours","smooth"], enclosure:["mirror","colours","smooth"], phonecase:["mirror","colours","smooth"],
+const ART_USED_BY = { cutter:["width","mirror","colours","smooth"], lightbox:["mirror","colours","smooth"], enclosure:["mirror","colours","smooth"], phonecase:["mirror","colours","smooth"], card:["mirror","colours","smooth"],
   jigsaw:["mirror","colours","smooth"], pcb:["mirror"], tracer:[], lithophane:["mirror"], canvas:["mirror","colours","smooth"] };
-const SHAPES = [["tracer","Photo to 3D tracer"],["lithophane","Lithophane"],["board","Flat shape"],["nameplate","Name plate & keychain"],["canvas","Plastic canvas / mosaic"],["jigsaw","Jigsaw puzzle"],
+const SHAPES = [["tracer","Photo to 3D tracer"],["lithophane","Lithophane"],["board","Flat shape"],["nameplate","Name plate & keychain"],["card","Business card"],["canvas","Plastic canvas / mosaic"],["jigsaw","Jigsaw puzzle"],
   ["bobble","Bobble head"],["cutter","Cookie cutter from artwork"],["turned","Turned shape (vase, egg, cone)"],
   ["pcb","Circuit board from a schematic"],["lightbox","Lightbox / shadow box"],["frame","Photo frame"],["shell","Tea light / lantern"],["box","Plaque / box"],["cylinder","Cylinder"],
   ["hex","Hex prism"],["sphere","Sphere"],["enclosure","Project box / enclosure"],["phonecase","Phone case"],["stl","Import a model"],["none","No object"]];
@@ -731,6 +731,8 @@ const PRESETS = {
   "Raspberry Pi case":{ base:{ type:"enclosure", enclosure:{ w:100, d:76, h:34, radius:4, board:"pi", standH:5,
     cut:[ { face:"right", kind:"rect", u:0, v:18, w:54, h:17, r:1, notch:true }, { face:"top", kind:"vent", u:0, v:0, w:50, h:30, style:"honeycomb" } ] } },
     tip:"Standoffs for a Raspberry Pi 5, 4 or 3 and an opening for its USB and Ethernet side. Add the front ports for your model on the Openings page." },
+  "Business card":{ base:{ type:"card" },
+    tip:"Type your name and details on the Make tab. The front prints face down, flush and smooth; a QR code, a logo, a pattern and an NFC tag are all options." },
   "Phone case":{ base:{ type:"phonecase" }, slots:[{ hex:"#2b2d42", name:"Black TPU" }],
     tip:"Pick your phone, print the fit test rim first, then the case. Print it in TPU so it snaps on." }
 };
@@ -900,6 +902,22 @@ const DEFAULTS = () => ({
       curve:120, dia:70, h:80, hole:false, holeDia:4, stripFrom:0.6, stripTo:3.2, stripStep:0.2 },
     phonecase:{ phone:"iPhone 17 Pro", spec:phoneSpec("iPhone 17 Pro"), style:"full", test:false, fit:0.25, wall:1.6, back:1.6, lip:1.0, lipT:1.2, edge:0.8,
       camMargin:0.8, buttons:"each", port:"port", portW:13, logo:{ on:false, mode:"inlay", width:40, x:0, y:-10, depth:0.6 } },
+    card:{ size:"credit", w:85.6, h:53.98, portrait:false, corner:"round", radius:3.18, thick:1.6, margin:4.5,
+      face:"down", frontFinish:"flush", backFinish:"flush", depth:0.6, backDepth:0.6, mono:false, layout:"left", align:"auto",
+      name:"Alex Morgan", title:"Designer & maker", company:"Forge Studio", lines:"+46 70 123 45 67\nalex@forgestudio.se\nforgestudio.se",
+      nameFont:28, textFont:23, nameSize:6, titleSize:3, textSize:2.8, caps:true, spacing:0.06, lineGap:1.65, icons:true, divider:"short",
+      nameSlot:1, titleSlot:2, companySlot:1, textSlot:1, iconSlot:2, dividerSlot:3, textMove:{ x:0, y:0 },
+      // logo.from, not src: "src" is a working key that saving leaves out (runtimeKeys)
+      logo:{ on:true, from:"art", face:"front", size:10, colours:"art", slot:3, initials:"", shape:"circle", fill:"solid", move:{ x:0, y:0 } },
+      qr:{ on:true, face:"both", kind:"link", backKind:"vcard", size:20, backSize:34, ec:"auto", quiet:2, style:"square", eyes:"square", badge:false,
+        patch:"auto", slot:1, patchSlot:0, move:{ x:0, y:0 }, caption:"Scan to save my details", url:"", phone:"", email:"", subject:"", message:"", text:"", ssid:"", password:"", security:"WPA", hidden:false },
+      border:{ style:"none", line:0.6, inset:2.5, face:"front", slot:3 },
+      band:{ on:false, at:"left", span:24, edge:"straight", face:"front", slot:2 },
+      pattern:{ kind:"none", scale:1, line:0.6, angle:45, area:"all", fade:"none", clear:"halo", face:"back", slot:2, seed:7 },
+      back:{ text:"", size:3, slot:1, details:false, name:false },
+      nfc:{ on:false, tag:"s25", dia:25, w:40, h:25, t:0.2, place:"centre", x:0, y:0, mark:"back", slot:2 },
+      hole:{ on:false, kind:"round", dia:5, len:14, pos:"tl", edge:3 },
+      copies:1, list:false, names:"" },
     jigsaw:{ pieces:48, size:150, shape:"rect", style:"classic", knob:1, vary:0.6, seed:2026, thick:3, gap:0.25, firstGap:0,
       picture:"colour", colourH:0.6, faceDown:false, holder:"none", border:8, floor:1.2, frameSlot:1, labels:false, labelDepth:0.6 }
   },
@@ -3644,7 +3662,7 @@ function heightOf(d, slot){
 // artwork cut into the object (Session 32): "engrave" cuts it in, "inlay" cuts it in and fills the cut with the
 // artwork's colours, flush with the surface. Its solids are then the cutters: from CUT_OUT above the surface (so the
 // whole surface is cut, also between the points it was laid on) to its depth below it
-const CUT_OUT = 0.6, NO_DECALS = { jigsaw:1, lithophane:1, enclosure:1, phonecase:1 };
+const CUT_OUT = 0.6, NO_DECALS = { jigsaw:1, lithophane:1, enclosure:1, phonecase:1, card:1 };
 let cutBlocked = "";                                 // why artwork cannot be cut into this model ("open", "load"), or ""
 const cutWanted = d => d.enabled !== false && d.mode !== "relief" && (d.cut === "engrave" || d.cut === "inlay") && !NO_DECALS[state.base.type];
 const cutMode = d => baseSoup && !cutBlocked && cutWanted(d) ? d.cut : null;
@@ -5246,6 +5264,7 @@ async function rebuildAll(resetItems){
     else if (t === "lithophane") parts = buildLithophane();
     else if (t === "enclosure") parts = buildEnclosure();
     else if (t === "phonecase") parts = buildPhoneCase();
+    else if (t === "card") parts = await buildCard();
     else parts = buildSimpleObject();
     cutDrop = 0; flatInfo = null;                    // only an imported model is cut flat: nothing else is lowered
     if (t === "stl") parts = await cutModelFlat(parts);
@@ -5286,6 +5305,7 @@ async function rebuildAll(resetItems){
       if (t === "lithophane"){ d.solids = null; continue; }  // other artwork would only cast a shadow on it
       if (t === "enclosure"){ d.solids = null; continue; }   // not stamped on boxes yet
       if (t === "phonecase"){ d.solids = null; continue; }   // a case takes its picture as an inlay in the back
+      if (t === "card"){ d.solids = null; continue; }        // a card takes its picture as its logo
       if (t === "nameplate" && state.base.nameplate.pic && state.base.nameplate.pic.on &&
           state.items.indexOf(d) === clamp(state.base.nameplate.pic.item,0,state.items.length-1)){ d.solids = null; continue; }
       // one piece of artwork that cannot be laid on the model leaves the rest of the model buildable
@@ -5321,7 +5341,7 @@ async function rebuildAll(resetItems){
     }
     // the Art tab shows an inlaid picture's preview and its messages (a case's back, a box's lid): they come from the
     // build, so they are brought up to date when it finishes (Session 31: the preview stayed blank)
-    if (tab === "art" && (t === "phonecase" || t === "enclosure")){
+    if (tab === "art" && (t === "phonecase" || t === "enclosure" || t === "card")){
       const a = document.activeElement, typing = a && a.closest && a.closest("#panel") && a.matches("input,textarea,select");
       if (artWarnSig() !== renderedArtWarn && !typing) renderTab(); else drawPreview();
     }
@@ -5703,6 +5723,14 @@ function runChecks(){
     I.warn.forEach(w => list.push({ k:"warn", t:w.t, s:w.s }));
   }
   if (state.base.type === "phonecase" && phoneInfo) phoneInfo.warn.forEach(w => list.push({ k:"warn", t:w.t, s:w.s }));
+  if (state.base.type === "card" && cardInfo){
+    const I = cardInfo;
+    I.warn.forEach(w => list.push({ k:"warn", t:w.t, s:w.s }));
+    list.push({ k:"ok", t:`${I.cards > 1 ? `${I.cards} cards` : "A card"} ${(I.W*sc).toFixed(1)} × ${(I.H*sc).toFixed(1)} × ${(I.T*sc).toFixed(2)} mm`,
+      s:`${I.faceDown ? "Front face down" : "Front face up"}: the ${I.bed} is flush on the bed, the ${I.top} ${I.finish[I.top] === "flush" ? "flush on top" : I.finish[I.top]}. No supports.` });
+    if (I.nfc) list.push({ k:"ok", t:`Pause for the NFC tag before the layer at ${I.nfc.pause.z.toFixed(2)} mm (layer ${I.nfc.pause.layer})`,
+      s:"Add a pause there in your slicer. When the printer stops, press the tag into its pocket (a sticker without its backing paper) and carry on. nfc-tag.txt in the download says how." });
+  }
   if (state.base.type === "lithophane" && lithoInfo && lithoInfo.shape === "strip")
     list.push({ k:"ok", t:"Print it like the lithophane", s:"Same filament, 100% infill, lying flat. Then hold it to the light you will use." });
   else if (state.base.type === "lithophane" && lithoInfo){
@@ -5769,7 +5797,7 @@ function runChecks(){
 }
 
 /* ---------- 8. interface ---------- */
-const PRESET_ICONS = { "Project box":"🧰", "Power bank box":"🔋", "PSU box":"⚡", "Raspberry Pi case":"🍓", "Trace a part":"📐", "Lightbox":"💡", "Circuit board":"🔌", "Name keychain":"🔑", "Double-sided tag":"🏷️", "Iron-on patch":"🧵", "Car badge":"🚗",
+const PRESET_ICONS = { "Business card":"💳", "Project box":"🧰", "Power bank box":"🔋", "PSU box":"⚡", "Raspberry Pi case":"🍓", "Trace a part":"📐", "Lightbox":"💡", "Circuit board":"🔌", "Name keychain":"🔑", "Double-sided tag":"🏷️", "Iron-on patch":"🧵", "Car badge":"🚗",
   "Ornament":"🎄", "Tea light":"🕯️", "Plastic canvas":"🧶", "Bobble head":"🙂", "Cookie cutter":"🍪", "Photo frame":"🖼️",
   "Jigsaw puzzle":"🧩", "Kids' puzzle":"🧸", "Lithophane":"🌅", "Lithophane lamp":"🏮" };
 const SHAPE_LABEL = Object.fromEntries(SHAPES);
@@ -5909,15 +5937,15 @@ function slotField(parent, label, get, set){
   parent.appendChild(w); return w;
 }
 /* scrollable font list: every row is drawn in its own typeface */
-function fontField(parent, get, set){
+function fontField(parent, get, set, sample, label){
   const w = document.createElement("div"); w.className = "field full";
-  w.innerHTML = `<label>Font <span class="hint" style="margin:0">${esc(FONTS[clamp(get(),0,FONTS.length-1)].n)}</span></label><div class="fontlist"></div>`;
+  w.innerHTML = `<label>${esc(label || "Font")} <span class="hint" style="margin:0">${esc(FONTS[clamp(get(),0,FONTS.length-1)].n)}</span></label><div class="fontlist"></div>`;
   const box = w.querySelector(".fontlist");
   FONTS.forEach((f,i)=>{
     const b = document.createElement("button");
     b.className = "fontrow"; b.setAttribute("aria-pressed", String(i === get()));
     b.style.fontFamily = `"${f.n}", sans-serif`; b.style.fontWeight = f.w;
-    b.textContent = state.base.nameplate.text.split("\n")[0].slice(0,14) || f.n;
+    b.textContent = (sample != null ? String(sample) : state.base.nameplate.text.split("\n")[0]).slice(0,14) || f.n;
     b.title = f.n + (f.joined ? " (joins up)" : "");
     b.onclick = ()=>{ set(i); };
     box.appendChild(b);
@@ -5993,11 +6021,19 @@ const SECTION_ICONS = [
   [/printab/i,"△"], [/before you print|check/i,"✓"], [/material|time/i,"⏱"], [/files|download/i,"↓"], [/every name|batch/i,"≡"],
   [/project/i,"🗀"], [/slicer/i,"⚒"], [/help|shortcut/i,"?"], [/loaded filaments/i,"◉"], [/palette/i,"◐"],
   [/printer/i,"⎙"], [/separate/i,"◑"], [/clean/i,"✧"], [/real size|measure/i,"↔"], [/by hand/i,"✎"],
+  [/^qr code$/i,"▦"], [/nfc tag/i,"📶"], [/^logo$/i,"✪"], [/border and band/i,"▭"], [/^pattern$/i,"≋"], [/printing the card/i,"⛰"], [/^copies$/i,"≡"],
+  [/name and details/i,"Aa"], [/fonts and sizes/i,"𝐅"],
   [/^paint$/i,"🖌"], [/fit and walls/i,"▭"], [/phone's size/i,"↔"], [/camera opening/i,"◉"], [/buttons and port/i,"⏻"], [/picture on the back/i,"▨"], [/auto colou?r/i,"✨"], [/brush and fill/i,"✎"], [/paint list/i,"≡"], [/paint detail/i,"⚙"],
   [/shape it/i,"⬒"], [/against the real/i,"✓"], [/^photo$/i,"▨"], [/parts in this/i,"▦"], [/colour swap/i,"⇅"]
 ];
 const SECTION_HELP = [
   [/fit and walls/i, "A snug TPU case: 0.2 mm gap, 1.6 mm walls, a 1 mm lip. Print the fit test rim first and adjust."],
+  [/name and details/i, "Everything here is drawn in real fonts and printed in your filaments. Each line of details gets an icon from what it looks like."],
+  [/^qr code$/i, "Test it with your phone's camera on the screen before printing: point it at the model in the view, turned to face you."],
+  [/nfc tag/i, "Write the tag with a phone first. The printer pauses when the pocket is done; drop the tag in and carry on."],
+  [/printing the card/i, "Face down, the front is as smooth as your bed. Flush colours keep both sides flat, so it slides into a wallet."],
+  [/border and band/i, "A thin gold line or a band of colour makes a plain card look made, not printed."],
+  [/^pattern$/i, "A pattern under the words is flashy; Clear round the words keeps them easy to read."],
   [/phone's size/i, "The sizes come from the maker's spec sheet. If your phone is in a skin or has a screen protector, add its thickness."],
   [/camera opening/i, "Measure on the back of the phone: from its left edge and top to the edge of the camera bump."],
   [/buttons and port/i, "One long slot a side is the easiest to get right. Holes per button look neater once the fit test lines up."],
@@ -6158,7 +6194,7 @@ function updateDock(){
 /* ---- Make ---- */
 /* the right sidebar: quick-start presets and every object, grouped so things are easy to find */
 const OBJECT_GROUPS = [
-  ["Personalise", [["nameplate","🔑"],["board","🏷️"],["frame","🖼️"],["box","🪧"]]],
+  ["Personalise", [["nameplate","🔑"],["card","💳"],["board","🏷️"],["frame","🖼️"],["box","🪧"]]],
   ["From a picture", [["tracer","📐"],["lithophane","🌅"],["jigsaw","🧩"],["cutter","🍪"],["pcb","🔌"],["lightbox","💡"],["canvas","🧶"]]],
   ["Figures and décor", [["bobble","🙂"],["shell","🕯️"],["turned","🏺"]]],
   ["Functional", [["enclosure","🧰"],["phonecase","📱"]]],
@@ -6226,7 +6262,7 @@ function tabMake(p){
   ({ nameplate:nameplateFields, canvas:canvasFields, bobble:bobbleFields, cutter:cutterFields, turned:turnedFields,
      pcb:pcbFields, lightbox:lightboxFields, tracer:tracerFields, jigsaw:jigsawFields, lithophane:lithophaneFields,
      board:boardFields, frame:frameFields, shell:shellFields, box:boxFields, cylinder:cylFields, hex:hexFields,
-     sphere:sphereFields, enclosure:enclosureFields, phonecase:phonecaseFields, stl:stlFields, none:noneFields })[b.type](p);
+     sphere:sphereFields, enclosure:enclosureFields, phonecase:phonecaseFields, card:cardFields, stl:stlFields, none:noneFields })[b.type](p);
   if (!["none","bobble","lightbox","jigsaw","enclosure"].includes(b.type))
     slotField(p, "Object filament", ()=>String(b.slot), v=>{ b.slot = +v; baseChanged(); });
   buttonRow(p, [["Change the object →", ()=>{ setSide("right", true); const el = $("#objectSel"); if (el) el.focus(); }]]);
@@ -6454,6 +6490,1201 @@ function phonecaseFields(p){
     numField(g,{ label:"Move right (mm, seen from the back)", min:-60, max:60, step:0.5, get:()=>K.logo.x, set:v=>K.logo.x=v, onChange:baseChanged });
     numField(g,{ label:"Move up (mm)", min:-110, max:110, step:0.5, get:()=>K.logo.y, set:v=>K.logo.y=v, onChange:baseChanged });
     numField(g,{ label:"Depth (mm)", min:0.2, max:1.6, step:0.1, get:()=>K.logo.depth, set:v=>K.logo.depth=v, onChange:baseChanged });
+  });
+  if (I && I.warn.length) I.warn.forEach(w => p.insertAdjacentHTML("beforeend", `<div class="result warn"><span class="dot"></span><div><b>${esc(w.t)}</b><span class="s">${esc(w.s)}</span></div></div>`));
+}
+
+/* ---------- business cards (Session 33) ----------
+   A card the size of a bank card, or any other, printed flat in one go. Everything on a face (the name and details
+   in real fonts, small icons, the QR code, the logo, a border, a band, a pattern, the NFC mark) is drawn into a
+   picture of that face, 16 pixels a millimetre, one element at a time from the top down: each takes the pixels
+   nothing above it took, in its filament, so the colours fit together exactly. The card's outline, the border, the
+   band and the patterns are worked out exactly at every pixel, not drawn. Each filament's part is traced from its
+   picture. The face on the bed is flush, in the card's first layers (as smooth as the bed); the face on top is
+   flush, raised or engraved. An NFC tag can go in a pocket inside, with a pause to drop it in. */
+let cardInfo = null;
+const CARD_SIZES = {
+  credit:{ label:"Bank card, 85.6 × 54 mm", w:85.6, h:53.98, r:3.18 },
+  eu:{ label:"European, 85 × 55 mm", w:85, h:55, r:3 },
+  us:{ label:"US, 3.5 × 2 in (88.9 × 50.8 mm)", w:88.9, h:50.8, r:3 },
+  jp:{ label:"Japanese meishi, 91 × 55 mm", w:91, h:55, r:3 },
+  au:{ label:"Australian, 90 × 55 mm", w:90, h:55, r:3 },
+  square:{ label:"Square, 65 × 65 mm", w:65, h:65, r:4 },
+  mini:{ label:"Mini, 70 × 28 mm", w:70, h:28, r:3 },
+  tag:{ label:"Bag tag, 100 × 60 mm", w:100, h:60, r:5 },
+  custom:{ label:"My own size", w:85.6, h:53.98, r:3 }
+};
+// NFC tags: the size and thickness of the usual kinds (stickers lose their backing paper first)
+const CARD_TAGS = {
+  s25:{ label:"Round sticker, 25 mm (NTAG213 or 215, the usual one)", dia:25, t:0.2 },
+  s20:{ label:"Round sticker, 20 mm", dia:20, t:0.2 },
+  s30:{ label:"Round sticker, 30 mm", dia:30, t:0.2 },
+  s38:{ label:"Round sticker, 38 mm", dia:38, t:0.2 },
+  c25:{ label:"Round PVC coin tag, 25 mm", dia:25, t:1 },
+  c30:{ label:"Round PVC coin tag, 30 mm", dia:30, t:1 },
+  round:{ label:"Round, my size", dia:25, t:0.3 },
+  rect:{ label:"Rectangular, my size", w:40, h:25, t:0.3 }
+};
+const CARD_LAYOUTS = [["left","Words on the left, code on the right"],["right","Code on the left, words on the right"],["centre","Centred"],
+  ["split","A band with the logo, words beside it"],["minimal","Just the name and title (the rest on the back)"]];
+const CARD_PATTERNS = [["none","None"],["stripes","Bold stripes"],["pinstripe","Pinstripes"],["chevron","Chevrons"],["grid","Grid"],["dots","Dots"],
+  ["halftone","Halftone dots"],["hexagons","Honeycomb"],["triangles","Triangles"],["waves","Waves"],["guilloche","Guilloche (banknote lines)"],
+  ["topo","Contour lines"],["sunburst","Sunburst"],["carbon","Carbon weave"],["circuit","Circuit traces"],["confetti","Confetti"]];
+const CARD_QR_KINDS = [["link","A web address"],["vcard","Contact card (vCard): saves your details"],["mecard","Contact card, shorter (MeCard)"],
+  ["phone","Phone number (calls you)"],["sms","Text message to you"],["email","Email to you"],["wifi","Wi-Fi network (joins it)"],["text","Any text"]];
+const cardSlot = v => clamp(Math.round(cleanNum(+v, 0)), 0, state.slots.length - 1);
+const cardPick = (v, list) => list.includes(v) ? v : list[0];
+const cardFont = i => FONTS[clamp(Math.round(cleanNum(+i, 0)), 0, FONTS.length - 1)];
+// relative brightness of a filament (sRGB), for checking the QR code can be read
+function cardLum(hex){
+  const c = C.hexToRgb(HEX_RE.test(hex) ? hex : "#808080").map(v => { v /= 255; return v <= 0.04045 ? v/12.92 : Math.pow((v + 0.055)/1.055, 2.4); });
+  return 0.2126*c[0] + 0.7152*c[1] + 0.0722*c[2];
+}
+function cardSpec(K){
+  const s = encHas(CARD_SIZES, K.size) && K.size !== "custom" ? CARD_SIZES[K.size] : null;
+  let W = s ? s.w : clamp(cleanNum(K.w, 85.6), 30, 200), H = s ? s.h : clamp(cleanNum(K.h, 53.98), 20, 200);
+  if (K.portrait) [W, H] = [H, W];
+  return { W, H, R: clamp(cleanNum(K.radius, 3.18), 0, Math.min(W, H)/2) };
+}
+// the hanging hole (or lanyard slot), as seen from the front: its middle and a signed distance to it
+function cardHole(K, W, H){
+  const O = K.hole || {}; if (!O.on) return null;
+  const d = clamp(cleanNum(O.dia, 5), 2, 12), r = d/2, e = clamp(cleanNum(O.edge, 3), 1.2, 15) + r;
+  const pos = cardPick(O.pos, ["tl","tr","bl","br","top","bottom","left","right"]);
+  const cx = /l$|^left$/.test(pos) ? -W/2 + e : /r$|^right$/.test(pos) ? W/2 - e : 0;
+  const cy = /^t|^top$/.test(pos) ? -H/2 + e : /^b|^bottom$/.test(pos) ? H/2 - e : 0;
+  const slot = O.kind === "slot", along = pos === "left" || pos === "right" ? "y" : "x";
+  const len = slot ? clamp(cleanNum(O.len, 14), d, Math.min(40, (along === "x" ? W : H) - 2*e + d)) : d;
+  const sdf = slot ? (x, y) => rrSDF(x - cx, y - cy, along === "x" ? len/2 : r, along === "x" ? r : len/2, r) : (x, y) => Math.hypot(x - cx, y - cy) - r;
+  return { cx, cy, r, len, along, sdf };
+}
+// the card's outline as seen from the front (y down, from the middle): a signed distance, negative inside
+function cardOutline(K, W, H, R){
+  const hx = W/2, hy = H/2, c = K.corner;
+  const base = c === "sharp" ? (x, y) => rrSDF(x, y, hx, hy, 0)
+    : c === "cut" ? (x, y) => Math.max(rrSDF(x, y, hx, hy, 0), (Math.abs(x) + Math.abs(y) - (hx + hy - R))*Math.SQRT1_2)
+    : c === "ticket" ? (x, y) => Math.max(rrSDF(x, y, hx, hy, 0), R - Math.hypot(Math.abs(x) - hx, Math.abs(y) - hy))
+    : c === "leaf" ? (x, y) => rrSDF(x, y, hx, hy, (x < 0) === (y < 0) ? R : 0)
+    : c === "pill" ? (x, y) => rrSDF(x, y, hx, hy, Math.min(hx, hy))
+    : (x, y) => rrSDF(x, y, hx, hy, R);
+  const hole = cardHole(K, W, H), key = [W, H, R, c, hole ? [hole.cx, hole.cy, hole.r, hole.len, hole.along].join(",") : ""].join("/");
+  return { base, hole, key, sdf: hole ? (x, y) => Math.max(base(x, y), -hole.sdf(x, y)) : base };
+}
+// a face's coverage from a signed distance (mm): 255 inside, 0 outside, a one-pixel ramp between. A true distance
+// (lip: it changes no faster than the distance moved) lets a pixel far from any edge vouch for its neighbours along
+// the row, so most of the face is filled without working it out pixel by pixel (Session 33: a card spent half its
+// build here)
+// safe, if given, is a true distance the skipping goes by instead (a pattern may only skip what lies outside its area)
+function cardField(G, sdf, lip, safe){
+  const f = new Uint8Array(G.Wp*G.Hp), PX = G.PX;
+  for (let j=0;j<G.Hp;j++){
+    const y = (j + 0.5 - G.Hp/2)/PX, o = j*G.Wp;
+    for (let i=0;i<G.Wp;i++){
+      const x = (i + 0.5 - G.Wp/2)/PX, d = sdf(x, y)*PX, v = 0.5 - d, c = v <= 0 ? 0 : v >= 1 ? 255 : Math.round(v*255);
+      f[o + i] = c;
+      if (!lip) continue;
+      const s = safe ? safe(x, y)*PX : d;
+      if (s > 2 || s < -2){ const n = Math.min(G.Wp - 1 - i, Math.floor(Math.abs(s)*lip) - 1); if (n > 0){ f.fill(c, o + i + 1, o + i + 1 + n); i += n; } }
+    }
+  }
+  return f;
+}
+// a smooth field worked out every other pixel each way, the distance in between read off a straight line: a quarter
+// of the work for a pattern, whose lines are smooth on that scale
+function cardFieldCoarse(G, sdf){
+  const PX = G.PX, cw = Math.ceil(G.Wp/2) + 1, ch = Math.ceil(G.Hp/2) + 1, D = new Float32Array(cw*ch), f = new Uint8Array(G.Wp*G.Hp);
+  for (let j=0;j<ch;j++){ const y = (2*j + 0.5 - G.Hp/2)/PX; for (let i=0;i<cw;i++) D[j*cw + i] = sdf((2*i + 0.5 - G.Wp/2)/PX, y)*PX; }
+  for (let y=0;y<G.Hp;y++){
+    const j = y >> 1, ty = (y & 1)*0.5, o = y*G.Wp;
+    for (let x=0;x<G.Wp;x++){
+      const i = x >> 1, tx = (x & 1)*0.5, k = j*cw + i;
+      const d = (D[k]*(1 - tx) + D[k + 1]*tx)*(1 - ty) + (D[k + cw]*(1 - tx) + D[k + cw + 1]*tx)*ty, v = 0.5 - d;
+      f[o + x] = v <= 0 ? 0 : v >= 1 ? 255 : Math.round(v*255);
+    }
+  }
+  return f;
+}
+// the card's outline on a face (and kept clear of the hanging hole), worked out once for a size and shape
+const cardFieldCache = new Map();
+function cardOutlineField(G, ol, side, keep){
+  const key = [G.W, G.H, G.PX, G.Wp, G.Hp, ol.key, side, keep].join("|");
+  let f = cardFieldCache.get(key);
+  if (!f){
+    const sdf = side === "front" ? ol.sdf : (x, y) => ol.sdf(-x, y), hole = ol.hole ? (side === "front" ? ol.hole.sdf : (x, y) => ol.hole.sdf(-x, y)) : null;
+    f = cardField(G, keep && hole ? (x, y) => Math.max(sdf(x, y), keep - hole(x, y)) : sdf, 0.9);
+    if (cardFieldCache.size > 7) cardFieldCache.delete(cardFieldCache.keys().next().value);
+    cardFieldCache.set(key, f);
+  }
+  return f;
+}
+// draws in millimetres (y down, from the card's middle) and gives back the coverage
+function cardDraw(G, fn){
+  const x = G.ctx;
+  x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = "source-over"; x.globalAlpha = 1; x.clearRect(0, 0, G.Wp, G.Hp);
+  x.setTransform(G.PX, 0, 0, G.PX, G.Wp/2, G.Hp/2); x.fillStyle = "#000"; x.strokeStyle = "#000"; x.lineCap = "round"; x.lineJoin = "round";
+  fn(x);
+  x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = "source-over";
+  const d = x.getImageData(0, 0, G.Wp, G.Hp).data, f = new Uint8Array(G.Wp*G.Hp);
+  for (let i=0;i<f.length;i++) f[i] = d[i*4 + 3];
+  return f;
+}
+// a field traced into outlines (mm, y up), only in a window round what is set in it
+function cardTrace(f, G){
+  let x0 = G.Wp, x1 = -1, y0 = G.Hp, y1 = -1;
+  for (let j=0;j<G.Hp;j++){ const o = j*G.Wp; for (let i=0;i<G.Wp;i++) if (f[o + i] > 127){ if (i < x0) x0 = i; if (i > x1) x1 = i; if (j < y0) y0 = j; if (j > y1) y1 = j; } }
+  if (x1 < 0) return [];
+  x0 = Math.max(0, x0 - 2); y0 = Math.max(0, y0 - 2); x1 = Math.min(G.Wp - 1, x1 + 2); y1 = Math.min(G.Hp - 1, y1 + 2);
+  const cw = x1 - x0 + 1, ch = y1 - y0 + 1, sub = new Uint8Array(cw*ch);
+  for (let j=0;j<ch;j++) sub.set(f.subarray((y0 + j)*G.Wp + x0, (y0 + j)*G.Wp + x0 + cw), j*cw);
+  const s = 1/G.PX, dx = (x0 + cw/2 - G.Wp/2)*s, dy = (G.Hp/2 - (y0 + ch/2))*s, mv = L => L.map(([x, y]) => [x + dx, y + dy]);
+  return C.fieldToPolys(sub, cw, ch, { mmPerPx:s, iso:127.5, eps:0.015, minSeg:0.04, minArea:s*s*6, closeEdges:true })
+    .map(q => ({ outer:mv(q.outer), holes:q.holes.map(mv) }));
+}
+const cardAny = f => { for (let i=0;i<f.length;i++) if (f[i] > 127) return true; return false; };
+// a small, repeatable random number generator for the patterns
+const cardRng = seed => () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0)/4294967296; };
+// what a line of the details is, from how it looks: it decides the icon in front of it
+function cardLineKind(s){
+  const t = String(s || "").trim();
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(t)) return "email";
+  if (/^(tel:\s*)?\+?\(?\d[\d\s().\-\/]{5,}$/.test(t)) return "phone";
+  if (/^(https?:\/\/|www\.)\S+$/i.test(t) || /^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}(\/\S*)?$/i.test(t)) return "web";
+  if (/^@[\w.]{2,}$/.test(t) || /^(instagram|insta|ig|twitter|x|tiktok|linkedin|github|youtube|facebook|fb|mastodon|threads|bluesky)\s*[:\/]/i.test(t)) return "social";
+  if (/\d/.test(t) && /[a-z]{3,}/i.test(t)) return "pin";
+  return "";
+}
+// the card's details sorted out for a contact card or a link: a line of each kind, the first one found
+function cardContact(K, who){
+  const lines = String(K.lines || "").split("\n").map(s => s.trim()).filter(Boolean), pick = k => lines.find(l => cardLineKind(l) === k) || "";
+  return { name: who ? who.name : K.name, title: who && who.title ? who.title : K.title, org: K.company,
+    phone: pick("phone"), email: pick("email"), url: pick("web"), address: pick("pin") };
+}
+// the people in the list: one card each ("Name | Title" per line)
+function cardPeople(K){
+  return String(K.names || "").split("\n").map(l => l.trim()).filter(Boolean).slice(0, 24).map(l => {
+    const [n, t] = l.split("|").map(s => s.trim()); return { name: n.slice(0, 60), title: (t || "").slice(0, 80) };
+  });
+}
+// what the QR code on a face says
+function cardQRText(K, kind, who){
+  const Q = K.qr || {}, c = cardContact(K, who), or = (a, b) => String(a || "").trim() || b;
+  return C.qrPayload(kind, { name:c.name, title:c.title, org:c.org, phone:or(Q.phone, c.phone), email:or(Q.email, c.email), url:or(Q.url, c.url),
+    address:c.address, subject:Q.subject, message:Q.message, text:Q.text, ssid:Q.ssid, password:Q.password, security:Q.security, hidden:Q.hidden === true });
+}
+// a small icon in front of a line of details, drawn in millimetres in a box s high, centred on cx, cy
+function cardIcon(x, kind, cx, cy, s, cut){
+  const disc = (X, Y, r) => { x.moveTo(X + r, Y); x.arc(X, Y, r, 0, Math.PI*2); };
+  const out = fn => { x.save(); x.globalCompositeOperation = "destination-out"; x.beginPath(); fn(); x.restore(); };
+  x.beginPath();
+  if (kind === "phone"){                              // a handset
+    x.save(); x.lineWidth = 0.27*s; x.lineCap = "round"; x.beginPath();
+    x.arc(cx + 0.2*s, cy - 0.2*s, 0.5*s, 80*Math.PI/180, 190*Math.PI/180); x.stroke(); x.restore();
+    x.beginPath(); disc(cx + 0.2*s + 0.5*s*Math.cos(80*Math.PI/180), cy - 0.2*s + 0.5*s*Math.sin(80*Math.PI/180), 0.2*s);
+    disc(cx + 0.2*s + 0.5*s*Math.cos(190*Math.PI/180), cy - 0.2*s + 0.5*s*Math.sin(190*Math.PI/180), 0.2*s); x.fill();
+  } else if (kind === "email"){                       // an envelope, drawn as an outline: a solid one cut by its flap left slivers too thin to print
+    const w = Math.max(cut, 0.14*s), hx = 0.55*s - w/2, hy = 0.38*s - w/2;
+    x.save(); x.lineWidth = w; x.lineJoin = "round"; x.lineCap = "round"; x.beginPath();
+    x.rect(cx - hx, cy - hy, 2*hx, 2*hy); x.moveTo(cx - hx, cy - hy); x.lineTo(cx, cy + 0.08*s); x.lineTo(cx + hx, cy - hy); x.stroke(); x.restore();
+  } else if (kind === "web"){                         // a globe
+    disc(cx, cy, 0.5*s); x.fill();
+    out(() => { x.lineWidth = cut; x.moveTo(cx - 0.5*s, cy); x.lineTo(cx + 0.5*s, cy); x.stroke();
+      x.beginPath(); x.ellipse(cx, cy, 0.2*s, 0.5*s, 0, 0, Math.PI*2); x.stroke(); });
+  } else if (kind === "pin"){                         // a map pin
+    x.moveTo(cx, cy + 0.55*s); x.lineTo(cx - 0.3*s, cy - 0.02*s); x.arc(cx, cy - 0.17*s, 0.34*s, Math.PI*0.86, Math.PI*0.14); x.closePath(); x.fill();
+    out(() => { disc(cx, cy - 0.17*s, Math.max(cut*0.8, 0.12*s)); x.fill(); });
+  } else if (kind === "social"){                      // a speech bubble
+    x.moveTo(cx - 0.5*s + 0.15*s, cy - 0.4*s); x.lineTo(cx + 0.35*s, cy - 0.4*s); x.arc(cx + 0.35*s, cy - 0.25*s, 0.15*s, -Math.PI/2, 0);
+    x.lineTo(cx + 0.5*s, cy + 0.12*s); x.arc(cx + 0.35*s, cy + 0.12*s, 0.15*s, 0, Math.PI/2); x.lineTo(cx - 0.05*s, cy + 0.27*s);
+    x.lineTo(cx - 0.32*s, cy + 0.52*s); x.lineTo(cx - 0.3*s, cy + 0.27*s); x.lineTo(cx - 0.35*s, cy + 0.27*s);
+    x.arc(cx - 0.35*s, cy + 0.12*s, 0.15*s, Math.PI/2, Math.PI); x.lineTo(cx - 0.5*s, cy - 0.25*s); x.arc(cx - 0.35*s, cy - 0.25*s, 0.15*s, Math.PI, Math.PI*1.5); x.closePath(); x.fill();
+  }
+}
+// the NFC mark: a dot and three arcs, s across
+function cardTapMark(x, cx, cy, s, w){
+  x.save(); x.lineWidth = w; x.lineCap = "round";
+  for (let k=1;k<=3;k++){ x.beginPath(); x.arc(cx - 0.42*s, cy, k*0.26*s, -Math.PI/4, Math.PI/4); x.stroke(); }
+  x.restore(); x.beginPath(); x.moveTo(cx - 0.42*s + w*0.9, cy); x.arc(cx - 0.42*s, cy, w*0.9, 0, Math.PI*2); x.fill();
+}
+// a pattern as a signed distance (mm, negative inside): sc stretches it, w is its line, grow(x, y) thins it towards a side
+function cardPatternSDF(P, W, H, noz, seed){
+  const sc = clamp(cleanNum(P.scale, 1), 0.4, 3), p = 3*sc, w0 = Math.max(noz*1.2, clamp(cleanNum(P.line, 0.6), 0.2, 3));
+  const a = clamp(cleanNum(P.angle, 45), -90, 90)*Math.PI/180, ca = Math.cos(a), sa = Math.sin(a), rnd = v => v - Math.round(v);
+  const fade = P.fade || "none", R0 = Math.hypot(W, H)/2;
+  const grow = fade === "lr" ? (x) => (x + W/2)/W : fade === "rl" ? (x) => (W/2 - x)/W : fade === "tb" ? (x, y) => (y + H/2)/H
+    : fade === "bt" ? (x, y) => (H/2 - y)/H : fade === "centre" ? (x, y) => 1 - Math.hypot(x, y)/R0 : fade === "edges" ? (x, y) => Math.hypot(x, y)/R0 : null;
+  const gone = noz*1.2;
+  const lines = (t, w) => w < gone ? 1 : Math.abs(t) - w/2;                // t: distance to the middle of a line
+  const at = (x, y) => grow ? clamp(grow(x, y), 0, 1) : 1;
+  switch (P.kind){
+    case "stripes": return (x, y) => { const u = x*ca + y*sa; return lines(rnd(u/(2*p))*2*p, p*at(x, y)); };
+    case "pinstripe": return (x, y) => { const u = x*ca + y*sa; return lines(rnd(u/p)*p, w0*(grow ? 0.4 + 1.2*at(x, y) : 1)); };
+    case "chevron": return (x, y) => { const v = y + Math.abs(rnd(x/(2*p))*2*p); return lines(rnd(v/p)*p*Math.SQRT1_2, w0*(grow ? 0.4 + 1.6*at(x, y) : 1.4)); };
+    case "grid": return (x, y) => { const g = w0*(grow ? 0.4 + 1.2*at(x, y) : 1); return Math.min(lines(rnd(x/p)*p, g), lines(rnd(y/p)*p, g)); };
+    case "dots": case "halftone": return (x, y) => {
+      const dy = p*0.866, j = Math.round(y/dy), ox = j & 1 ? p/2 : 0, i = Math.round((x - ox)/p), cx = i*p + ox, cy = j*dy;
+      const r = P.kind === "halftone" ? p*0.48*(grow ? at(cx, cy) : clamp((cx + W/2)/W, 0, 1)) : p*0.3*(grow ? 0.3 + 0.9*at(cx, cy) : 1);
+      return r*2 < gone ? 1 : Math.hypot(x - cx, y - cy) - r; };
+    case "hexagons": return (x, y) => {                // pointy hexagons: distance to the nearest cell's edge
+      const s3 = Math.sqrt(3), size = p*0.75, q = (s3/3*x - y/3)/size, r = (2/3*y)/size;
+      let rx = Math.round(q), rz = Math.round(r), ry = Math.round(-q - r); const dx = Math.abs(rx - q), dz = Math.abs(rz - r), dyy = Math.abs(ry + q + r);
+      if (dx > dyy && dx > dz) rx = -ry - rz; else if (dyy <= dz) rz = -rx - ry;
+      const cx = size*s3*(rx + rz/2), cy = size*1.5*rz, lx = Math.abs(x - cx), ly = Math.abs(y - cy);
+      const edge = Math.max(lx, (lx*0.5 + ly*s3/2)) - size*s3/2;            // the cell's inradius is size·√3/2
+      return lines(edge, w0*(grow ? 0.4 + 1.2*at(x, y) : 1)); };
+    case "triangles": return (x, y) => { const g = w0*(grow ? 0.4 + 1.2*at(x, y) : 1); let d = 1e9;
+      for (const t of [0, Math.PI/3, -Math.PI/3]){ const u = x*Math.sin(t) + y*Math.cos(t); d = Math.min(d, lines(rnd(u/p)*p, g)); } return d; };
+    case "waves": case "guilloche": {
+      const A = P.kind === "waves" ? 0.35*p : 0.7*p, L = (P.kind === "waves" ? 4 : 6)*p, k = 2*Math.PI/L;
+      const wave = (x, y, s) => { const t = y - s*A*Math.sin(k*x), sl = s*A*k*Math.cos(k*x); return rnd(t/p)*p/Math.sqrt(1 + sl*sl); };
+      return P.kind === "waves" ? (x, y) => lines(wave(x, y, 1), w0*(grow ? 0.4 + 1.2*at(x, y) : 1))
+        : (x, y) => { const g = w0*(grow ? 0.4 + 1.2*at(x, y) : 1); return Math.min(lines(wave(x, y, 1), g), lines(wave(x, y, -1), g)); };
+    }
+    case "topo": {                                     // contour lines of smooth hills, the same for the same pattern number
+      const R = cardRng(seed), terms = [0,1,2,3].map(() => ({ kx:(R()*2 - 1)*0.12/sc, ky:(R()*2 - 1)*0.12/sc, ph:R()*6.283, a:0.6 + R()*0.6 }));
+      const g = (x, y) => terms.reduce((s, t) => s + t.a*Math.sin(t.kx*x + t.ky*y + t.ph), 0) + 0.5*Math.sin(0.05*x/sc)*Math.cos(0.07*y/sc);
+      const step = 0.35;
+      return (x, y) => { const v = g(x, y), e = 0.05, gx = (g(x + e, y) - v)/e, gy = (g(x, y + e) - v)/e, n = Math.max(1e-3, Math.hypot(gx, gy));
+        return lines(rnd(v/step)*step/n, w0*(grow ? 0.4 + 1.2*at(x, y) : 1)); };
+    }
+    case "sunburst": {                                 // rays from the corner (or the middle, when it fades from there)
+      const ox = fade === "centre" || fade === "edges" ? 0 : -W/2, oy = fade === "centre" || fade === "edges" ? 0 : H/2, n = Math.round(clamp(40/sc, 8, 120)), al = 2*Math.PI/n;
+      return (x, y) => { const r = Math.hypot(x - ox, y - oy), th = Math.atan2(y - oy, x - ox); return (Math.abs(rnd(th/al))*al - al/4)*r; };
+    }
+    case "carbon": return (x, y) => {                  // a weave: blocks of stripes, turned in turn
+      const c = 1.6*p, ci = Math.floor(x/c), cj = Math.floor(y/c), u = (ci + cj) & 1 ? x : y;
+      return lines(rnd(u/(c/3))*(c/3), c/3*0.55); };
+  }
+  return () => 1;
+}
+// the area of a face a pattern covers (a signed distance, negative inside)
+function cardAreaSDF(area, W, H, outline, inset){
+  switch (area){
+    case "left": return (x) => x - (-W/2 + W*0.38);
+    case "right": return (x) => (W/2 - W*0.38) - x;
+    case "top": return (x, y) => y - (-H/2 + H*0.4);
+    case "bottom": return (x, y) => (H/2 - H*0.4) - y;
+    case "diagonal": return (x, y) => -(x*H + y*W)/Math.hypot(W, H);
+    case "corner": return (x, y) => Math.hypot(x - W/2, y - H/2) - 0.8*H;
+    case "frame": return (x, y) => -(outline(x, y) + inset);
+  }
+  return () => -1;
+}
+// the band along one side (a signed distance, negative inside), with a straight, slanted, wavy or curved edge
+function cardBandSDF(B, W, H){
+  const at = cardPick(B.at, ["left","right","top","bottom"]), across = at === "left" || at === "right" ? W : H, along = at === "left" || at === "right" ? H : W;
+  const span = clamp(cleanNum(B.span, 24), 3, across), edge = B.edge;
+  const off = t => edge === "slant" ? t/along*span*0.7 : edge === "wave" ? Math.sin(t/along*2*Math.PI*1.25)*Math.min(3, span*0.18)
+    : edge === "curve" ? -span*0.35*(1 - Math.pow(2*t/along, 2)) : 0;
+  return (x, y) => {
+    const s = at === "left" ? x + across/2 : at === "right" ? across/2 - x : at === "top" ? y + across/2 : across/2 - y, t = at === "left" || at === "right" ? y : x;
+    return s - (span + off(t));
+  };
+}
+// the border, in from the outline (a signed distance)
+function cardBorderSDF(Bd, W, H, base, noz){
+  const inset = clamp(cleanNum(Bd.inset, 2.5), 0, Math.min(W, H)/3), w = Math.max(noz*1.2, clamp(cleanNum(Bd.line, 0.6), 0.2, 4));
+  const ring = (x, y) => Math.abs(base(x, y) + inset) - w/2;
+  switch (Bd.style){
+    case "double": { const g = w*2.2; return (x, y) => Math.min(ring(x, y), Math.abs(base(x, y) + inset + g) - w/2); }
+    case "thick": return (x, y) => Math.abs(base(x, y) + inset/2) - inset/2;
+    case "corners": { const L = Math.min(W, H)*0.24;
+      return (x, y) => Math.max(ring(x, y), Math.max((W/2 - inset - L) - Math.abs(x), (H/2 - inset - L) - Math.abs(y))); }
+    case "dashed": case "dotted": {
+      const P = Bd.style === "dashed" ? Math.max(2.4, w*4) : Math.max(1.2, w*2.6), hx = W/2 - inset, hy = H/2 - inset;
+      return (x, y) => {
+        const t = Math.abs(x)/Math.max(1e-6, hx) > Math.abs(y)/Math.max(1e-6, hy) ? y : x, u = (t/P - Math.round(t/P))*P, s = base(x, y) + inset;
+        return Bd.style === "dashed" ? Math.max(Math.abs(s) - w/2, Math.abs(u) - P*0.3) : Math.hypot(s, u) - w*0.62;
+      };
+    }
+  }
+  return ring;
+}
+// the logo from the artwork, split into the loaded filaments, as fields on the face: [{ slot, f }]
+const cardLogoCache = new WeakMap();
+function cardArtLogo(K, G, box, body, warn){
+  const L = K.logo || {}, item = state.items[state.active] || state.items[0], src = item && sourceCanvas(item);
+  if (!src) return null;
+  const gw = Math.max(8, Math.round(box.w*G.PX)), gh = Math.max(8, Math.round(box.h*G.PX)), one = L.colours === "one";
+  const rOpen = Math.max(0, Math.round((state.printer.nozzle || 0.4)*0.5*G.PX));
+  const key = [gw, gh, !!item.mirror, item.smooth ?? 1, (item.skip || []).join(","), state.slots.map(sl => sl.hex).join(","), body, rOpen, one, cardSlot(L.slot)].join("|");
+  let v = cardLogoCache.get(src);
+  if (!v || v.key !== key){
+    const img = resample(src, gw, gh, item.mirror);
+    const cm = C.buildCellMap(img, state.slots.map(sl => C.hexToRgb(sl.hex)), state.slots.map((_, i) => (item.skip || []).includes(i)), item.smooth ?? 1);
+    const idx = cm.idx, bg = new Set([-1, body]);
+    if (!idx.some(q => q < 0)){                      // nothing left out: the colour round most of the border is the background
+      const count = new Map(), add = q => count.set(q, (count.get(q) || 0) + 1);
+      for (let i=0;i<gw;i++){ add(idx[i]); add(idx[(gh - 1)*gw + i]); }
+      for (let j=1;j<gh-1;j++){ add(idx[j*gw]); add(idx[j*gw + gw - 1]); }
+      const [top, n] = [...count].sort((a, b) => b[1] - a[1])[0];
+      if (n >= (2*gw + 2*gh - 4)*0.5) bg.add(top);
+    }
+    const masks = [];
+    const keep = one ? [cardSlot(L.slot)] : state.slots.map((_, k) => k).filter(k => !bg.has(k));
+    for (const k of keep){
+      let m = new Uint8Array(gw*gh), any = false;
+      for (let i=0;i<m.length;i++) if (one ? !bg.has(idx[i]) : idx[i] === k){ m[i] = 1; any = true; }
+      if (!any) continue;
+      if (rOpen > 0) m = openMask(m, gw, gh, rOpen);
+      if (m.some(q => q)) masks.push({ slot:k, m });
+    }
+    v = { key, masks, preview:{ cm:{ gx:gw, gy:gh, idx:Int16Array.from(idx, q => bg.has(q) ? -1 : q) }, raw:Int16Array.from(cm.idx) } };
+    cardLogoCache.set(src, v);
+  }
+  item._cm = v.preview.cm; item._raw = v.preview.raw; item._inlay = true;
+  if (!v.masks.length){ warn.push({ t:"The logo came out empty", s:"All of its colours match the card or the background. Pick another card colour, or switch colours back on on the Art tab." }); return []; }
+  // into the face, softened a little so the traced outline is smooth
+  const i0 = Math.round(G.u(box.x)), j0 = Math.round(G.v(box.y));
+  return v.masks.map(({ slot, m }) => {
+    const f = new Uint8Array(G.Wp*G.Hp);
+    for (let j=0;j<gh;j++){ const y = j0 + j; if (y < 1 || y >= G.Hp - 1) continue;
+      for (let i=0;i<gw;i++){ const x = i0 + i; if (x < 1 || x >= G.Wp - 1 || !m[j*gw + i]) continue; f[y*G.Wp + x] = 255; } }
+    return { slot, f: cardSoften(f, G, i0 - 2, j0 - 2, gw + 4, gh + 4) };
+  });
+}
+// a 3 × 3 average, twice, over a window: a pixel mask's steps become a ramp the outline is traced through smoothly
+function cardSoften(f, G, x0, y0, w, h){
+  x0 = Math.max(1, x0); y0 = Math.max(1, y0); const x1 = Math.min(G.Wp - 2, x0 + w), y1 = Math.min(G.Hp - 2, y0 + h);
+  for (let pass=0;pass<2;pass++){
+    const src = Uint8Array.from(f);
+    for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++){
+      let s = 0; for (let dy=-1;dy<=1;dy++){ const o = (y + dy)*G.Wp + x; s += src[o - 1] + src[o] + src[o + 1]; }
+      f[y*G.Wp + x] = Math.round(s/9);
+    }
+  }
+  return f;
+}
+function cardInitials(K, who){
+  const t = String(K.logo && K.logo.initials || "").trim();
+  if (t) return t.slice(0, 3);
+  const words = String(who ? who.name : K.name || "").trim().split(/\s+/).filter(Boolean);
+  return words.length ? (words[0][0] + (words.length > 1 ? words[words.length - 1][0] : "")).toUpperCase() : "M";
+}
+// the monogram: the initials in a ring, a solid shape (letters cut out) or alone
+function cardMonogram(x, G, K, who, cx, cy, size, font){
+  const L = K.logo || {}, shape = cardPick(L.shape, ["circle","hexagon","diamond","square","shield","none"]), solid = L.fill !== "ring", r = size/2;
+  const noz = state.printer.nozzle || 0.4, w = Math.max(noz*1.5, size*0.07);
+  const path = rr => {
+    x.beginPath();
+    if (shape === "circle"){ x.moveTo(cx + rr, cy); x.arc(cx, cy, rr, 0, Math.PI*2); }
+    else if (shape === "hexagon") for (let i=0;i<6;i++){ const a = Math.PI/6 + i*Math.PI/3; i ? x.lineTo(cx + Math.cos(a)*rr, cy + Math.sin(a)*rr) : x.moveTo(cx + Math.cos(a)*rr, cy + Math.sin(a)*rr); }
+    else if (shape === "diamond"){ x.moveTo(cx, cy - rr); x.lineTo(cx + rr, cy); x.lineTo(cx, cy + rr); x.lineTo(cx - rr, cy); }
+    else if (shape === "square") x.rect(cx - rr*0.88, cy - rr*0.88, rr*1.76, rr*1.76);
+    else if (shape === "shield"){ x.moveTo(cx - rr*0.85, cy - rr*0.85); x.lineTo(cx + rr*0.85, cy - rr*0.85); x.lineTo(cx + rr*0.85, cy - rr*0.1);
+      x.quadraticCurveTo(cx + rr*0.8, cy + rr*0.6, cx, cy + rr); x.quadraticCurveTo(cx - rr*0.8, cy + rr*0.6, cx - rr*0.85, cy - rr*0.1); }
+    x.closePath();
+  };
+  const ini = cardInitials(K, who), cap = size*(shape === "none" ? 0.8 : ini.length > 2 ? 0.3 : 0.4)*(L.letters ? clamp(L.letters, 0.5, 1.5) : 1);
+  const letters = op => {
+    x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = op;
+    const px = cap*G.PX/cardCap(font); x.font = `${font.w} ${px}px "${font.n}", sans-serif`; x.textAlign = "left"; x.textBaseline = "alphabetic";
+    const m = x.measureText(ini), wpx = m.width;
+    x.fillText(ini, G.u(cx) - wpx/2, G.v(cy) + cap*G.PX/2);
+    x.restore();
+  };
+  if (shape === "none"){ letters("source-over"); return; }
+  if (solid){ path(r); x.fill(); letters("destination-out"); }
+  else { x.save(); x.lineWidth = w; path(r - w/2); x.stroke(); x.restore(); letters("source-over"); }
+}
+// how tall a capital letter is, as a share of the font size
+function cardCap(f){
+  const x = cardCapCtx || (cardCapCtx = document.createElement("canvas").getContext("2d"));
+  x.font = `${f.w} 100px "${f.n}", sans-serif`;
+  const a = x.measureText("H").actualBoundingBoxAscent;
+  return clamp((a || 72)/100, 0.3, 1.2);
+}
+let cardCapCtx = null;
+// a run of text: its font size in pixels for a capital height in mm, and its width
+function cardRow(G, text, f, cap, sp){
+  const x = G.ctx, px = cap*G.PX/cardCap(f), spx = (sp || 0)*cap*G.PX;
+  x.setTransform(1, 0, 0, 1, 0, 0); x.font = `${f.w} ${px}px "${f.n}", sans-serif`; if ("letterSpacing" in x) x.letterSpacing = "0px";
+  const chars = [...text], wpx = spx ? chars.reduce((a, ch) => a + x.measureText(ch).width, 0) + spx*Math.max(0, chars.length - 1) : x.measureText(text).width;
+  return { text, f, cap, px, spx, w: wpx/G.PX };
+}
+function cardDrawRow(x, G, r, X, base, align){
+  x.save(); x.setTransform(1, 0, 0, 1, 0, 0);
+  x.font = `${r.f.w} ${r.px}px "${r.f.n}", sans-serif`; x.textAlign = "left"; x.textBaseline = "alphabetic"; if ("letterSpacing" in x) x.letterSpacing = "0px";
+  const u0 = G.u(X) - (align === "centre" ? r.w/2 : align === "right" ? r.w : 0)*G.PX, v = G.v(base);
+  if (!r.spx) x.fillText(r.text, u0, v);
+  else { let u = u0; for (const ch of r.text){ x.fillText(ch, u, v); u += x.measureText(ch).width + r.spx; } }
+  x.restore();
+}
+// the QR code: its modules in its filament, and its light patch, as two drawings
+function cardQRLayers(K, G, enc, box, badge, who){
+  const Q = K.qr || {}, n = enc.size, quiet = clamp(Math.round(cleanNum(Q.quiet, 2)), 1, 4), mod = box.s/(n + 2*quiet);
+  const X0 = box.x + quiet*mod, Y0 = box.y + quiet*mod, style = cardPick(Q.style, ["square","rounded","dots"]), eyes = cardPick(Q.eyes, ["square","rounded","circle"]);
+  const isEye = (i, j) => (i < 7 && j < 7) || (i >= n - 7 && j < 7) || (i < 7 && j >= n - 7);
+  const b0 = badge ? Math.floor((n - badge)/2) : -1, inBadge = (i, j) => badge && i >= b0 && i < b0 + badge && j >= b0 && j < b0 + badge;
+  const dark = (i, j) => i >= 0 && j >= 0 && i < n && j < n && enc.dark[j*n + i] && !inBadge(i, j);
+  const modules = cardDraw(G, x => {
+    x.beginPath();
+    for (let j=0;j<n;j++) for (let i=0;i<n;i++){
+      if (!dark(i, j) || isEye(i, j)) continue;
+      const px = X0 + i*mod, py = Y0 + j*mod;
+      if (style === "dots"){ x.moveTo(px + mod*0.92, py + mod/2); x.arc(px + mod/2, py + mod/2, mod*0.42, 0, Math.PI*2); }
+      else if (style === "rounded"){
+        const r = mod*0.42; x.moveTo(px + mod/2 + r, py + mod/2); x.arc(px + mod/2, py + mod/2, r, 0, Math.PI*2);
+        if (dark(i + 1, j) && !isEye(i + 1, j)) x.rect(px + mod/2, py + mod/2 - r, mod, 2*r);
+        if (dark(i, j + 1) && !isEye(i, j + 1)) x.rect(px + mod/2 - r, py + mod/2, 2*r, mod);
+        if (dark(i + 1, j) && dark(i, j + 1) && dark(i + 1, j + 1) && !isEye(i + 1, j + 1)) x.rect(px + mod/2, py + mod/2, mod, mod);
+      }
+      else x.rect(px - 0.002, py - 0.002, mod + 0.004, mod + 0.004);
+    }
+    x.fill("nonzero");
+    // the three corner eyes
+    for (const [ei, ej] of [[0, 0], [n - 7, 0], [0, n - 7]]){
+      const ex = X0 + ei*mod, ey = Y0 + ej*mod, cxe = ex + 3.5*mod, cye = ey + 3.5*mod;
+      x.beginPath();
+      if (eyes === "circle"){ x.moveTo(cxe + 3.5*mod, cye); x.arc(cxe, cye, 3.5*mod, 0, Math.PI*2); x.moveTo(cxe + 2.5*mod, cye); x.arc(cxe, cye, 2.5*mod, 0, Math.PI*2); }
+      else if (eyes === "rounded"){ cardRR(x, ex, ey, 7*mod, 7*mod, 2*mod); cardRR(x, ex + mod, ey + mod, 5*mod, 5*mod, 1.3*mod, true); }
+      else { x.rect(ex, ey, 7*mod, 7*mod); x.moveTo(ex + mod, ey + mod); x.lineTo(ex + mod, ey + 6*mod); x.lineTo(ex + 6*mod, ey + 6*mod); x.lineTo(ex + 6*mod, ey + mod); x.closePath(); }
+      x.fill("evenodd");
+      x.beginPath();
+      if (eyes === "circle"){ x.moveTo(cxe + 1.5*mod, cye); x.arc(cxe, cye, 1.5*mod, 0, Math.PI*2); }
+      else if (eyes === "rounded") cardRR(x, ex + 2*mod, ey + 2*mod, 3*mod, 3*mod, 0.9*mod);
+      else x.rect(ex + 2*mod, ey + 2*mod, 3*mod, 3*mod);
+      x.fill();
+    }
+    if (badge){                                       // the initials in the middle of the code
+      const f = cardFont(K.nameFont), bs = badge*mod, cap = bs*0.42, ini = cardInitials(K, who).slice(0, 2);
+      x.save(); x.setTransform(1, 0, 0, 1, 0, 0);
+      const px = cap*G.PX/cardCap(f); x.font = `${f.w} ${px}px "${f.n}", sans-serif`; x.textAlign = "left"; x.textBaseline = "alphabetic";
+      const cxb = X0 + (b0 + badge/2)*mod, cyb = Y0 + (b0 + badge/2)*mod, wpx = x.measureText(ini).width;
+      x.fillText(ini, G.u(cxb) - wpx/2, G.v(cyb) + cap*G.PX/2); x.restore();
+    }
+  });
+  const patch = cardDraw(G, x => { x.beginPath(); cardRR(x, box.x, box.y, box.s, box.s, Math.min(mod*1.5, box.s*0.08)); x.fill(); });
+  return { modules, patch, mod };
+}
+function cardRR(x, X, Y, w, h, r, ccw){
+  r = Math.min(r, w/2, h/2);
+  if (!ccw){ x.moveTo(X + r, Y); x.lineTo(X + w - r, Y); x.arc(X + w - r, Y + r, r, -Math.PI/2, 0); x.lineTo(X + w, Y + h - r); x.arc(X + w - r, Y + h - r, r, 0, Math.PI/2);
+    x.lineTo(X + r, Y + h); x.arc(X + r, Y + h - r, r, Math.PI/2, Math.PI); x.lineTo(X, Y + r); x.arc(X + r, Y + r, r, Math.PI, Math.PI*1.5); }
+  else { x.moveTo(X + r, Y); x.arc(X + r, Y + r, r, -Math.PI/2, -Math.PI, true); x.lineTo(X, Y + h - r); x.arc(X + r, Y + h - r, r, Math.PI, Math.PI/2, true);
+    x.lineTo(X + w - r, Y + h); x.arc(X + w - r, Y + h - r, r, Math.PI/2, 0, true); x.lineTo(X + w, Y + r); x.arc(X + w - r, Y + r, r, 0, -Math.PI/2, true); }
+  x.closePath();
+}
+// the QR code for a face: its text and the code, or null (with a message) when there is nothing to say or too much
+function cardQR(K, kind, size, who, warn, side){
+  const Q = K.qr || {}, text = cardQRText(K, kind, who), noz = state.printer.nozzle || 0.4, badge = Q.badge === true, c = cardContact(K, who);
+  const or = (a, b) => String(a || "").trim() || b;
+  const need = { link:or(Q.url, c.url), phone:or(Q.phone, c.phone), sms:or(Q.phone, c.phone), email:or(Q.email, c.email), wifi:String(Q.ssid || "").trim(), text:String(Q.text || "").trim(), vcard:c.name, mecard:c.name }[kind];
+  if (!text || !String(need || "").trim()){
+    const what = { link:"the web address it opens (or put one in the details)", phone:"the phone number (or put one in the details)", sms:"the phone number (or put one in the details)",
+      email:"the email address (or put one in the details)", wifi:"the network's name", text:"its text", vcard:"a name", mecard:"a name" }[kind] || "what it says";
+    warn.push({ t:`The ${side} QR code is empty`, s:`Fill in ${what} on the QR code page.` }); return null;
+  }
+  const quiet = clamp(Math.round(cleanNum(Q.quiet, 2)), 1, 4), want = !Q.ec || Q.ec === "auto" ? null : cardPick(Q.ec, ["L","M","Q","H"]);
+  let enc = null;
+  if (badge) enc = C.qrEncode(text, { ec:"H" });
+  else if (want) enc = C.qrEncode(text, { ec:want });
+  else {                                               // the strongest that keeps the squares printable, else the strongest at the smallest size
+    const all = ["H","Q","M","L"].map(ec => C.qrEncode(text, { ec })).filter(Boolean);
+    const smallest = all.length ? Math.min(...all.map(e => e.size)) : 0;
+    enc = all.find(e => size/(e.size + 2*quiet) >= noz*1.75) || all.find(e => e.size === smallest) || null;
+  }
+  if (!enc){ warn.push({ t:`The ${side} QR code holds too much`, s:`It has ${text.length} letters. Make it shorter${badge ? ", or take the initials out of its middle" : ""}: a link to a web page with your details holds the least.` }); return null; }
+  return { enc, text, badge: badge ? Math.max(3, Math.round(enc.size*0.22) | 1) : 0 };
+}
+
+// one face of one card: the drawings that make it (each with its height in the stack, z), and where things went
+async function cardFace(K, side, G, who, warn, info, ol){
+  const layers = [], noz = state.printer.nozzle || 0.4, body = cardSlot(state.base.slot), front = side === "front";
+  const W = G.W, H = G.H, m = clamp(cleanNum(K.margin, 5), 1.5, Math.min(W, H)/4);
+  const mine = face => face === "both" || face === side;
+  const layout = cardPick(K.layout, CARD_LAYOUTS.map(l => l[0])), minimal = layout === "minimal";
+  const nameF = cardFont(K.nameFont), textF = cardFont(K.textFont);
+  await Promise.all([nameF, textF].map(f => document.fonts.load(`${f.w} 120px "${f.n}"`).catch(() => {})));
+  const base = front ? ol.base : (x, y) => ol.base(-x, y);
+  const name = who ? who.name : String(K.name || ""), title = who && who.title ? who.title : String(K.title || "");
+  const Q = K.qr || {}, Lg = K.logo || {}, Bk = K.back || {};
+  // the QR code: on a face of its own choosing (a minimal front sends it to the back)
+  const qrHere = Q.on === true && (minimal ? side === "back" : mine(Q.face));
+  const bothQR = Q.face === "both" && !minimal;
+  const qrKind = cardPick(side === "back" && bothQR && Q.backKind && Q.backKind !== "same" ? Q.backKind : Q.kind, CARD_QR_KINDS.map(k => k[0]));
+  const qrWant = clamp(cleanNum(side === "back" && bothQR ? Q.backSize : Q.size, 22), 10, Math.min(W, H) - 2*m);
+  const qr = qrHere ? cardQR(K, qrKind, qrWant, who, warn, side) : null;
+  const logoHere = Lg.on === true && (minimal && side === "front" ? Lg.face !== "back" : mine(Lg.face));
+  const item = state.items[state.active] || state.items[0], art = Lg.from !== "monogram" && item ? sourceCanvas(item) : null;
+  const logoAspect = art ? clamp(art.width/art.height, 0.2, 5) : 1;
+  const split = layout === "split" && front;
+  const bandOwn = K.band && K.band.on === true && mine(K.band.face);
+  const bandW = split ? (bandOwn && K.band.at === "left" ? clamp(cleanNum(K.band.span, 24), 3, W*0.6) : W*0.34) : 0;
+  const bandSDF = split ? cardBandSDF(Object.assign({}, K.band, { at:"left", span:bandW }), W, H) : bandOwn ? cardBandSDF(K.band, W, H) : null;
+  // the words
+  const details = String(K.lines || "").split("\n").map(s => s.trim()).filter(Boolean).slice(0, 8);
+  const showDetails = front ? !minimal : Bk.details === true || minimal;
+  const showName = front || Bk.name === true;
+  const backText = !front ? String(Bk.text || "").trim().slice(0, 80) : "", caption = !front && qr ? String(Q.caption || "").trim().slice(0, 80) : "";
+  const sp = clamp(cleanNum(K.spacing, 0), -0.1, 0.8);
+  let sc = 1;
+  const capOf = v => clamp(cleanNum(v, 3), 1.2, 20)*sc;
+  const rows = {};
+  const build = () => {
+    rows.name = showName && name.trim() ? cardRow(G, K.caps ? name.toUpperCase() : name, nameF, capOf(K.nameSize), sp) : null;
+    rows.title = showName && title.trim() ? cardRow(G, title, textF, capOf(K.titleSize), 0) : null;
+    // in the font of the rest: at this size the name's font (often condensed, like Bebas Neue) has strokes about as thin as the nozzle
+    rows.company = (front ? !minimal : minimal) && String(K.company || "").trim() ? cardRow(G, String(K.company).slice(0, 60), textF, capOf(K.titleSize)*1.05, sp*0.6) : null;
+    rows.lines = showDetails ? details.map(l => Object.assign(cardRow(G, l, textF, capOf(K.textSize), 0), { kind: K.icons !== false ? cardLineKind(l) : "" })) : [];
+    rows.back = backText ? cardRow(G, backText, textF, capOf(Bk.size || K.textSize), 0) : null;
+    rows.caption = caption ? cardRow(G, caption, textF, capOf(Bk.size || K.textSize), 0) : null;
+  };
+  build();
+  const gap = Math.max(2.2, m*0.55), logoSize = clamp(cleanNum(Lg.size, 14), 4, Math.min(W, H) - 2*m);
+  const pitchOf = () => capOf(K.textSize)*clamp(cleanNum(K.lineGap, 1.7), 1.2, 3);
+  const divOn = front && K.divider && K.divider !== "none" && !minimal;
+  const mainH = () => (rows.name ? rows.name.cap : 0) + (rows.title ? (rows.name ? rows.name.cap*0.55 : 0) + rows.title.cap : 0) + (divOn && (rows.name || rows.title) ? 2.6 : 0);
+  const linesH = () => rows.lines.length ? (rows.lines.length - 1)*pitchOf() + rows.lines[0].cap : 0;
+  const off = (o, k) => clamp(cleanNum(o && o[k], 0), -100, 100);
+  let col = { x0: -W/2 + m, x1: W/2 - m, y0: -H/2 + m, y1: H/2 - m }, align = "centre", qrBox = null, logoBox = null;
+  const place = { head:null, name:null, title:null, divider:null, lines:[], back:null, caption:null };
+  const shrink = (need, room) => { if (need > room && room > 2 && sc > 0.5){ sc = Math.max(0.5, sc*room/need*0.98); build(); return true; } return false; };
+  let made = false;
+  if (front){
+    align = layout === "right" ? "right" : layout === "centre" || minimal ? "centre" : "left";
+    if (split){
+      // the band holds the logo and the code, one above the other
+      col.x0 = -W/2 + bandW + m;
+      const two = logoHere && qr, room = H - 2*m - (two ? gap : 0);
+      let lh = logoHere ? Math.min(logoSize, (bandW - m)/logoAspect) : 0, qs = qr ? Math.min(qrWant, bandW - m) : 0;
+      if (lh + qs > room){ const k = room/(lh + qs); lh *= k; qs *= k; }
+      let y = -(lh + qs + (two ? gap : 0))/2;
+      if (lh){ logoBox = { x: -W/2 + bandW/2 - lh*logoAspect/2, y, w: lh*logoAspect, h: lh }; y += lh + gap; }
+      if (qs) qrBox = { x: -W/2 + bandW/2 - qs/2, y, s: qs };
+    } else if (qr){
+      const s = qrWant;
+      if (H > W*1.05){                                 // upright: the code at the foot, the words above it
+        qrBox = { x: layout === "right" ? -W/2 + m : layout === "centre" ? -s/2 : W/2 - m - s, y: H/2 - m - s, s };
+        col.y1 -= s + gap;
+      } else {
+        const y = clamp(-s/2, -H/2 + m*0.6, H/2 - m*0.6 - s);
+        qrBox = layout === "right" ? { x: -W/2 + m, y, s } : { x: W/2 - m - s, y, s };
+        if (layout === "right") col.x0 += s + gap; else col.x1 -= s + gap;
+      }
+    }
+  }
+  if (K.align && K.align !== "auto") align = cardPick(K.align, ["left","centre","right"]);
+  const colW = () => col.x1 - col.x0, colH = col.y1 - col.y0;
+  const ax = () => align === "right" ? col.x1 : align === "centre" ? (col.x0 + col.x1)/2 : col.x0;
+  if (front && !minimal){
+    // the logo and company at the top, the name and title in the middle, the details at the foot
+    const headLogo = logoHere && !split;
+    const headH = () => Math.max(headLogo ? logoSize*sc : 0, rows.company ? rows.company.cap : 0);
+    const need = () => { const h = headH(), l = linesH(); return h + mainH() + l + gap*((h ? 1 : 0) + (l ? 1 : 0)); };
+    made = shrink(need(), colH);
+    const hh = headH();
+    let y = col.y0;
+    if (hh){
+      const lh = headLogo ? logoSize*sc : 0, lw = lh*logoAspect, cw = rows.company ? Math.min(rows.company.w, colW() - lw - 2.5) : 0, rowW = lw + (lw && cw ? 2.5 : 0) + cw;
+      const x0 = align === "right" ? col.x1 - rowW : align === "centre" ? (col.x0 + col.x1)/2 - rowW/2 : col.x0;
+      if (lw) logoBox = { x: x0, y, w: lw, h: lh };
+      if (rows.company){ if (rows.company.w > cw + 0.01) rows.company = cardRow(G, rows.company.text, textF, rows.company.cap*cw/rows.company.w, sp*0.6);
+        place.head = { r: rows.company, x: x0 + lw + (lw ? 2.5 : 0), base: y + hh/2 + rows.company.cap/2, align:"left" }; }
+      y += hh + gap;
+    }
+    const foot = col.y1 - linesH();
+    let yy = y + Math.max(0, (foot - (linesH() ? gap : 0) - y - mainH())/2);
+    if (rows.name){ place.name = { r: rows.name, base: yy + rows.name.cap }; yy += rows.name.cap + (rows.title ? rows.name.cap*0.55 : 0); }
+    if (rows.title){ place.title = { r: rows.title, base: yy + rows.title.cap }; yy += rows.title.cap; }
+    if (divOn && (rows.name || rows.title)) place.divider = { y: yy + 1.6 };
+    rows.lines.forEach((r, i) => place.lines.push({ r, base: foot + r.cap + i*pitchOf() }));
+  } else {
+    // everything in the middle: the logo and the code side by side, then the words under them
+    const wordsH = () => { const parts = [rows.caption ? rows.caption.cap : 0, mainH(), rows.company ? rows.company.cap : 0, rows.back ? rows.back.cap : 0, linesH()].filter(h => h > 0);
+      return parts.reduce((a, b) => a + b, 0) + gap*Math.max(0, parts.length - 1); };
+    let lh = logoHere ? (front ? logoSize : Math.min(logoSize*1.6, H - 2*m)) : 0, qs = qr ? (front ? 0 : qrWant) : 0;
+    let rowH = Math.max(lh, qs), rowW = lh*logoAspect + qs + (lh && qs ? 6 : 0);
+    if (rowW > W - 2*m){ const k = (W - 2*m)/rowW; lh *= k; qs *= k; rowH *= k; rowW *= k; }
+    const room = colH - (rowH ? rowH + gap : 0);
+    if (wordsH() > room && rowH){ const k = Math.max(0.45, (colH - wordsH() - gap)/rowH); if (k < 1){ lh *= k; qs *= k; rowH *= k; rowW *= k; } }
+    made = shrink(wordsH(), colH - (rowH ? rowH + gap : 0));
+    const total = rowH + (rowH && wordsH() ? gap : 0) + wordsH();
+    let y = col.y0 + Math.max(0, (colH - total)/2), x = -rowW/2;
+    if (lh){ logoBox = { x, y: y + (rowH - lh)/2, w: lh*logoAspect, h: lh }; x += lh*logoAspect + (qs ? 6 : 0); }
+    if (qs) qrBox = { x, y: y + (rowH - qs)/2, s: qs };
+    y += rowH + (rowH ? gap : 0);
+    if (rows.caption){ place.caption = { r: rows.caption, base: y + rows.caption.cap }; y += rows.caption.cap + gap; }
+    if (rows.company){ place.head = { r: rows.company, base: y + rows.company.cap }; y += rows.company.cap + gap; }
+    if (rows.name){ place.name = { r: rows.name, base: y + rows.name.cap }; y += rows.name.cap + (rows.title ? rows.name.cap*0.55 : 0); }
+    if (rows.title){ place.title = { r: rows.title, base: y + rows.title.cap }; y += rows.title.cap; }
+    if (rows.name || rows.title) y += gap;
+    if (rows.back){ place.back = { r: rows.back, base: y + rows.back.cap }; y += rows.back.cap + gap; }
+    rows.lines.forEach((r, i) => place.lines.push({ r, base: y + r.cap + i*pitchOf() }));
+  }
+  if (made) warn.push({ t:`The ${side}'s words were made smaller to fit`, s:`To ${Math.round(sc*100)}% of the sizes you set. Fewer lines, a bigger card or a smaller logo or code gives them room.` });
+  // each line no wider than its column
+  const shrunk = [], width = colW();
+  const fit = (r, extra) => { if (!r) return r; const k = (width - (extra || 0))/r.w; if (k >= 1) return r; shrunk.push(r.text); return Object.assign(cardRow(G, r.text, r.f, r.cap*k, r.spx/(r.cap*G.PX) || 0), { kind:r.kind }); };
+  for (const k of ["name","title","back","caption"]) if (place[k]) place[k].r = fit(place[k].r);
+  if (place.head && !front) place.head.r = fit(place.head.r);
+  place.lines.forEach(p => { p.r = fit(p.r, p.r.kind ? p.r.cap*1.9 : 0); });
+  if (shrunk.length) warn.push({ t:`${shrunk.length === 1 ? `“${shrunk[0]}” was` : `${shrunk.length} lines were`} made narrower to fit`, s:"Its letters are smaller there. A shorter line, a narrower font or a smaller code gives it room." });
+  const small = Math.min(...[place.title, place.back, place.caption, place.head, ...place.lines].filter(Boolean).map(p => p.r.cap));
+  if (small < noz*6.5) warn.push({ t:`Small letters on the ${side}`, s:`The smallest are ${small.toFixed(1)} mm tall. With a ${noz} mm nozzle, ${(noz*6.5).toFixed(1)} mm or more prints crisply: make them bigger, or print with a 0.2 mm nozzle.` });
+  // lined up, then nudged
+  const tx = off(K.textMove, "x"), ty = off(K.textMove, "y"), X = ax();
+  for (const p of [place.name, place.title, place.back, ...place.lines]) if (p){ p.x = X + tx; p.base += ty; }
+  if (place.caption){ place.caption.x = (qrBox ? qrBox.x + qrBox.s/2 : X) + tx; place.caption.base += ty; place.caption.align = "centre"; }
+  if (place.head){ if (place.head.x == null) place.head.x = X; place.head.x += tx; place.head.base += ty; }
+  if (place.divider){ const len = K.divider === "full" ? width : Math.min(width, 14), t = Math.max(noz*1.5, 0.6);
+    Object.assign(place.divider, { x0: (align === "right" ? X - len : align === "centre" ? X - len/2 : X) + tx, len, t }); place.divider.y += ty; }
+  if (logoBox){ logoBox.x += off(Lg.move, "x"); logoBox.y += off(Lg.move, "y"); }
+  if (qrBox){ qrBox.x += off(Q.move, "x"); qrBox.y += off(Q.move, "y"); }
+
+  // the drawings, bottom to top
+  const add = (z, slot, f, extra) => { if (f) layers.push(Object.assign({ z, slot: cardSlot(slot), f }, extra || {})); };
+  const Pt = K.pattern || {};
+  if (Pt.kind && Pt.kind !== "none" && mine(Pt.face)){
+    const areaKind = cardPick(Pt.area, ["all","left","right","top","bottom","diagonal","corner","frame","band"]);
+    const area = areaKind === "band" && bandSDF ? bandSDF : cardAreaSDF(areaKind, W, H, base, clamp(cleanNum((K.border || {}).inset, 2.5), 0, 20));
+    const seed = Math.round(clamp(cleanNum(Pt.seed, 7), 1, 99999));
+    const f = Pt.kind === "circuit" || Pt.kind === "confetti" ? cardDraw(G, x => cardScatter(x, Pt, W, H, noz, seed, area))
+      : (pat => cardFieldCoarse(G, (x, y) => { const a = area(x, y); return a > 0.3 ? a : Math.max(pat(x, y), a); }))(cardPatternSDF(Pt, W, H, noz, seed));
+    add(10, Pt.slot, f, { pattern:true });
+  }
+  if (bandSDF) add(20, K.band ? K.band.slot : 2, cardField(G, bandSDF, 0.5));
+  if (K.border && K.border.style && K.border.style !== "none" && mine(K.border.face)) add(30, K.border.slot, cardField(G, cardBorderSDF(K.border, W, H, base, noz), K.border.style === "dashed" || K.border.style === "dotted" ? 0 : 0.9));
+  if (logoBox){
+    if (art){ (cardArtLogo(K, G, logoBox, body, warn) || []).forEach(l => add(50, l.slot, l.f, { content:true })); }
+    else add(50, Lg.slot, cardDraw(G, x => cardMonogram(x, G, K, who, logoBox.x + logoBox.w/2, logoBox.y + logoBox.h/2, Math.min(logoBox.w, logoBox.h), nameF)), { content:true });
+  }
+  if (qr && qrBox){
+    const Ql = cardQRLayers(K, G, qr.enc, qrBox, qr.badge, who), dark = cardSlot(Q.slot), bg = cardSlot(Q.patchSlot);
+    // a light patch behind the code, unless the card itself is light enough behind it
+    const patch = Q.patch === "on" || (Q.patch !== "off" && (dark === body || cardLum(state.slots[dark].hex) > cardLum(state.slots[body].hex) - 0.3));
+    if (patch) add(40, bg, Ql.patch, { patch:true, content:true, qr:true });
+    else layers.push({ z:0, slot:body, f:Ql.patch, keepOnly:true });      // no patch: its square still marks the code, kept as drawn
+    add(55, dark, Ql.modules, { content:true, qr:true });
+    const mod = Ql.mod;
+    const sideName = `The ${side} QR code`;
+    info.qr = info.qr || {}; info.qr[side] = { version:qr.enc.version, ec:qr.enc.ec, n:qr.enc.size, mod, size:qrBox.s, chars:qr.text.length, kind:qrKind, dark, patchSlot:bg, patch, text:qr.text };
+    if (mod < noz) warn.push({ t:`${sideName}'s squares are smaller than the nozzle`, s:`Each square is ${mod.toFixed(2)} mm, under your ${noz} mm nozzle, so it will not print. Make the code bigger, or put less in it (a link instead of a contact card).` });
+    else if (mod < noz*1.5) warn.push({ t:`${sideName} is very fine`, s:`Each square is ${mod.toFixed(2)} mm, ${(mod/noz).toFixed(1)} nozzle widths. A bigger code, less in it or less error correction gives bigger squares: 1.5 nozzle widths or more print cleanly.` });
+  }
+  // the words and icons, each filament in one drawing
+  const draw = (slot, list) => { if (list.length) add(60, slot, cardDraw(G, x => list.forEach(p => cardDrawRow(x, G, p.r, p.x, p.base, p.align || align))), { content:true }); };
+  draw(K.nameSlot, place.name ? [place.name] : []);
+  draw(K.titleSlot, place.title ? [place.title] : []);
+  draw(K.companySlot, place.head ? [place.head] : []);
+  draw(Bk.slot ?? K.textSlot, [place.back, place.caption].filter(Boolean));
+  const icons = [];
+  place.lines.forEach(p => {                           // a line with an icon moves over to make room for it
+    if (!p.r.kind) return;
+    const s = p.r.cap*1.3, g = p.r.cap*0.6, all = s + g + p.r.w, left = align === "right" ? p.x - all : align === "centre" ? p.x - all/2 : p.x;
+    icons.push({ kind:p.r.kind, cx: left + s/2, cy: p.base - p.r.cap/2, s });
+    p.align = "left"; p.x = left + s + g;
+  });
+  draw(K.textSlot, place.lines);
+  if (icons.length) add(60, K.iconSlot, cardDraw(G, x => icons.forEach(ic => cardIcon(x, ic.kind, ic.cx, ic.cy, ic.s, Math.max(noz*1.2, ic.s*0.13)))), { content:true });
+  if (place.divider){ const d = place.divider; add(60, K.dividerSlot, cardField(G, (x, y) => rrSDF(x - (d.x0 + d.len/2), y - d.y, d.len/2, d.t/2, d.t/2)), { content:true }); }
+  return { layers, logoBox, qrBox, place, align };
+}
+// the pattern keeps clear of the words, the logo, the code and the NFC mark: by a halo round their shapes or a box round each
+function cardClear(face, K, G){
+  const pat = face.layers.find(l => l.pattern), clear = cardPick((K.pattern || {}).clear, ["halo","box","none"]);
+  if (!pat || clear === "none") return;
+  const N = G.Wp*G.Hp, noz = state.printer.nozzle || 0.4;
+  if (clear === "box"){
+    const P = face.place, boxes = [];
+    if (face.logoBox) boxes.push([face.logoBox.x, face.logoBox.y, face.logoBox.x + face.logoBox.w, face.logoBox.y + face.logoBox.h]);
+    if (face.qrBox) boxes.push([face.qrBox.x, face.qrBox.y, face.qrBox.x + face.qrBox.s, face.qrBox.y + face.qrBox.s]);
+    for (const p of [P.name, P.title, P.head, P.back, P.caption, ...P.lines]) if (p){
+      const al = p.align || face.align, l = al === "right" ? p.x - p.r.w : al === "centre" ? p.x - p.r.w/2 : p.x, icon = p.r.kind ? p.r.cap*1.9 : 0;
+      boxes.push([l - icon, p.base - p.r.cap*1.2, l + p.r.w, p.base + p.r.cap*0.35]);
+    }
+    if (P.divider) boxes.push([P.divider.x0, P.divider.y - P.divider.t, P.divider.x0 + P.divider.len, P.divider.y + P.divider.t]);
+    face.layers.forEach(l => { if (l.mark) boxes.push(l.mark); });
+    if (!boxes.length) return;
+    const pad = 1.5, keep = cardField(G, (x, y) => -Math.min(...boxes.map(b => rrSDF(x - (b[0] + b[2])/2, y - (b[1] + b[3])/2, (b[2] - b[0])/2 + pad, (b[3] - b[1])/2 + pad, 1.2))));
+    for (let i=0;i<N;i++) if (keep[i] < pat.f[i]) pat.f[i] = keep[i];
+    return;
+  }
+  const cont = new Uint8Array(N);
+  face.layers.forEach(l => { if (l.content) for (let i=0;i<N;i++) if (l.f[i] > 127) cont[i] = 1; });
+  const d = C.edt(cont, G.Wp, G.Hp), r = Math.max(noz*2, 0.9)*G.PX;
+  for (let i=0;i<N;i++){ const k = Math.round(clamp(d[i] - r, 0, 1)*255); if (k < pat.f[i]) pat.f[i] = k; }
+}
+// circuit traces or confetti, scattered at random (the same each time for the same pattern number)
+function cardScatter(x, P, W, H, noz, seed, area){
+  const R = cardRng(seed), sc = clamp(cleanNum(P.scale, 1), 0.4, 3), w = Math.max(noz*1.2, clamp(cleanNum(P.line, 0.6), 0.2, 3));
+  if (P.kind === "circuit"){
+    const g = 2.6*sc, nx = Math.ceil(W/g) + 2, ny = Math.ceil(H/g) + 2, used = new Uint8Array(nx*ny), dirs = [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]];
+    const at = (i, j) => [(i - nx/2)*g, (j - ny/2)*g], ok = (i, j) => i >= 0 && j >= 0 && i < nx && j < ny && !used[j*nx + i] && area(...at(i, j)) < -w;
+    x.lineWidth = w; x.lineCap = "round"; x.lineJoin = "round";
+    for (let t=0;t<nx*ny*0.12;t++){
+      let i = Math.floor(R()*nx), j = Math.floor(R()*ny); if (!ok(i, j)) continue;
+      let d = Math.floor(R()*8); const pts = [[i, j]]; used[j*nx + i] = 1;
+      for (let s=0;s<4 + R()*10;s++){
+        if (R() < 0.3) d = (d + (R() < 0.5 ? 1 : 7)) % 8;
+        const ni = i + dirs[d][0], nj = j + dirs[d][1]; if (!ok(ni, nj)) break;
+        i = ni; j = nj; used[j*nx + i] = 1; pts.push([i, j]);
+      }
+      if (pts.length < 3) continue;
+      x.beginPath(); pts.forEach(([a, b], k) => { const [px, py] = at(a, b); k ? x.lineTo(px, py) : x.moveTo(px, py); }); x.stroke();
+      for (const [a, b] of [pts[0], pts[pts.length - 1]]){
+        const [px, py] = at(a, b), r = w*1.5; x.beginPath(); x.moveTo(px + r, py); x.arc(px, py, r, 0, Math.PI*2); x.fill();
+        x.save(); x.globalCompositeOperation = "destination-out"; x.beginPath(); x.moveTo(px + r*0.38, py); x.arc(px, py, Math.max(noz*0.6, r*0.38), 0, Math.PI*2); x.fill(); x.restore();
+      }
+    }
+  } else {                                             // confetti
+    const g = 3.6*sc;
+    for (let jy = -H/2; jy < H/2 + g; jy += g) for (let ix = -W/2; ix < W/2 + g; ix += g){
+      const px = ix + R()*g, py = jy + R()*g, s = (0.9 + R()*0.9)*sc, a = R()*Math.PI, k = Math.floor(R()*4);
+      if (area(px, py) > -s) continue;
+      x.save(); x.translate(px, py); x.rotate(a); x.beginPath();
+      if (k === 0){ x.moveTo(s*0.55, 0); x.arc(0, 0, s*0.55, 0, Math.PI*2); }
+      else if (k === 1){ x.moveTo(0, -s*0.6); x.lineTo(s*0.55, s*0.4); x.lineTo(-s*0.55, s*0.4); x.closePath(); }
+      else if (k === 2) x.rect(-s*0.45, -s*0.45, s*0.9, s*0.9);
+      else { x.rect(-s*0.6, -s*0.16, s*1.2, s*0.32); x.rect(-s*0.16, -s*0.6, s*0.32, s*1.2); }
+      x.fill(); x.restore();
+    }
+  }
+}
+// the drawings of a face stacked: each filament's share, and the card's own colour where it shows on its own
+function cardCompose(layers, G, clip, body){
+  const N = G.Wp*G.Hp, T = new Uint8Array(N), S = new Map(), free = new Uint8Array(N), nb = new Uint8Array(N), pat = new Uint8Array(N), keep = new Uint8Array(N);
+  layers.slice().sort((a, b) => b.z - a.z).forEach(L => {
+    if (L.keepOnly){ for (let i=0;i<N;i++) if (L.f[i]) keep[i] = 1; return; }
+    const f = L.f, k = L.slot, mine = k === body;
+    let s = S.get(k); if (!s && !mine) S.set(k, s = new Uint8Array(N));
+    for (let i=0;i<N;i++){
+      const v = f[i]; if (!v) continue;
+      const e = Math.min(v, 255 - T[i]);
+      if (mine){ if (e > free[i]) free[i] = e; } else { if (e > s[i]) s[i] = e; if (v > nb[i]) nb[i] = v; }
+      if (L.pattern && e > 127) pat[i] = 1;
+      if (L.qr || (mine && e > 127)) keep[i] = 1;       // a QR code, and what is drawn in the card's own colour, stay as drawn
+      if (v > T[i]) T[i] = v;
+    }
+  });
+  for (const s of S.values()) for (let i=0;i<N;i++) if (s[i] > clip[i]) s[i] = clip[i];
+  for (let i=0;i<N;i++) free[i] = Math.min(free[i], 255 - nb[i], clip[i]);
+  cardTrimPattern(S, pat, G);
+  cardFillGaps(S, keep, clip, G);
+  return { S, free };
+}
+// a pattern's line cut at a slant by the border, the card's edge or the clear space round the words ends in a sliver
+// narrower than the nozzle: those ends are left out (the pattern only: lettering is never thinned here)
+function cardTrimPattern(S, pat, G){
+  const r = Math.round((state.printer.nozzle || 0.4)*0.5*G.PX), W = G.Wp, H = G.Hp;
+  if (r < 1) return;
+  for (const s of S.values()){
+    let x0 = W, x1 = -1, y0 = H, y1 = -1;
+    for (let y=0, i=0;y<H;y++) for (let x=0;x<W;x++, i++) if (pat[i] && s[i] > 127){ if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (x1 < 0) continue;
+    const m = r + 2; x0 = Math.max(0, x0 - m); y0 = Math.max(0, y0 - m); x1 = Math.min(W - 1, x1 + m); y1 = Math.min(H - 1, y1 + m);
+    const cw = x1 - x0 + 1, ch = y1 - y0 + 1, sub = new Uint8Array(cw*ch);
+    for (let y=0;y<ch;y++) for (let x=0;x<cw;x++) sub[y*cw + x] = s[(y0 + y)*W + x0 + x] > 127 ? 1 : 0;
+    const kept = openMask(sub, cw, ch, r);
+    for (let y=0;y<ch;y++) for (let x=0;x<cw;x++){ const i = (y0 + y)*W + x0 + x; if (sub[y*cw + x] && !kept[y*cw + x] && pat[i]) s[i] = 0; }
+  }
+}
+// a gap between colours narrower than the nozzle would leave a strip of card too thin to print (between two letters, in
+// a small letter's middle): it takes the colour beside it, as an inlay in a case's back or a box's lid does (Session 31).
+// Its edge with the other colour stays where that colour's edge is, so the two still fit exactly.
+function cardFillGaps(S, keep, clip, G){
+  const r = Math.round((state.printer.nozzle || 0.4)*0.5*G.PX), fs = [...S.values()];
+  if (r < 1 || !fs.length) return;
+  const W = G.Wp, H = G.Hp, N = W*H, owner = new Int8Array(N).fill(-1);
+  let x0 = W, x1 = -1, y0 = H, y1 = -1;
+  for (let y=0, i=0;y<H;y++) for (let x=0;x<W;x++, i++){
+    let best = 127, o = -1;
+    for (let n=0;n<fs.length;n++) if (fs[n][i] > best){ best = fs[n][i]; o = n; }
+    if (o < 0) continue;
+    owner[i] = o; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+  }
+  if (x1 < 0) return;
+  const m = r + 2; x0 = Math.max(0, x0 - m); y0 = Math.max(0, y0 - m); x1 = Math.min(W - 1, x1 + m); y1 = Math.min(H - 1, y1 + m);
+  const cw = x1 - x0 + 1, ch = y1 - y0 + 1, sub = new Uint8Array(cw*ch);
+  for (let y=0;y<ch;y++) for (let x=0;x<cw;x++) sub[y*cw + x] = owner[(y0 + y)*W + x0 + x] >= 0 ? 1 : 0;
+  const closed = C.closeMask(sub, cw, ch, r);
+  let todo = [];
+  for (let y=1;y<ch-1;y++) for (let x=1;x<cw-1;x++){
+    const i = (y0 + y)*W + x0 + x;
+    if (closed[y*cw + x] && owner[i] < 0 && clip[i] > 127 && !keep[i]) todo.push(i);
+  }
+  const got = [];
+  for (let pass = 0; todo.length && pass < 2*r + 4; pass++){
+    const next = [], now = [];
+    for (const i of todo){ const o = [owner[i - 1], owner[i + 1], owner[i - W], owner[i + W]].find(q => q >= 0); if (o != null) now.push([i, o]); else next.push(i); }
+    for (const [i, o] of now){ owner[i] = o; got.push(i); }
+    todo = next;
+  }
+  for (const i of got){
+    const o = owner[i]; let other = 0;
+    for (let n=0;n<fs.length;n++) if (n !== o && fs[n][i] > other) other = fs[n][i];
+    fs[o][i] = Math.max(fs[o][i], 255 - other);
+  }
+}
+// one card: its parts, at the middle of the bed
+async function cardOne(K, who, G, ol, info, warn){
+  const P = state.printer, lay = clamp(+P.layer || 0.2, 0.04, 0.6), noz = P.nozzle || 0.4, body = cardSlot(state.base.slot);
+  const snap = (v, n) => Math.max(n || 1, Math.round(v/lay - 1e-6))*lay, snapUp = (v, n) => Math.max(n || 1, Math.ceil(v/lay - 1e-6))*lay;
+  const faceDown = K.face !== "up", top = faceDown ? "back" : "front", bed = faceDown ? "front" : "back";
+  const finish = { [bed]:"flush", [top]: cardPick(top === "front" ? K.frontFinish : K.backFinish, ["flush","raised","engraved"]) };
+  const depth = { front: snap(clamp(cleanNum(K.depth, 0.6), 0.1, 2), 2), back: snap(clamp(cleanNum(K.backDepth, 0.6), 0.1, 2), 2) };
+  const mono = K.mono === true && finish[top] === "raised" ? cardSlot(K.nameSlot) : null;
+  const faces = {};
+  for (const side of ["front","back"]){ faces[side] = await cardFace(K, side, G, who, warn, info, ol); await yieldUI(); }
+  // the NFC tag's pocket, as seen from the front: in the middle, behind the logo or the code, or where it is put
+  const N = K.nfc || {}, tag = encHas(CARD_TAGS, N.tag) ? CARD_TAGS[N.tag] : CARD_TAGS.s25;
+  let pocket = null;
+  if (N.on === true){
+    const rect = N.tag === "rect", dia = N.tag === "round" ? clamp(cleanNum(N.dia, 25), 8, 60) : tag.dia || 25;
+    const w = rect ? clamp(cleanNum(N.w, 40), 8, 90) : dia, h = rect ? clamp(cleanNum(N.h, 25), 8, 90) : dia;
+    const t = N.tag === "round" || rect ? clamp(cleanNum(N.t, 0.3), 0.05, 3) : tag.t;
+    pocket = { rect, w: w + 0.4, h: h + 0.4, t, size: [w, h], x: 0, y: 0 };
+    const where = cardPick(N.place, ["centre","logo","qr","custom"]);
+    const box = side => where === "logo" ? faces[side].logoBox : where === "qr" ? faces[side].qrBox : null;
+    const mid = (b, side) => b ? [(side === "front" ? 1 : -1)*(b.x + (b.w || b.s)/2), b.y + (b.h || b.s)/2] : null;
+    let at = where === "custom" ? [clamp(cleanNum(N.x, 0), -100, 100), clamp(cleanNum(N.y, 0), -100, 100)] : mid(box("front"), "front") || mid(box("back"), "back");
+    if (!at && where !== "centre") warn.push({ t:"The NFC tag went in the middle", s:`There is no ${where === "qr" ? "QR code" : "logo"} to put it behind.` });
+    [pocket.x, pocket.y] = at || [0, 0];
+    // it needs a millimetre of card all round it
+    const ring = pocket.rect ? C.ringRect(pocket.w, pocket.h, 1, 6) : C.ringCircle(pocket.w/2, 64);
+    if (Math.max(...ring.map(([px, py]) => ol.sdf(pocket.x + px, pocket.y - py))) > -1){
+      warn.push({ t:"The NFC tag does not fit there", s:`A ${pocket.rect ? `${w} × ${h} mm` : `${w} mm`} tag needs a millimetre of card all round it: move it, make the card bigger or pick a smaller tag.` });
+      pocket = null;
+    } else {
+      const mk = cardPick(N.mark, ["back","front","both","none"]);
+      for (const side of ["front","back"]) if (mk === side || mk === "both"){
+        const s = Math.min(10, Math.max(w, h)*0.4), cx = (side === "front" ? 1 : -1)*pocket.x, cy = pocket.y;
+        const f = faces[side], hid = [f.logoBox && [f.logoBox.x, f.logoBox.y, f.logoBox.w, f.logoBox.h], f.qrBox && [f.qrBox.x, f.qrBox.y, f.qrBox.s, f.qrBox.s]]
+          .some(b => b && cx + s/2 > b[0] && cx - s/2 < b[0] + b[2] && cy + s/2 > b[1] && cy - s/2 < b[1] + b[3]);
+        if (hid) warn.push({ t:`The NFC mark is under the ${f.qrBox && Math.abs(f.qrBox.x + f.qrBox.s/2 - cx) < f.qrBox.s/2 ? "QR code" : "logo"} on the ${side}`, s:"Put the mark on the other side, or the tag somewhere else, on the NFC tag page." });
+        faces[side].layers.push({ z:35, slot:cardSlot(N.slot), content:true, mark:[cx - s/2, cy - s/2, cx + s/2, cy + s/2],
+          f:cardDraw(G, x => cardTapMark(x, cx, cy, s, Math.max(noz*1.5, 0.7))) });
+      }
+    }
+  }
+  for (const side of ["front","back"]) cardClear(faces[side], K, G);
+  // each face stacked into its filaments, kept inside the card and clear of the hanging hole
+  const comp = {}, used = {};
+  for (const side of ["front","back"]){
+    const clip = cardOutlineField(G, ol, side, ol.hole ? 1.2 : 0);
+    let L = faces[side].layers;
+    const q = info.qr && info.qr[side], monoHere = mono != null && side === top;
+    // engraved, a QR code has no patch: the code itself is cut in. Raised in one colour, a code in the card's colour
+    // keeps its patch (in that colour, the code as holes in it); any other code stands up on its own
+    if (finish[side] === "engraved" || (monoHere && q && q.dark !== body)) L = L.filter(l => !l.patch);
+    comp[side] = cardCompose(L, G, clip, body);
+    used[side] = [...comp[side].S.values()].some(cardAny) || cardAny(comp[side].free);
+    if (!q) continue;
+    const name = `The ${side} QR code`;
+    if (finish[side] === "engraved"){ warn.push({ t:`${name} is engraved`, s:"Cut into one colour, a code is hard for phones to read. Inlay it flush or raise it in a dark filament on a light patch." }); continue; }
+    const dark = monoHere && q.dark !== body ? mono : q.dark, light = q.patch && !(monoHere && q.dark !== body) ? (monoHere ? mono : q.patchSlot) : body;
+    const dl = cardLum(state.slots[dark].hex), ll = cardLum(state.slots[light].hex);
+    if (dark === light) warn.push({ t:`${name} is the same colour as behind it`, s:monoHere ? "Raised in one colour, the code needs the card's colour to differ from the raised colour. Pick another colour for the name, or untick one colour." : "Pick a dark filament for the code and a light one behind it, on the QR code page." });
+    else if (dl > ll) warn.push({ t:`${name} is light on dark`, s:"Many phones only read a dark code on a light background. Swap the code's colour and the patch's on the QR code page." });
+    else if ((ll + 0.05)/(dl + 0.05) < 3) warn.push({ t:`${name} has little contrast`, s:"Phones may struggle to read it. Use a darker filament for the code or a lighter one behind it." });
+  }
+  // the thicknesses: the face on the bed, the face on top (sunk in or raised), the pocket and a roof over it
+  const dBed = used[bed] ? depth[bed] : 0, topCut = used[top] && finish[top] !== "raised" ? depth[top] : 0, raise = used[top] && finish[top] === "raised" ? depth[top] : 0;
+  let T = snap(clamp(cleanNum(K.thick, 1.6), 0.4, 10), 2), z0 = 0, z1 = 0;
+  let Tneed = dBed + topCut + 2*lay;
+  if (pocket){ z0 = Math.max(dBed, snapUp(0.4, 2)); z1 = z0 + snapUp(pocket.t + 0.1, 2); Tneed = Math.max(Tneed, z1 + Math.max(snapUp(0.4, 2), topCut)); }
+  if (T < Tneed - 1e-6){ info.thickened = { from:T, to:Tneed, why: pocket ? "nfc" : "faces" }; T = Tneed; }
+  // the face on top is the plan; the face on the bed is mirrored into it
+  const flip = list => list.map(q => ({ outer: encOrient(q.outer.map(([x, y]) => [-x, y]), true), holes: q.holes.map(hl => encOrient(hl.map(([x, y]) => [-x, y]), false)) }));
+  const plan = (side, polys) => side === top ? polys : flip(polys);
+  const coreOut = cardTrace(cardOutlineField(G, ol, top, 0), G);
+  const bodySolids = [], pieces = new Map(), N2 = G.Wp*G.Hp;
+  const addPiece = (slot, s) => { if (!s) return; if (slot === body){ bodySolids.push(s); return; } if (!pieces.has(slot)) pieces.set(slot, []); pieces.get(slot).push(s); };
+  const faceSolids = (side, za, zb) => {
+    const cmp = comp[side], f = finish[side];
+    if (f === "raised"){
+      if (mono != null){ const u = new Uint8Array(N2); for (const s of cmp.S.values()) for (let i=0;i<N2;i++) if (s[i] > u[i]) u[i] = s[i]; addPiece(mono, C.extrudePolysAt(plan(side, cardTrace(u, G)), za, zb)); }
+      else for (const [k, s] of cmp.S) addPiece(k, C.extrudePolysAt(plan(side, cardTrace(s, G)), za, zb));
+      bodySolids.push(C.extrudePolysAt(plan(side, cardTrace(cmp.free, G)), za, zb));
+      return;
+    }
+    // flush or engraved: the face's layer of card, with the pieces set into its holes
+    const U = new Uint8Array(N2);
+    for (const s of cmp.S.values()) for (let i=0;i<N2;i++) if (s[i] > U[i]) U[i] = s[i];
+    if (f === "engraved") for (let i=0;i<N2;i++) if (cmp.free[i] > U[i]) U[i] = cmp.free[i];
+    const cov = Uint8Array.from(cardOutlineField(G, ol, side, 0));
+    for (let i=0;i<N2;i++) cov[i] = Math.min(cov[i], 255 - U[i]);
+    bodySolids.push(C.extrudePolysAt(plan(side, cardTrace(cov, G)), za, zb));
+    if (f === "flush") for (const [k, s] of cmp.S) addPiece(k, C.extrudePolysAt(plan(side, cardTrace(s, G)), za, zb));
+  };
+  if (dBed) faceSolids(bed, 0, dBed);
+  const cTop = T - topCut;
+  if (pocket){
+    const px = top === "front" ? pocket.x : -pocket.x, py = -pocket.y;
+    const ring = (pocket.rect ? C.ringRect(pocket.w, pocket.h, 1, 6) : C.ringCircle(pocket.w/2, 64)).map(([x, y]) => [x + px, y + py]);
+    const holed = coreOut.map(q => C.insideRing(q.outer)(px, py) ? { outer:q.outer, holes:[...q.holes, encOrient(ring, false)] } : q);
+    if (z0 > dBed + 1e-6) bodySolids.push(C.extrudePolysAt(coreOut, dBed, z0));
+    bodySolids.push(C.extrudePolysAt(holed, z0, z1));
+    if (cTop > z1 + 1e-6) bodySolids.push(C.extrudePolysAt(coreOut, z1, cTop));
+    const L = Math.round(z1/lay);
+    info.nfc = { z0, z1, pause:{ layer:L + 1, z:+((L + 1)*lay).toFixed(3) }, at:[pocket.x, pocket.y], size:pocket.size, t:pocket.t, rect:pocket.rect };
+  } else bodySolids.push(C.extrudePolysAt(coreOut, dBed, cTop));
+  if (topCut) faceSolids(top, cTop, T);
+  if (raise) faceSolids(top, T, T + raise);
+  for (const side of ["front","back"]) if (finish[side] === "flush" && cardAny(comp[side].free))
+    warn.push({ t:`Part of the ${side} is in the card's own colour`, s:"Flush in the card's colour it does not show. Pick another filament for it on the Colours page, or raise it." });
+  Object.assign(info, { T, dBed, topCut, raise, finish, faceDown, top, bed, used, depth });
+  const parts = [{ name:"Card", slot:body, solid:C.mergeSolids(bodySolids.filter(Boolean)) }];
+  for (const [k, list] of pieces){ const s = C.mergeSolids(list.filter(Boolean)); if (s) parts.push({ name:state.slots[k].name, slot:k, solid:s }); }
+  return parts;
+}
+async function buildCard(){
+  if (!state.base.card) state.base.card = DEFAULTS().base.card;
+  const K = state.base.card, warn = [], info = { warn };
+  const { W, H, R } = cardSpec(K), PX = clamp(Math.floor(Math.sqrt(2.6e6/(W*H))), 8, 16), pad = 4;
+  const Wp = Math.ceil(W*PX) + 2*pad, Hp = Math.ceil(H*PX) + 2*pad;
+  const cv = document.createElement("canvas"); cv.width = Wp; cv.height = Hp;
+  const G = { W, H, PX, Wp, Hp, ctx: cv.getContext("2d", { willReadFrequently:true }), u: x => x*PX + Wp/2, v: y => y*PX + Hp/2 };
+  const ol = cardOutline(K, W, H, R);
+  const people = K.list ? cardPeople(K) : [];
+  if (K.list && !people.length) warn.push({ t:"The list of names is empty", s:"Type one name a line on the Copies page (Name | Title), or switch the list off." });
+  const who = people.length ? people : [null], copies = people.length ? 1 : clamp(Math.round(cleanNum(K.copies, 1)), 1, 12);
+  const cards = [];
+  for (let i=0;i<who.length;i++){
+    const inf = i ? { warn: [] } : info;
+    const parts = await cardOne(K, who[i], G, ol, inf, inf.warn);
+    if (i){ inf.warn.forEach(w => { if (!warn.some(v => v.t === w.t)) warn.push(w); }); }
+    for (let c=0;c<copies;c++) cards.push({ parts, name: who[i] ? who[i].name : "" });
+    await yieldUI();
+  }
+  // laid out in rows on the bed
+  const n = cards.length, gap = 4, bed = state.printer.bed || [256, 256];
+  const cols = n > 1 ? Math.max(1, Math.min(n, Math.floor((bed[0] - 10 + gap)/(W + gap)))) : 1, rowsN = Math.ceil(n/cols);
+  if (n > 1 && (rowsN*(H + gap) - gap > bed[1] - 10)) warn.push({ t:`${n} cards do not fit on the bed at once`, s:`About ${cols*Math.max(1, Math.floor((bed[1] - 10 + gap)/(H + gap)))} fit on the ${state.printer.model}. Print them in batches, or make fewer copies.` });
+  const out = [];
+  cards.forEach((cd, i) => {
+    const col = i % cols, row = Math.floor(i/cols), dx = (col - (cols - 1)/2)*(W + gap), dy = ((rowsN - 1)/2 - row)*(H + gap);
+    cd.parts.forEach(p => {
+      if (!p.solid) return;
+      const s = n > 1 ? { pos: Float32Array.from(p.solid.pos), idx: p.solid.idx } : p.solid;
+      if (n > 1) for (let k=0;k<s.pos.length;k+=3){ s.pos[k] += dx; s.pos[k + 2] -= dy; }
+      out.push({ name: n > 1 ? `Card ${i + 1}${cd.name ? ` (${cd.name})` : ""}: ${p.name === "Card" ? "card" : p.name}` : p.name, slot:p.slot, solid:s });
+    });
+  });
+  info.W = W; info.H = H; info.cards = n; info.R = R; info.copies = copies; info.people = people.length;
+  cardInfo = info;
+  // shown as it is seen in the hand: turned over when the front prints on the bed
+  autoFlip(info.faceDown && info.used && info.used.front);
+  return out;
+}
+
+// a box for several lines of text (the details, the list of names)
+function cardTextArea(parent, label, get, set, rows, placeholder, max){
+  const id = "t" + Math.random().toString(36).slice(2, 8), w = document.createElement("div"); w.className = "field full";
+  w.innerHTML = `<label for="${id}">${label}</label><textarea class="ta" id="${id}" rows="${rows}" placeholder="${esc(placeholder || "")}"></textarea>`;
+  const ta = w.querySelector("textarea"); ta.value = get();
+  let t = 0;
+  ta.oninput = () => { set(ta.value.slice(0, max || 2000)); clearTimeout(t); t = setTimeout(() => { baseChanged(); pushHistory(); }, 350); };
+  parent.appendChild(w); return ta;
+}
+function cardFields(p){
+  if (!state.base.card) state.base.card = DEFAULTS().base.card;
+  const K = state.base.card, I = cardInfo, D = DEFAULTS().base.card;
+  for (const k of ["qr","logo","border","band","pattern","back","nfc","hole","textMove"]) if (!K[k] || typeof K[k] !== "object") K[k] = JSON.parse(JSON.stringify(D[k]));
+  const re = () => { renderTab(); baseChanged(); }, sizeOf = cardSpec(K);
+  const sideSeg = (g, get, set, withNone) => segField(g, [["front","Front"],["back","Back"],["both","Both sides"], ...(withNone ? [["none","Neither"]] : [])], get, v => { set(v); re(); }, withNone ? "four" : "");
+  const move = (g, o, what) => {
+    numField(g,{ label:`Move ${what} right (mm)`, min:-40, max:40, step:0.5, get:()=>o.x, set:v=>o.x=v, onChange:baseChanged });
+    numField(g,{ label:`Move ${what} down (mm)`, min:-30, max:30, step:0.5, get:()=>o.y, set:v=>o.y=v, onChange:baseChanged });
+  };
+  selField(p, "Card size", Object.entries(CARD_SIZES).map(([k, v]) => [k, v.label]), () => K.size, v => { K.size = v; if (encHas(CARD_SIZES, v) && v !== "custom") K.radius = CARD_SIZES[v].r; re(); });
+  if (K.size === "custom"){
+    numField(p,{ label:"Width (mm)", min:30, max:200, step:0.5, get:()=>K.w, set:v=>K.w=v, onChange:baseChanged });
+    numField(p,{ label:"Height (mm)", min:20, max:200, step:0.5, get:()=>K.h, set:v=>K.h=v, onChange:baseChanged });
+  }
+  checkField(p, "Upright (portrait)", () => K.portrait === true, v => { K.portrait = v; re(); });
+  selField(p, "Layout", CARD_LAYOUTS, () => K.layout, v => { K.layout = v; re(); });
+  if (I) note(p, `${mm(I.W)} × ${mm(I.H)} × ${mm(I.T)}${I.cards > 1 ? `, ${I.cards} cards on the bed` : ""}. ${I.faceDown ? "The front prints face down, so it comes out as smooth as your bed: the card is shown turned over (⟳ above the model turns it back)." : "The back prints on the bed and the front on top."}${I.thickened ? ` Made ${mm(I.thickened.to)} thick (you set ${mm(I.thickened.from)}) to ${I.thickened.why === "nfc" ? "hold the NFC tag with a roof over it" : "fit both faces"}.` : ""}`);
+  group(p, "Name and details", g => {
+    textField(g, "Name", () => K.name, v => K.name = v, { max:60, onChange:baseChanged, placeholder:"Alex Morgan" });
+    textField(g, "Title or job", () => K.title, v => K.title = v, { max:80, onChange:baseChanged, placeholder:"Designer & maker" });
+    textField(g, "Company", () => K.company, v => K.company = v, { max:60, onChange:baseChanged, placeholder:"Forge Studio" });
+    cardTextArea(g, "Details, one a line", () => K.lines, v => K.lines = v, 4, "+46 70 123 45 67\nalex@example.com\nexample.com\nStorgatan 1, Stockholm", 600);
+    note(g, "Up to 8 lines. Each gets an icon from what it looks like: a phone number, an email address, a web address, an @handle or an address. The QR code's contact card is made from them too.");
+    checkField(g, "Icons in front of the details", () => K.icons !== false, v => { K.icons = v; baseChanged(); });
+    segField(g, [["none","No line"],["short","Short line"],["full","Full line"]], () => K.divider, v => { K.divider = v; re(); });
+    note(g, "The line under the name and title.");
+  }, true);
+  group(p, "Fonts and sizes", g => {
+    fontField(g, () => K.nameFont, v => { K.nameFont = v; re(); }, K.name || "Name", "Font for the name");
+    fontField(g, () => K.textFont, v => { K.textFont = v; re(); }, K.title || "Details", "Font for the rest");
+    checkField(g, "Name in capitals", () => K.caps === true, v => { K.caps = v; baseChanged(); });
+    numField(g,{ label:"Name letter height (mm)", min:2.5, max:14, step:0.1, get:()=>K.nameSize, set:v=>K.nameSize=v, onChange:baseChanged, sub:()=>"The height of a capital letter." });
+    numField(g,{ label:"Title and company height (mm)", min:1.5, max:8, step:0.1, get:()=>K.titleSize, set:v=>K.titleSize=v, onChange:baseChanged });
+    numField(g,{ label:"Details height (mm)", min:1.5, max:6, step:0.1, get:()=>K.textSize, set:v=>K.textSize=v, onChange:baseChanged,
+      sub:()=>{ const n = state.printer.nozzle || 0.4; return K.textSize < n*7 ? `Small for a ${n} mm nozzle: ${(n*7).toFixed(1)} mm or more prints crisply.` : `Crisp with a ${n} mm nozzle.`; } });
+    numField(g,{ label:"Letter spacing in the name", min:-0.1, max:0.8, step:0.01, get:()=>K.spacing, set:v=>K.spacing=v, onChange:baseChanged, sub:()=>"As a share of the letter height." });
+    numField(g,{ label:"Space between detail lines", min:1.2, max:3, step:0.05, get:()=>K.lineGap, set:v=>K.lineGap=v, onChange:baseChanged });
+    segField(g, [["auto","Line up as the layout"],["left","Left"],["centre","Centre"],["right","Right"]], () => K.align || "auto", v => { K.align = v; re(); }, "four");
+    numField(g,{ label:"Margin round the edge (mm)", min:1.5, max:15, step:0.5, get:()=>K.margin, set:v=>K.margin=v, onChange:baseChanged });
+    move(g, K.textMove, "the words");
+  });
+  group(p, "Colours", g => {
+    note(g, "The card itself is the <b>Object filament</b> at the foot of this tab. A colour that is the card's own does not show when it is flush.");
+    slotField(g, "Name", () => String(K.nameSlot), v => { K.nameSlot = +v; baseChanged(); });
+    slotField(g, "Title", () => String(K.titleSlot), v => { K.titleSlot = +v; baseChanged(); });
+    slotField(g, "Company", () => String(K.companySlot), v => { K.companySlot = +v; baseChanged(); });
+    slotField(g, "Details", () => String(K.textSlot), v => { K.textSlot = +v; baseChanged(); });
+    slotField(g, "Icons", () => String(K.iconSlot), v => { K.iconSlot = +v; baseChanged(); });
+    slotField(g, "Line under the name", () => String(K.dividerSlot), v => { K.dividerSlot = +v; baseChanged(); });
+  });
+  group(p, "QR code", g => {
+    const Q = K.qr;
+    checkField(g, "Put a QR code on the card", () => Q.on === true, v => { Q.on = v; re(); });
+    if (!Q.on) return;
+    if (K.layout === "minimal") note(g, "With the <b>Just the name</b> layout, the code goes on the back.");
+    else sideSeg(g, () => Q.face, v => Q.face = v);
+    selField(g, Q.face === "both" ? "What the front's code does" : "What it does", CARD_QR_KINDS, () => Q.kind, v => { Q.kind = v; re(); });
+    if (Q.face === "both" && K.layout !== "minimal") selField(g, "What the back's code does", [["same","The same as the front's"], ...CARD_QR_KINDS], () => Q.backKind, v => { Q.backKind = v; re(); });
+    const kinds = new Set([Q.kind, Q.face === "both" && Q.backKind !== "same" ? Q.backKind : Q.kind]), c = cardContact(K);
+    if (kinds.has("link")) textField(g, "Web address", () => Q.url, v => Q.url = v, { max:300, onChange:baseChanged, placeholder: c.url || "example.com" });
+    if (kinds.has("phone") || kinds.has("sms")) textField(g, "Phone number", () => Q.phone, v => Q.phone = v, { max:40, onChange:baseChanged, placeholder: c.phone || "+46 70 123 45 67" });
+    if (kinds.has("sms")) textField(g, "Message", () => Q.message, v => Q.message = v, { max:160, onChange:baseChanged, placeholder:"Hi! We met at the fair." });
+    if (kinds.has("email")){ textField(g, "Email address", () => Q.email, v => Q.email = v, { max:120, onChange:baseChanged, placeholder: c.email || "alex@example.com" });
+      textField(g, "Subject", () => Q.subject, v => Q.subject = v, { max:120, onChange:baseChanged, placeholder:"Hello" }); }
+    if (kinds.has("wifi")){
+      textField(g, "Network name", () => Q.ssid, v => Q.ssid = v, { max:64, onChange:baseChanged, placeholder:"Studio guests" });
+      textField(g, "Password", () => Q.password, v => Q.password = v, { max:64, onChange:baseChanged });
+      segField(g, [["WPA","WPA / WPA2 / WPA3"],["WEP","WEP"],["nopass","No password"]], () => Q.security, v => { Q.security = v; re(); });
+      checkField(g, "The network is hidden", () => Q.hidden === true, v => { Q.hidden = v; baseChanged(); });
+    }
+    if (kinds.has("text")) cardTextArea(g, "Text", () => Q.text, v => Q.text = v, 3, "Anything up to a few hundred letters", 1000);
+    if (kinds.has("vcard") || kinds.has("mecard")) note(g, "The contact card is made from the name, title, company and details. A phone saves it in its contacts with one tap. It holds a lot, so it needs a bigger code than a link.");
+    if (kinds.has("link") && !Q.url && c.url) note(g, `The link is the web address in the details: <b>${esc(C.qrLink(c.url))}</b>.`);
+    if (Q.face !== "front" || K.layout === "minimal") textField(g, "Words under the back's code", () => Q.caption, v => Q.caption = v, { max:80, onChange:baseChanged, placeholder:"Scan to save my details" });
+    if (K.layout !== "minimal" && Q.face !== "back") numField(g,{ label:Q.face === "both" ? "Front code size (mm)" : "Size (mm)", min:10, max:50, step:0.5, get:()=>Q.size, set:v=>Q.size=v, onChange:baseChanged });
+    if (Q.face === "both" || Q.face === "back" || K.layout === "minimal") numField(g,{ label:Q.face === "both" && K.layout !== "minimal" ? "Back code size (mm)" : "Size on the back (mm)", min:10, max:50, step:0.5,
+      get:()=>Q.face === "back" || K.layout === "minimal" ? Q.size : Q.backSize, set:v=>{ if (Q.face === "back" || K.layout === "minimal") Q.size = v; else Q.backSize = v; }, onChange:baseChanged });
+    const info = I && I.qr ? Object.entries(I.qr) : [];
+    info.forEach(([side, q]) => note(g, `<b>${side === "front" ? "Front" : "Back"}:</b> ${q.n} × ${q.n} squares of ${q.mod.toFixed(2)} mm (version ${q.version}, error correction ${q.ec}), ${q.chars} letters. It says: <code>${esc(q.text.length > 90 ? q.text.slice(0, 90) + "…" : q.text).replace(/\r?\n/g, " ⏎ ")}</code>`));
+    selField(g, "Error correction", [["auto","Automatic: as strong as the squares allow"],["L","L: 7% (the biggest squares)"],["M","M: 15%"],["Q","Q: 25%"],["H","H: 30% (the most damage it survives)"]], () => Q.ec, v => { Q.ec = v; re(); });
+    segField(g, [["square","Squares"],["rounded","Rounded"],["dots","Dots"]], () => Q.style, v => { Q.style = v; re(); });
+    segField(g, [["square","Square eyes"],["rounded","Rounded eyes"],["circle","Round eyes"]], () => Q.eyes, v => { Q.eyes = v; re(); });
+    checkField(g, "Initials in the middle of the code", () => Q.badge === true, v => { Q.badge = v; baseChanged(); });
+    if (Q.badge) note(g, "The code is made with the strongest error correction, so it still reads with its middle covered.");
+    segField(g, [["auto","Light patch when needed"],["on","Always a patch"],["off","No patch"]], () => Q.patch, v => { Q.patch = v; re(); });
+    slotField(g, "Code colour (dark)", () => String(Q.slot), v => { Q.slot = +v; baseChanged(); });
+    slotField(g, "Patch colour (light)", () => String(Q.patchSlot), v => { Q.patchSlot = +v; baseChanged(); });
+    numField(g,{ label:"Quiet border (squares)", min:1, max:4, step:1, get:()=>Q.quiet, set:v=>Q.quiet=v, onChange:baseChanged, sub:()=>"Light space round the code: 2 reads well on a patch." });
+    move(g, Q.move, "the code");
+  });
+  group(p, "Logo", g => {
+    const L = K.logo;
+    checkField(g, "Show a logo", () => L.on === true, v => { L.on = v; re(); });
+    if (!L.on) return;
+    segField(g, [["art","The picture from the Art tab"],["monogram","My initials"]], () => L.from, v => { L.from = v; re(); }, "two");
+    if (L.from !== "monogram" && !state.items.length) note(g, "No picture yet: add one on the <b>Art</b> tab. Until then your initials are used.");
+    sideSeg(g, () => L.face, v => L.face = v);
+    numField(g,{ label:"Height (mm)", min:4, max:40, step:0.5, get:()=>L.size, set:v=>L.size=v, onChange:baseChanged, sub:()=>"On the back it is drawn half as big again." });
+    if (L.from !== "monogram" && state.items.length){
+      segField(g, [["art","In its own colours"],["one","In one colour"]], () => L.colours, v => { L.colours = v; re(); }, "two");
+      if (L.colours === "one") slotField(g, "Logo colour", () => String(L.slot), v => { L.slot = +v; baseChanged(); });
+      else note(g, "Its colours are matched to your loaded filaments; the Art tab shows how and leaves a colour out with a click.");
+    } else {
+      textField(g, "Initials", () => L.initials, v => L.initials = v, { max:3, onChange:baseChanged, placeholder: cardInitials(Object.assign({}, K, { logo:Object.assign({}, L, { initials:"" }) })) });
+      selField(g, "Shape", [["circle","Circle"],["hexagon","Hexagon"],["diamond","Diamond"],["square","Square"],["shield","Shield"],["none","Letters only"]], () => L.shape, v => { L.shape = v; re(); });
+      if (L.shape !== "none") segField(g, [["solid","Solid, letters cut out"],["ring","Outline"]], () => L.fill, v => { L.fill = v; re(); }, "two");
+      slotField(g, "Logo colour", () => String(L.slot), v => { L.slot = +v; baseChanged(); });
+    }
+    move(g, L.move, "the logo");
+  });
+  group(p, "Border and band", g => {
+    const B = K.border, N = K.band;
+    selField(g, "Border", [["none","None"],["line","A line"],["double","A double line"],["thick","A thick frame"],["corners","Corners only"],["dashed","Dashes"],["dotted","Dots"]], () => B.style, v => { B.style = v; re(); });
+    if (B.style !== "none"){
+      sideSeg(g, () => B.face, v => B.face = v);
+      if (B.style !== "thick") numField(g,{ label:"Line width (mm)", min:0.3, max:3, step:0.05, get:()=>B.line, set:v=>B.line=v, onChange:baseChanged });
+      numField(g,{ label:B.style === "thick" ? "Frame width (mm)" : "In from the edge (mm)", min:0, max:12, step:0.25, get:()=>B.inset, set:v=>B.inset=v, onChange:baseChanged });
+      slotField(g, "Border colour", () => String(B.slot), v => { B.slot = +v; baseChanged(); });
+    }
+    checkField(g, "A band of colour along one side", () => N.on === true, v => { N.on = v; re(); });
+    if (K.layout === "split") note(g, "The <b>band with the logo</b> layout has a band on the left of the front already; this one sets its width, edge and colour.");
+    if (N.on || K.layout === "split"){
+      if (N.on){ segField(g, [["left","Left"],["right","Right"],["top","Top"],["bottom","Bottom"]], () => N.at, v => { N.at = v; re(); }, "four"); sideSeg(g, () => N.face, v => N.face = v); }
+      numField(g,{ label:"Band width (mm)", min:3, max:60, step:0.5, get:()=>N.span, set:v=>N.span=v, onChange:baseChanged });
+      segField(g, [["straight","Straight"],["slant","Slanted"],["wave","Wavy"],["curve","Curved"]], () => N.edge, v => { N.edge = v; re(); }, "four");
+      slotField(g, "Band colour", () => String(N.slot), v => { N.slot = +v; baseChanged(); });
+    }
+  });
+  group(p, "Pattern", g => {
+    const P = K.pattern;
+    selField(g, "Pattern", CARD_PATTERNS, () => P.kind, v => { P.kind = v; re(); });
+    if (P.kind === "none") return;
+    sideSeg(g, () => P.face, v => P.face = v);
+    selField(g, "Where", [["all","All over"],["left","The left third"],["right","The right third"],["top","The top"],["bottom","The bottom"],["diagonal","Half, corner to corner"],
+      ["corner","A corner"],["frame","Round the edge, outside the border"],["band","On the band"]], () => P.area, v => { P.area = v; re(); });
+    selField(g, "Fade", [["none","No fade"],["lr","Fades in from the left"],["rl","Fades in from the right"],["tb","Fades in from the top"],["bt","Fades in from the bottom"],["centre","Strongest in the middle"],["edges","Strongest at the edges"]], () => P.fade, v => { P.fade = v; re(); });
+    numField(g,{ label:"Scale", min:0.4, max:3, step:0.05, get:()=>P.scale, set:v=>P.scale=v, onChange:baseChanged });
+    if (!["stripes","sunburst","carbon","halftone"].includes(P.kind)) numField(g,{ label:"Line width (mm)", min:0.3, max:2, step:0.05, get:()=>P.line, set:v=>P.line=v, onChange:baseChanged,
+      sub:()=>`At least ${((state.printer.nozzle || 0.4)*1.2).toFixed(2)} mm (1.2 nozzle widths) is used, so every line prints.` });
+    if (P.kind === "stripes" || P.kind === "pinstripe") numField(g,{ label:"Angle (°)", min:-90, max:90, step:1, get:()=>P.angle, set:v=>P.angle=v, onChange:baseChanged });
+    if (["topo","circuit","confetti"].includes(P.kind)){
+      numField(g,{ label:"Pattern number", min:1, max:99999, step:1, get:()=>P.seed, set:v=>P.seed=Math.round(v), onChange:baseChanged });
+      buttonRow(g, [["Shuffle", () => { P.seed = 1 + Math.floor(Math.random()*99998); re(); pushHistory(); }]]);
+    }
+    segField(g, [["halo","Clear round the words"],["box","Clear boxes"],["none","Right under them"]], () => P.clear, v => { P.clear = v; re(); });
+    slotField(g, "Pattern colour", () => String(P.slot), v => { P.slot = +v; baseChanged(); });
+  });
+  group(p, "Back of the card", g => {
+    const B = K.back;
+    textField(g, "Words on the back", () => B.text, v => B.text = v, { max:80, onChange:baseChanged, placeholder:"Hand made in Stockholm" });
+    numField(g,{ label:"Letter height (mm)", min:1.5, max:10, step:0.1, get:()=>B.size, set:v=>B.size=v, onChange:baseChanged, sub:()=>"For these words and the ones under the code." });
+    slotField(g, "Colour of the words", () => String(B.slot), v => { B.slot = +v; baseChanged(); });
+    checkField(g, "The name and title on the back too", () => B.name === true, v => { B.name = v; baseChanged(); });
+    checkField(g, "The details on the back", () => B.details === true || K.layout === "minimal", v => { B.details = v; baseChanged(); });
+    note(g, "The back also shows the QR code, the logo, the border, the band and the pattern when you set them to the back or both sides.");
+  });
+  group(p, "Printing the card", g => {
+    segField(g, [["down","Front face down"],["up","Front face up"]], () => K.face === "up" ? "up" : "down", v => { K.face = v; re(); }, "two");
+    const top = K.face === "up" ? "front" : "back", fin = top === "front" ? "frontFinish" : "backFinish";
+    note(g, K.face === "up" ? "The back lies flush on the bed; the front is on top." : "The front prints first, flush on the bed: as smooth as the bed (a textured plate gives it a texture). The back is on top.");
+    segField(g, [["flush","Flush, in colour"],["raised","Raised"],["engraved","Engraved"]], () => K[fin], v => { K[fin] = v; re(); });
+    note(g, `How the ${top} is finished. ${K[fin] === "engraved" ? "Engraved is cut into the card's own colour: one filament, no swaps." : K[fin] === "raised" ? "Raised stands up from the card, each part in its colour." : "Flush colours are set into the card, so it is flat both sides."}`);
+    const lay = state.printer.layer || 0.2, layers = v => Math.max(2, Math.round(v/lay));
+    numField(g,{ label:"Front colours: how deep (mm)", min:0.2, max:2, step:0.04, get:()=>K.depth, set:v=>K.depth=v, onChange:baseChanged,
+      sub:()=>`${layers(K.depth)} layers of ${lay} mm. Light colours over a dark card need 0.6 mm or more to look solid.` });
+    numField(g,{ label:"Back colours: how deep or high (mm)", min:0.2, max:2, step:0.04, get:()=>K.backDepth, set:v=>K.backDepth=v, onChange:baseChanged,
+      sub:()=>`${layers(K.backDepth)} layers of ${lay} mm.` });
+    numField(g,{ label:"Card thickness (mm)", min:0.8, max:5, step:0.05, get:()=>K.thick, set:v=>K.thick=v, onChange:baseChanged,
+      sub:()=>cardInfo && cardInfo.thickened ? `Made ${cardInfo.thickened.to.toFixed(2)} mm to fit.` : "A bank card is 0.76 mm; printed, 1.2 to 2 mm feels solid." });
+    if (K[fin] === "raised") checkField(g, "Everything raised in one colour (one filament swap)", () => K.mono === true, v => { K.mono = v; baseChanged(); });
+    if (K[fin] === "raised") note(g, "For a printer with one filament: the card, then a pause to swap to the colour of the name for everything raised. The QR code then stands up on its own, with no patch.");
+    numField(g,{ label:"Corner radius (mm)", min:0, max:15, step:0.1, get:()=>K.radius, set:v=>K.radius=v, onChange:baseChanged });
+    selField(g, "Corners", [["round","Rounded"],["sharp","Square"],["cut","Cut off"],["ticket","Ticket (cut in)"],["leaf","Leaf (two rounded)"],["pill","Fully round ends"]], () => K.corner, v => { K.corner = v; re(); });
+  });
+  group(p, "NFC tag", g => {
+    const N = K.nfc;
+    checkField(g, "A pocket for an NFC tag inside the card", () => N.on === true, v => { N.on = v; re(); });
+    if (!N.on){ note(g, "An NFC sticker sealed inside: tap the card on a phone and it opens your link or contact. Write the tag first with a free app such as NFC Tools, then print it in."); return; }
+    selField(g, "Tag", Object.entries(CARD_TAGS).map(([k, v]) => [k, v.label]), () => N.tag, v => { N.tag = v; if (CARD_TAGS[v].dia) N.dia = CARD_TAGS[v].dia; N.t = CARD_TAGS[v].t; re(); });
+    if (N.tag === "round") numField(g,{ label:"Diameter (mm)", min:8, max:60, step:0.5, get:()=>N.dia, set:v=>N.dia=v, onChange:baseChanged });
+    if (N.tag === "rect"){ numField(g,{ label:"Tag width (mm)", min:8, max:90, step:0.5, get:()=>N.w, set:v=>N.w=v, onChange:baseChanged });
+      numField(g,{ label:"Tag height (mm)", min:8, max:90, step:0.5, get:()=>N.h, set:v=>N.h=v, onChange:baseChanged }); }
+    if (N.tag === "round" || N.tag === "rect") numField(g,{ label:"Tag thickness (mm)", min:0.05, max:3, step:0.05, get:()=>N.t, set:v=>N.t=v, onChange:baseChanged });
+    selField(g, "Where", [["centre","In the middle"],["logo","Behind the logo"],["qr","Behind the QR code"],["custom","Where I put it"]], () => N.place, v => { N.place = v; re(); });
+    if (N.place === "custom"){ numField(g,{ label:"Right of the middle (mm, seen from the front)", min:-80, max:80, step:0.5, get:()=>N.x, set:v=>N.x=v, onChange:baseChanged });
+      numField(g,{ label:"Below the middle (mm)", min:-80, max:80, step:0.5, get:()=>N.y, set:v=>N.y=v, onChange:baseChanged }); }
+    segField(g, [["back","Mark on the back"],["front","On the front"],["both","Both"],["none","No mark"]], () => N.mark, v => { N.mark = v; re(); }, "four");
+    if (N.mark !== "none") slotField(g, "Mark colour", () => String(N.slot), v => { N.slot = +v; baseChanged(); });
+    const nf = I && I.nfc;
+    if (nf) note(g, `<b>Pause before the layer at ${nf.pause.z.toFixed(2)} mm (layer ${nf.pause.layer})</b>, put the tag in its pocket (a sticker without its backing paper), and carry on: the next layer seals it in. The pocket is ${(nf.z1 - nf.z0).toFixed(2)} mm deep. The Export tab and the download say the same.`);
+  });
+  group(p, "Keyring or lanyard hole", g => {
+    const O = K.hole;
+    checkField(g, "A hole", () => O.on === true, v => { O.on = v; re(); });
+    if (!O.on) return;
+    segField(g, [["round","Round hole"],["slot","Lanyard slot"]], () => O.kind, v => { O.kind = v; re(); }, "two");
+    selField(g, "Where (seen from the front)", [["tl","Top left"],["tr","Top right"],["bl","Bottom left"],["br","Bottom right"],["top","Top middle"],["bottom","Bottom middle"],["left","Left middle"],["right","Right middle"]], () => O.pos, v => { O.pos = v; re(); });
+    numField(g,{ label:O.kind === "slot" ? "Slot width (mm)" : "Diameter (mm)", min:2, max:12, step:0.25, get:()=>O.dia, set:v=>O.dia=v, onChange:baseChanged });
+    if (O.kind === "slot") numField(g,{ label:"Slot length (mm)", min:4, max:40, step:0.5, get:()=>O.len, set:v=>O.len=v, onChange:baseChanged });
+    numField(g,{ label:"From the edge (mm)", min:1.2, max:15, step:0.25, get:()=>O.edge, set:v=>O.edge=v, onChange:baseChanged });
+  });
+  group(p, "Copies", g => {
+    checkField(g, "A card for each name in a list", () => K.list === true, v => { K.list = v; re(); });
+    if (K.list){
+      cardTextArea(g, "Names, one a line (Name | Title)", () => K.names, v => K.names = v, 5, "Alex Morgan | Designer\nSam Lee | Engineer", 3000);
+      note(g, "Each gets its own card with the same design, details and code (a contact card uses the card's own name). Up to 24.");
+    } else numField(g,{ label:"Copies on the bed", min:1, max:12, step:1, get:()=>K.copies, set:v=>K.copies=Math.round(v), onChange:baseChanged });
   });
   if (I && I.warn.length) I.warn.forEach(w => p.insertAdjacentHTML("beforeend", `<div class="result warn"><span class="dot"></span><div><b>${esc(w.t)}</b><span class="s">${esc(w.s)}</span></div></div>`));
 }
@@ -7564,7 +8795,7 @@ function matchToArtwork(){
   notify(keepSlot >= 0 ? `Your other filaments now match the picture; ${state.slots[keepSlot].name} stays for the ${T === "phonecase" ? "case" : "lid"}. Nudge them towards spools you own.` : "Colours matched. Nudge them towards spools you own.");
 }
 // the messages about a picture inlaid in a case's back or a box's lid, for the Art tab (Session 31)
-const artWarnings = () => (((state.base.type === "phonecase" ? phoneInfo : state.base.type === "enclosure" ? enclosureInfo : null) || {}).warn || [])
+const artWarnings = () => (((state.base.type === "phonecase" ? phoneInfo : state.base.type === "enclosure" ? enclosureInfo : state.base.type === "card" ? cardInfo : null) || {}).warn || [])
   .filter(w => /logo|picture|photo/i.test(w.t));
 const artWarnSig = () => artWarnings().map(w => w.t + w.s).join("|");
 let renderedArtWarn = "";
@@ -7590,7 +8821,8 @@ function tabArt(p){
   // placed as a decal: show only the settings that object actually reads
   const E0 = state.base.enclosure, lidLogo = state.base.type === "enclosure" && E0 && E0.lid !== "none" && E0.logo && E0.logo.on;
   const P0 = state.base.phonecase, backLogo = state.base.type === "phonecase" && P0 && P0.style !== "bumper" && P0.logo && P0.logo.on;
-  const consumer = (CONSUMES_ART[state.base.type] || lidLogo || backLogo) && d === (state.items[state.active] || state.items[0])
+  const K0 = state.base.card, cardLogo = state.base.type === "card" && K0 && K0.logo && K0.logo.on && K0.logo.from !== "monogram";
+  const consumer = (CONSUMES_ART[state.base.type] || lidLogo || backLogo || cardLogo) && d === (state.items[state.active] || state.items[0])
     ? (ART_USED_BY[state.base.type] || []) : null;
   const uses = k => !consumer || consumer.includes(k);
   // cut into the object (Session 32): not when the picture is the object itself, nor as a relief
@@ -7616,7 +8848,13 @@ function tabArt(p){
     drawPreview();
     return;
   }
-  if (lidLogo || backLogo){
+  if (state.base.type === "card" && !cardLogo){            // a card takes a picture only as its logo
+    note(p, "A business card uses a picture as its logo, in its own colours or in one. It is set flush into the card, like the words.");
+    buttonRow(p, [["Use it as the card's logo", ()=>{ K0.logo.on = true; K0.logo.from = "art"; tab = "make"; renderTab(); baseChanged(); pushHistory(); }]]);
+    drawPreview();
+    return;
+  }
+  if (lidLogo || backLogo || cardLogo){
     renderedArtWarn = artWarnSig();
     const aw = artWarnings();
     aw.forEach(w => p.insertAdjacentHTML("beforeend", `<div class="result warn"><span class="dot"></span><div><b>${esc(w.t)}</b><span class="s">${esc(w.s)}</span></div></div>`));
@@ -7624,7 +8862,8 @@ function tabArt(p){
   }
   if (consumer){
     p.insertAdjacentHTML("beforeend", `<h2>Size and place</h2>`);
-    note(p, lidLogo ? "This picture is inlaid into the lid. Its size and place are set on the Make tab, under <b>Logo on the lid</b>."
+    note(p, cardLogo ? "This picture is the card's logo. Its size, colours and place are set on the Make tab, under <b>Logo</b>."
+      : lidLogo ? "This picture is inlaid into the lid. Its size and place are set on the Make tab, under <b>Logo on the lid</b>."
       : backLogo ? "This picture is inlaid into the back of the case, which prints face down: the case is shown turned over so you can see it. Its size and place are set on the Make tab, under <b>Picture on the back</b>."
       : `This picture becomes the <b>${esc((SHAPE_LABEL[state.base.type]||state.base.type).toLowerCase())}</b> itself, so its size and shape are set on the Make tab.`);
     buttonRow(p, [["Open the Make tab", ()=>{ tab = "make"; renderTab(); }]]);
@@ -8576,6 +9815,11 @@ function tabExport(p){
     const pz = lastChecks.pauses;
     if (pz && pz.mixed) note(g2, `${pz.mixed} layer${pz.mixed === 1 ? " has" : "s have"} more than one colour. With one filament each layer prints in one: the one loaded when it is there, else the one that carries on furthest up.`);
   }, true);
+  if (state.base.type === "card" && cardInfo && cardInfo.nfc) group(p, "Pause for the NFC tag", g2 => {
+    const n = cardInfo.nfc;
+    note(g2, `Add a pause (not a colour change) <b>before the layer at ${n.pause.z.toFixed(2)} mm (layer ${n.pause.layer})</b>. The pocket for the ${n.rect ? `${n.size[0]} × ${n.size[1]} mm` : `${n.size[0]} mm`} tag is finished then. Press the tag in flat, carry on, and the next layer seals it in. Write the tag before it goes in; a phone reads it through the plastic.`);
+    note(g2, "In Bambu Studio and OrcaSlicer: slice, move the layer slider to that height, right-click it and choose Add pause. In PrusaSlicer: right-click the + beside the slider and choose Add pause print (M601). Other slicers: M601 or M0, or your printer's pause.");
+  }, true);
   group(p,"Parts in this model", g2 => {
     const pt = document.createElement("table"); pt.className = "stats";
     pt.innerHTML = `<tr><th>Part</th><th class="n">triangles</th><th class="n">cm³</th></tr>` + modelParts.map(part=>{
@@ -8989,6 +10233,61 @@ projInput.onchange = async ()=>{
    attributes and images inside <img>, so everything is checked before it touches the page. */
 const HEX_RE = /^#[0-9a-f]{6}$/i;
 function cleanStr(v, max, fallback){ return typeof v === "string" ? v.slice(0, max) : fallback; }
+// a business card from a project file: every number in its slider's range, every choice one of its own, every text
+// cut to length; anything missing or wrong takes the default
+function cleanCard(K0){
+  const d = DEFAULTS().base.card, K = K0 && typeof K0 === "object" && !Array.isArray(K0) ? K0 : {};
+  const obj = v => v && typeof v === "object" && !Array.isArray(v) ? v : {};
+  const one = (v, list, fb) => list.includes(v) ? v : fb;
+  const num = (v, lo, hi, fb) => Math.min(hi, Math.max(lo, cleanNum(v, fb)));
+  const int = (v, lo, hi, fb) => Math.round(num(v, lo, hi, fb));
+  const str = (v, n, fb) => cleanStr(v, n, fb).replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "");
+  const slot = (v, fb) => int(v, 0, MAX_SLOTS - 1, fb), bool = (v, fb) => typeof v === "boolean" ? v : fb;
+  const mv = (o, fb) => { o = obj(o); return { x:num(o.x, -100, 100, fb.x), y:num(o.y, -100, 100, fb.y) }; };
+  const faces = ["front","back","both"];
+  const Q = obj(K.qr), L = obj(K.logo), B = obj(K.border), N = obj(K.band), P = obj(K.pattern), Bk = obj(K.back), F = obj(K.nfc), O = obj(K.hole);
+  const kinds = CARD_QR_KINDS.map(k => k[0]);
+  return {
+    size: one(K.size, Object.keys(CARD_SIZES), d.size), w: num(K.w, 30, 200, d.w), h: num(K.h, 20, 200, d.h), portrait: bool(K.portrait, d.portrait),
+    corner: one(K.corner, ["round","sharp","cut","ticket","leaf","pill"], d.corner), radius: num(K.radius, 0, 15, d.radius), thick: num(K.thick, 0.8, 5, d.thick),
+    margin: num(K.margin, 1.5, 15, d.margin), face: one(K.face, ["down","up"], d.face), frontFinish: one(K.frontFinish, ["flush","raised","engraved"], d.frontFinish),
+    backFinish: one(K.backFinish, ["flush","raised","engraved"], d.backFinish), depth: num(K.depth, 0.2, 2, d.depth), backDepth: num(K.backDepth, 0.2, 2, d.backDepth), mono: bool(K.mono, d.mono),
+    layout: one(K.layout, CARD_LAYOUTS.map(l => l[0]), d.layout), align: one(K.align, ["auto","left","centre","right"], d.align),
+    name: str(K.name, 60, d.name), title: str(K.title, 80, d.title), company: str(K.company, 60, d.company), lines: str(K.lines, 600, d.lines),
+    nameFont: int(K.nameFont, 0, FONTS.length - 1, d.nameFont), textFont: int(K.textFont, 0, FONTS.length - 1, d.textFont),
+    nameSize: num(K.nameSize, 2.5, 14, d.nameSize), titleSize: num(K.titleSize, 1.5, 8, d.titleSize), textSize: num(K.textSize, 1.5, 6, d.textSize),
+    caps: bool(K.caps, d.caps), spacing: num(K.spacing, -0.1, 0.8, d.spacing), lineGap: num(K.lineGap, 1.2, 3, d.lineGap), icons: bool(K.icons, d.icons),
+    divider: one(K.divider, ["none","short","full"], d.divider),
+    nameSlot: slot(K.nameSlot, d.nameSlot), titleSlot: slot(K.titleSlot, d.titleSlot), companySlot: slot(K.companySlot, d.companySlot),
+    textSlot: slot(K.textSlot, d.textSlot), iconSlot: slot(K.iconSlot, d.iconSlot), dividerSlot: slot(K.dividerSlot, d.dividerSlot), textMove: mv(K.textMove, d.textMove),
+    logo: { on: bool(L.on, d.logo.on), from: one(L.from, ["art","monogram"], d.logo.from), face: one(L.face, faces, d.logo.face), size: num(L.size, 4, 40, d.logo.size),
+      colours: one(L.colours, ["art","one"], d.logo.colours), slot: slot(L.slot, d.logo.slot), initials: str(L.initials, 3, d.logo.initials),
+      shape: one(L.shape, ["circle","hexagon","diamond","square","shield","none"], d.logo.shape), fill: one(L.fill, ["solid","ring"], d.logo.fill), move: mv(L.move, d.logo.move) },
+    qr: { on: bool(Q.on, d.qr.on), face: one(Q.face, faces, d.qr.face), kind: one(Q.kind, kinds, d.qr.kind), backKind: one(Q.backKind, ["same", ...kinds], d.qr.backKind),
+      size: num(Q.size, 10, 50, d.qr.size), backSize: num(Q.backSize, 10, 50, d.qr.backSize), ec: one(Q.ec, ["auto","L","M","Q","H"], d.qr.ec), quiet: int(Q.quiet, 1, 4, d.qr.quiet),
+      style: one(Q.style, ["square","rounded","dots"], d.qr.style), eyes: one(Q.eyes, ["square","rounded","circle"], d.qr.eyes), badge: bool(Q.badge, d.qr.badge),
+      patch: one(Q.patch, ["auto","on","off"], d.qr.patch), slot: slot(Q.slot, d.qr.slot), patchSlot: slot(Q.patchSlot, d.qr.patchSlot), move: mv(Q.move, d.qr.move),
+      caption: str(Q.caption, 80, d.qr.caption),
+      url: str(Q.url, 300, ""), phone: str(Q.phone, 40, ""), email: str(Q.email, 120, ""), subject: str(Q.subject, 120, ""), message: str(Q.message, 160, ""),
+      text: str(Q.text, 1000, ""), ssid: str(Q.ssid, 64, ""), password: str(Q.password, 64, ""), security: one(Q.security, ["WPA","WEP","nopass"], d.qr.security), hidden: bool(Q.hidden, false) },
+    border: { style: one(B.style, ["none","line","double","thick","corners","dashed","dotted"], d.border.style), line: num(B.line, 0.3, 3, d.border.line),
+      inset: num(B.inset, 0, 12, d.border.inset), face: one(B.face, faces, d.border.face), slot: slot(B.slot, d.border.slot) },
+    band: { on: bool(N.on, d.band.on), at: one(N.at, ["left","right","top","bottom"], d.band.at), span: num(N.span, 3, 60, d.band.span),
+      edge: one(N.edge, ["straight","slant","wave","curve"], d.band.edge), face: one(N.face, faces, d.band.face), slot: slot(N.slot, d.band.slot) },
+    pattern: { kind: one(P.kind, CARD_PATTERNS.map(k => k[0]), d.pattern.kind), scale: num(P.scale, 0.4, 3, d.pattern.scale), line: num(P.line, 0.3, 2, d.pattern.line),
+      angle: num(P.angle, -90, 90, d.pattern.angle), area: one(P.area, ["all","left","right","top","bottom","diagonal","corner","frame","band"], d.pattern.area),
+      fade: one(P.fade, ["none","lr","rl","tb","bt","centre","edges"], d.pattern.fade), clear: one(P.clear, ["halo","box","none"], d.pattern.clear),
+      face: one(P.face, faces, d.pattern.face), slot: slot(P.slot, d.pattern.slot), seed: int(P.seed, 1, 99999, d.pattern.seed) },
+    back: { text: str(Bk.text, 80, d.back.text), size: num(Bk.size, 1.5, 10, d.back.size), slot: slot(Bk.slot, d.back.slot), details: bool(Bk.details, d.back.details), name: bool(Bk.name, d.back.name) },
+    nfc: { on: bool(F.on, d.nfc.on), tag: one(F.tag, Object.keys(CARD_TAGS), d.nfc.tag), dia: num(F.dia, 8, 60, d.nfc.dia), w: num(F.w, 8, 90, d.nfc.w), h: num(F.h, 8, 90, d.nfc.h),
+      t: num(F.t, 0.05, 3, d.nfc.t), place: one(F.place, ["centre","logo","qr","custom"], d.nfc.place), x: num(F.x, -80, 80, d.nfc.x), y: num(F.y, -80, 80, d.nfc.y),
+      mark: one(F.mark, ["back","front","both","none"], d.nfc.mark), slot: slot(F.slot, d.nfc.slot) },
+    hole: { on: bool(O.on, d.hole.on), kind: one(O.kind, ["round","slot"], d.hole.kind), dia: num(O.dia, 2, 12, d.hole.dia), len: num(O.len, 4, 40, d.hole.len),
+      pos: one(O.pos, ["tl","tr","bl","br","top","bottom","left","right"], d.hole.pos), edge: num(O.edge, 1.2, 15, d.hole.edge) },
+    copies: int(K.copies, 1, 12, d.copies), list: bool(K.list, d.list), names: str(K.names, 3000, d.names)
+  };
+}
+
 function cleanNum(v, fallback){ return typeof v === "number" && isFinite(v) ? v : fallback; }
 /* hard limits for every setting that decides how much memory or time a build takes;
    a hostile project could otherwise ask for a billion-pixel trace and freeze the tab */
@@ -9263,6 +10562,7 @@ function sanitizeProject(data){
     const L0 = K.logo && typeof K.logo === "object" ? K.logo : {};
     K.logo = { on:L0.on === true, mode:one(L0.mode, ["inlay","engrave"]), width:num(L0.width, 5, 120, 40), x:num(L0.x, -60, 60, 0), y:num(L0.y, -110, 110, -10), depth:num(L0.depth, 0.2, 1.6, 0.6) };
   }
+  if (st.base && "card" in st.base) st.base.card = cleanCard(st.base.card);
   if (st.base && st.base.enclosure && typeof st.base.enclosure === "object"){
     const E = st.base.enclosure, one = (v, list) => list.includes(v) ? v : list[0];
     E.lid = one(E.lid, ["screw","press","magnet","slide","none"]); E.fasten = one(E.fasten, ["insert","screw","none"]); E.head = one(E.head, ["sink","bore","plain"]);
@@ -9379,7 +10679,8 @@ function modelName(){
   const raw = b.type === "nameplate" ? b.nameplate.text.replace(/\n/g," ")
     : b.type === "jigsaw" ? `${art ? art.name+" " : ""}puzzle ${jigsawInfo ? jigsawInfo.count : ""}`
     : b.type === "lithophane" ? `${art ? art.name+" " : ""}lithophane`
-    : b.type === "phonecase" ? `${b.phonecase.phone} case` : b.type;
+    : b.type === "phonecase" ? `${b.phonecase.phone} case`
+    : b.type === "card" && b.card ? `${b.card.name || "business"} card` : b.type;
   return (raw||"model").replace(/[^\w -]+/g,"").trim() || "model";
 }
 function saveProjectFile(){
@@ -9399,6 +10700,22 @@ async function exportOutlineCAD(){
   await offerDownload(modelName().replace(/\s+/g,"-").toLowerCase()+"-outline.zip", blob);
 }
 // one filament at a time: where to pause and swap the spool, and how to add the pauses in each slicer (Session 30)
+// the pause for a business card's NFC tag (Session 33)
+function cardNfcText(title){
+  const n = state.base.type === "card" && cardInfo && cardInfo.nfc;
+  if (!n) return "";
+  return [
+    `Maker Forge: the NFC tag in ${title}`, "",
+    `Pause before the layer at ${n.pause.z.toFixed(2)} mm (layer ${n.pause.layer}, at ${state.printer.layer} mm layers).`,
+    `The pocket is then finished: ${n.rect ? `${n.size[0]} x ${n.size[1]} mm` : `${n.size[0]} mm across`}, ${(n.z1 - n.z0).toFixed(2)} mm deep.`,
+    "Press the tag in flat (a sticker without its backing paper) and carry on: the next layer seals it in.",
+    "Write the tag first, with a free app such as NFC Tools: a phone reads it through the plastic.", "",
+    "A slicer with a thicker first layer moves every height up by the difference: pick the layer nearest.",
+    "Bambu Studio and OrcaSlicer: slice, move the layer slider to that height, right-click it and choose Add pause.",
+    "PrusaSlicer: slice, right-click the + beside the layer slider at that height and choose Add pause print (M601).",
+    "Other slicers: add M601 (or M0, or your printer's pause command) before that layer."
+  ].join("\r\n");
+}
 function colourChangesText(title){
   const sw = lastChecks.swaps || [], pz = lastChecks.pauses;
   if (sw.length < 2) return "";
@@ -9438,6 +10755,8 @@ async function buildZip(parts, title){
   }
   const swapText = colourChangesText(title);
   if (swapText) zip.file("colour-changes.txt", swapText);
+  const nfcText = cardNfcText(title);
+  if (nfcText) zip.file("nfc-tag.txt", nfcText);
   zip.file("README.txt", [
     `Maker Forge export: ${title}`,
     `Size: ${size.map(v=>v.toFixed(1)).join(" x ")} mm`,
@@ -9453,6 +10772,7 @@ async function buildZip(parts, title){
     "  the same. Either way, set the filament colours in Bambu Studio's filament list.",
     (lastChecks.swaps || []).length > 1 ? "One filament at a time: colour-changes.txt says where to pause and swap the spool."
       : "One colour at a time: print stl/all-parts-merged.stl.",
+    ...(cardNfcText(title) ? ["An NFC tag goes inside: nfc-tag.txt says where to pause and put it in."] : []),
     ...(P.some(p => p.paint) ? ["Painted on the Paint tab: both 3mf files carry the paint, so the slicer shows it painted and",
       "  prints it without painting again. The OBJ groups faces by colour. The STL files have no colour."] : []), "",
     "Flat pieces print face down, no supports. project.json reopens this design in Maker Forge."
@@ -9584,6 +10904,7 @@ function applyPreset(key){
   if (pr.base.type === "jigsaw") Object.assign(b.jigsaw, DEFAULTS().base.jigsaw, pr.base.jigsaw || {});
   if (pr.base.type === "lithophane") Object.assign(b.lithophane, DEFAULTS().base.lithophane, pr.base.lithophane || {});
   if (pr.base.type === "phonecase" && !b.phonecase) b.phonecase = DEFAULTS().base.phonecase;
+  if (pr.base.type === "card") b.card = cleanCard(Object.assign(DEFAULTS().base.card, JSON.parse(JSON.stringify(pr.base.card || {}))));
   if (pr.base.type === "enclosure"){
     const e = Object.assign(DEFAULTS().base.enclosure, JSON.parse(JSON.stringify(pr.base.enclosure || {})));
     e.cut = e.cut.map(c => Object.assign(newOpening(c.kind, c.face), c));
@@ -9764,6 +11085,8 @@ window.MakerForge = {
       get helperMin(){ return photoHelperMin; }, set helperMin(n){ photoHelperMin = n; }, get jobs(){ return photoJobsOut; }, get helperRuns(){ return photoHelperRuns; },
       forget: () => { photoLightCache.clear(); photoShadeCache.clear(); modelParts.forEach(p => { if (p.pc){ p.pc.photo = null; p.pc.photoLast = null; p.pc.photoOnPage = false; } }); }, setFilaments: photoSetFilaments, nearest: photoNearestFilaments, get op(){ return photoOpOf(); }, info: o => photoInfo.get(o), labels: photoLabels, colourWord } },
   phone: { spec: phoneSpec, get info(){ return phoneInfo; }, list: PHONES },
+  // business cards (Session 33): what was built, and what each QR code says
+  card: { get info(){ return cardInfo; }, contact: cardContact, qrText: cardQRText, lineKind: cardLineKind, clean: cleanCard, sizes: CARD_SIZES, tags: CARD_TAGS, nfcText: cardNfcText },
   get overlay(){ return overlay.children.length; },
   rebuild: rebuildAll,
   get camera(){ return camera; }, get controls(){ return controls; }, shareLink: makeShareLink, projectPayload,

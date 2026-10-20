@@ -3,6 +3,22 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.28.0
+
+Business cards: printed in colour, with QR codes you can scan straight off the card, and an NFC tag sealed inside if you like.
+
+- **A new object: Business card** (also a quick start). A bank card's size by default (85.6 × 54 mm), or European, US, Japanese, Australian, square, mini, a bag tag or your own size, lying or upright.
+- **Your name, title, company and up to 8 lines of details,** each line with a small icon picked from what it looks like (phone, email, web, @handle, address). Two fonts, sizes, capitals, spacing and alignment. Five layouts: words left and code right, the other way round, centred, a band holding the logo and the code, or just the name (the rest on the back).
+- **QR codes on the front, the back or both,** each with its own job: a web address, a contact card made from your details (a phone saves you with one tap), a call, a text message, an email, Wi-Fi or any text. Square, rounded or dotted, with square, rounded or round corner eyes, and your initials in the middle if you like. The app picks the strongest error correction that keeps the squares printable and says how big they come out; a light patch goes behind a code on a dark card; it warns about a code that is too fine, too pale or the wrong way round.
+- **A logo:** the picture from the Art tab in its own colours or one, or your initials in a circle, hexagon, diamond, square or shield.
+- **Flashy:** a border (line, double, thick frame, corners, dashes, dots), a band of colour with a straight, slanted, wavy or curved edge, and 15 patterns (stripes, chevrons, honeycomb, waves, banknote guilloche, contour lines, a sunburst, carbon weave, circuit traces, confetti and more), over all or part of a face, fading across it, kept clear of the words and the code.
+- **Prints flat in one go.** Face down by default: the front is flush in the card's first layers, as smooth as the bed. The face on top is flush, raised or engraved. For one-filament printers, everything raised in one colour needs a single swap.
+- **An NFC tag inside:** a pocket for a 20 to 38 mm sticker, a coin tag or your own size, with a mark to tap. The card grows thicker if the tag needs room. Before you print, the Export tab and `nfc-tag.txt` in the download say before which layer to pause and drop it in.
+- A keyring or lanyard hole, up to 12 copies on the bed, and a card for each name in a list.
+
+**Fixed**
+- Nothing from earlier versions this time.
+
 ## 0.27.0
 
 Cutting: pictures and text engraved or inlaid into an object, and an imported model cut flat so it stands.

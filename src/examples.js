@@ -516,6 +516,16 @@ const EXAMPLE_ART = (function(){
     x.closePath(); circle(x, cx, cy, 128, false); x.fillStyle = GOLD; x.fill("evenodd");
     bolt(x, cx, cy, 220); fill(x, CR);
   } };
+  /* ---- a business card's logo: a spark in a hexagon ---- */
+  A.forgeSpark = { name:"Forge spark", w:400, h:400, draw(x){
+    const GOLD = "#d9a84e", RED = "#d8432f", cx = 200, cy = 200, hex = r => { const p = []; for (let k = 0; k < 6; k++){ const a = -Math.PI/2 + k*Math.PI/3; p.push([cx + Math.cos(a)*r, cy + Math.sin(a)*r]); } return p; };
+    poly(x, hex(196)); poly(x, hex(150), false); x.fillStyle = GOLD; x.fill("evenodd");
+    // a flame: two curved sides meeting in a point at the top, a round foot
+    x.beginPath(); x.moveTo(cx + 6, 70);
+    x.bezierCurveTo(cx + 120, 150, cx + 92, 300, cx, 306); x.bezierCurveTo(cx - 92, 300, cx - 108, 196, cx - 34, 150);
+    x.bezierCurveTo(cx - 30, 196, cx - 6, 206, cx + 6, 186); x.bezierCurveTo(cx + 22, 150, cx - 14, 112, cx + 6, 70); x.closePath(); fill(x, RED);
+    star(x, cx + 2, 250, 34, 12, 4, -Math.PI/2); fill(x, GOLD);
+  } };
   A.battery = { name:"Battery", w:440, h:240, draw(x){
     const GOLD = "#edae49", CR = "#f4f1ea";
     rrect(x, 16, 20, 372, 200, 34); rrect(x, 46, 50, 312, 140, 14, false); x.fillStyle = CR; x.fill("evenodd");
@@ -666,6 +676,11 @@ const EXAMPLES = {
     slots:[["#f4f1ea","Cream"],["#22303c","Charcoal"],["#d1495b","Red"],["#edae49","Gold"]] },
   "Power bank box":  { art:"battery", view:"flip", base:{ enclosure:{ logo:{ on:true, mode:"inlay", width:40, x:0, y:0, depth:0.6 } } },
     slots:[["#f4f1ea","Cream"],["#22303c","Charcoal"],["#d1495b","Red"],["#edae49","Gold"]] },
+  "Business card":   { art:"forgeSpark", view:"flip",
+    base:{ card:{ nameSlot:3, titleSlot:1, companySlot:3, textSlot:1, iconSlot:3, dividerSlot:2,
+      border:{ style:"line", line:0.5, inset:2.2, face:"both", slot:3 }, qr:{ slot:0, patchSlot:1 },
+      pattern:{ kind:"guilloche", scale:1, line:0.5, angle:45, area:"all", fade:"none", clear:"halo", face:"back", slot:2, seed:7 }, back:{ slot:3 } } },
+    slots:[["#16191d","Black"],["#f4f1ea","Cream"],["#d8432f","Red"],["#d9a84e","Gold"]] },
   "Phone case":      { art:"retroSunset", view:"flip", base:{ phonecase:{ logo:{ on:true, mode:"inlay", width:54, x:0, y:-25, depth:0.6 } } },
     slots:[["#2b2d42","Black TPU"],["#f4f1ea","Cream TPU"],["#ef476f","Coral TPU"],["#ffd166","Yellow TPU"]] },
   // objects that have no quick start of their own
@@ -682,4 +697,4 @@ const EXAMPLES = {
 // the example each object opens with (the quick starts use their own name)
 const EXAMPLE_FOR_TYPE = { nameplate:"Name keychain", board:"Flat shape", frame:"Photo frame", box:"Plaque", tracer:"Trace a part", lithophane:"Lithophane",
   jigsaw:"Jigsaw puzzle", cutter:"Cookie cutter", pcb:"Circuit board", lightbox:"Lightbox", canvas:"Plastic canvas", bobble:"Bobble head", shell:"Tea light",
-  turned:"Vase", enclosure:"Project box", phonecase:"Phone case", cylinder:"Cactus pot", hex:"Coaster", sphere:"Planet" };
+  turned:"Vase", enclosure:"Project box", phonecase:"Phone case", card:"Business card", cylinder:"Cactus pot", hex:"Coaster", sphere:"Planet" };

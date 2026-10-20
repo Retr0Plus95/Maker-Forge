@@ -4498,6 +4498,211 @@
     return { tris: new Float32Array(out), paint: paint.some(v => v > 0) ? Uint8Array.from(paint) : null };
   }
 
+  // ---------- QR codes (Session 33) ----------
+  // A QR code (ISO/IEC 18004) for a business card: the whole text in the densest mode it fits (digits, the 45
+  // upper-case characters, or bytes of UTF-8), the smallest of the 40 versions that holds it at the chosen error
+  // correction (L, M, Q or H: 7, 15, 25 or 30% of the code can be lost), and the mask with the lowest penalty.
+  // Returns { size, version, ec, mask, dark } (dark: one byte per module, row by row) or null when it is too long.
+  const QR_EC = { L: 1, M: 0, Q: 3, H: 2 };
+  const QR_ECC_PER_BLOCK = {
+    L: [0, 7, 10, 15, 20, 26, 18, 20, 24, 30, 18, 20, 24, 26, 30, 22, 24, 28, 30, 28, 28, 28, 28, 30, 30, 26, 28, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
+    M: [0, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26, 30, 22, 22, 24, 24, 28, 28, 26, 26, 26, 26, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28],
+    Q: [0, 13, 22, 18, 26, 18, 24, 18, 22, 20, 24, 28, 26, 24, 20, 30, 24, 28, 28, 26, 30, 28, 30, 30, 30, 30, 28, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
+    H: [0, 17, 28, 22, 16, 22, 28, 26, 26, 24, 28, 24, 28, 22, 24, 24, 30, 28, 28, 26, 28, 30, 24, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30]
+  };
+  const QR_BLOCKS = {
+    L: [0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 4, 4, 4, 4, 4, 6, 6, 6, 6, 7, 8, 8, 9, 9, 10, 12, 12, 12, 13, 14, 15, 16, 17, 18, 19, 19, 20, 21, 22, 24, 25],
+    M: [0, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5, 5, 8, 9, 9, 10, 10, 11, 13, 14, 16, 17, 17, 18, 20, 21, 23, 25, 26, 28, 29, 31, 33, 35, 37, 38, 40, 43, 45, 47, 49],
+    Q: [0, 1, 1, 2, 2, 4, 4, 6, 6, 8, 8, 8, 10, 12, 16, 12, 17, 16, 18, 21, 20, 23, 23, 25, 27, 29, 34, 34, 35, 38, 40, 43, 45, 48, 51, 53, 56, 59, 62, 65, 68],
+    H: [0, 1, 1, 2, 4, 4, 4, 5, 6, 8, 8, 11, 11, 16, 16, 18, 16, 19, 21, 25, 25, 25, 34, 30, 32, 35, 37, 40, 42, 45, 48, 51, 54, 57, 60, 63, 66, 70, 74, 77, 81]
+  };
+  const QR_ALNUM = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
+  function qrRawModules(v) {                            // modules left for data and error correction
+    let r = (16 * v + 128) * v + 64;
+    if (v >= 2) { const a = Math.floor(v / 7) + 2; r -= (25 * a - 10) * a - 55; if (v >= 7) r -= 36; }
+    return r;
+  }
+  const qrDataCodewords = (v, ec) => Math.floor(qrRawModules(v) / 8) - QR_ECC_PER_BLOCK[ec][v] * QR_BLOCKS[ec][v];
+  function qrAlignment(v) {
+    if (v === 1) return [];
+    const n = Math.floor(v / 7) + 2, step = v === 32 ? 26 : Math.ceil((v * 4 + 4) / (n * 2 - 2)) * 2, out = [6];
+    for (let pos = v * 4 + 10; out.length < n; pos -= step) out.splice(1, 0, pos);
+    return out;
+  }
+  function gfMul(x, y) { let z = 0; for (let i = 7; i >= 0; i--) { z = (z << 1) ^ ((z >>> 7) * 0x11D); z ^= ((y >>> i) & 1) * x; } return z & 255; }
+  function rsDivisor(deg) {
+    const r = new Array(deg).fill(0); r[deg - 1] = 1; let root = 1;
+    for (let i = 0; i < deg; i++) { for (let j = 0; j < deg; j++) { r[j] = gfMul(r[j], root); if (j + 1 < deg) r[j] ^= r[j + 1]; } root = gfMul(root, 2); }
+    return r;
+  }
+  function rsRemainder(data, div) {
+    const r = div.map(() => 0);
+    for (const b of data) { const f = b ^ r.shift(); r.push(0); for (let i = 0; i < div.length; i++) r[i] ^= gfMul(div[i], f); }
+    return r;
+  }
+  function utf8Bytes(str) {
+    const out = [];
+    for (const ch of str) {
+      const c = ch.codePointAt(0);
+      if (c < 0x80) out.push(c);
+      else if (c < 0x800) out.push(0xC0 | c >> 6, 0x80 | c & 63);
+      else if (c < 0x10000) out.push(0xE0 | c >> 12, 0x80 | (c >> 6) & 63, 0x80 | c & 63);
+      else out.push(0xF0 | c >> 18, 0x80 | (c >> 12) & 63, 0x80 | (c >> 6) & 63, 0x80 | c & 63);
+    }
+    return out;
+  }
+  // how far from easy to read a masked code is: long runs, 2 × 2 blocks, finder-like patterns, dark not half
+  function qrPenalty(d, n) {
+    let p = 0;
+    const line = at => {
+      let run = 1;
+      for (let i = 1; i <= n; i++) {
+        if (i < n && at(i) === at(i - 1)) run++;
+        else { if (run >= 5) p += run - 2; run = 1; }
+      }
+      for (let i = 0; i + 7 <= n; i++) {
+        if (!(at(i) && !at(i + 1) && at(i + 2) && at(i + 3) && at(i + 4) && !at(i + 5) && at(i + 6))) continue;
+        const lightBefore = i >= 4 && !at(i - 1) && !at(i - 2) && !at(i - 3) && !at(i - 4);
+        const lightAfter = i + 11 <= n && !at(i + 7) && !at(i + 8) && !at(i + 9) && !at(i + 10);
+        if (lightBefore || lightAfter) p += 40;
+      }
+    };
+    for (let y = 0; y < n; y++) line(i => d[y * n + i]);
+    for (let x = 0; x < n; x++) line(i => d[i * n + x]);
+    for (let y = 0; y + 1 < n; y++) for (let x = 0; x + 1 < n; x++) {
+      const c = d[y * n + x]; if (c === d[y * n + x + 1] && c === d[(y + 1) * n + x] && c === d[(y + 1) * n + x + 1]) p += 3;
+    }
+    let dark = 0; for (let i = 0; i < n * n; i++) dark += d[i];
+    return p + 10 * Math.floor(Math.abs(dark * 20 - n * n * 10) / (n * n));
+  }
+  function qrEncode(text, opt) {
+    opt = opt || {};
+    const ec = Object.prototype.hasOwnProperty.call(QR_EC, opt.ec) ? opt.ec : "M", str = String(text == null ? "" : text);
+    // the densest mode the whole text fits in
+    const mode = /^[0-9]+$/.test(str) ? 1 : str.length && [...str].every(ch => QR_ALNUM.includes(ch)) ? 2 : 4;
+    const bytes = mode === 4 ? utf8Bytes(str) : null, count = bytes ? bytes.length : str.length;
+    const payload = mode === 1 ? Math.floor(count / 3) * 10 + [0, 4, 7][count % 3] : mode === 2 ? Math.floor(count / 2) * 11 + (count % 2) * 6 : count * 8;
+    const countBits = v => (mode === 1 ? [10, 12, 14] : mode === 2 ? [9, 11, 13] : [8, 16, 16])[v <= 9 ? 0 : v <= 26 ? 1 : 2];
+    let version = 0;
+    for (let v = Math.min(40, Math.max(1, opt.minVersion | 0)); v <= 40; v++) if (4 + countBits(v) + payload <= qrDataCodewords(v, ec) * 8) { version = v; break; }
+    if (!version) return null;
+    const bits = [], push = (val, len) => { for (let i = len - 1; i >= 0; i--) bits.push((val >>> i) & 1); };
+    push(mode, 4); push(count, countBits(version));
+    if (mode === 1) for (let i = 0; i < count; i += 3) { const g = str.substr(i, 3); push(+g, g.length * 3 + 1); }
+    else if (mode === 2) for (let i = 0; i < count; i += 2) {
+      if (i + 1 < count) push(QR_ALNUM.indexOf(str[i]) * 45 + QR_ALNUM.indexOf(str[i + 1]), 11); else push(QR_ALNUM.indexOf(str[i]), 6);
+    }
+    else for (const b of bytes) push(b, 8);
+    const cap = qrDataCodewords(version, ec) * 8;
+    push(0, Math.min(4, cap - bits.length)); push(0, (8 - bits.length % 8) % 8);
+    for (let pad = 0xEC; bits.length < cap; pad ^= 0xEC ^ 0x11) push(pad, 8);
+    const data = [];
+    for (let i = 0; i < bits.length; i += 8) { let b = 0; for (let k = 0; k < 8; k++) b = b << 1 | bits[i + k]; data.push(b); }
+    // error correction, block by block, then the blocks interleaved
+    const nb = QR_BLOCKS[ec][version], eccLen = QR_ECC_PER_BLOCK[ec][version], raw = Math.floor(qrRawModules(version) / 8);
+    const nShort = nb - raw % nb, shortLen = Math.floor(raw / nb), div = rsDivisor(eccLen), blocks = [];
+    for (let i = 0, k = 0; i < nb; i++) {
+      const dat = data.slice(k, k + shortLen - eccLen + (i < nShort ? 0 : 1)); k += dat.length;
+      const ecc = rsRemainder(dat, div);
+      if (i < nShort) dat.push(0);
+      blocks.push(dat.concat(ecc));
+    }
+    const words = [];
+    for (let i = 0; i < blocks[0].length; i++) blocks.forEach((b, j) => { if (i !== shortLen - eccLen || j >= nShort) words.push(b[i]); });
+    // the fixed patterns: timing, three finders, alignment, format and version information
+    const size = version * 4 + 17, dark = new Uint8Array(size * size), fixed = new Uint8Array(size * size);
+    const set = (x, y, on) => { dark[y * size + x] = on ? 1 : 0; fixed[y * size + x] = 1; };
+    for (let i = 0; i < size; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); }
+    const finder = (cx, cy) => {
+      for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+        const x = cx + dx, y = cy + dy, dist = Math.max(Math.abs(dx), Math.abs(dy));
+        if (x >= 0 && y >= 0 && x < size && y < size) set(x, y, dist !== 2 && dist !== 4);
+      }
+    };
+    finder(3, 3); finder(size - 4, 3); finder(3, size - 4);
+    const al = qrAlignment(version), na = al.length;
+    for (let i = 0; i < na; i++) for (let j = 0; j < na; j++) {
+      if ((i === 0 && j === 0) || (i === 0 && j === na - 1) || (i === na - 1 && j === 0)) continue;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) set(al[i] + dx, al[j] + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+    }
+    const format = mask => {
+      const d = QR_EC[ec] << 3 | mask; let rem = d;
+      for (let i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+      const b = (d << 10 | rem) ^ 0x5412, bit = i => (b >>> i) & 1;
+      for (let i = 0; i <= 5; i++) set(8, i, bit(i));
+      set(8, 7, bit(6)); set(8, 8, bit(7)); set(7, 8, bit(8));
+      for (let i = 9; i < 15; i++) set(14 - i, 8, bit(i));
+      for (let i = 0; i < 8; i++) set(size - 1 - i, 8, bit(i));
+      for (let i = 8; i < 15; i++) set(8, size - 15 + i, bit(i));
+      set(8, size - 8, 1);
+    };
+    format(0);
+    if (version >= 7) {
+      let rem = version; for (let i = 0; i < 12; i++) rem = (rem << 1) ^ ((rem >>> 11) * 0x1F25);
+      const vb = version << 12 | rem;
+      for (let i = 0; i < 18; i++) { const bit = (vb >>> i) & 1, a = size - 11 + i % 3, b = Math.floor(i / 3); set(a, b, bit); set(b, a, bit); }
+    }
+    // the data, two columns at a time in a zigzag from the bottom right
+    let bi = 0;
+    for (let right = size - 1; right >= 1; right -= 2) {
+      if (right === 6) right = 5;
+      for (let vert = 0; vert < size; vert++) for (let j = 0; j < 2; j++) {
+        const x = right - j, y = ((right + 1) & 2) === 0 ? size - 1 - vert : vert;
+        if (!fixed[y * size + x] && bi < words.length * 8) { dark[y * size + x] = (words[bi >>> 3] >>> (7 - (bi & 7))) & 1; bi++; }
+      }
+    }
+    const masks = [(x, y) => (x + y) % 2 === 0, (x, y) => y % 2 === 0, x => x % 3 === 0, (x, y) => (x + y) % 3 === 0,
+      (x, y) => (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0, (x, y) => x * y % 2 + x * y % 3 === 0,
+      (x, y) => (x * y % 2 + x * y % 3) % 2 === 0, (x, y) => ((x + y) % 2 + x * y % 3) % 2 === 0];
+    const apply = m => { for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (!fixed[y * size + x] && masks[m](x, y)) dark[y * size + x] ^= 1; };
+    let best = 0, bestP = Infinity;
+    for (const m of opt.mask >= 0 && opt.mask < 8 ? [opt.mask | 0] : [0, 1, 2, 3, 4, 5, 6, 7]) {
+      apply(m); format(m); const p = qrPenalty(dark, size); if (p < bestP) { bestP = p; best = m; } apply(m);
+    }
+    apply(best); format(best);
+    return { size, version, ec, mask: best, dark, mode: mode === 1 ? "numeric" : mode === 2 ? "alphanumeric" : "byte" };
+  }
+  // what a business card's QR code says. kind: "link", "vcard" (a contact card, vCard 3.0), "mecard" (a shorter
+  // contact card), "wifi", "email", "phone", "sms" or "text"; f holds the fields (name, org, title, phone, email,
+  // url, address, note, ssid, password, security, hidden, subject, message, text)
+  function qrPayload(kind, f) {
+    f = f || {};
+    const s = v => String(v == null ? "" : v).trim();
+    const vEsc = v => s(v).replace(/\\/g, "\\\\").replace(/\r?\n/g, "\\n").replace(/([,;])/g, "\\$1");
+    const bsEsc = v => s(v).replace(/([\\;,:"])/g, "\\$1");
+    const tel = v => s(v).replace(/[^\d+*#]/g, "");
+    if (kind === "vcard") {
+      const words = s(f.name).split(/\s+/).filter(Boolean), last = words.length > 1 ? words.pop() : "", first = words.join(" ");
+      // no more than it needs: a shorter text gives the code bigger squares (the empty parts of N and the phone's type go)
+      return ["BEGIN:VCARD", "VERSION:3.0", `N:${vEsc(last)};${vEsc(first)}`, `FN:${vEsc(f.name)}`,
+        ...(s(f.org) ? [`ORG:${vEsc(f.org)}`] : []), ...(s(f.title) ? [`TITLE:${vEsc(f.title)}`] : []),
+        ...(tel(f.phone) ? [`TEL:${tel(f.phone)}`] : []), ...(s(f.email) ? [`EMAIL:${vEsc(f.email)}`] : []),
+        ...(s(f.url) ? [`URL:${vEsc(qrLink(f.url))}`] : []), ...(s(f.address) ? [`ADR;TYPE=WORK:;;${vEsc(f.address)};;;;`] : []),
+        ...(s(f.note) ? [`NOTE:${vEsc(f.note)}`] : []), "END:VCARD"].join("\r\n");
+    }
+    if (kind === "mecard") {
+      const words = s(f.name).split(/\s+/).filter(Boolean), last = words.length > 1 ? words.pop() : "", first = words.join(" ");
+      const note = [s(f.title), s(f.org), s(f.note)].filter(Boolean).join(", ");
+      return "MECARD:" + [`N:${last ? bsEsc(last) + "," + bsEsc(first) : bsEsc(first)}`, ...(tel(f.phone) ? [`TEL:${tel(f.phone)}`] : []),
+        ...(s(f.email) ? [`EMAIL:${bsEsc(f.email)}`] : []), ...(s(f.url) ? [`URL:${bsEsc(qrLink(f.url))}`] : []),
+        ...(s(f.address) ? [`ADR:${bsEsc(f.address)}`] : []), ...(note ? [`NOTE:${bsEsc(note)}`] : [])].join(";") + ";;";
+    }
+    if (kind === "wifi") {
+      const sec = ["WPA", "WEP", "nopass"].includes(f.security) ? f.security : "WPA";
+      return `WIFI:T:${sec};S:${bsEsc(f.ssid)};` + (sec === "nopass" ? "" : `P:${bsEsc(f.password)};`) + (f.hidden ? "H:true;" : "") + ";";
+    }
+    if (kind === "email") return `mailto:${s(f.email)}` + (s(f.subject) ? `?subject=${encodeURIComponent(s(f.subject))}` : "");
+    if (kind === "phone") return `tel:${tel(f.phone)}`;
+    if (kind === "sms") return `SMSTO:${tel(f.phone)}:${s(f.message)}`;
+    if (kind === "text") return s(f.text);
+    return qrLink(f.url);
+  }
+  // a web address as typed ("example.com") made into a link a phone opens
+  function qrLink(u) {
+    const s = String(u == null ? "" : u).trim();
+    return !s || /^[a-z][a-z0-9+.-]*:/i.test(s) ? s : "https://" + s;
+  }
+
   // ---------- cutting with Manifold (Session 32) ----------
   // Manifold (manifold-3d, Apache 2.0) cuts solids: artwork engraved or inlaid into an object, a model cut flat. The
   // app downloads it only when a cut is asked for and passes it in as M; nothing here downloads anything. Its objects
@@ -4639,6 +4844,6 @@
     PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, photoRef, photoUV, PHOTO_K_MAX, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, photoFitCloseness, photoFitFull, photoFitClosenessSteps, photoFitFullSteps, paintFromPhotos, photoLight, photoUnshade, photoLitBy, photoTriNormals, meshBVH, bvhRaycast,
     photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure, cutoutWithMap, edgeOpacity, photoFixMap, photoFixMask,
     parseGLB, parseGLTF, parseMTL, parseOBJColours, modelTriColours, modelPalette, modelColourLabels,
-    cutBase, cutFree, cutSolid, cutFlat, cutSources, cutCorners
+    cutBase, cutFree, cutSolid, cutFlat, cutSources, cutCorners, qrEncode, qrPayload, qrLink
   };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -68,12 +68,12 @@ The **Start from** sidebar has two kinds of button.
 
 ### The examples
 
-While you have no pictures of your own, every button opens with a finished example, so you can see what it makes before you start: a mountain patch, a winged car badge, a Christmas bauble, a pixel-art cat, a circuit board with an LED heart, a hot-air balloon jigsaw, a lighthouse lithophane, a phone case with a retro sunset, and more. The example's picture is marked **Example** on the Art tab.
+While you have no pictures of your own, every button opens with a finished example, so you can see what it makes before you start: a mountain patch, a winged car badge, a Christmas bauble, a pixel-art cat, a circuit board with an LED heart, a hot-air balloon jigsaw, a lighthouse lithophane, a phone case with a retro sunset, a black and gold business card, and more. The example's picture is marked **Example** on the Art tab.
 
 - **Add your own picture** and it takes the example's place, with all the same settings. On a phone case or a project box, your picture goes onto the back or the lid, just as the example did.
 - The example also picks **filaments** that match its picture, but only while you have not changed them yourself. Undo (Ctrl+Z) brings your old colours back.
 - The vase and the planet show off the **Paint** tab instead: their colours are painted on, and you can change or clear them there.
-- A phone case and the project boxes carry their picture on the side that prints on the bed, so they open **turned over** to show it. A phone case also turns over by itself whenever you put a picture in its back. The **⟳** button above the model turns it back, and the case stays that way until you open something else.
+- A phone case, the project boxes and a business card carry their picture on the side that prints on the bed, so they open **turned over** to show it. A phone case also turns over by itself whenever you put a picture in its back. The **⟳** button above the model turns it back, and the case stays that way until you open something else.
 
 All the example pictures were drawn for Maker Forge and are free to use, like the rest of the app.
 
@@ -82,6 +82,7 @@ All the example pictures were drawn for Maker Forge and are free to use, like th
 | Quick start | What it makes | What you add |
 | --- | --- | --- |
 | Name keychain | A name with a border, a ring hole and charms | Type a name; optionally a small picture beside it |
+| Business card | A card the size of a bank card, with a QR code and, if you like, an NFC tag inside | Your name and details; optionally a logo |
 | Double-sided tag | A tag that reads from both sides | A name |
 | Iron-on patch | A thin, flexible badge to sew or iron on | A logo or drawing |
 | Car badge | A long badge for a car or a bike | A logo |
@@ -130,6 +131,21 @@ Some objects in brief:
   - The Art tab shows the picture in the colours it prints in. Click a colour there to leave it out.
   - Gaps between two colours narrower than the nozzle are filled with the colour beside them, so no strip of case too thin to print is left.
   - The check under **Before you print** may say the case needs a little support: that is the top edge of the button and port openings. Slicers bridge them; leave supports off, or they fill the openings.
+
+### Business cards
+
+A card the size of a bank card (85.6 × 54 mm), or a European, US, Japanese, Australian, square or mini card, a bag tag or a size of your own, lying or upright. It prints flat in one go.
+
+![A business card: the front, with a gold border, a logo, icons and a QR code, and the back, with a contact card's code on a banknote pattern](docs/manual/business-card.jpg)
+
+- **Name and details.** Your name, title, company and up to 8 lines of details. Each line gets a small icon from what it looks like: a phone number, an email address, a web address, an @handle or an address. Pick a font for the name and one for the rest, their sizes (the height of a capital), capitals, letter spacing, the space between lines and how they line up. A short or full line can go under the name.
+- **Layouts.** Words on the left and the code on the right, the other way round, centred, a band down the side holding the logo and the code, or just the name and title (the rest goes on the back). On an upright card the code goes at the foot. Everything can be nudged.
+- **QR code.** On the front, the back or both sides, each with its own job: a web address, a contact card (made from your details, so a phone saves you in its contacts with one tap), a phone call, a text message, an email, a Wi-Fi network or any text. Square, rounded or dotted squares, square, rounded or round corner eyes, and your initials in the middle if you like. A light patch goes behind a code on a dark card. The page says how big each square comes out: keep them at 1.5 nozzle widths or more (0.6 mm for a 0.4 mm nozzle). A contact card holds a lot, so it needs a bigger code than a link. Test the code with your phone's camera on the model before printing.
+- **Logo.** The picture from the Art tab, in its own colours or in one, or your initials in a circle, hexagon, diamond, square or shield.
+- **Flashy extras.** A border (a line, a double line, a thick frame, corners, dashes or dots), a band of colour along a side with a straight, slanted, wavy or curved edge, and 15 patterns: stripes, pinstripes, chevrons, a grid, dots, halftone dots, honeycomb, triangles, waves, banknote guilloche, contour lines, a sunburst, carbon weave, circuit traces and confetti. A pattern can cover a face or part of it, fade across it, and keeps clear of the words and the code.
+- **How it prints** (**Printing the card**). Face down, the front prints flush in the card's first layers, as smooth as your bed (a textured plate gives it its texture). The face on top can be flush, raised or engraved: flush keeps the card flat both sides, so it slides into a wallet. Light colours over a dark card need 0.6 mm or more to look solid. With a one-filament printer, **Everything raised in one colour** needs a single swap.
+- **NFC tag.** A pocket inside the card for an NFC sticker (20, 25, 30 or 38 mm), a coin tag, or a tag of your own size: in the middle, behind the logo or the code, or where you put it, with a small mark on the card to tap. Write the tag first with a free app such as NFC Tools. The card is made thicker if the tag needs room. The printer must pause once: **Before you print**, the Export tab and **nfc-tag.txt** in the download say before which layer. Add a pause there in your slicer, press the tag in when it stops (a sticker without its backing paper), and carry on: the next layer seals it in.
+- **A keyring or lanyard hole**, up to 12 **copies** on the bed, and **a card for each name** in a list (one a line, `Name | Title`).
 
 ## 4. Art: pictures and text
 

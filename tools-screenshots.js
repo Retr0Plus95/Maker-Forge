@@ -67,6 +67,30 @@ const figureKit = () => { globalThis.earcut = globalThis.earcut || require("earc
       await shot(page, path.join(MANUAL, "start-sidebar.jpg"), { x: box.x, y: box.y, width: box.width, height: Math.min(box.height, 1000 - box.y) });
       await shot(page, path.join(IMAGES, "phone-case-example.jpg")); await ctx.close();
     },
+    // Session 33: the business card's example, front (it prints face down, so the view is turned over) and back, in the
+    // app, and the two side by side, close up, for the manual
+    async card() {
+      const { ctx, page } = await open(); await preset(page, "Business card");
+      await railPage(page, "Name and details"); await shot(page, path.join(IMAGES, "business-card.jpg"));
+      const close = async () => { await page.evaluate(() => { const MF = window.MakerForge, c = MF.controls, cam = MF.camera, box = new THREE.Box3();
+        MF.scene.traverse(o => { if (o.isMesh && o.userData && o.userData.part != null) box.expandByObject(o); });
+        const mid = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3()), d = 1.45*Math.max(sz.x, sz.z*1.6);
+        c.target.copy(mid); cam.position.set(mid.x, mid.y + d*Math.cos(0.5), mid.z + d*Math.sin(0.5)); c.update(); MF.requestRender(); });
+        await page.waitForTimeout(600); return (await (await page.$("#view")).screenshot({ type: "jpeg", quality: 90 })).toString("base64"); };
+      const front = await close();
+      await page.click("#vFlip"); await page.waitForTimeout(500); await railPage(page, "QR code"); await idle(page);
+      await shot(page, path.join(IMAGES, "business-card-back.jpg"));
+      const back = await close();
+      await ctx.close();
+      const c2 = await browser.newContext({ viewport: { width: 1300, height: 600 } }), p2 = await c2.newPage();     // a blank page, not the app
+      await p2.setContent(`<body style="margin:0;background:#eef1f4;font:600 17px system-ui,sans-serif;color:#22303c">
+        <div style="display:flex;gap:20px;padding:18px;width:1260px;box-sizing:border-box;justify-content:center">${[front, back].map((b, i) =>
+        `<figure style="margin:0;text-align:center"><img src="data:image/jpeg;base64,${b}" style="width:600px;display:block;border-radius:14px">
+         <figcaption style="margin-top:8px">${["The front, as it comes off the bed", "The back"][i]}</figcaption></figure>`).join("")}</div></body>`);
+      await p2.waitForTimeout(400);
+      const el = await p2.$("div"); await el.screenshot({ path: path.join(MANUAL, "business-card.jpg"), type: "jpeg", quality: 84 });
+      console.log("  docs/manual/business-card.jpg"); await c2.close();
+    },
     async art() { const { ctx, page } = await open(); await preset(page, "Iron-on patch"); await tab(page, "art");
       await page.evaluate(() => { const b = [...document.querySelectorAll("#panel .seg button")].find(x => /split/i.test(x.textContent)); if (b) b.click(); });
       await page.waitForTimeout(400); await shot(page, path.join(MANUAL, "art-tab.jpg")); await ctx.close(); },

@@ -641,6 +641,45 @@ function pageCoverage() {
     }
     fs.unlinkSync(fShelf);
 
+    // ---------- Session 34: a logo's plain background taken away by its colour, and a picture wrapped round ----------
+    // (a real canvas keeps its pixels premultiplied, the test page's does not: the soft edges are checked here too)
+    {
+      const P = require("./tools-cutout-pictures.js")(PC), logo = P.logoOnGreen(), fLogo = path.join(OUT, "logo-green.png");
+      fs.writeFileSync(fLogo, encodePNG(logo.W, logo.H, logo.rgba));
+      await page.evaluate(() => { [...document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "art").click(); });
+      await page.waitForTimeout(200);
+      await page.setInputFiles("#fileInput", fLogo);
+      await page.waitForFunction(() => window.MakerForge.state.items.some(d => d.name === "logo-green" && d.src), null, { timeout: 60000 }).catch(() => {});
+      await settle(page);
+      const offered = await page.evaluate(() => { const b = [...document.querySelectorAll("#panel button")].find(b => /Take the background away/.test(b.textContent)); if (b) b.click(); return !!b; });
+      await page.waitForFunction(() => { const d = window.MakerForge.state.items.find(d => d.name === "logo-green"); return d && d.uncut; }, null, { timeout: 60000 }).catch(() => {});
+      await settle(page);
+      const got = await page.evaluate(() => { const MF = window.MakerForge, d = MF.state.items.find(d => d.name === "logo-green"); if (!d) return null;
+        const c = d.src, px = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; const a = new Uint8Array(px.length / 4); let soft = 0, green = 0;
+        for (let i = 0; i < a.length; i++) { a[i] = px[4 * i + 3]; if (a[i] > 0 && a[i] < 255) { soft++; if (a[i] > 40 && px[4 * i + 1] - px[4 * i] > 40) green++; } }
+        return { by: d.cutBy && d.cutBy.by, holes: d.cutBy && d.cutBy.holes, alpha: Array.from(a), soft, green, closed: MF.parts.every(q => MF.core.checkMesh(q.solid).open === 0), parts: MF.parts.length }; });
+      let s = null; if (got) { const rgba = new Uint8ClampedArray(logo.W * logo.H * 4); got.alpha.forEach((v, i) => { rgba[4 * i + 3] = v; }); s = P.score(logo, rgba); }
+      await shot(page, "art-colour-cutout", "Art tab: a white logo on plain green, its background taken away by its colour (inside the S too)");
+      if (!(offered && got && got.by === "colour" && got.holes && s.iou > 0.97 && s.edge < 0.05 && got.green === 0 && got.closed)) findings.push({ where: "colour cut-out", what: JSON.stringify({ offered, by: got && got.by, s, green: got && got.green }) });
+      notes.push(`colour cut-out in the browser: ${s ? `${(s.iou * 100).toFixed(1)}% overlap with the true logo, edges ${(s.edge * 100).toFixed(1)}% off, ${got.soft} soft edge pixels, ${got.green} green` : "did not run"}`);
+      fs.unlinkSync(fLogo);
+      // the same logo wrapped round a cylinder: 40 mm wide, 40 mm round
+      const wrap = await page.evaluate(async () => {
+        const MF = window.MakerForge, sel = document.querySelector("#objectSel"); sel.value = "cylinder"; sel.dispatchEvent(new Event("change"));
+        await new Promise(r => setTimeout(r, 1500));
+        const d = MF.state.items.find(d => d.name === "logo-green"); if (!d) return null;
+        MF.state.items.forEach(x => { if (x !== d) x.enabled = false; }); d.enabled = true; d.width = 40; d.solids = null; MF.rebuild(false);
+        for (let i = 0; i < 200 && (!d.solids || MF.busy); i++) await new Promise(r => setTimeout(r, 50));
+        const R = MF.state.base.cyl.dia / 2; let lo = 9, hi = -9;
+        for (const q of d.solids || []) if (q) for (let i = 0; i < q.pos.length; i += 3) if (Math.hypot(q.pos[i], q.pos[i + 2]) > R + 0.3) { const a = Math.atan2(q.pos[i], q.pos[i + 2]); lo = Math.min(lo, a); hi = Math.max(hi, a); }
+        return { round: (hi - lo) * R, width: d.width, aspect: d.aspect };
+      });
+      await settle(page);
+      await shot(page, "art-wrapped", "a logo wrapped round the cylinder like a label");
+      if (!(wrap && Math.abs(wrap.round - wrap.width) < 1)) findings.push({ where: "wrapped picture", what: JSON.stringify(wrap) });
+      notes.push(`wrapped round the cylinder: ${wrap ? `${wrap.round.toFixed(2)} mm round for a ${wrap.width} mm picture` : "did not run"}`);
+    }
+
     // ---------- Session 22: speed: the helper thread, picking with boxes, drawing only on change ----------
     {
       await page.evaluate(() => { const s = document.querySelector("#objectSel"); s.value = "turned"; s.dispatchEvent(new Event("change")); });

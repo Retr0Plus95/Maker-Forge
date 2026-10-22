@@ -92,6 +92,113 @@ async function addPicture(MF) {                      // the smoke test's two-col
   document.activeElement.blur(); key(document.body, "Delete"); await settle();
   check(MF.state.items.length === n0 - 1, "Delete on the Art tab removes the picture", `${n0} → ${MF.state.items.length}`);
 
+  // ---- Session 34: a picture's background taken away by its colour (the owner's keychain logo, white on green,
+  // that the AI found no subject in) ----
+  console.log("\na picture's background taken away by its colour");
+  {
+    const P = require("./tools-cutout-pictures.js")(C), inp = document.querySelector("#projInput");
+    const notice = () => document.querySelector("#notice").textContent;
+    const openProject = async text => {
+      const f = new win.File([text], "p.json", { type: "application/json" }), r0 = MF.rev;
+      Object.defineProperty(inp, "files", { value: [f], configurable: true }); inp.dispatchEvent(new win.Event("change"));
+      for (let i = 0; i < 100 && MF.rev === r0; i++) await sleep(30);
+      return settle();
+    };
+    const drop = async (p, name) => {
+      tabBtn("art").click(); await sleep(50);
+      const ev = new win.Event("drop", { bubbles: true, cancelable: true });
+      ev.dataTransfer = { files: [new win.File([encodePNG(p.W, p.H, p.rgba)], name + ".png", { type: "image/png" })] };
+      document.querySelector("#drop").dispatchEvent(ev);
+      for (let i = 0; i < 100 && !MF.state.items.some(x => x.name === name && x.src); i++) await sleep(30);
+      await settle(); tabBtn("art").click(); await sleep(50);
+      return MF.state.items.find(x => x.name === name);
+    };
+    const btn = re => $$("#panel button").find(b => re.test(b.textContent));
+    const pixels = cv => cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data;
+    const waitFor = async f => { for (let i = 0; i < 300 && !f(); i++) await sleep(30); await settle(); tabBtn("art").click(); await sleep(50); };
+    await choose("board");
+    const logo = P.logoOnGreen(), d = await drop(logo, "skondal");
+    let aiCalls = 0; MF.paint.photo.ai.hooks.run = async () => { aiCalls++; throw new Error("not this time"); };
+    check(d && MF.art.hasBackground(d) && btn(/Take the background away/) && btn(/Cut out with AI/), "a logo on plain green: taking the background away by its colour is offered, and the AI beside it");
+    const orig = d.asset; btn(/Take the background away/).click();
+    await waitFor(() => d.uncut);
+    // the cut-out keeps its full size: crop is applied when it is drawn, so its pixels line up with the truth
+    const s = P.score(logo, pixels(d.src));
+    check(d.uncut === orig && d.cutBy && d.cutBy.by === "colour" && d.cutBy.holes === true && aiCalls === 0, "taken away by its colour, inside the S too, with nothing downloaded", JSON.stringify(d.cutBy));
+    check(s.iou > 0.97 && s.edge < 0.05, "only the white S and the name are left, to within a pixel, with soft edges", `overlap ${(s.iou * 100).toFixed(1)}%, edges ${(s.edge * 100).toFixed(1)}% off`);
+    const px = pixels(d.src); let rim = 0, soft = 0;
+    for (let i = 0; i < logo.W * logo.H; i++) { const a = px[4 * i + 3]; if (a > 0 && a < 255) { soft++; if (px[4 * i + 1] - px[4 * i] > 40) rim++; } }
+    check(soft > 200 && rim === 0, "no rim of green left round the letters: the soft edge pixels are white", `${soft} soft edge pixels, ${rim} green`);
+    check(MF.parts.length > 1 && MF.parts.every(q => C.checkMesh(q.solid).open === 0) && /inside the letters too/.test(notice()), "it prints on the board, every part closed", MF.parts.map(q => q.name).join(", "));
+    // only round it: the green inside the S comes back
+    $$("#panel button").find(b => /Only round it/.test(b.textContent)).click();
+    await waitFor(() => d.cutBy && d.cutBy.holes === false);
+    const s2 = P.score(logo, pixels(d.src));
+    check(d.cutBy.holes === false && s2.extra > 1000, "Only round it: the green inside the S and the letters stays", `${s2.extra} more pixels kept`);
+    // a different tolerance cuts it again from the original
+    const t = $$("#panel input[type=range]").find(r => /How different/.test(r.getAttribute("aria-label")));
+    t.value = 20; t.dispatchEvent(new win.Event("input")); await sleep(500);
+    await waitFor(() => d.cutBy && d.cutBy.tol === 20);
+    check(d.cutBy.tol === 20 && d.uncut === orig, "the tolerance cuts it again from the original", JSON.stringify(d.cutBy));
+    // saved and opened again: how it was cut comes back, so it can still be changed
+    const saved = MF.projectPayload(true); await openProject(saved);
+    const d2 = MF.state.items.find(x => x.name === "skondal");
+    check(d2 && d2.cutBy && d2.cutBy.by === "colour" && d2.cutBy.tol === 20 && d2.uncut === orig, "saved and opened again: how it was cut comes back", d2 && JSON.stringify(d2.cutBy));
+    tabBtn("art").click(); await sleep(50); btn(/Put the background back/).click(); await settle();
+    check(!d2.uncut && !d2.cutBy && d2.asset === orig, "Put the background back: the original, and no cut-out settings");
+    // the AI finding nothing in a logo (it is made for photos): taken away by its colour instead
+    MF.paint.photo.ai.hooks.run = async (input, S) => { aiCalls++; return new Float32Array(S * S).fill(0).map((v, i) => i === 0 ? 1 : 0); };
+    let said = ""; const watch = setInterval(() => { said += " " + notice(); }, 5);
+    tabBtn("art").click(); await sleep(50); btn(/Cut out with AI/).click();
+    await waitFor(() => d2.uncut);
+    check(d2.cutBy && d2.cutBy.by === "colour" && /found no clear subject.*by its colour instead/.test(said), "the AI finding no subject in a logo: its background is taken away by its colour instead", notice().slice(0, 120));
+    tabBtn("art").click(); await sleep(50); btn(/Put the background back/).click(); await settle(); said = "";
+    // the AI that cannot be loaded (offline): by its colour too
+    MF.paint.photo.ai.hooks.run = null; MF.paint.photo.ai.hooks.load = async () => { throw new Error("offline"); };
+    tabBtn("art").click(); await sleep(50); btn(/Cut out with AI/).click();
+    await waitFor(() => d2.uncut); clearInterval(watch);
+    check(d2.cutBy && d2.cutBy.by === "colour" && /could not be loaded.*by its colour instead/.test(said), "the AI that cannot be loaded: taken away by its colour instead", notice().slice(0, 120));
+    MF.paint.photo.ai.hooks.load = null;
+
+    // a badge: a green square with a white margin. The white goes; the green stays, and can go too
+    const badge = P.badgeOnWhite(), b = await drop(badge, "badge2");
+    btn(/Take the background away/).click(); await waitFor(() => b.uncut);
+    const sb = P.score(badge, pixels(b.src));
+    check(b.cutBy.holes === false && sb.iou > 0.99, "a badge on white: the white margin goes, the white S on the green stays (a big white patch inside is kept)", `overlap ${(sb.iou * 100).toFixed(1)}%`);
+    const peel = btn(/Take the green round it away too/);
+    check(!!peel, "the green round it can go too", $$("#panel button").map(x => x.textContent).filter(x => /Take/.test(x)).join(" | "));
+    if (peel){ peel.click(); await waitFor(() => b.cutBy.peel && b.cutBy.peel.length === 1); }
+    const pb = pixels(b.src); let white = 0, green = 0;
+    for (let i = 0; i < badge.W * badge.H; i++) if (pb[4 * i + 3] > 127) { if (pb[4 * i + 1] > 200) white++; else green++; }
+    check(b.cutBy.peel.length === 1 && white > 1000 && green < white * 0.05, "then only the white S and name are left", `${white} white pixels, ${green} other`);
+
+    // a cartoon on white: the white inside its outline stays (the white round it goes)
+    const cart = P.cartoonOnWhite(), ct = await drop(cart, "cartoon");
+    btn(/Take the background away/).click(); await waitFor(() => ct.uncut);
+    const sc = P.score(cart, pixels(ct.src));
+    check(ct.cutBy.holes === false && sc.iou > 0.99, "a drawing on white: the white face inside its outline stays", `overlap ${(sc.iou * 100).toFixed(1)}%`);
+    // a busy picture is not offered the colour, only the AI
+    const busy = await drop(P.busyPhoto(), "busy");
+    check(!btn(/Take the background away/) && btn(/Cut out the subject with AI/), "a busy photo: only the AI is offered");
+
+    // a keychain's own background removal (Session 34: soft edges, no green rim): the logo beside a name
+    await choose("nameplate"); const np = MF.state.base.nameplate;
+    np.pic.on = true; np.pic.item = MF.state.items.findIndex(x => x.name === "skondal"); np.pic.cutout = true; np.pic.colour = true;
+    MF.rebuild(false); await settle();
+    check(MF.parts.length > 1 && MF.parts.every(q => C.checkMesh(q.solid).open === 0), "a keychain with the logo beside the name, its background taken away by colour: every part closed", MF.parts.map(q => q.name).join(", "));
+    MF.paint.photo.ai.hooks.run = null;
+
+    // a hostile project: how a cut-out was made is only ever the few settings it has
+    const data = JSON.parse(MF.projectPayload(true)), it = data.state.items.find(x => x.name === "skondal");
+    it.uncut = it.uncut || it.asset;
+    it.cutBy = { by: "colour", tol: 1e9, holes: "yes", inside: -5, peel: [[1e9, -4, "x"], [10, 20, 30], ...Array(20).fill([1, 2, 3])], evil: "<img src=x onerror=alert(1)>" };
+    const other = data.state.items.find(x => x.name === "badge2"); other.cutBy = "<script>"; delete other.uncut;
+    await openProject(JSON.stringify(data));
+    const h1 = MF.state.items.find(x => x.name === "skondal").cutBy, h2 = MF.state.items.find(x => x.name === "badge2").cutBy;
+    check(h1 && h1.tol === 100 && h1.holes === false && h1.inside === 0 && h1.peel.length === 4 && h1.peel[0].join() === "10,20,30" && !("evil" in h1) && h2 === undefined,
+      "a hostile project: the cut-out settings are clamped, and only kept with an original", JSON.stringify(h1));
+  }
+
   const errs = env.errors.filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
   check(!errs.length, "no page errors", errs.slice(0, 2).join(" / "));
   console.log(fails ? `\n${fails} FAILED` : "\nall passed");

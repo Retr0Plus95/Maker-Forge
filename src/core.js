@@ -3471,6 +3471,167 @@
     for (let y = 1; y < H - 1; y++) { at(0, y); if (W > 1) at(W - 1, y); }
     return n ? on / n : 0;
   }
+  // ---- a picture's background taken away by its colour (Session 34) ----
+  // Logos and drawings mostly stand on one plain colour, and the AI figure finder (made for photos) often finds no
+  // subject in them. Here the background is the colour round the picture's edge: everything of that colour reached
+  // from the edge goes and, when asked, every patch of it inside the picture too (the holes in letters). The edges
+  // stay soft: a pixel that is part background and part subject is kept part see-through, in the subject's own
+  // colour, so no rim of the background is left round the subject.
+  const LAB_LIN = new Float32Array(256);
+  for (let i = 0; i < 256; i++) { const x = i / 255; LAB_LIN[i] = x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }
+  // every pixel's Lab colour (3 numbers each)
+  function labPixels(rgba, n) {
+    const out = new Float32Array(3 * n), h = t => t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
+    for (let i = 0; i < n; i++) {
+      const R = LAB_LIN[rgba[4 * i]], G = LAB_LIN[rgba[4 * i + 1]], B = LAB_LIN[rgba[4 * i + 2]];
+      const fx = h((0.4124 * R + 0.3576 * G + 0.1805 * B) / 0.95047), fy = h(0.2126 * R + 0.7152 * G + 0.0722 * B), fz = h((0.0193 * R + 0.1192 * G + 0.9505 * B) / 1.08883);
+      out[3 * i] = 116 * fy - 16; out[3 * i + 1] = 500 * (fx - fy); out[3 * i + 2] = 200 * (fy - fz);
+    }
+    return out;
+  }
+  // the outermost two rows and columns of a picture (pixel numbers)
+  function pictureRing(W, H) {
+    const r = [];
+    for (let y = 0; y < H; y++) {
+      if (y < 2 || y >= H - 2) { for (let x = 0; x < W; x++) r.push(y * W + x); continue; }
+      r.push(y * W); if (W > 1) r.push(y * W + W - 1); if (W > 3) r.push(y * W + 1, y * W + W - 2);
+    }
+    return r;
+  }
+  const medianRGB = (rgba, list) => [0, 1, 2].map(k => { const a = list.map(i => rgba[4 * i + k]).sort((p, q) => p - q); return a[a.length >> 1]; });
+  // what is round a picture's edge: rgb, the median colour of its opaque pixels (null when most of the edge is
+  // see-through already); plain, the share of the edge within 12 (Lab ΔE) of it; noise, how much the background's
+  // own pixels differ from it; white, whether it is white or nearly; clear, the share of the edge already see-through
+  function pictureBackground(rgba, W, H) {
+    const ring = pictureRing(W, H), solid = ring.filter(i => rgba[4 * i + 3] >= 128), clear = ring.length ? 1 - solid.length / ring.length : 1;
+    if (!solid.length || solid.length < ring.length * 0.5) return { rgb: null, plain: 0, noise: 0, white: false, clear };
+    const rgb = medianRGB(rgba, solid), bl = labPixels([rgb[0], rgb[1], rgb[2], 255], 1);
+    const d = solid.map(i => { const o = 4 * i, p = labPixels([rgba[o], rgba[o + 1], rgba[o + 2], 255], 1); return Math.hypot(p[0] - bl[0], p[1] - bl[1], p[2] - bl[2]); });
+    const near = d.filter(v => v <= 12).sort((a, b) => a - b);
+    return { rgb, lab: Array.from(bl), plain: near.length / solid.length, noise: near.length ? near[Math.floor(near.length * 0.9)] : 0,
+      white: bl[0] >= 92 && Math.hypot(bl[1], bl[2]) <= 8, clear };
+  }
+  // A picture with its background made see-through by colour. o: { bg: the colour to take away ([r, g, b]; the one
+  // round the edge when left out), tol: how different a colour may be and still go (0-100, 50 when left out),
+  // holes: also clear patches of it inside the picture (true, false, or "auto": yes, except that on a white
+  // background a big patch, more than 1.5% of the picture, stays: a drawing's white inside its outline) }.
+  // Returns { rgba, kept: the share of the picture still there, holes: patches inside cleared, inside: patches
+  // inside found, bg, auto: what "auto" chose }, or null when there is no background colour to take away.
+  function cutoutByColour(rgba, W, H, o) {
+    o = o || {};
+    const n = W * H, info = pictureBackground(rgba, W, H), bg = o.bg || info.rgb;
+    if (!bg || !n) return null;
+    const lab = labPixels(rgba, n), bl = labPixels([bg[0], bg[1], bg[2], 255], 1);
+    const tol = Math.max(0, Math.min(100, o.tol == null ? 50 : +o.tol || 0)), k = 0.5 * Math.pow(4, tol / 100);
+    const noise = o.bg ? 3 : info.noise, t0 = Math.max(4, 1.5 * noise + 2) * k, t1 = t0 + 12 * k, step = t0 * 0.5;
+    const dE = new Float32Array(n), see = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+      if (rgba[4 * i + 3] < 128) { see[i] = 1; continue; }
+      const a = lab[3 * i] - bl[0], b = lab[3 * i + 1] - bl[1], c = lab[3 * i + 2] - bl[2]; dE[i] = Math.sqrt(a * a + b * b + c * c);
+    }
+    const near = i => see[i] || dE[i] < t1;
+    const lstep = (i, j) => { const a = lab[3 * i] - lab[3 * j], b = lab[3 * i + 1] - lab[3 * j + 1], c = lab[3 * i + 2] - lab[3 * j + 2]; return Math.sqrt(a * a + b * b + c * c); };
+    // the background: from the edge through every pixel near its colour, or a small step from a background pixel
+    // (a table lit from one side), but never more than three times as far from the colour
+    const B = new Uint8Array(n), q = new Int32Array(n); let qh = 0, qt = 0;
+    for (const i of pictureRing(W, H)) if (!B[i] && near(i)) { B[i] = 1; q[qt++] = i; }
+    let from = 0;
+    const grow = j => { if (!B[j] && (near(j) || (!see[from] && dE[j] < 3 * t1 && lstep(from, j) < step))) { B[j] = 1; q[qt++] = j; } };
+    while (qh < qt) {
+      const i = from = q[qh++], x = i % W, y = (i - x) / W;
+      if (x > 0) grow(i - 1); if (x < W - 1) grow(i + 1); if (y > 0) grow(i - W); if (y < H - 1) grow(i + W);
+    }
+    // patches of the colour inside: holes in letters, or a drawing's own colour
+    const lab2 = new Int32Array(n).fill(-1), patches = [], minHole = Math.max(6, n * 2e-5);
+    for (let s = 0; s < n; s++) {
+      if (B[s] || lab2[s] >= 0 || !near(s)) continue;
+      const id = patches.length; let h = 0, t = 0, core = 0; q[t++] = s; lab2[s] = id;
+      const add = j => { if (!B[j] && lab2[j] < 0 && near(j)) { lab2[j] = id; q[t++] = j; } };
+      while (h < t) {
+        const i = q[h++], x = i % W, y = (i - x) / W; if (see[i] || dE[i] <= t0) core++;
+        if (x > 0) add(i - 1); if (x < W - 1) add(i + 1); if (y > 0) add(i - W); if (y < H - 1) add(i + W);
+      }
+      patches.push({ size: t, core });
+    }
+    const inside = patches.filter(p => p.core >= minHole);
+    let holes = o.holes;
+    if (holes === "auto" || holes == null) holes = !(info.white && !o.bg) || inside.every(p => p.size <= n * 0.015);
+    if (holes) for (let i = 0; i < n; i++) if (lab2[i] >= 0 && patches[lab2[i]].core >= minHole) B[i] = 1;
+    // specks of something else left in the background (a few pixels of noise) go with it
+    const sp = new Int32Array(n).fill(-1), spSize = [], speck = Math.max(3, n * 1e-5);
+    for (let s = 0; s < n; s++) {
+      if (B[s] || sp[s] >= 0) continue;
+      const id = spSize.length; let h = 0, t = 0; q[t++] = s; sp[s] = id;
+      const add = j => { if (!B[j] && sp[j] < 0) { sp[j] = id; q[t++] = j; } };
+      while (h < t) { const i = q[h++], x = i % W, y = (i - x) / W; if (x > 0) add(i - 1); if (x < W - 1) add(i + 1); if (y > 0) add(i - W); if (y < H - 1) add(i + W); }
+      spSize.push(t);
+    }
+    for (let i = 0; i < n; i++) if (!B[i] && spSize[sp[i]] <= speck) B[i] = 1;
+    // the soft edge: two pixels either side of where the background meets the subject. Each pixel there is taken as
+    // a blend of the background next to it and the subject pixel nearby that best explains it
+    const out = new Uint8ClampedArray(rgba), edge = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = i % W, y = (i - x) / W;
+      if ((x > 0 && B[i - 1] !== B[i]) || (x < W - 1 && B[i + 1] !== B[i]) || (y > 0 && B[i - W] !== B[i]) || (y < H - 1 && B[i + W] !== B[i])) edge[i] = 1;
+    }
+    const band = new Uint8Array(n);
+    for (let i = 0; i < n; i++) if (edge[i]) { const x = i % W, y = (i - x) / W;
+      for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) { const xx = x + a, yy = y + b; if (xx >= 0 && yy >= 0 && xx < W && yy < H) band[yy * W + xx] = 1; } }
+    let kept = 0;
+    for (let i = 0; i < n; i++) {
+      if (!band[i]) { if (B[i]) out[4 * i + 3] = 0; else if (rgba[4 * i + 3] >= 128) kept++; continue; }
+      if (see[i]) { out[4 * i + 3] = 0; continue; }
+      const x = i % W, y = (i - x) / W, o4 = 4 * i, p = [rgba[o4], rgba[o4 + 1], rgba[o4 + 2]];
+      // the background beside it (the mean of the background pixels round it that are not themselves on the edge)
+      let br = 0, bgc = 0, bb = 0, bn = 0;
+      for (let b = -3; b <= 3; b++) for (let a = -3; a <= 3; a++) {
+        const xx = x + a, yy = y + b; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
+        const j = yy * W + xx; if (B[j] && !band[j] && !see[j]) { br += rgba[4 * j]; bgc += rgba[4 * j + 1]; bb += rgba[4 * j + 2]; bn++; }
+      }
+      const g = bn ? [br / bn, bgc / bn, bb / bn] : bg;
+      // the subject pixel nearby that best explains it as a blend with the background
+      let best = null, bestErr = Infinity, bestA = 1;
+      for (let b = -3; b <= 3; b++) for (let a = -3; a <= 3; a++) {
+        const xx = x + a, yy = y + b; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
+        const j = yy * W + xx; if (B[j] || band[j] || see[j]) continue;
+        const f = [rgba[4 * j], rgba[4 * j + 1], rgba[4 * j + 2]], v = [f[0] - g[0], f[1] - g[1], f[2] - g[2]], L2 = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+        if (L2 < 400) continue;                       // too like the background to tell them apart
+        const w = [p[0] - g[0], p[1] - g[1], p[2] - g[2]], al = Math.max(0, Math.min(1, (w[0] * v[0] + w[1] * v[1] + w[2] * v[2]) / L2));
+        const e0 = w[0] - al * v[0], e1 = w[1] - al * v[1], e2 = w[2] - al * v[2], err = Math.sqrt(e0 * e0 + e1 * e1 + e2 * e2) + 0.15 * Math.sqrt(a * a + b * b);
+        if (err < bestErr) { bestErr = err; best = f; bestA = al; }
+      }
+      let al;
+      if (best && bestErr < 30) { al = bestA; if (al < 1) { out[o4] = best[0]; out[o4 + 1] = best[1]; out[o4 + 2] = best[2]; } }
+      else al = B[i] ? 0 : 1;
+      out[o4 + 3] = Math.round(al * 255);
+      if (out[o4 + 3] >= 128) kept++;
+    }
+    return { rgba: out, kept: kept / n, holes: holes ? inside.length : 0, inside: inside.length, bg: bg.slice(), auto: !!holes };
+  }
+  // the colour round a cut-out picture's own edge when it is mostly one, and covers a good part of the picture (a
+  // badge's plate, a sticker's backing): what could be taken away next. null when there is none
+  function plateColour(rgba, W, H) {
+    const n = W * H, rim = [];
+    for (let i = 0; i < n; i++) {
+      if (rgba[4 * i + 3] < 128) continue;
+      const x = i % W, y = (i - x) / W;
+      if ((x > 0 && rgba[4 * (i - 1) + 3] < 128) || (x < W - 1 && rgba[4 * (i + 1) + 3] < 128) || (y > 0 && rgba[4 * (i - W) + 3] < 128) || (y < H - 1 && rgba[4 * (i + W) + 3] < 128)) rim.push(i);
+    }
+    if (rim.length < 20) return null;
+    const rgb = medianRGB(rgba, rim), bl = labPixels([rgb[0], rgb[1], rgb[2], 255], 1), lab = labPixels(rgba, n);
+    const dist = i => Math.hypot(lab[3 * i] - bl[0], lab[3 * i + 1] - bl[1], lab[3 * i + 2] - bl[2]);
+    const share = rim.filter(i => dist(i) <= 12).length / rim.length;
+    let on = 0, like = 0; for (let i = 0; i < n; i++) if (rgba[4 * i + 3] >= 128) { on++; if (dist(i) <= 15) like++; }
+    const area = on ? like / on : 0;
+    return share >= 0.7 && area >= 0.3 && area <= 0.97 ? { rgb, share, area } : null;
+  }
+  // the AI's cut-out with the edges from the colour one (where the background is plain): a pixel is kept only as
+  // much as both keep it, in the colour cut-out's colours (its edges have the background's tint taken out)
+  function cutoutCombine(ai, colour) {
+    const out = new Uint8ClampedArray(colour);
+    for (let i = 3; i < out.length; i += 4) out[i] = Math.min(ai[i], colour[i]);
+    return out;
+  }
   // a figure outline fixed by hand (Session 20): strokes painted over a photo, each adding to the figure or
   // taking away from it, later strokes over earlier ones. A stroke is { add, r, p:[x0, y0, x1, y1, …] } with
   // x in parts of the photo's width, y and the brush radius r in parts of its height, so the same strokes
@@ -4842,7 +5003,7 @@
     meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, gradientCuts, gradientLayers, paintGradient, paintSwap, meshShells, paintShells,
     meshRegions, paintRegions, paintNoise, paintPictureWrap, paintCurvature, curvatureClasses, layerSlots, pauseColours, colourChanges, paintBrush, brushTris, symmetryCopies, areaTris, paintFill, paintPicture, parseOBJ, parse3MFModel,
     PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, photoRef, photoUV, PHOTO_K_MAX, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, photoFitCloseness, photoFitFull, photoFitClosenessSteps, photoFitFullSteps, paintFromPhotos, photoLight, photoUnshade, photoLitBy, photoTriNormals, meshBVH, bvhRaycast,
-    photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure, cutoutWithMap, edgeOpacity, photoFixMap, photoFixMask,
+    photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure, cutoutWithMap, edgeOpacity, pictureBackground, cutoutByColour, plateColour, cutoutCombine, photoFixMap, photoFixMask,
     parseGLB, parseGLTF, parseMTL, parseOBJColours, modelTriColours, modelPalette, modelColourLabels,
     cutBase, cutFree, cutSolid, cutFlat, cutSources, cutCorners, qrEncode, qrPayload, qrLink
   };

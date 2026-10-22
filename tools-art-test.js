@@ -244,6 +244,7 @@ async function addPicture(MF) {                      // the smoke test's two-col
     line.enabled = false; flag.enabled = false;
     await choose("cylinder");
     const band = await dropPic(400, 80, () => red, "band");
+    check(!band.solids.some(Boolean) && /Nothing of this picture prints/.test(panelText()), "a picture all in one colour: all background, and the Art tab says why nothing prints");
     band.width = 50; band.keepBg = true; band.solids = null; MF.rebuild(false); await settle();   // all one colour: all background, unless asked
     const R = MF.state.base.cyl.dia / 2, span = () => { const q = band.solids.find(Boolean).pos; let lo = 9, hi = -9;
       for (let i = 0; i < q.length; i += 3) if (Math.hypot(q[i], q[i + 2]) > R + 0.3) { const a = Math.atan2(q[i], q[i + 2]); lo = Math.min(lo, a); hi = Math.max(hi, a); }
@@ -255,6 +256,52 @@ async function addPicture(MF) {                      // the smoke test's two-col
     check(band.wrap === "flat" && flat > 54, "projected straight on instead, it comes out wider (the old way, still there to choose)", `${flat.toFixed(2)} mm round`);
     check(band.solids.every(q => !q || C.checkMesh(q).open === 0), "every part closed");
     band.wrap = "auto"; band.keepBg = false; band.solids = null; MF.rebuild(false); await settle();
+    // on a sphere a picture wraps both ways: its width round the sphere and its height up it, along the surface
+    band.enabled = false; await choose("sphere");
+    const sq = await dropPic(200, 200, () => blue, "square");
+    sq.width = 40; sq.keepBg = true; sq.solids = null; MF.rebuild(false); await settle();
+    const Rs = MF.state.base.sphere.dia / 2, ss = sq.solids.find(Boolean); let lo = 9, hi = -9, alo = 9, ahi = -9;
+    for (let i = 0; ss && i < ss.pos.length; i += 3) {
+      const x = ss.pos[i], y = ss.pos[i + 1] - Rs, z = ss.pos[i + 2], r3 = Math.hypot(x, y, z); if (r3 < Rs + 0.3) continue;
+      if (Math.abs(x) < 0.4) { const la = Math.asin(y / r3); lo = Math.min(lo, la); hi = Math.max(hi, la); }
+      if (Math.abs(y) < 0.4) { const a = Math.atan2(x, z); alo = Math.min(alo, a); ahi = Math.max(ahi, a); }
+    }
+    check(ss && MF.art.wraps(sq) && Math.abs((hi - lo) * Rs - 40) < 0.8 && Math.abs((ahi - alo) * Rs - 40) < 0.8 && ss && C.checkMesh(ss).open === 0,
+      "on a sphere a 40 mm square wraps both ways: 40 mm round and 40 mm up, along the surface", `${((ahi - alo) * Rs).toFixed(2)} round, ${((hi - lo) * Rs).toFixed(2)} up`);
+    sq.enabled = false;
+    // Height (mm) sets the width from the picture's shape
+    await choose("board");
+    const tall = await dropPic(200, 100, (x, y) => Math.hypot(x - 100, y - 50) < 40 ? red : [255, 255, 255], "oval");
+    const hInput = $$("#panel .field").find(f => /^Height \(mm\)/.test(f.querySelector("label") && f.querySelector("label").textContent || ""));
+    const hNum = hInput && hInput.querySelector("input[type=number]");
+    if (hNum) { hNum.value = 20; hNum.dispatchEvent(new win.Event("change")); await settle(); }
+    const wNum = $$("#panel .field").find(f => /^Width \(mm\)/.test(f.querySelector("label") && f.querySelector("label").textContent || "")).querySelector("input[type=number]");
+    check(hNum && Math.abs(tall.width - 40) < 0.01 && Math.abs(+wNum.value - 40) < 0.01, "Height (mm) 20 on a picture twice as wide as tall makes it 40 mm wide, and the width field shows it", `${tall.width} mm`);
+    tall.enabled = false;
+    // new text is trimmed to its letters: its width is the letters' own
+    $$("#panel button").find(b => b.textContent === "Add text").click();
+    for (let i = 0; i < 100 && !MF.state.items.some(x => x.text && x.crop && x.solids); i++) await sleep(30);
+    await settle();
+    const tx = MF.state.items.find(x => x.text && x.crop), tb = tx && tx.solids.filter(Boolean).map(q => C.solidBounds(q));
+    const tw = tb && tb.length ? Math.max(...tb.map(b => b.mx[0])) - Math.min(...tb.map(b => b.mn[0])) : 0;
+    check(tx && Math.abs(tw - tx.width) < 0.6, "new text is trimmed to its letters: printed as wide as its width says", tx && `${tw.toFixed(2)} mm printed, ${tx.width} set`);
+    tx.enabled = false;
+    // Take this colour away too: the ring logo's blue dot taken away, everywhere
+    const P = require("./tools-cutout-pictures.js")(C), ring = P.ringLogo();
+    const rl = await dropPic(ring.W, ring.H, (x, y) => { const o = 4 * (y * ring.W + x); return [ring.rgba[o], ring.rgba[o + 1], ring.rgba[o + 2]]; }, "ring");
+    $$("#panel button").find(b => /Take the background away/.test(b.textContent)).click();
+    for (let i = 0; i < 200 && !rl.uncut; i++) await sleep(30); await settle(); tabBtn("art").click(); await sleep(60);
+    const chip = $$("#panel .chips button.chip").find(b => /Blue/.test(b.textContent));
+    if (chip) { chip.click(); for (let i = 0; i < 200 && !(rl.cutBy && rl.cutBy.peel.length); i++) await sleep(30); await settle(); }
+    const rp = rl.src.getContext("2d").getImageData(0, 0, rl.src.width, rl.src.height).data; let blueLeft = 0, redLeft = 0;
+    for (let i = 0; i < rp.length; i += 4) if (rp[i + 3] > 127) { if (rp[i + 2] > 150 && rp[i] < 80) blueLeft++; if (rp[i] > 150 && rp[i + 2] < 80 && rp[i + 1] < 80) redLeft++; }
+    check(chip && rl.cutBy.peel.length === 1 && blueLeft === 0 && redLeft > 20000, "Take this colour away too: the blue dot goes, the red ring stays", `${blueLeft} blue pixels left, ${redLeft} red`);
+    // a jigsaw of a picture with stripes thinner than the nozzle: they take the colour beside them (v0.28.0: 80 slivers)
+    await choose("jigsaw");
+    await dropPic(900, 600, x => ((x % 60) < 1.25 && x < 450) || ((x % 60) < 3 && x >= 450) ? red : blue, "stripes");
+    MF.rebuild(false); await settle();
+    let pj = null; for (let i = 0; i < 800 && !(pj = MF.print); i++) await sleep(25);
+    check(pj && pj.thin.length <= 10 && MF.parts.some(q => /picture/.test(q.name) && q.slot === 1), "a jigsaw's stripes thinner than the nozzle take the colour beside them; the wider ones print", pj && `${pj.thin.length} thin walls left (where a cut crosses a colour)`);
   }
 
   const errs = env.errors.filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));

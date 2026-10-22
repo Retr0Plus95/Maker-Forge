@@ -3215,9 +3215,12 @@ async function buildJigsaw(){
     const cell = Math.max(0.15, Math.max(W, H)/900), gx = Math.max(8, Math.round(W/cell)), cx = W/gx, gy = Math.max(8, Math.round(H/cx));
     const img = resample(src, gx, gy, d.mirror);
     const cm = C.buildCellMap(img, state.slots.map(s=>C.hexToRgb(s.hex)), state.slots.map((_,i)=>d.skip.includes(i)), d.smooth);
+    // left-out colours show the piece's own; then a strip of any colour thinner than the nozzle takes the colour
+    // beside it (Session 34)
+    const all = cm.idx.map(v => v < 0 ? baseSlot : v), idx = C.dropSlivers(all, gx, gy, (state.printer.nozzle || 0.4)*0.5/cx + 0.5);
     state.slots.forEach((_, k) => {
       const m = new Uint8Array(gx*gy); let any = false;
-      for (let i=0;i<m.length;i++){ const v = cm.idx[i] < 0 ? baseSlot : cm.idx[i]; if (v === k){ m[i] = 1; any = true; } }
+      for (let i=0;i<m.length;i++){ if (idx[i] === k){ m[i] = 1; any = true; } }
       if (any) colours.push({ slot:k, cov:C.blurMask(m, gx, gy, 1), gx, gy, cell:cx, W, H:gy*cx });
     });
   }
@@ -3634,8 +3637,13 @@ function cellMapFor(d){
   let cm = C.buildCellMap(d._img, state.slots.map(s=>C.hexToRgb(s.hex)),
     state.slots.map((_,i)=>d.skip.includes(i)), d.smooth);
   if (d.pixel && d.pixel.on) cm = C.snapToGrid(cm, d.pixel.cells);
-  // the background (the colour round most of its edge) prints nothing, and shows so in the preview (Session 34)
-  d._bg = d.mode === "relief" || d.keepBg ? -1 : C.dropCellBackground(cm);
+  // the background (the colour round most of its edge) prints nothing, and shows so in the preview (Session 34). A
+  // picture whose edge is partly see-through has no background left to take away: a cut-out, a logo with clear
+  // corners, or text trimmed to its letters fills its edge with the subject itself
+  let clear = 0, ring = 0; const A = d._img.data, gw = d._img.width, gh = d._img.height;
+  for (let i=0;i<gw;i++) for (const j of [0, gh-1]){ ring++; if (A[4*(j*gw + i) + 3] < 128) clear++; }
+  for (let j=1;j<gh-1;j++) for (const i of [0, gw-1]){ ring++; if (A[4*(j*gw + i) + 3] < 128) clear++; }
+  d._bg = d.mode === "relief" || d.keepBg || clear >= ring*0.02 ? -1 : C.dropCellBackground(cm);
   d._raw = cm.idx.slice();
   if (d.forceSlot != null){ const f = clamp(d.forceSlot,0,state.slots.length-1);
     for (let k=0;k<cm.idx.length;k++) if (cm.idx[k] >= 0) cm.idx[k] = f; }
@@ -3655,8 +3663,8 @@ const cutWanted = d => d.enabled !== false && d.mode !== "relief" && (d.cut === 
 const cutMode = d => baseSoup && !cutBlocked && cutWanted(d) ? d.cut : null;
 // a picture on the side of an object round about its upright axis is wrapped round it, at its true width, as a
 // label is (Session 34: projected straight on, a 50 mm picture on a 70 mm cylinder came out up to 43% wider at
-// its edges). d.wrap: "auto" (cylinders, round pots and turned shapes), "wrap" or "flat"
-const WRAP_AUTO = { cylinder:1, turned:1 };
+// its edges). d.wrap: "auto" (cylinders, spheres, round pots and turned shapes), "wrap" or "flat"
+const WRAP_AUTO = { cylinder:1, turned:1, sphere:1 };
 const canWrap = () => !!CURVED[state.base.type] && state.base.type !== "hex";
 function wrapsRound(d){
   if (!baseSoup || !canWrap() || d.mode === "relief") return false;
@@ -4554,6 +4562,27 @@ function pictureBgOf(a){
 }
 const plainBackground = b => !!(b && b.rgb && b.plain >= 0.8);
 const cutDot = rgb => `<span class="cdot" style="background:rgb(${rgb.map(v => Math.round(v)).join(",")})"></span>`;
+// the main colours of a cut-out picture, for "Take this colour away too": worked out on a small copy and kept. Two
+// shades close together show as one, and a colour that is nearly all of the picture is not offered
+const cutColourCache = new WeakMap();
+function cutColours(a){
+  if (!a || !a.canvas) return [];
+  let r = cutColourCache.get(a.canvas); if (r) return r;
+  const c = a.canvas, k = Math.min(1, 128/Math.max(c.width, c.height)), px = resample(c, Math.max(2, Math.round(c.width*k)), Math.max(2, Math.round(c.height*k)), false).data;
+  const cents = C.kmeans(px, 6).map(q => q.map(Math.round)), count = cents.map(() => 0); let on = 0;
+  for (let i=0;i<px.length;i+=4){
+    if (px[i+3] < 128) continue; on++;
+    let bj = 0, bd = Infinity; cents.forEach((q, j) => { const dd = C.colorDist([px[i], px[i+1], px[i+2]], q); if (dd < bd){ bd = dd; bj = j; } }); count[bj]++;
+  }
+  r = [];
+  cents.map((rgb, j) => ({ rgb, share:on ? count[j]/on : 0 })).sort((p, q) => q.share - p.share).forEach(q => {
+    const same = r.find(o => C.colorDist(o.rgb, q.rgb) < 3*40*40);
+    if (same) same.share += q.share; else r.push(q);
+  });
+  r = r.filter(q => q.share >= 0.03 && q.share <= 0.97);
+  cutColourCache.set(a.canvas, r);
+  return r;
+}
 // a picture made from pixels
 function pictureFrom(rgba, W, H){
   const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
@@ -4651,6 +4680,20 @@ function aiCutoutRow(p, d, after){
       if (how.inside) note(p, how.holes ? "The same colour inside the picture is see-through too, like the holes in letters." : "The same colour inside the picture prints, like the white inside a drawing's outline.");
       numField(p, { label:"How different a colour can be and still go", min:0, max:100, step:1, def:50, get:() => how.tol, set:v => { how.tol = v; },
         onChange:() => recut({ tol:how.tol }), sub:() => "Raise it if bits of the background stay, lower it if the picture's edges get eaten." });
+      // any other colour of the picture can go too, everywhere in it (up to four)
+      const cols = (how.peel || []).length < 4 ? cutColours(cur) : [];
+      if (cols.length > 1){
+        const w = document.createElement("div"); w.className = "field full";
+        w.innerHTML = `<label>Take this colour away too</label><div class="chips"></div>`;
+        cols.forEach(q => {
+          const b = document.createElement("button"); b.type = "button"; b.className = "chip";
+          b.innerHTML = `<span class="sw" style="background:rgb(${q.rgb.join(",")})"></span>${esc(colourWord(q.rgb))}`;
+          b.title = `Take the ${colourWord(q.rgb).toLowerCase()} away everywhere in the picture`;
+          b.onclick = async () => { if (await cutByColour(d, { tol:how.tol, holes:how.holes, peel:[...(how.peel || []), q.rgb] })) done(true); };
+          w.querySelector(".chips").appendChild(b);
+        });
+        p.appendChild(w);
+      }
     } else note(p, "<b>Cut out with AI.</b> Only the subject prints; the background was taken away.");
     const plate = how ? pictureBgOf(cur) && pictureBgOf(cur).plate : null;
     buttonRow(p, [["Put the background back", () => { aiUncut(d); done(false); }],
@@ -5965,6 +6008,7 @@ function numField(parent,o){
   const sync = ()=>{ const v = o.get(); num.value = +(+v).toFixed(2); rng.value = v; if (sub) sub.textContent = o.sub();
     if (rst) rst.hidden = Math.abs(v - def) < 1e-9; };
   w._refreshSub = ()=>{ if (sub) sub.textContent = o.sub(); };
+  w._sync = sync;                                     // a linked field changed this one's value (width and height)
   const apply = v => { if (isNaN(v)) return; o.set(clamp(v,o.min,o.max)); sync(); (o.onChange||dirty)(); pushHistory(); };
   rng.addEventListener("input", ()=>apply(parseFloat(rng.value)));
   num.addEventListener("change", ()=>apply(parseFloat(num.value)));
@@ -8941,6 +8985,8 @@ function tabArt(p){
   segField(p,[["original","Photo"],["colours","Colours"],["split","Split"]],()=>d.previewMode, v=>{ d.previewMode = v; drawPreview(); });
   p.insertAdjacentHTML("beforeend", `<div class="preview-wrap"><canvas id="preview"></canvas></div>`);
   note(p, d.text ? "This is how the text will print." : "Click a colour in the preview to leave it out of the print.");
+  if (d._cm && d._bg >= 0 && !d._cm.idx.some(v => v >= 0))
+    note(p, "<b>Nothing of this picture prints:</b> it is all one colour, so all of it is taken for its background. Tick <b>Print the background too</b> under Colours to print it.");
   aiCutoutRow(p, d);
 
   if (state.base.type === "enclosure" && !lidLogo){       // boxes take artwork only as a logo on the lid
@@ -8982,7 +9028,11 @@ function tabArt(p){
   } else {
   p.insertAdjacentHTML("beforeend", `<h2>Size and place</h2>`);
   if (state.base.type === "frame") note(p, "On a photo frame a picture goes on the border: it starts on the bottom edge. The window in the middle stays open.");
-  numField(p,{ label:"Width (mm)", min:5,max:250,step:0.5, get:()=>d.width, set:v=>d.width=v, onChange:ch, sub:()=>`Height ${(d.width/d.aspect).toFixed(1)} mm` });
+  // width and height go together (Session 34: the height can be set too, for lettering a size tall)
+  let hField = null;
+  const wField = numField(p,{ label:"Width (mm)", min:5,max:250,step:0.5, get:()=>d.width, set:v=>d.width=v, onChange:()=>{ ch(); if (hField) hField._sync(); } });
+  hField = numField(p,{ label:"Height (mm)", min:1,max:250,step:0.5, noReset:true, get:()=>+(d.width/d.aspect).toFixed(2), set:v=>{ d.width = clamp(v*d.aspect, 5, 250); },
+    onChange:()=>{ ch(); wField._sync(); } });
   numField(p,{ label:"Rotation (°)", min:-180,max:180,step:1, get:()=>d.rotation, set:v=>d.rotation=v, onChange:ch });
   if (FLAT[state.base.type]) segField(p,[["front","On the front"],["back","On the back"]],()=>d.side,
     v=>{ d.side = v; d._imgKey = ""; ch(); }, "two");
@@ -9223,7 +9273,8 @@ async function addTextItem(){
   const t = { value:"Your name", font:"Manrope", weight:800 };
   await document.fonts.load('800 180px "Manrope"');
   const canvas = textCanvas(t);
-  const it = newItem("Text", canvas, { text:t, forceSlot:state.slots.length>1?1:0, mode:"flat", quality:"ultra", height:0.8 });
+  // trimmed to its letters (Session 34), so its width and height are the letters' own
+  const it = newItem("Text", canvas, { text:t, forceSlot:state.slots.length>1?1:0, mode:"flat", quality:"ultra", height:0.8, crop:true });
   it.src = canvas; it.thumb = thumbURL(canvas);
   state.items.push(it); state.active = state.items.length-1;
   renderTab(); schedule(); pushHistory();
@@ -11195,7 +11246,7 @@ window.MakerForge = {
   get rev(){ return buildRev; },
   get busy(){ return busy || queued || rebuildPending || exampleBusy > 0 || photoJobsOut > 0 || photoFitting > 0 || photoBusy > 0; },
   thumb: modelThumb,
-  art: { cutout: aiCutout, uncut: aiUncut, hasBackground: pictureHasBackground },
+  art: { cutout: aiCutout, uncut: aiUncut, hasBackground: pictureHasBackground, wraps: wrapsRound },
   examples: { list: EXAMPLES, forType: EXAMPLE_FOR_TYPE, art: EXAMPLE_ART, canvas: exampleCanvas, load: loadExample, drop: dropExamples },
   get tracer(){ return tracerInfo; },
   get enclosure(){ return enclosureInfo; },

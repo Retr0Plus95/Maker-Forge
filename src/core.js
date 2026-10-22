@@ -158,10 +158,10 @@
   }
 
   // A picture wrapped round an object that is round about the upright (y) axis through x = z = 0 (Session 34): a
-  // cylinder, a vase, a round pen pot. makeProjector projects a picture straight on, so on a 70 mm cylinder the
-  // edges of a 50 mm picture came out up to 43% wider than drawn; here the picture's width runs round the object
+  // cylinder, a vase, a round pen pot, a sphere. makeProjector projects a picture straight on, so on a 70 mm cylinder
+  // the edges of a 50 mm picture came out up to 43% wider than drawn; here the picture's width runs round the object
   // instead, at its true length, as a label does. Its width is measured round the object at the radius under the
-  // picture's middle, its height straight up; frame as makeProjector's (c, n, t, b: the picture's middle, which
+  // picture's middle, its height along the object's side; frame as makeProjector's (c, n, t, b: the picture's middle, which
   // way it faces, and its across and up), with n mostly level. The same bins as makeProjector, in angle round the
   // axis, height and distance from the axis: the surface found is the one furthest out. Returns null where there
   // is no surface facing out (or past half way round the back).
@@ -214,9 +214,24 @@
       for (let bj = j0; bj <= j1; bj++) for (let bi = i0; bi <= i1; bi++) bins[bj * B + bi].push(r);
     }
     const grid = { bins, minA, minY, dA, dY };
+    // Up and down, the picture's height is measured along the object's side too (Session 34: a vase's belly, a
+    // sphere): the side's profile under the picture's middle, as the distance along it from the middle's height.
+    // Where there is no side (past the top) the distance is the height
+    const NS = 400, ys = new Float64Array(NS + 1), ss = new Float64Array(NS + 1), aMid = sc / R0, y0 = c[1] - reach, dy = 2 * reach / NS;
+    const rr = new Float64Array(NS + 1);
+    for (let i = 0; i <= NS; i++) { ys[i] = y0 + i * dy; const f = find(aMid, ys[i], grid); rr[i] = f ? f.r : NaN; }
+    const step = (i, j) => Math.hypot(dy, isNaN(rr[i]) || isNaN(rr[j]) ? 0 : rr[i] - rr[j]);
+    for (let i = NS / 2 + 1; i <= NS; i++) ss[i] = ss[i - 1] + step(i, i - 1);
+    for (let i = NS / 2 - 1; i >= 0; i--) ss[i] = ss[i + 1] - step(i, i + 1);
+    const heightAt = d => {
+      if (d < ss[0] || d > ss[NS]) return null;
+      let lo = 0, hi = NS; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (ss[m] <= d) lo = m; else hi = m; }
+      const k = ss[hi] > ss[lo] ? (d - ss[lo]) / (ss[hi] - ss[lo]) : 0;
+      return ys[lo] + k * (ys[hi] - ys[lo]);
+    };
     return function (u, v) {
-      const s = sc + u * tE + v * bE, y = c[1] + u * t[1] + v * b[1], a = s / R0;
-      if (Math.abs(a) > Math.PI) return null;
+      const s = sc + u * tE + v * bE, y = heightAt(u * t[1] + v * b[1]), a = s / R0;
+      if (y == null || Math.abs(a) > Math.PI) return null;
       const f = find(a, y, grid); if (!f) return null;
       const ang = a0 + a, sa = Math.sin(ang), ca = Math.cos(ang), out = [sa, 0, ca];
       const ti = rec[f.o + 10] * 9;
@@ -776,6 +791,28 @@
       if (y < gy - 1 && idx[k + gx] === bg) { idx[k + gx] = -1; q.push(k + gx); }
     }
     return bg;
+  }
+  // A colour map with every colour's slivers, narrower than about 2r cells, given to the colours beside them
+  // (Session 34: a strip of a colour thinner than the nozzle on a jigsaw's top printed as a sliver). Each colour
+  // is opened by r (shrunk, then grown back); the cells that drop out take the colour of the nearest cell kept.
+  // Cells with no colour (-1) stay so; a sliver with no kept colour beside it keeps its own. Returns a new map
+  function dropSlivers(idx, gx, gy, r) {
+    const n = gx * gy, out = new Int8Array(idx);
+    if (!(r > 0)) return out;
+    const keep = new Uint8Array(n), slots = new Set(idx); slots.delete(-1);
+    for (const sl of slots) {
+      const m = new Uint8Array(n); for (let i = 0; i < n; i++) m[i] = idx[i] === sl ? 1 : 0;
+      const o = dilateMask(erodeMask(m, gx, gy, r), gx, gy, r);
+      for (let i = 0; i < n; i++) if (m[i] && o[i]) keep[i] = 1;
+    }
+    const q = new Int32Array(n), seen = new Uint8Array(n); let h = 0, t = 0;
+    for (let i = 0; i < n; i++) if (keep[i]) { seen[i] = 1; q[t++] = i; }
+    while (h < t) {
+      const i = q[h++], x = i % gx, y = (i - x) / gx;
+      for (const j of [x > 0 ? i - 1 : -1, x < gx - 1 ? i + 1 : -1, y > 0 ? i - gx : -1, y < gy - 1 ? i + gx : -1])
+        if (j >= 0 && !seen[j] && idx[j] >= 0) { seen[j] = 1; out[j] = out[i]; q[t++] = j; }
+    }
+    return out;
   }
   function maskOfSlot(cm, slot) {
     const m = new Uint8Array(cm.gx * cm.gy); let any = false;
@@ -5125,7 +5162,7 @@
   global.PRCore = {
     hexToRgb, rgbToHex, colorDist, luma, kmeans, buildCellMap, makeProjector, buildDecalSolids, weldSoup, parseSTL,
     prepareParts, make3MF, make3MF_BBL, makeSTL, makeOBJ, traceMask, groupLoops, rectUnion, triangulate, solidFromTris, buildVectorSolid,
-    makeWrapProjector, extrudePolys, extrudePolysAt, closeMask, smoothMask, revolve, revolveLoop, sweepTube, traceField, fieldToPolys, strokePolys, signedDistanceField, coverageField, blurMask, homography, applyH, warpQuad, quadCorners, refineQuad, fitDimensions, convexHull, outlineSVG, outlineDXF, transformSolid, mirrorSolid, solidBounds, mirrorMaskX, perforate, insideRing, snapToGrid, signedVolume, buildMaskSolid, maskOfSlot, dropCellBackground, checkMesh, edt, dilateMask, erodeMask, labelMask, maskToPolys, ringCircle, ringRect, ringStar, ringPoly, ringHeart, mergeSolids, area2,
+    makeWrapProjector, extrudePolys, extrudePolysAt, closeMask, smoothMask, revolve, revolveLoop, sweepTube, traceField, fieldToPolys, strokePolys, signedDistanceField, coverageField, blurMask, homography, applyH, warpQuad, quadCorners, refineQuad, fitDimensions, convexHull, outlineSVG, outlineDXF, transformSolid, mirrorSolid, solidBounds, mirrorMaskX, perforate, insideRing, snapToGrid, signedVolume, buildMaskSolid, maskOfSlot, dropCellBackground, dropSlivers, checkMesh, edt, dilateMask, erodeMask, labelMask, maskToPolys, ringCircle, ringRect, ringStar, ringPoly, ringHeart, mergeSolids, area2,
     affineSolid, mat3Mul, rotationDownTo, analyzePrint, analyzePrintSteps, bestOrientation, bestOrientationSteps, orientationScore, brimSolid, bedContact, sliceMask, gridOver, flattenParts,
     seededRandom, jigsawGrid, jigsawCut, jigsawEdge, jigsawPiece, jigsawSVG, jigsawCutLines, ringField, ringDistance, outlineBand, strokeText,
     gridAround, heightSheet,

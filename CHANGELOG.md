@@ -10,8 +10,11 @@ Pictures: backgrounds taken away properly, and pictures that print the size and 
 - **✂ Take the background away.** A logo or drawing on one plain colour now loses its background by that colour: straight away, with nothing to download. Inside the letters too, with smooth edges in the picture's own colours. **Inside it too** or **Only round it**, and **How different a colour can be and still go**, change it, and **Put the background back** undoes it. On the Art tab and beside a keychain's name.
 - **A badge or sticker:** once the background is gone, the patch of colour the picture sits on can go too (**Take the green round it away too**), leaving only what is on it.
 - **The AI cut-out falls back on the colours.** When it finds no subject in a picture on a plain colour, or can't be downloaded, the background is taken away by its colour instead. On a plain background its edges now come from the colours, sharper and with no rim.
-- **Pictures wrap round round objects.** On the side of a cylinder, a round pen pot or a vase, a picture goes round it like a label, at its true width. **Project it straight on** is still there to choose, and wrapping can be chosen on imported models and spheres too.
-- **Only the background is left out.** The colour round most of a picture's edge is its background: it prints nothing and the preview shows it see-through. Every other colour now prints right up to the picture's edge. **Print the background too** prints it as well.
+- **Pictures wrap round round objects.** On the side of a cylinder, a sphere, a round pen pot or a vase, a picture goes round it like a label: its width measured round the curve, its height along the side. **Project it straight on** is still there to choose, and wrapping can be chosen on imported models too.
+- **Width and Height.** A picture's height can be set too, and the width follows (a name 12 mm tall). New text is trimmed to its letters, so its width and height are the letters' own.
+- **Take this colour away too:** once a picture's background is gone, any of its other main colours can go as well, everywhere in it.
+- **Only the background is left out.** The colour round most of a picture's edge is its background: it prints nothing and the preview shows it see-through. Every other colour now prints right up to the picture's edge. **Print the background too** prints it as well. A picture with a see-through edge already (a cut-out, a PNG logo) has nothing left out, and a picture that is all background says so.
+- **Jigsaw pictures:** a strip of a colour thinner than the nozzle takes the colour beside it, instead of printing as a sliver.
 - **Fine detail is kept.** Lines two steps of the **Edge quality** wide print at their full width, and small dots, like the dot on an i, are kept.
 - **Colour from a photo:** when the AI figure finder finds no clear figure in a photo, the outline found by its colours stays, and the card says so.
 
@@ -25,6 +28,8 @@ Pictures: backgrounds taken away properly, and pictures that print the size and 
 - Colour from a photo: when the AI found no figure, the photo lost its outline altogether.
 - In the Split preview of a mirrored picture, the photo half was the wrong way round, so a click there could leave out the wrong colour.
 - A cut-out picture's soft edge counted towards its width, so it printed a little smaller than set.
+- New text came out about 5% narrower than its width said: the width included a margin round the letters.
+- A logo on a clear background that filled its picture (rounded corners, an app icon) lost its main colour, taken for its background.
 
 ## 0.28.0
 

@@ -124,7 +124,7 @@ Some objects in brief:
 - **Name plate and keychain.** 34 lettering fonts, charms (♥ ★ and any emoji) on either side, a picture beside the name, raised or engraved letters, a top layer in a second colour, and a mirrored back for double-sided tags. **A keychain for every name** on the Export tab makes one per name from a list.
 - **Photo to 3D tracer.** Photograph a flat part on plain paper, shot from straight above. Give one real measurement, or let the sheet of paper be the ruler. Round holes become true circles. The outline also downloads as SVG and DXF.
 - **Lithophane.** Flat, curved or a cylinder, with a rectangle, arch, oval or heart outline. The **test strip** prints steps from 0.6 to 3.2 mm, so you can choose thicknesses for your filament.
-- **Jigsaw puzzle.** Choose the number of pieces, the style of the knobs and the gap. **Shuffle** draws a new cut. A frame or a tray can print with it.
+- **Jigsaw puzzle.** Choose the number of pieces, the style of the knobs and the gap. **Shuffle** draws a new cut. A frame or a tray can print with it. A strip of a picture's colour thinner than the nozzle takes the colour beside it, so it doesn't print as a sliver.
 - **Project box.** Openings for USB, buttons, switches, fans, displays and pilot lights, each with an optional engraved label. Screwed, magnet or sliding lids. **Fit test** prints a small box with one of each opening, to try before the real thing.
 - **Phone case.** Pick your phone; the sizes come from the makers' spec sheets. Print the **fit test rim** first. Print the case in TPU.
   - **A picture in the back** (Make tab, **Picture on the back**) is set flush into the back's first layers, in your loaded filaments. It works best with a logo, a drawing or text in a few flat colours. A photo is reduced to flat areas of your filaments and can look rough; the app says so. **Colours → Match to artwork** (or the button under the message on the Art tab) sets your other filaments to the picture's colours, keeping the case's own, and **Art → Cut out the subject with AI** takes a photo's background away.
@@ -154,14 +154,16 @@ The **Art** tab puts pictures and words on the object.
 ![The Art tab with the patch picture split into its filaments](docs/manual/art-tab.jpg)
 
 - **Add a logo or photo**: click the box or drop files on it. PNG, JPG, SVG and WebP all work. SVG files keep their real size.
-- **Add text**: words in any of the fonts.
+- **Add text**: words in any of the fonts. The text is trimmed to its letters, so its width and height are the letters' own.
 - The list shows every picture. Click one to select it; the buttons below duplicate, reorder, rename or remove it. When you add a new picture, the earlier ones are switched off so they do not land on top of each other; click a thumbnail to switch one back on.
 
-**The preview** has three modes: **Photo** (the picture as it is), **Colours** (the picture split into your filaments, as it prints) and **Split** (half and half). Click a colour in the preview to leave it out of the print. The picture's background, the colour round most of its edge, is left out by itself and shows as a checked pattern; every other colour prints, right up to the picture's edge.
+**The preview** has three modes: **Photo** (the picture as it is), **Colours** (the picture split into your filaments, as it prints) and **Split** (half and half). Click a colour in the preview to leave it out of the print. The picture's background, the colour round most of its edge, is left out by itself and shows as a checked pattern; every other colour prints, right up to the picture's edge. A picture whose edge is already partly see-through (a cut-out, a PNG logo with clear corners, text) has nothing left out. A picture all in one colour is all background, and the Art tab says so.
 
 **Size and place.** Set the width, the rotation and which side it goes on. Click the model in the 3D view to move the picture there, or nudge it with the arrow keys (0.5 mm, or 2 mm with Shift).
 
-On the side of a round object (a cylinder, a round pen pot, a vase), a picture is **wrapped round it** like a label: its width is measured round the curve, so a 50 mm picture goes 50 mm round. **Project it straight on** is the other choice, as from a projector: the picture then gets wider where the surface turns away. That suits a small picture, or an imported model or a sphere that isn't round the same way all the way up; on those, wrapping is there to choose too.
+**Width** and **Height** go together: set either one and the other follows the picture's shape (a name 12 mm tall, say).
+
+On the side of a round object (a cylinder, a sphere, a round pen pot, a vase), a picture is **wrapped round it** like a label: its width is measured round the curve and its height along the side, so a 50 mm picture goes 50 mm round and a 40 mm tall one reaches 40 mm up a sphere's surface. **Project it straight on** is the other choice, as from a projector: the picture then gets bigger where the surface turns away. That suits a small picture, or an imported model that isn't round; on imported models wrapping is there to choose too.
 
 **How it prints:**
 
@@ -188,6 +190,7 @@ On some objects the picture *becomes* the object: a cookie cutter, a lightbox, a
 - **✂ Take the background away**, for a logo or drawing on one plain colour (shown beside the button): it goes by its colour, straight away, with nothing to download. It also clears that colour inside the picture, such as the holes in letters, unless it is a big patch on white (the white inside a drawing's outline stays). **Inside it too** or **Only round it** switches that, and **How different a colour can be and still go** takes more or less. The edges stay smooth, in the picture's own colours, with no rim of the background.
 - **✨ Cut out with AI**, for a photo, even one with a busy background, such as a pet on a sofa. The first time, it downloads the AI figure finder (about 19 MB, checked before it runs); after that it works straight away, and the picture never leaves your computer. The AI is made for photos: if it finds no subject in a picture on a plain colour, or can't be downloaded, the background is taken away by its colour instead.
 - A badge or sticker: once its background is gone, what is left can sit on a patch of one colour. **Take the green round it away too** (or whichever colour it is) takes that off as well, so only what is on the patch prints. A picture that has a clear background already, on such a patch, shows the same button.
+- **Take this colour away too** lists the picture's other main colours once its background is gone: click one and it goes everywhere in the picture (a white highlight, a second background colour), up to four.
 
 **Tips for good pictures:** bold shapes and a few flat colours print best. Lines thinner than about two steps of the picture's **Edge quality** (half a millimetre at Standard) are dropped, because a nozzle could not print them; choose **High** or **Ultra** for fine lines. The colour round most of the picture's edge is taken to be its background and left out.
 

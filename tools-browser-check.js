@@ -678,6 +678,22 @@ function pageCoverage() {
       await shot(page, "art-wrapped", "a logo wrapped round the cylinder like a label");
       if (!(wrap && Math.abs(wrap.round - wrap.width) < 1)) findings.push({ where: "wrapped picture", what: JSON.stringify(wrap) });
       notes.push(`wrapped round the cylinder: ${wrap ? `${wrap.round.toFixed(2)} mm round for a ${wrap.width} mm picture` : "did not run"}`);
+      // new text, with real letters, is trimmed to them: it prints as wide as its width says
+      const txt = await page.evaluate(async () => {
+        const MF = window.MakerForge, sel = document.querySelector("#objectSel"); sel.value = "board"; sel.dispatchEvent(new Event("change"));
+        await new Promise(r => setTimeout(r, 1500));
+        [...document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "art").click(); await new Promise(r => setTimeout(r, 200));
+        [...document.querySelectorAll("#panel button")].find(b => b.textContent === "Add text").click();
+        let d = null; for (let i = 0; i < 200 && !((d = MF.state.items.find(x => x.text && x.crop)) && d.solids); i++) await new Promise(r => setTimeout(r, 50));
+        if (!d) return null;
+        MF.state.items.forEach(x => { if (x !== d) x.enabled = false; }); d.solids = null; MF.rebuild(false);
+        for (let i = 0; i < 200 && (!d.solids || MF.busy); i++) await new Promise(r => setTimeout(r, 50));
+        let lo = Infinity, hi = -Infinity; for (const q of d.solids || []) if (q) for (let i = 0; i < q.pos.length; i += 3) { lo = Math.min(lo, q.pos[i]); hi = Math.max(hi, q.pos[i]); }
+        return { width: d.width, printed: hi - lo };
+      });
+      await settle(page);
+      if (!(txt && Math.abs(txt.printed - txt.width) < 0.6)) findings.push({ where: "text width", what: JSON.stringify(txt) });
+      notes.push(`new text with real letters: ${txt ? `${txt.printed.toFixed(2)} mm printed for a width of ${txt.width}` : "did not run"}`);
     }
 
     // ---------- Session 22: speed: the helper thread, picking with boxes, drawing only on change ----------

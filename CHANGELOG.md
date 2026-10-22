@@ -3,6 +3,29 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.29.0
+
+Pictures: backgrounds taken away properly, and pictures that print the size and shape you drew them.
+
+- **✂ Take the background away.** A logo or drawing on one plain colour now loses its background by that colour: straight away, with nothing to download. Inside the letters too, with smooth edges in the picture's own colours. **Inside it too** or **Only round it**, and **How different a colour can be and still go**, change it, and **Put the background back** undoes it. On the Art tab and beside a keychain's name.
+- **A badge or sticker:** once the background is gone, the patch of colour the picture sits on can go too (**Take the green round it away too**), leaving only what is on it.
+- **The AI cut-out falls back on the colours.** When it finds no subject in a picture on a plain colour, or can't be downloaded, the background is taken away by its colour instead. On a plain background its edges now come from the colours, sharper and with no rim.
+- **Pictures wrap round round objects.** On the side of a cylinder, a round pen pot or a vase, a picture goes round it like a label, at its true width. **Project it straight on** is still there to choose, and wrapping can be chosen on imported models and spheres too.
+- **Only the background is left out.** The colour round most of a picture's edge is its background: it prints nothing and the preview shows it see-through. Every other colour now prints right up to the picture's edge. **Print the background too** prints it as well.
+- **Fine detail is kept.** Lines two steps of the **Edge quality** wide print at their full width, and small dots, like the dot on an i, are kept.
+- **Colour from a photo:** when the AI figure finder finds no clear figure in a photo, the outline found by its colours stays, and the card says so.
+
+**Fixed**
+- The AI cut-out found "no clear subject" in a logo on a plain colour (white letters on green) and left the background on.
+- Colours touching a picture's edge were left out of the print (a flag, a sky, a letter at the edge), though the preview showed them.
+- A rim of a third filament ran round letters and shapes where two colours meet: black lettering on white printed with a teal or red outline.
+- Lines two cells wide printed a quarter too thin, and small dots were lost.
+- On cylinders and other round objects, the edges of a picture came out up to 43% wider than drawn.
+- A keychain's picture kept a thin rim of its background colour round it.
+- Colour from a photo: when the AI found no figure, the photo lost its outline altogether.
+- In the Split preview of a mirrored picture, the photo half was the wrong way round, so a click there could leave out the wrong colour.
+- A cut-out picture's soft edge counted towards its width, so it printed a little smaller than set.
+
 ## 0.28.0
 
 Business cards: printed in colour, with QR codes you can scan straight off the card, and an NFC tag sealed inside if you like.

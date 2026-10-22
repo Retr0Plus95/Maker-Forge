@@ -270,7 +270,7 @@ const EXAMPLE_ART = (function(){
     x.beginPath(); x.moveTo(20, 150); x.bezierCurveTo(40, 20, 460, 20, 480, 150); x.bezierCurveTo(420, 96, 360, 120, 330, 92); x.bezierCurveTo(300, 130, 200, 128, 160, 96); x.bezierCurveTo(120, 126, 60, 110, 20, 150); x.closePath(); fill(x, HAIR);
     x.beginPath(); x.moveTo(120, 188); x.quadraticCurveTo(160, 160, 200, 182); x.moveTo(300, 182); x.quadraticCurveTo(340, 160, 380, 188); stroke(x, HAIR, 16);
     ellipse(x, 162, 252, 34, 44); ellipse(x, 338, 252, 34, 44, 0, false); fill(x, K);
-    circle(x, 174, 234, 12); circle(x, 350, 234, 12, false); fill(x, SKIN);
+    circle(x, 170, 240, 11); circle(x, 346, 240, 11, false); fill(x, SKIN);    // a nozzle's width or more of eye round each
     ellipse(x, 104, 322, 40, 26); ellipse(x, 396, 322, 40, 26, 0, false); fill(x, COR);
     x.beginPath(); x.moveTo(176, 330); x.quadraticCurveTo(250, 420, 324, 330); x.quadraticCurveTo(250, 372, 176, 330); x.closePath(); fill(x, K);
     x.beginPath(); x.moveTo(214, 368); x.quadraticCurveTo(250, 392, 286, 368); x.quadraticCurveTo(250, 404, 214, 368); x.closePath(); fill(x, COR);

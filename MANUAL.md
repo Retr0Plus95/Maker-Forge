@@ -157,9 +157,11 @@ The **Art** tab puts pictures and words on the object.
 - **Add text**: words in any of the fonts.
 - The list shows every picture. Click one to select it; the buttons below duplicate, reorder, rename or remove it. When you add a new picture, the earlier ones are switched off so they do not land on top of each other; click a thumbnail to switch one back on.
 
-**The preview** has three modes: **Photo** (the picture as it is), **Colours** (the picture split into your filaments) and **Split** (half and half). Click a colour in the preview to leave it out of the print.
+**The preview** has three modes: **Photo** (the picture as it is), **Colours** (the picture split into your filaments, as it prints) and **Split** (half and half). Click a colour in the preview to leave it out of the print. The picture's background, the colour round most of its edge, is left out by itself and shows as a checked pattern; every other colour prints, right up to the picture's edge.
 
 **Size and place.** Set the width, the rotation and which side it goes on. Click the model in the 3D view to move the picture there, or nudge it with the arrow keys (0.5 mm, or 2 mm with Shift).
+
+On the side of a round object (a cylinder, a round pen pot, a vase), a picture is **wrapped round it** like a label: its width is measured round the curve, so a 50 mm picture goes 50 mm round. **Project it straight on** is the other choice, as from a projector: the picture then gets wider where the surface turns away. That suits a small picture, or an imported model or a sphere that isn't round the same way all the way up; on those, wrapping is there to choose too.
 
 **How it prints:**
 
@@ -177,13 +179,17 @@ On an object, a flat or stepped picture can also be cut into it. Choose under **
 
 This works on every object a picture can go on, imported models too. The first time, the app downloads its cutting tool (0.6 MB, checked before it runs). **Before you print** says when an engraving is deeper than the model is thick.
 
-**Colours.** A picture prints in the filament closest to each of its colours. You can print it all in one filament, leave colours out, **Drop the background colour**, add an **outline** that holds separate pieces together, adjust brightness, contrast and saturation, and snap it to squares for a pixel look.
+**Colours.** A picture prints in the filament closest to each of its colours. Where two colours meet, the blend between them takes one of the two, so no rim of a third filament runs round the letters (black on white blends to grey, which could be nearest a red). You can print it all in one filament, leave colours out, **Drop the background colour** (that filament everywhere in the picture), **Print the background too** (a patch of it round the picture, out to its edges), add an **outline** that holds separate pieces together, adjust brightness, contrast and saturation, and snap it to squares for a pixel look.
 
 On some objects the picture *becomes* the object: a cookie cutter, a lightbox, a jigsaw, a tracer, a circuit board, a lithophane. Their size and shape are then set on the Make tab, and the Art tab shows only what they use.
 
-**Cut out the subject with AI.** A photo with a background, such as a pet on a sofa or a person in a room, shows **✨ Cut out the subject with AI** under the preview (a keychain's picture shows it on the Make tab too). It takes the background away and trims the picture to the subject, so only the subject prints. The first time, it downloads the AI figure finder (about 19 MB, checked before it runs); after that it works straight away, and the photo never leaves your computer. If it took too much or too little, **Put the background back** returns the photo as it was. Pictures that already have a clear background, such as most logos, do not show the button.
+**Taking a picture's background away.** A picture with a background shows buttons under the preview (a keychain's picture shows them on the Make tab too). Both trim the picture to what is left, so only that prints, and **Put the background back** returns the picture as it was.
 
-**Tips for good pictures:** bold shapes and a few flat colours print best. Small print below about 1 mm wide may not show. Anything that touches the edge of the picture is taken to be background and left out, so leave a little space round your drawing.
+- **✂ Take the background away**, for a logo or drawing on one plain colour (shown beside the button): it goes by its colour, straight away, with nothing to download. It also clears that colour inside the picture, such as the holes in letters, unless it is a big patch on white (the white inside a drawing's outline stays). **Inside it too** or **Only round it** switches that, and **How different a colour can be and still go** takes more or less. The edges stay smooth, in the picture's own colours, with no rim of the background.
+- **✨ Cut out with AI**, for a photo, even one with a busy background, such as a pet on a sofa. The first time, it downloads the AI figure finder (about 19 MB, checked before it runs); after that it works straight away, and the picture never leaves your computer. The AI is made for photos: if it finds no subject in a picture on a plain colour, or can't be downloaded, the background is taken away by its colour instead.
+- A badge or sticker: once its background is gone, what is left can sit on a patch of one colour. **Take the green round it away too** (or whichever colour it is) takes that off as well, so only what is on the patch prints. A picture that has a clear background already, on such a patch, shows the same button.
+
+**Tips for good pictures:** bold shapes and a few flat colours print best. Lines thinner than about two steps of the picture's **Edge quality** (half a millimetre at Standard) are dropped, because a nozzle could not print them; choose **High** or **Ultra** for fine lines. The colour round most of the picture's edge is taken to be its background and left out.
 
 ## 5. Colours: your filaments and your printer
 
@@ -213,7 +219,7 @@ GLB files are measured in metres; the app turns them into millimetres. A model t
 - **Edges and hollows**: ridges in one colour and hollows in another, for worn paint, stone and wood.
 - **A picture**, projected through the model, wrapped round it like a label, or over it like a map on a globe.
 - **Random blobs**, for camouflage or planets.
-- **From a photo of the model**: drop a photo of a real figure and the app lines it up and colours the model from it. If the background is busy, **Find the figure with AI** (a one-time download of about 19 MB) finds it for you.
+- **From a photo of the model**: drop a photo of a real figure and the app lines it up and colours the model from it. If the background is busy, **Find the figure with AI** (a one-time download of about 19 MB) finds it for you. If the AI finds no clear figure in a photo, the outline found by its colours stays, and the card says so.
 
 **Light and shadow.** A photo lit from one side shows one paint as two colours: red in the light and almost black in the shade. With **Even out light and shadow** (on for new photos) the app works out where the light came from, using the model's own shape, and evens it out before reading the colours. The card says where it found the light. Pixels too dark to read are left out, and those parts take the colour round them.
 
@@ -343,7 +349,7 @@ On a Mac, use Cmd instead of Ctrl.
 
 **The picture prints in the wrong colours.** Each colour goes to the nearest filament. Set your filaments on the Colours tab to what you have loaded, or leave colours out on the Art tab.
 
-**Part of the picture is missing.** Anything touching the picture's edge is taken as background. Leave a margin round your drawing. Very thin lines (under about half a millimetre) are also dropped, because the nozzle cannot print them.
+**Part of the picture is missing.** The colour round most of the picture's edge is taken as its background and left out (the preview shows it as a checked pattern); tick **Print the background too** to print it. Very thin lines (under about two steps of the picture's **Edge quality**) are also dropped, because the nozzle cannot print them: a higher **Edge quality** keeps them.
 
 **The model looks empty.** Some objects are made from a picture (cookie cutter, lightbox, jigsaw, tracer, circuit board, lithophane): add one on the Art tab.
 

@@ -325,6 +325,14 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
   // left out of lining up, so it lines up roughly (it did not before: 45% outline, 54% of the surface right)
   check(aiBtn() && byColour.a < 0.05 && byColour.acc > 0.6, "by colour it lines up roughly (the books round it are left out of lining up), and the card offers the AI figure finder",
     `outline ${(byColour.match * 100).toFixed(0)}%, size off ${(byColour.a * 100).toFixed(0)}%, ${(byColour.acc * 100).toFixed(1)}% of the surface right`);
+  // the AI finding nothing (a flat map) keeps the colours' outline, and says so (v0.29.0: the photo lost its figure)
+  MF.paint.photo.ai.hooks.run = async (input, S) => new Float32Array(S * S);
+  const match0 = bv.match; let said = ""; const watch = setInterval(() => { said += " " + document.querySelector("#notice").textContent; }, 5);
+  aiBtn().click();
+  for (let i = 0; i < 200 && !/found no clear figure/.test(said); i++) await sleep(25);
+  await settle(); clearInterval(watch);
+  check(!bv.ai && /found no clear figure in the photo, so the outline found by its colours stays/.test(said) && bv.match === match0 && aiBtn(),
+    "the AI finding no figure: the outline found by its colours stays, and the card says so", `outline ${(bv.match * 100).toFixed(0)}%`);
   let netCalls = 0; MF.paint.photo.ai.hooks.run = async (input, S) => { netCalls++; return netRaw(input, S); };
   aiBtn().click();
   for (let i = 0; i < 600 && !(bv.ai && MF.paint.photo.info(bop) && !/Finding|Lining|Colouring/.test(document.querySelector("#statusLine").textContent)); i++) await sleep(50);

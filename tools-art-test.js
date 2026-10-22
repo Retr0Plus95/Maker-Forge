@@ -199,6 +199,64 @@ async function addPicture(MF) {                      // the smoke test's two-col
       "a hostile project: the cut-out settings are clamped, and only kept with an original", JSON.stringify(h1));
   }
 
+  // ---- Session 34: pictures placed accurately ----
+  console.log("\npictures placed accurately");
+  {
+    const dropPic = async (W, H, at, name) => {
+      const px = new Uint8ClampedArray(W * H * 4);
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) px.set([...at(x, y), 255], 4 * (y * W + x));
+      tabBtn("art").click(); await sleep(50);
+      const ev = new win.Event("drop", { bubbles: true, cancelable: true });
+      ev.dataTransfer = { files: [new win.File([encodePNG(W, H, px)], name + ".png", { type: "image/png" })] };
+      document.querySelector("#drop").dispatchEvent(ev);
+      for (let i = 0; i < 100 && !MF.state.items.some(x => x.name === name && x.src); i++) await sleep(30);
+      await settle(); tabBtn("art").click(); await sleep(50);
+      return MF.state.items.find(x => x.name === name);
+    };
+    // a flag in two colours, each reaching the edge: both print (they used to trace to nothing), right up to it
+    await choose("board");
+    const red = [200, 30, 40], blue = [30, 60, 180];
+    MF.state.slots[0].hex = "#f4f1ea"; MF.state.slots[1].hex = "#c81e28"; MF.state.slots[2].hex = "#1e3cb4";
+    const flag = await dropPic(300, 200, x => x < 150 ? red : blue, "flag");
+    flag.width = 30; flag.solids = null; MF.rebuild(false); await settle();
+    const area = q => q ? C.checkMesh(q).volume / (flag.height + flag.embed) : 0, a1 = area(flag.solids[1]), a2 = area(flag.solids[2]);
+    check(Math.abs(a1 - 300) < 8 && Math.abs(a2 - 300) < 8, "a flag in two colours reaching the edge: both halves print, right up to it", `${a1.toFixed(0)} and ${a2.toFixed(0)} mm², 300 each`);
+    // a logo on white: the white round it is left out, and the preview shows it see-through
+    const logo = await dropPic(300, 200, (x, y) => Math.hypot(x - 150, y - 100) < 60 ? red : [255, 255, 255], "dot");
+    logo.width = 30; logo.solids = null; MF.rebuild(false); await settle();
+    const pv = document.querySelector("#preview"), pp = pv.getContext("2d").getImageData(0, 0, pv.width, pv.height).data;
+    check(!logo.solids[0] && Math.abs(area(logo.solids[1]) - Math.PI * 36) < 4 && pp[3] === 0 && pp[4 * (Math.floor(pv.height / 2) * pv.width + Math.floor(pv.width / 2)) + 3] === 255,
+      "a logo on white: the white round it prints nothing, and the preview shows it see-through", `${area(logo.solids[1]).toFixed(1)} mm² of red, ${(Math.PI * 36).toFixed(1)} drawn`);
+    // Print the background too: the white prints, a rectangle round the dot, up to the picture's edges
+    const keepBox = $$("#panel label.check").find(l => /Print the background too/.test(l.textContent));
+    if (keepBox){ const cb = keepBox.querySelector("input"); cb.checked = true; cb.dispatchEvent(new win.Event("change")); await settle(); }
+    const white = area(logo.solids[0]);
+    check(keepBox && logo.keepBg === true && Math.abs(white + area(logo.solids[1]) - 600) < 10, "Print the background too: the white round it prints, out to the picture's edges", `${white.toFixed(0)} mm² of white, 600 mm² in all`);
+    logo.keepBg = false;
+    // a thin line and a small dot keep their size (a dot three cells across used to be lost, a line thinned)
+    logo.enabled = false;
+    const line = await dropPic(240, 120, (x, y) => (y >= 40 && y < 44 && x > 20 && x < 220) || (Math.hypot(x - 120, y - 80) < 3.2) ? [20, 20, 20] : [255, 255, 255], "line");
+    line.width = 30; line.quality = "standard"; line.smooth = 0; line.solids = null; MF.rebuild(false); await settle();
+    const ls = line.solids.find(Boolean), bb = ls && C.solidBounds(ls);
+    check(ls && Math.abs(C.checkMesh(ls).volume / (line.height + line.embed) - (200 / 8) * (4 / 8) - Math.PI * (3.2 / 8) ** 2) < 1.2, "a line two cells wide and a small dot both print at their size",
+      ls ? `${(C.checkMesh(ls).volume / (line.height + line.embed)).toFixed(1)} mm², ${((200 / 8) * (4 / 8) + Math.PI * (3.2 / 8) ** 2).toFixed(1)} drawn` : "nothing");
+    // wrapped round a cylinder: a 50 mm picture goes 50 mm round it, not wider
+    line.enabled = false; flag.enabled = false;
+    await choose("cylinder");
+    const band = await dropPic(400, 80, () => red, "band");
+    band.width = 50; band.keepBg = true; band.solids = null; MF.rebuild(false); await settle();   // all one colour: all background, unless asked
+    const R = MF.state.base.cyl.dia / 2, span = () => { const q = band.solids.find(Boolean).pos; let lo = 9, hi = -9;
+      for (let i = 0; i < q.length; i += 3) if (Math.hypot(q[i], q[i + 2]) > R + 0.3) { const a = Math.atan2(q[i], q[i + 2]); lo = Math.min(lo, a); hi = Math.max(hi, a); }
+      return (hi - lo) * R; };
+    const wrapped = span();
+    check(band.wrap === "auto" && Math.abs(wrapped - 50) < 0.8 && $$("#panel button").some(b => /Wrap it round/.test(b.textContent)), "on a cylinder a picture wraps round it: 50 mm wide goes 50 mm round", `${wrapped.toFixed(2)} mm round`);
+    $$("#panel button").find(b => /Project it straight on/.test(b.textContent)).click(); await settle();
+    const flat = span();
+    check(band.wrap === "flat" && flat > 54, "projected straight on instead, it comes out wider (the old way, still there to choose)", `${flat.toFixed(2)} mm round`);
+    check(band.solids.every(q => !q || C.checkMesh(q).open === 0), "every part closed");
+    band.wrap = "auto"; band.keepBg = false; band.solids = null; MF.rebuild(false); await settle();
+  }
+
   const errs = env.errors.filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
   check(!errs.length, "no page errors", errs.slice(0, 2).join(" / "));
   console.log(fails ? `\n${fails} FAILED` : "\nall passed");

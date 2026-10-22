@@ -51,6 +51,29 @@
       for (let s = 0; s < slotsRgb.length; s++) { const dd = colorDist(px, slotsRgb[s]); if (dd < bd) { bd = dd; bs = s; } }
       idx[k] = skip[bs] ? -1 : bs;
     }
+    // Fringes (Session 34): where an edge in the picture falls inside a cell, the cell's colour is a blend of the
+    // two sides, and the filament nearest that blend can be a third one (black on white blends to grey, which can
+    // be nearest a red or a teal): a rim of it printed round every letter. A cell lying between two others (on
+    // opposite sides) of other colours, whose colour is a blend of theirs, takes the nearer of the two.
+    const fix = new Int8Array(idx), pairs = [[1, 0], [0, 1], [1, 1], [1, -1]];
+    for (let j = 0; j < gy; j++) for (let i = 0; i < gx; i++) {
+      const k = j * gx + i, s0 = idx[k]; if (s0 < 0 || skip[s0]) continue;
+      const o = k * 4; let best = Infinity, to = s0;
+      for (const [a, b] of pairs) {
+        const i1 = i - a, j1 = j - b, i2 = i + a, j2 = j + b;
+        if (i1 < 0 || j1 < 0 || i2 < 0 || j2 < 0 || i1 >= gx || i2 >= gx || j1 >= gy || j2 >= gy) continue;
+        const k1 = j1 * gx + i1, k2 = j2 * gx + i2, s1 = idx[k1], s2 = idx[k2];
+        if (s1 < 0 || s2 < 0 || s1 === s2 || s1 === s0 || s2 === s0) continue;
+        const p1 = k1 * 4, p2 = k2 * 4, v = [d[p2] - d[p1], d[p2 + 1] - d[p1 + 1], d[p2 + 2] - d[p1 + 2]], L2 = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+        if (L2 < 900) continue;
+        const w = [d[o] - d[p1], d[o + 1] - d[p1 + 1], d[o + 2] - d[p1 + 2]], t = (w[0] * v[0] + w[1] * v[1] + w[2] * v[2]) / L2;
+        if (t < 0 || t > 1) continue;
+        const e0 = w[0] - t * v[0], e1 = w[1] - t * v[1], e2 = w[2] - t * v[2], r = Math.sqrt(e0 * e0 + e1 * e1 + e2 * e2);
+        if (r < 0.15 * Math.sqrt(L2) + 10 && r < best) { best = r; to = t < 0.5 ? s1 : s2; }
+      }
+      fix[k] = to;
+    }
+    idx = fix;
     for (let it = 0; it < smooth; it++) {
       const nx = new Int8Array(idx), cnt = new Int32Array(10);
       for (let j = 0; j < gy; j++) for (let i = 0; i < gx; i++) {
@@ -131,6 +154,84 @@
       }
       if (!nm) nm = gm;
       return { p, n: nm };
+    };
+  }
+
+  // A picture wrapped round an object that is round about the upright (y) axis through x = z = 0 (Session 34): a
+  // cylinder, a vase, a round pen pot. makeProjector projects a picture straight on, so on a 70 mm cylinder the
+  // edges of a 50 mm picture came out up to 43% wider than drawn; here the picture's width runs round the object
+  // instead, at its true length, as a label does. Its width is measured round the object at the radius under the
+  // picture's middle, its height straight up; frame as makeProjector's (c, n, t, b: the picture's middle, which
+  // way it faces, and its across and up), with n mostly level. The same bins as makeProjector, in angle round the
+  // axis, height and distance from the axis: the surface found is the one furthest out. Returns null where there
+  // is no surface facing out (or past half way round the back).
+  function makeWrapProjector(soup, frame, halfW, halfH) {
+    const { c, n, t, b } = frame, P = soup.pos, T = P.length / 9, B = 96, N = soup.nrm;
+    const a0 = Math.atan2(n[0], n[2]), e = [Math.cos(a0), 0, -Math.sin(a0)];       // the level direction round the object
+    const tE = t[0] * e[0] + t[2] * e[2], bE = b[0] * e[0] + b[2] * e[2], sc = c[0] * e[0] + c[2] * e[2];
+    const reach = Math.hypot(halfW, halfH) + Math.abs(sc) + 1e-6;
+    const rel = a => { a -= a0; while (a > Math.PI) a -= 2 * Math.PI; while (a <= -Math.PI) a += 2 * Math.PI; return a; };
+    // every triangle in (angle, height, distance), kept where it can be under the picture
+    const rec = [];
+    let maxR = 0; for (let i = 0; i < P.length; i += 3) maxR = Math.max(maxR, Math.hypot(P[i], P[i + 2]));
+    const near = maxR * 1e-6 + 1e-9;
+    for (let i = 0; i < T; i++) {
+      const o = i * 9, A = [0, 0, 0], Y = [0, 0, 0], Rr = [0, 0, 0];
+      for (let j = 0; j < 3; j++) { const x = P[o + j * 3], z = P[o + j * 3 + 2]; Rr[j] = Math.hypot(x, z); A[j] = Rr[j] > near ? rel(Math.atan2(x, z)) : NaN; Y[j] = P[o + j * 3 + 1]; }
+      const ok = A.filter(v => !isNaN(v)); if (!ok.length) continue;
+      const mean = ok.reduce((p, q) => p + q, 0) / ok.length;
+      for (let j = 0; j < 3; j++) if (isNaN(A[j])) A[j] = mean;                     // a corner on the axis (a pole)
+      if (Math.max(...A) - Math.min(...A) > Math.PI) continue;                     // across the seam, behind the object
+      const ar = (A[1] - A[0]) * (Y[2] - Y[0]) - (A[2] - A[0]) * (Y[1] - Y[0]);
+      if (Math.abs(ar) < 1e-14) continue;
+      rec.push(A[0], Y[0], A[1], Y[1], A[2], Y[2], Rr[0], Rr[1], Rr[2], ar, i);
+    }
+    // the radius under the picture's middle: its width is measured round there
+    // the triangle furthest out at an angle and height: from the bins g, or from them all
+    const find = (a, y, g) => {
+      const list = g ? g.bins[Math.min(B - 1, Math.max(0, Math.floor((y - g.minY) / g.dY))) * B + Math.min(B - 1, Math.max(0, Math.floor((a - g.minA) / g.dA)))] : null;
+      let best = -Infinity, br = -1, w = null;
+      const n0 = list ? list.length : rec.length / 11;
+      for (let q = 0; q < n0; q++) {
+        const r = list ? list[q] : q, o = r * 11, a0_ = rec[o], y0 = rec[o + 1], ar = rec[o + 9];
+        const w1 = ((a - a0_) * (rec[o + 5] - y0) - (rec[o + 4] - a0_) * (y - y0)) / ar, w2 = ((rec[o + 2] - a0_) * (y - y0) - (a - a0_) * (rec[o + 3] - y0)) / ar, w0 = 1 - w1 - w2;
+        if (w0 < -1e-7 || w1 < -1e-7 || w2 < -1e-7) continue;
+        const rr = w0 * rec[o + 6] + w1 * rec[o + 7] + w2 * rec[o + 8];
+        if (rr > best) { best = rr; br = o; w = [w0, w1, w2]; }
+      }
+      return br < 0 ? null : { r: best, o: br, w };
+    };
+    const mid = find(sc / Math.max(near, maxR), c[1]);
+    const R0 = mid ? Math.max(near, mid.r) : Math.max(near, Math.hypot(c[0], c[2]) || maxR);
+    const spanA = Math.min(Math.PI, reach / R0), minA = -spanA - 1e-6, minY = c[1] - reach - 1e-6, dA = (2 * spanA + 2e-6) / B, dY = (2 * reach + 2e-6) / B;
+    const bins = new Array(B * B); for (let i = 0; i < bins.length; i++) bins[i] = [];
+    for (let r = 0; r < rec.length / 11; r++) {
+      const o = r * 11, As = [rec[o], rec[o + 2], rec[o + 4]], Ys = [rec[o + 1], rec[o + 3], rec[o + 5]];
+      const mnA = Math.min(...As), mxA = Math.max(...As), mnY = Math.min(...Ys), mxY = Math.max(...Ys);
+      if (mxA < minA || mnA > spanA || mxY < minY || mnY > c[1] + reach) continue;
+      const i0 = Math.max(0, Math.floor((mnA - minA) / dA)), i1 = Math.min(B - 1, Math.floor((mxA - minA) / dA));
+      const j0 = Math.max(0, Math.floor((mnY - minY) / dY)), j1 = Math.min(B - 1, Math.floor((mxY - minY) / dY));
+      for (let bj = j0; bj <= j1; bj++) for (let bi = i0; bi <= i1; bi++) bins[bj * B + bi].push(r);
+    }
+    const grid = { bins, minA, minY, dA, dY };
+    return function (u, v) {
+      const s = sc + u * tE + v * bE, y = c[1] + u * t[1] + v * b[1], a = s / R0;
+      if (Math.abs(a) > Math.PI) return null;
+      const f = find(a, y, grid); if (!f) return null;
+      const ang = a0 + a, sa = Math.sin(ang), ca = Math.cos(ang), out = [sa, 0, ca];
+      const ti = rec[f.o + 10] * 9;
+      const ax = P[ti + 3] - P[ti], ay = P[ti + 4] - P[ti + 1], az = P[ti + 5] - P[ti + 2], bx = P[ti + 6] - P[ti], by = P[ti + 7] - P[ti + 1], bz = P[ti + 8] - P[ti + 2];
+      let gm = [ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx];
+      const gl = Math.hypot(gm[0], gm[1], gm[2]) || 1; gm = gm.map(x => x / gl);
+      if (gm[0] * out[0] + gm[2] * out[2] < 0.08) return null;                     // not facing out (a lid, a floor)
+      let nm = null;
+      if (N) {
+        nm = [0, 1, 2].map(k => f.w[0] * N[ti + k] + f.w[1] * N[ti + 3 + k] + f.w[2] * N[ti + 6 + k]);
+        const l = Math.hypot(nm[0], nm[1], nm[2]);
+        nm = l < 1e-9 ? null : nm.map(x => x / l);
+        if (nm && (nm[0] * gm[0] + nm[1] * gm[1] + nm[2] * gm[2] < 0.9 || nm[0] * out[0] + nm[2] * out[2] < 0.05)) nm = null;
+      }
+      return { p: [f.r * sa, y, f.r * ca], n: nm || gm };
     };
   }
 
@@ -644,7 +745,7 @@
   function buildMaskSolid(mask, gx, gy, W, H, project, height, embed, opts) {
     opts = opts || {};
     const polys = maskToPolys(mask, gx, gy, {
-      mmPerPx: W / gx, smooth: opts.smoothEdges ?? 2,
+      mmPerPx: W / gx, smooth: opts.smoothEdges ?? 2, keep: opts.keep ?? true, closeEdges: opts.closeEdges,
       eps: opts.eps ?? Math.max(0.03, (W / gx) * 0.5),
       minArea: opts.minArea ?? (W / gx) * (W / gx) * 4
     });
@@ -653,6 +754,28 @@
     return solidFromTris(pts, tris,
       p => { const s = project(p[0], p[1]); return s ? [s.p[0] + s.n[0] * height, s.p[1] + s.n[1] * height, s.p[2] + s.n[2] * height] : null; },
       p => { const s = project(p[0], p[1]); return s ? [s.p[0] - s.n[0] * embed, s.p[1] - s.n[1] * embed, s.p[2] - s.n[2] * embed] : null; });
+  }
+  // A picture's background in its colour map (Session 34): the colour that covers more than half of the picture's
+  // edge, where it is reached from the edge, prints nothing. Until now any region reaching the edge traced to no
+  // outline, which dropped the background, but also every other colour reaching the edge (a flag, a photo's sky,
+  // a letter at the edge) though the Art tab's preview showed them; now those print up to the edge (closeEdges),
+  // and the preview shows the background as see-through. Changes cm.idx; returns the background's slot, or -1.
+  function dropCellBackground(cm) {
+    const { gx, gy, idx } = cm, border = [];
+    for (let x = 0; x < gx; x++) { border.push(x); if (gy > 1) border.push((gy - 1) * gx + x); }
+    for (let y = 1; y < gy - 1; y++) { border.push(y * gx); if (gx > 1) border.push(y * gx + gx - 1); }
+    const cnt = new Map(); for (const k of border) if (idx[k] >= 0) cnt.set(idx[k], (cnt.get(idx[k]) || 0) + 1);
+    let bg = -1, most = 0; for (const [sl, c] of cnt) if (c > most) { most = c; bg = sl; }
+    if (bg < 0 || most * 2 <= border.length) return -1;
+    const q = []; for (const k of border) if (idx[k] === bg) { idx[k] = -1; q.push(k); }
+    while (q.length) {
+      const k = q.pop(), x = k % gx, y = (k - x) / gx;
+      if (x > 0 && idx[k - 1] === bg) { idx[k - 1] = -1; q.push(k - 1); }
+      if (x < gx - 1 && idx[k + 1] === bg) { idx[k + 1] = -1; q.push(k + 1); }
+      if (y > 0 && idx[k - gx] === bg) { idx[k - gx] = -1; q.push(k - gx); }
+      if (y < gy - 1 && idx[k + gx] === bg) { idx[k + gx] = -1; q.push(k + gx); }
+    }
+    return bg;
   }
   function maskOfSlot(cm, slot) {
     const m = new Uint8Array(cm.gx * cm.gy); let any = false;
@@ -785,7 +908,13 @@
     const s = o.mmPerPx;
     // a light blur turns the hard pixel mask into a coverage field; its 0.5 level is a smooth
     // curve that sits where the pixel edge was, within a fraction of a pixel
-    return fieldToPolys(blurMask(mask, w, h, o.blur ?? 1), w, h, {
+    const f = blurMask(mask, w, h, o.blur ?? 1);
+    // keep: a cell stays on its own side of the curve (the blur only rounds the stair steps), so a line two cells
+    // wide is not thinned, nor a dot of a few cells lost (Session 34: a 3 x 3 dot, the dot on an i in a picture, was
+    // lost, and a line two cells wide printed one and a half). A line or a gap one cell wide (the blur leaves it
+    // under 0.4, or over 0.6) still goes: thinner than a nozzle, it would only print as a sliver
+    if (o.keep) for (let i = 0; i < f.length; i++) { const v = f[i]; if (mask[i] ? v >= 0.4 : v <= 0.6) f[i] = mask[i] ? Math.max(v, 0.7) : Math.min(v, 0.3); }
+    return fieldToPolys(f, w, h, {
       mmPerPx: s, iso: 0.5,
       eps: o.eps != null ? Math.min(o.eps, s * 0.6) : s * 0.3,
       minSeg: s * 0.4,
@@ -4996,7 +5125,7 @@
   global.PRCore = {
     hexToRgb, rgbToHex, colorDist, luma, kmeans, buildCellMap, makeProjector, buildDecalSolids, weldSoup, parseSTL,
     prepareParts, make3MF, make3MF_BBL, makeSTL, makeOBJ, traceMask, groupLoops, rectUnion, triangulate, solidFromTris, buildVectorSolid,
-    extrudePolys, extrudePolysAt, closeMask, smoothMask, revolve, revolveLoop, sweepTube, traceField, fieldToPolys, strokePolys, signedDistanceField, coverageField, blurMask, homography, applyH, warpQuad, quadCorners, refineQuad, fitDimensions, convexHull, outlineSVG, outlineDXF, transformSolid, mirrorSolid, solidBounds, mirrorMaskX, perforate, insideRing, snapToGrid, signedVolume, buildMaskSolid, maskOfSlot, checkMesh, edt, dilateMask, erodeMask, labelMask, maskToPolys, ringCircle, ringRect, ringStar, ringPoly, ringHeart, mergeSolids, area2,
+    makeWrapProjector, extrudePolys, extrudePolysAt, closeMask, smoothMask, revolve, revolveLoop, sweepTube, traceField, fieldToPolys, strokePolys, signedDistanceField, coverageField, blurMask, homography, applyH, warpQuad, quadCorners, refineQuad, fitDimensions, convexHull, outlineSVG, outlineDXF, transformSolid, mirrorSolid, solidBounds, mirrorMaskX, perforate, insideRing, snapToGrid, signedVolume, buildMaskSolid, maskOfSlot, dropCellBackground, checkMesh, edt, dilateMask, erodeMask, labelMask, maskToPolys, ringCircle, ringRect, ringStar, ringPoly, ringHeart, mergeSolids, area2,
     affineSolid, mat3Mul, rotationDownTo, analyzePrint, analyzePrintSteps, bestOrientation, bestOrientationSteps, orientationScore, brimSolid, bedContact, sliceMask, gridOver, flattenParts,
     seededRandom, jigsawGrid, jigsawCut, jigsawEdge, jigsawPiece, jigsawSVG, jigsawCutLines, ringField, ringDistance, outlineBand, strokeText,
     gridAround, heightSheet,

@@ -78,6 +78,10 @@ Every button in the **Start from** sidebar opens with a finished example, so you
 | **The user manual**, built in (press ?) | **Easy reading**: bigger text and high contrast |
 | ![The user manual window inside the app](docs/manual/help.jpg) | ![The app at 130% text size with high contrast](docs/images/easy-reading.jpg) |
 
+**Colour from a photo** follows the model's shape: one photo of the front, and the back the photo can't see comes out right too.
+
+![The test figure: its front photo; seen from behind as coloured before version 0.30, a patchwork with blue legs; as coloured now, a red shirt, white shorts and skin legs; and its real colours](docs/images/photo-shape.jpg)
+
 **On a phone**: the model on top with the settings below, Start from, and the ⋯ menu.
 
 ![Three phone screens: the iron-on patch with its settings below it, the Start from quick starts over the page, and the menu with Redo, Easy reading, Light or dark, Settings, User manual and About](docs/images/phone.jpg)

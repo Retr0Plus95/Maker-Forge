@@ -263,6 +263,7 @@ textarea.ta{resize:vertical;min-height:52px;font-size:13px}
 .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:5px 11px 5px 6px;
   background:var(--field);cursor:pointer;font-size:12.5px;font-weight:600}
 .chip .sw{width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,.25)}
+.cdot{display:inline-block;width:12px;height:12px;border-radius:50%;border:1px solid rgba(0,0,0,.3);vertical-align:-1px}
 .chip[aria-pressed="true"]{text-decoration:line-through;opacity:.45}
 .slot{display:grid;grid-template-columns:34px 1fr auto;gap:8px;align-items:center;padding:8px;border:1px solid var(--line);
   border-radius:10px;background:var(--field);margin-bottom:7px}
@@ -433,7 +434,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.29.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.30.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -958,7 +959,7 @@ function newItem(name, canvas, extra){
   }, extra||{});
 }
 const history = { past:[], future:[], timer:0 };
-const runtimeKeys = new Set(["src","thumb","solids","_img","_imgKey","_cm","_inlay","_raw","_srcCv","_srcSig","_frameW","_cut","_cutInfo"]);
+const runtimeKeys = new Set(["src","thumb","solids","_img","_imgKey","_cm","_inlay","_raw","_srcCv","_srcSig","_frameW","_cut","_cutInfo","_bg"]);
 const serialize = () => JSON.stringify(state, (k,v)=> runtimeKeys.has(k) ? undefined : v);
 function pushHistory(){
   clearTimeout(history.timer);
@@ -1109,7 +1110,8 @@ function cropCanvas(src){
   const x = src.getContext("2d", { willReadFrequently:true }), d = x.getImageData(0,0,src.width,src.height).data;
   let minX = src.width, maxX = -1, minY = src.height, maxY = -1;
   for (let y=0;y<src.height;y++) for (let i=0;i<src.width;i++){
-    if (d[(y*src.width+i)*4+3] > 16){ if (i<minX) minX=i; if (i>maxX) maxX=i; if (y<minY) minY=y; if (y>maxY) maxY=y; }
+    // what prints (more than half there): a cut-out's faint, soft edge pixels do not widen it (Session 34)
+    if (d[(y*src.width+i)*4+3] > 127){ if (i<minX) minX=i; if (i>maxX) maxX=i; if (y<minY) minY=y; if (y>maxY) maxY=y; }
   }
   if (maxX < 0 || (maxX-minX+1 === src.width && maxY-minY+1 === src.height)) return src;
   const c = document.createElement("canvas"); c.width = maxX-minX+1; c.height = maxY-minY+1;
@@ -1136,8 +1138,10 @@ function filterCanvas(src, a){
   x.putImageData(img,0,0);
   return c;
 }
-/* Background removal: flood-fill from every border pixel, clearing pixels that are close in colour
-   to where the fill came from. Works for photos on a plain table, sheet of paper or wall. */
+/* Background removal for a picture beside a keychain's name: the colour round its edge taken away where it is
+   reached from the edge (C.cutoutByColour, Session 34: soft edges in the picture's own colours, so no rim of the
+   background is left; before, a flood fill with hard edges). Works for logos and for photos on a plain table,
+   sheet of paper or wall. tol: the keychain's tolerance (4-90, 28 by default), as the cut-out's 0-100 (50 at 28). */
 const cutoutCache = new WeakMap();
 function cutoutCanvas(src, tol){
   const cached = cutoutCache.get(src);
@@ -1146,28 +1150,9 @@ function cutoutCanvas(src, tol){
   const c = document.createElement("canvas"); c.width = w; c.height = h;
   const x = c.getContext("2d", { willReadFrequently:true });
   x.drawImage(src, 0, 0);
-  const img = x.getImageData(0,0,w,h), p = img.data;
-  // background colour = median of the border pixels, so an object touching one edge does not skew it
-  const border = [];
-  for (let i=0;i<w;i++) border.push(i, (h-1)*w+i);
-  for (let j=1;j<h-1;j++) border.push(j*w, j*w+w-1);
-  const med = k => { const v = border.map(b=>p[b*4+k]).sort((a,b)=>a-b); return v[v.length>>1]; };
-  const bg = [med(0), med(1), med(2)];
-  const lim = tol*tol*3, step = (tol*0.5)*(tol*0.5)*3;
-  const nearBg = o => { const dr=p[o]-bg[0], dg=p[o+1]-bg[1], db=p[o+2]-bg[2]; return dr*dr+dg*dg+db*db <= lim; };
-  const nearPx = (a,b) => { const dr=p[a]-p[b], dg=p[a+1]-p[b+1], db=p[a+2]-p[b+2]; return dr*dr+dg*dg+db*db <= step; };
-  const seen = new Uint8Array(w*h), stack = border.filter(b => p[b*4+3] < 20 || nearBg(b*4));
-  while (stack.length){
-    const k = stack.pop();
-    if (seen[k]) continue;
-    seen[k] = 1; p[k*4+3] = 0;
-    const kx = k % w, ky = (k / w) | 0;
-    for (const n of [kx>0?k-1:-1, kx<w-1?k+1:-1, ky>0?k-w:-1, ky<h-1?k+w:-1]){
-      if (n < 0 || seen[n]) continue;
-      if (p[n*4+3] < 20 || nearBg(n*4) || nearPx(n*4, k*4)) stack.push(n);
-    }
-  }
-  x.putImageData(img, 0, 0);
+  const img = x.getImageData(0,0,w,h);
+  const r = C.cutoutByColour(img.data, w, h, { holes:false, tol:clamp(50 + 50*Math.log2(Math.max(1, tol)/28), 0, 100) });
+  if (r){ img.data.set(r.rgba); x.putImageData(img, 0, 0); }
   cutoutCache.set(src, { tol, canvas:c });
   return c;
 }
@@ -3230,9 +3215,12 @@ async function buildJigsaw(){
     const cell = Math.max(0.15, Math.max(W, H)/900), gx = Math.max(8, Math.round(W/cell)), cx = W/gx, gy = Math.max(8, Math.round(H/cx));
     const img = resample(src, gx, gy, d.mirror);
     const cm = C.buildCellMap(img, state.slots.map(s=>C.hexToRgb(s.hex)), state.slots.map((_,i)=>d.skip.includes(i)), d.smooth);
+    // left-out colours show the piece's own; then a strip of any colour thinner than the nozzle takes the colour
+    // beside it (Session 34)
+    const all = cm.idx.map(v => v < 0 ? baseSlot : v), idx = C.dropSlivers(all, gx, gy, (state.printer.nozzle || 0.4)*0.5/cx + 0.5);
     state.slots.forEach((_, k) => {
       const m = new Uint8Array(gx*gy); let any = false;
-      for (let i=0;i<m.length;i++){ const v = cm.idx[i] < 0 ? baseSlot : cm.idx[i]; if (v === k){ m[i] = 1; any = true; } }
+      for (let i=0;i<m.length;i++){ if (idx[i] === k){ m[i] = 1; any = true; } }
       if (any) colours.push({ slot:k, cov:C.blurMask(m, gx, gy, 1), gx, gy, cell:cx, W, H:gy*cx });
     });
   }
@@ -3649,6 +3637,13 @@ function cellMapFor(d){
   let cm = C.buildCellMap(d._img, state.slots.map(s=>C.hexToRgb(s.hex)),
     state.slots.map((_,i)=>d.skip.includes(i)), d.smooth);
   if (d.pixel && d.pixel.on) cm = C.snapToGrid(cm, d.pixel.cells);
+  // the background (the colour round most of its edge) prints nothing, and shows so in the preview (Session 34). A
+  // picture whose edge is partly see-through has no background left to take away: a cut-out, a logo with clear
+  // corners, or text trimmed to its letters fills its edge with the subject itself
+  let clear = 0, ring = 0; const A = d._img.data, gw = d._img.width, gh = d._img.height;
+  for (let i=0;i<gw;i++) for (const j of [0, gh-1]){ ring++; if (A[4*(j*gw + i) + 3] < 128) clear++; }
+  for (let j=1;j<gh-1;j++) for (const i of [0, gw-1]){ ring++; if (A[4*(j*gw + i) + 3] < 128) clear++; }
+  d._bg = d.mode === "relief" || d.keepBg || clear >= ring*0.02 ? -1 : C.dropCellBackground(cm);
   d._raw = cm.idx.slice();
   if (d.forceSlot != null){ const f = clamp(d.forceSlot,0,state.slots.length-1);
     for (let k=0;k<cm.idx.length;k++) if (cm.idx[k] >= 0) cm.idx[k] = f; }
@@ -3666,11 +3661,22 @@ const CUT_OUT = 0.6, NO_DECALS = { jigsaw:1, lithophane:1, enclosure:1, phonecas
 let cutBlocked = "";                                 // why artwork cannot be cut into this model ("open", "load"), or ""
 const cutWanted = d => d.enabled !== false && d.mode !== "relief" && (d.cut === "engrave" || d.cut === "inlay") && !NO_DECALS[state.base.type];
 const cutMode = d => baseSoup && !cutBlocked && cutWanted(d) ? d.cut : null;
+// a picture on the side of an object round about its upright axis is wrapped round it, at its true width, as a
+// label is (Session 34: projected straight on, a 50 mm picture on a 70 mm cylinder came out up to 43% wider at
+// its edges). d.wrap: "auto" (cylinders, spheres, round pots and turned shapes), "wrap" or "flat"
+const WRAP_AUTO = { cylinder:1, turned:1, sphere:1 };
+const canWrap = () => !!CURVED[state.base.type] && state.base.type !== "hex";
+function wrapsRound(d){
+  if (!baseSoup || !canWrap() || d.mode === "relief") return false;
+  if (frameFor(d).n[1] > 0.7 || frameFor(d).n[1] < -0.7) return false;          // on its top or underneath
+  if (d.wrap === "wrap" || d.wrap === "flat") return d.wrap === "wrap";
+  return !!(WRAP_AUTO[state.base.type] || (state.base.type === "shell" && state.base.shell.shape === "round"));
+}
 function buildItem(d){
   const cm = cellMapFor(d); d._cm = cm; d._inlay = false;
   const cut = cutMode(d); d._cut = cut;
   const W = d.width, H = d.width/d.aspect, embed = cut ? d.depth : baseSoup ? d.embed : 0;
-  const proj = C.makeProjector(baseSoup, frameFor(d), W/2, H/2);
+  const proj = wrapsRound(d) ? C.makeWrapProjector(baseSoup, frameFor(d), W/2, H/2) : C.makeProjector(baseSoup, frameFor(d), W/2, H/2);
   const solids = state.slots.map(()=>null);
   if (d.mode === "relief"){
     const N = cm.gx*cm.gy, cellH = new Float32Array(N), lo = d.minH, hi = Math.max(d.minH,d.maxH);
@@ -3678,7 +3684,9 @@ function buildItem(d){
     C.buildDecalSolids(cm, W, H, proj, cellH, embed, state.slots.length).forEach((s,i)=>solids[i] = s);
   } else {
     const maxLen = baseSoup ? (CURVED[state.base.type] ? 1.5 : 2.5) : 0;
-    const opts = { maxLen, smoothEdges:2, eps:Math.max(0.03,(W/cm.gx)*0.5) };
+    // a colour reaching the picture's edge prints up to it (its background is already left out: cellMapFor)
+    // the outline is simplified by at most a quarter of a cell (half a cell thinned a line two cells wide by 15%)
+    const opts = { maxLen, smoothEdges:2, eps:Math.max(0.03,(W/cm.gx)*0.25), closeEdges:true };
     state.slots.forEach((_,s)=>{
       const m = C.maskOfSlot(cm, s);
       if (m) solids[s] = C.buildMaskSolid(m, cm.gx, cm.gy, W, H, proj, cut ? CUT_OUT : heightOf(d,s), embed, opts);
@@ -3702,7 +3710,7 @@ function buildItem(d){
 function normalizeItem(d){
   const base = { offU:0, offV:0, mirror:false, side:"front", quality:"high", res:150, smooth:1, embed:0.2,
     height:0.8, step:0.4, minH:0.3, maxH:2.2, invert:true, skip:[], forceSlot:null, mode:"flat", rot90:0, crop:false,
-    previewMode:"colours", zoom:1, cut:"raised", depth:0.8 };
+    previewMode:"colours", zoom:1, cut:"raised", depth:0.8, wrap:"auto", keepBg:false };
   for (const k in base) if (d[k] === undefined) d[k] = base[k];
   if (!d.outline) d.outline = { on:false, width:0.8, slot:Math.min(1,state.slots.length-1) };
   if (!d.adjust) d.adjust = { bright:0, contrast:0, sat:0 };
@@ -3737,7 +3745,7 @@ function helperMain(){
         // light and the evened-out pixels (for picking the colours)
         const [solid, model, views, pal, opt] = args, lights = [], shaded = [], ready = [];
         const figOf = (s, px, w, h) => { const f = s.ai ? PRCore.photoMaskFromMap(s.ai.v, s.ai.w, s.ai.h, w, h) : PRCore.photoMask(px, w, h, s.tol); return s.fix ? PRCore.photoFixMask(f, w, h, s.fix) : f; };
-        // a photo bent onto the model (v0.29): the page's bend, used at every size (its light from the photo as it is)
+        // a photo bent onto the model (v0.30): the page's bend, used at every size (its light from the photo as it is)
         const bent = (rgba, fig, w, h, b) => b ? PRCore.photoBendApply(rgba, fig, w, h, b) : { rgba, fig };
         for (const v of views){
           const B = bent(v.raw, figOf(v.fig, v.raw, v.w, v.h), v.w, v.h, v.bend), fig = B.fig; let px = v.rgba || B.rgba, L = v.shade && v.shade.L || null;
@@ -4310,7 +4318,7 @@ const AI_FIGURE = {
   mb:19, size:320
 };
 const aiState = { ort:null, session:null, loading:null };
-const aiHooks = { run:null };                        // tests: run(input, size) -> the network's first output
+const aiHooks = { run:null, load:null };              // tests: run(input, size) -> the network's first output; load() in place of the download
 async function sha256Hex(bytes){ const d = await crypto.subtle.digest("SHA-256", bytes); return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, "0")).join(""); }
 // one file: from this browser's cache if it is there and still the right file, else downloaded and checked
 async function aiGet(part, step){
@@ -4477,7 +4485,12 @@ function aiMapOf(id){
 // then the parts added or taken away by hand
 function photoFound(v, px){
   const m = aiMapOf(v.ai);
-  return m ? C.photoMaskFromMap(m.v, m.w, m.h, px.w, px.h) : C.photoMask(px.rgba, px.w, px.h, v.tol);
+  if (m){
+    // a map with (almost) no figure in it, kept before v0.29.0: the colours' outline instead
+    const f = C.photoMaskFromMap(m.v, m.w, m.h, px.w, px.h); let on = 0; for (let i = 0; i < f.length; i++) on += f[i];
+    if (on >= f.length*0.005) return f;
+  }
+  return C.photoMask(px.rgba, px.w, px.h, v.tol);
 }
 function photoFigure(v, px){
   const f = photoFound(v, px);
@@ -4492,7 +4505,7 @@ function photoFixKey(v){
 }
 // find the figure with the AI in every photo of a step that does not have it yet, then line them up again
 async function aiFindFigures(o, only){
-  const todo = (only || o.views).filter(v => !aiMapOf(v.ai) && assets[v.asset]);
+  const todo = (only || o.views).filter(v => !aiMapOf(v.ai) && assets[v.asset]), none = [];
   if (!todo.length) return true;
   try {
     setBusy(true, aiState.session || aiHooks.run ? "Finding the figure…" : `Downloading the AI figure finder (about ${AI_FIGURE.mb} MB)…`);
@@ -4500,7 +4513,11 @@ async function aiFindFigures(o, only){
     for (const [j, v] of todo.entries()){
       if (!aiHooks.run) await aiLoad();
       setBusy(true, `Finding the figure in photo ${j + 1} of ${todo.length}…`); await new Promise(r => setTimeout(r, 20));
-      v.ai = aiMapAsset(await aiFigureMap(assets[v.asset].canvas), AI_FIGURE.size);
+      // a map with (almost) no figure in it is not kept: the colour method's outline stays for that photo (Session 34:
+      // it used to replace it, and the photo then had no figure at all)
+      const S = AI_FIGURE.size, map = await aiFigureMap(assets[v.asset].canvas), m = C.photoMaskFromMap(map, S, S, S, S);
+      let on = 0; for (let i = 0; i < m.length; i++) on += m[i];
+      if (on < S*S*0.005) none.push(o.views.indexOf(v) + 1); else v.ai = aiMapAsset(map, S);
     }
   } catch (err){
     setBusy(false); aiFailed(err);
@@ -4508,65 +4525,201 @@ async function aiFindFigures(o, only){
   }
   setBusy(false);
   // the angle found from the colour method's outline means little: look again from the side it was taken from
-  for (const v of todo){ photoToSide(v); await photoFitNow(o, v, true); }
-  notify(`The AI figure finder found the figure in ${todo.length === 1 ? "the photo" : `${todo.length} photos`}.`);
-  return true;
+  const found = todo.filter(v => aiMapOf(v.ai));
+  for (const v of found){ photoToSide(v); await photoFitNow(o, v, true); }
+  if (!none.length) notify(`The AI figure finder found the figure in ${todo.length === 1 ? "the photo" : `${todo.length} photos`}.`);
+  else notify(`The AI figure finder found no clear figure in ${todo.length === 1 ? "the photo" : `photo ${none.join(" and ")}`}, so the outline found by its colours stays${todo.length === 1 ? "" : " there"}. A photo where the figure fills more of the picture helps; you can also paint the outline by hand.`);
+  return !!found.length;
 }
 function aiFailed(err){
   console.warn(err);
   notify(err.unexpected ? "A file of the AI figure finder was not the one it should be, so it was not used (it may have been changed on the way). Nothing was run. Try again later."
     : `The AI figure finder could not be loaded (${err.message}). Check the internet connection. A website that blocks downloads from other sites needs the models folder next to index.html, with ort.wasm.bundle.min.mjs and ort-wasm-simd-threaded.wasm from ONNX Runtime Web 1.30.0 in it. Finding the figure by colour works without it.`);
 }
-/* ---- the AI cut-out (Session 20) ----
-   The same figure finder takes a picture's background away: the subject stays, the rest turns clear, and
-   the picture is trimmed to it. The cut-out is a new picture; the original is kept (d.uncut) so the
-   background can be put back. Both are saved in a project file. */
+/* ---- the AI cut-out (Session 20) and the cut-out by colour (Session 34) ----
+   The figure finder takes a picture's background away: the subject stays, the rest turns clear, and the picture is
+   trimmed to it. A logo or drawing on one plain colour is cut out by that colour instead (C.cutoutByColour): at
+   once, with nothing to download, also inside its letters, and with soft edges in the subject's own colour (the AI,
+   made for photos, often found no subject in a logo: the owner's keychain, Session 34). The cut-out is a new
+   picture; the original is kept (d.uncut) so the background can be put back, and d.cutBy says how it was cut, so
+   it can be cut again from the original with other settings. Both pictures are saved in a project file. */
 function pictureHasBackground(d){
   const a = d && !d.text && d.asset && assets[d.asset]; if (!a || !a.canvas) return false;
   const c = a.canvas, k = Math.min(1, 256/Math.max(c.width, c.height)), img = resample(c, Math.max(2, Math.round(c.width*k)), Math.max(2, Math.round(c.height*k)), false);
   return C.edgeOpacity(img.data, img.width, img.height) > 0.5;
 }
+// what is round a picture's edge (C.pictureBackground) and, when its edge is clear already, the colour round the
+// picture itself (C.plateColour), worked out on a small copy and kept with the picture
+const pictureBgCache = new WeakMap();
+function pictureBgOf(a){
+  if (!a || !a.canvas) return null;
+  let r = pictureBgCache.get(a.canvas);
+  if (!r){
+    const c = a.canvas, k = Math.min(1, 256/Math.max(c.width, c.height)), img = resample(c, Math.max(2, Math.round(c.width*k)), Math.max(2, Math.round(c.height*k)), false);
+    r = C.pictureBackground(img.data, img.width, img.height);
+    r.plate = r.rgb ? null : C.plateColour(img.data, img.width, img.height);
+    pictureBgCache.set(a.canvas, r);
+  }
+  return r;
+}
+const plainBackground = b => !!(b && b.rgb && b.plain >= 0.8);
+const cutDot = rgb => `<span class="cdot" style="background:rgb(${rgb.map(v => Math.round(v)).join(",")})"></span>`;
+// the main colours of a cut-out picture, for "Take this colour away too": worked out on a small copy and kept. Two
+// shades close together show as one, and a colour that is nearly all of the picture is not offered
+const cutColourCache = new WeakMap();
+function cutColours(a){
+  if (!a || !a.canvas) return [];
+  let r = cutColourCache.get(a.canvas); if (r) return r;
+  const c = a.canvas, k = Math.min(1, 128/Math.max(c.width, c.height)), px = resample(c, Math.max(2, Math.round(c.width*k)), Math.max(2, Math.round(c.height*k)), false).data;
+  const cents = C.kmeans(px, 6).map(q => q.map(Math.round)), count = cents.map(() => 0); let on = 0;
+  for (let i=0;i<px.length;i+=4){
+    if (px[i+3] < 128) continue; on++;
+    let bj = 0, bd = Infinity; cents.forEach((q, j) => { const dd = C.colorDist([px[i], px[i+1], px[i+2]], q); if (dd < bd){ bd = dd; bj = j; } }); count[bj]++;
+  }
+  r = [];
+  cents.map((rgb, j) => ({ rgb, share:on ? count[j]/on : 0 })).sort((p, q) => q.share - p.share).forEach(q => {
+    const same = r.find(o => C.colorDist(o.rgb, q.rgb) < 3*40*40);
+    if (same) same.share += q.share; else r.push(q);
+  });
+  r = r.filter(q => q.share >= 0.03 && q.share <= 0.97);
+  cutColourCache.set(a.canvas, r);
+  return r;
+}
+// a picture made from pixels
+function pictureFrom(rgba, W, H){
+  const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+  const x = cv.getContext("2d", { willReadFrequently:true }), img = x.createImageData(W, H); img.data.set(rgba); x.putImageData(img, 0, 0);
+  return cv;
+}
+function useCutout(d, cv, how){
+  const id = "a"+(uid++); assets[id] = pictureAsset(cv);
+  if (!d.uncut) d.uncut = d.asset;
+  d.asset = id; d.src = cv; d.thumb = thumbURL(cv); d.crop = true; d.cutBy = how;
+  d._srcSig = ""; d._srcCv = null; d._imgKey = ""; d.solids = null;
+}
+// the original picture's background taken away by its colour, then each colour in how.peel round what is left
+// (a badge's plate); how: { tol, holes (true, false or left out for the app to choose), peel:[[r, g, b], …] }
+function colourCutout(orig, how){
+  const src = orig.canvas, W = src.width, H = src.height, px = src.getContext("2d", { willReadFrequently:true }).getImageData(0, 0, W, H).data;
+  const r = C.cutoutByColour(px, W, H, { tol:how.tol, holes:how.holes == null ? "auto" : how.holes });
+  let rgba = r ? r.rgba : new Uint8ClampedArray(px), kept = 0; const peel = [];
+  for (const c of how.peel || []){
+    const r2 = C.cutoutByColour(rgba, W, H, { bg:c, tol:how.tol, holes:true });
+    if (r2 && r2.kept > 0.002){ rgba = r2.rgba; peel.push(c.slice()); }
+  }
+  for (let i = 3; i < rgba.length; i += 4) if (rgba[i] > 127) kept++;
+  return { rgba, W, H, kept:kept/(W*H), bg:r ? r.bg : null, inside:r ? r.inside : 0, holes:r ? r.auto : false, peel };
+}
+async function cutByColour(d, how){
+  const orig = d && !d.text && assets[d.uncut || d.asset]; if (!orig || !orig.canvas) return false;
+  setBusy(true, "Taking the background away…"); await new Promise(r => setTimeout(r, 30));
+  let r = null;
+  try { r = colourCutout(orig, how || {}); } catch (err){ console.warn(err); }
+  setBusy(false);
+  if (!r || r.kept < 0.005){ notify("Taking that colour away would leave almost nothing, so the picture was left as it was. Try a lower setting, or the AI."); return false; }
+  useCutout(d, pictureFrom(r.rgba, r.W, r.H), { by:"colour", tol:how && how.tol != null ? how.tol : 50, holes:r.holes, inside:r.inside, peel:r.peel });
+  return true;
+}
 async function aiCutout(d){
-  const a = d && !d.text && d.asset && assets[d.asset]; if (!a || !a.canvas) return false;
-  const src = a.canvas, W = src.width, H = src.height;
+  const a = d && !d.text && assets[d.uncut || d.asset]; if (!a || !a.canvas) return false;
+  const src = a.canvas, W = src.width, H = src.height, bg = pictureBgOf(a);
+  // on a plain background the colour cut-out is what is left when the AI cannot help
+  const byColour = async why => { notify(why); return cutByColour(d, { tol:50 }); };
   try {
     setBusy(true, aiState.session || aiHooks.run ? "Finding the subject…" : `Downloading the AI figure finder (about ${AI_FIGURE.mb} MB)…`);
     await new Promise(r => setTimeout(r, 30));
-    if (!aiHooks.run) await aiLoad();
+    if (!aiHooks.run) await (aiHooks.load ? aiHooks.load() : aiLoad());
     setBusy(true, "Cutting out the subject…"); await new Promise(r => setTimeout(r, 20));
-    const map = await aiFigureMap(src);
-    const rgba = C.cutoutWithMap(src.getContext("2d", { willReadFrequently:true }).getImageData(0, 0, W, H).data, W, H, map, AI_FIGURE.size, AI_FIGURE.size);
-    let kept = 0; for (let i = 3; i < rgba.length; i += 4) if (rgba[i] > 127) kept++;
+    const map = await aiFigureMap(src), px = src.getContext("2d", { willReadFrequently:true }).getImageData(0, 0, W, H).data;
+    let rgba = C.cutoutWithMap(px, W, H, map, AI_FIGURE.size, AI_FIGURE.size);
+    const keptOf = q => { let k = 0; for (let i = 3; i < q.length; i += 4) if (q[i] > 127) k++; return k; };
+    let kept = keptOf(rgba);
+    // on a plain background the edges are taken from the colours: sharper than the AI's map, and with no rim of it.
+    // Not when the colours would take more than a rim (a white shirt on a pale wall is near the wall's colour)
+    if (plainBackground(bg)){
+      const col = C.cutoutByColour(px, W, H, { holes:false }), both = col && C.cutoutCombine(rgba, col.rgba), k2 = both ? keptOf(both) : 0;
+      if (both && k2 >= kept*0.97){ rgba = both; kept = k2; }
+    }
     setBusy(false);
-    if (kept < W*H*0.01){ notify("The AI found no clear subject in this picture, so it was left as it was."); return false; }
-    const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
-    const x = cv.getContext("2d", { willReadFrequently:true }), img = x.createImageData(W, H); img.data.set(rgba); x.putImageData(img, 0, 0);
-    const id = "a"+(uid++); assets[id] = pictureAsset(cv);
-    if (!d.uncut) d.uncut = d.asset;
-    d.asset = id; d.src = cv; d.thumb = thumbURL(cv); d.crop = true;
-    d._srcSig = ""; d._srcCv = null; d._imgKey = ""; d.solids = null;
+    if (kept < W*H*0.01){
+      if (bg && bg.rgb && bg.plain >= 0.5) return byColour("The AI found no clear subject in this picture (it is made for photos), so its background was taken away by its colour instead.");
+      notify("The AI found no clear subject in this picture, so it was left as it was. For a logo or a drawing, try a picture of it on a plain background.");
+      return false;
+    }
+    useCutout(d, pictureFrom(rgba, W, H), { by:"ai" });
     return true;
-  } catch (err){ setBusy(false); aiFailed(err); return false; }
+  } catch (err){
+    setBusy(false);
+    if (plainBackground(bg)){ console.warn(err); return byColour("The AI figure finder could not be loaded, so the background was taken away by its colour instead."); }
+    aiFailed(err); return false;
+  }
 }
 function aiUncut(d){
   if (!d || !d.uncut || !assets[d.uncut]) return false;
-  d.asset = d.uncut; delete d.uncut; d.crop = false;
+  d.asset = d.uncut; delete d.uncut; delete d.cutBy; d.crop = false;
   d.src = assets[d.asset].canvas; d.thumb = thumbURL(d.src); d._srcSig = ""; d._srcCv = null; d._imgKey = ""; d.solids = null;
   return true;
 }
-// the buttons, on the Art tab and beside a keychain's picture; after: what else to do once it is cut out
+// the buttons, on the Art tab and beside a keychain's picture; after: what else to do once it is cut out (or put back)
+let recutTimer = 0;
 function aiCutoutRow(p, d, after){
   if (!d || d.text) return;
-  if (d.uncut && assets[d.uncut]){
-    note(p, "<b>Cut out with AI.</b> Only the subject prints; the background was taken away.");
-    buttonRow(p, [["Put the background back", () => { aiUncut(d); if (after) after(false); schedule(); pushHistory(); renderTab(); }]]);
+  const done = cut => { if (after) after(cut); schedule(); pushHistory(); renderTab(); };
+  const aiButton = label => [label, async () => { if (!await aiCutout(d)) return;
+    if (d.cutBy && d.cutBy.by === "ai") notify("The background is gone: only the subject prints, trimmed to its edges. If the AI took too much or too little, put the background back.");
+    done(true); }];
+  const aiNote = `The AI is made for photos, even busy ones. The first time it downloads the AI figure finder (about ${AI_FIGURE.mb} MB, checked before it runs); the picture never leaves this computer.`;
+  const orig = d.uncut && assets[d.uncut], cur = assets[d.asset];
+  if (orig){
+    const how = d.cutBy && d.cutBy.by === "colour" ? d.cutBy : null, bg = pictureBgOf(orig);
+    if (how){
+      const recut = (o, now) => {
+        clearTimeout(recutTimer);
+        recutTimer = setTimeout(async () => { if (await cutByColour(d, Object.assign({ tol:how.tol, holes:how.holes, peel:how.peel }, o))) done(true); }, now ? 0 : 350);
+      };
+      note(p, `<b>Background taken away by its colour</b>${bg && bg.rgb ? " " + cutDot(bg.rgb) : ""}${(how.peel || []).map(c => " then " + cutDot(c)).join("")}. Only the picture prints, trimmed to its edges.`);
+      if (how.inside) segField(p, [["in","Inside it too"],["round","Only round it"]], () => how.holes ? "in" : "round", v => recut({ holes:v === "in" }, true), "two");
+      if (how.inside) note(p, how.holes ? "The same colour inside the picture is see-through too, like the holes in letters." : "The same colour inside the picture prints, like the white inside a drawing's outline.");
+      numField(p, { label:"How different a colour can be and still go", min:0, max:100, step:1, def:50, get:() => how.tol, set:v => { how.tol = v; },
+        onChange:() => recut({ tol:how.tol }), sub:() => "Raise it if bits of the background stay, lower it if the picture's edges get eaten." });
+      // any other colour of the picture can go too, everywhere in it (up to four)
+      const cols = (how.peel || []).length < 4 ? cutColours(cur) : [];
+      if (cols.length > 1){
+        const w = document.createElement("div"); w.className = "field full";
+        w.innerHTML = `<label>Take this colour away too</label><div class="chips"></div>`;
+        cols.forEach(q => {
+          const b = document.createElement("button"); b.type = "button"; b.className = "chip";
+          b.innerHTML = `<span class="sw" style="background:rgb(${q.rgb.join(",")})"></span>${esc(colourWord(q.rgb))}`;
+          b.title = `Take the ${colourWord(q.rgb).toLowerCase()} away everywhere in the picture`;
+          b.onclick = async () => { if (await cutByColour(d, { tol:how.tol, holes:how.holes, peel:[...(how.peel || []), q.rgb] })) done(true); };
+          w.querySelector(".chips").appendChild(b);
+        });
+        p.appendChild(w);
+      }
+    } else note(p, "<b>Cut out with AI.</b> Only the subject prints; the background was taken away.");
+    const plate = how ? pictureBgOf(cur) && pictureBgOf(cur).plate : null;
+    buttonRow(p, [["Put the background back", () => { aiUncut(d); done(false); }],
+      how ? aiButton("✨ Cut out with AI instead") : bg && bg.rgb && bg.plain >= 0.5 ? ["✂ Take it away by its colour instead", async () => { if (await cutByColour(d, { tol:50 })) done(true); }] : null,
+      plate ? [`Take the ${colourWord(plate.rgb).toLowerCase()} round it away too`, async () => { if (await cutByColour(d, { tol:how.tol, holes:how.holes, peel:[...(how.peel || []), plate.rgb] })) done(true); }] : null].filter(Boolean));
+    if (plate) note(p, `What is left sits on ${cutDot(plate.rgb)} ${esc(colourWord(plate.rgb).toLowerCase())} (a badge or a sticker's backing). Take it away too and only what is on it prints.`);
   } else if (pictureHasBackground(d)){
-    buttonRow(p, [["✨ Cut out the subject with AI", async () => {
-      if (!await aiCutout(d)) return;
-      if (after) after(true);
-      notify("The background is gone: only the subject prints, trimmed to its edges. If the AI took too much or too little, put the background back on the Art tab.");
-      schedule(); pushHistory(); renderTab(); }]]);
-    note(p, `Takes the background away from a photo, even a busy one. The first time it downloads the AI figure finder (about ${AI_FIGURE.mb} MB, checked before it runs); the picture never leaves this computer.`);
+    const bg = pictureBgOf(cur);
+    if (plainBackground(bg)){
+      buttonRow(p, [["✂ Take the background away", async () => { if (!await cutByColour(d, { tol:50 })) return;
+        notify(d.cutBy.holes && d.cutBy.inside ? "The background is gone, inside the letters too: only the picture prints, trimmed to its edges." : "The background is gone: only the picture prints, trimmed to its edges.");
+        done(true); }], aiButton("✨ Cut out with AI")]);
+      note(p, `The background is one plain colour ${cutDot(bg.rgb)}, so it can be taken away by its colour, straight away and with nothing to download. ${aiNote}`);
+    } else {
+      buttonRow(p, [aiButton("✨ Cut out the subject with AI")]);
+      note(p, `Takes the background away from a photo, even a busy one. The first time it downloads the AI figure finder (about ${AI_FIGURE.mb} MB, checked before it runs); the picture never leaves this computer.`);
+    }
+  } else {
+    // a picture with a clear background already, on a plate of one colour (a badge): that can go too
+    const plate = pictureBgOf(cur) && pictureBgOf(cur).plate;
+    if (plate){
+      buttonRow(p, [[`Take the ${colourWord(plate.rgb).toLowerCase()} round it away`, async () => { if (await cutByColour(d, { tol:50, holes:false, peel:[plate.rgb] })) done(true); }]]);
+      note(p, `This picture sits on ${cutDot(plate.rgb)} ${esc(colourWord(plate.rgb).toLowerCase())} (a badge or a sticker's backing). Take it away and only what is on it prints.`);
+    }
   }
 }
 // line a photo up with the model; search: also look for the angle it was taken from (±45° round, ±20° up)
@@ -4639,7 +4792,7 @@ const photoLightCache = new Map(), photoShadeCache = new Map();
 const cacheSet = (m, k, v, n) => { m.set(k, v); if (m.size > n) m.delete(m.keys().next().value); return v; };
 const photoLightKey = (v, f) => JSON.stringify([v.asset, photoCamOf(v), f, v.ai || "", v.tol, photoFixKey(v)]);
 const photoShadeKey = (v, w, f, L, bent) => JSON.stringify([v.asset, w, photoCamOf(v), f, L, v.ai || "", v.tol, photoFixKey(v), !!bent]);
-/* bending a photo onto the model (v0.29): a figure that stands a little differently from the model (an artist's
+/* bending a photo onto the model (v0.30): a figure that stands a little differently from the model (an artist's
    render, legs a little wider, arms a little lower) never quite lines up, and the model's shins then read the
    background or the boots. Once a photo is lined up it is bent onto the model by a few pixels (core photoBend)
    before the model's colours are read from it (its light and its colours are still found in the photo as it
@@ -5888,6 +6041,7 @@ function numField(parent,o){
   const sync = ()=>{ const v = o.get(); num.value = +(+v).toFixed(2); rng.value = v; if (sub) sub.textContent = o.sub();
     if (rst) rst.hidden = Math.abs(v - def) < 1e-9; };
   w._refreshSub = ()=>{ if (sub) sub.textContent = o.sub(); };
+  w._sync = sync;                                     // a linked field changed this one's value (width and height)
   const apply = v => { if (isNaN(v)) return; o.set(clamp(v,o.min,o.max)); sync(); (o.onChange||dirty)(); pushHistory(); };
   rng.addEventListener("input", ()=>apply(parseFloat(rng.value)));
   num.addEventListener("change", ()=>apply(parseFloat(num.value)));
@@ -8864,6 +9018,8 @@ function tabArt(p){
   segField(p,[["original","Photo"],["colours","Colours"],["split","Split"]],()=>d.previewMode, v=>{ d.previewMode = v; drawPreview(); });
   p.insertAdjacentHTML("beforeend", `<div class="preview-wrap"><canvas id="preview"></canvas></div>`);
   note(p, d.text ? "This is how the text will print." : "Click a colour in the preview to leave it out of the print.");
+  if (d._cm && d._bg >= 0 && !d._cm.idx.some(v => v >= 0))
+    note(p, "<b>Nothing of this picture prints:</b> it is all one colour, so all of it is taken for its background. Tick <b>Print the background too</b> under Colours to print it.");
   aiCutoutRow(p, d);
 
   if (state.base.type === "enclosure" && !lidLogo){       // boxes take artwork only as a logo on the lid
@@ -8905,10 +9061,20 @@ function tabArt(p){
   } else {
   p.insertAdjacentHTML("beforeend", `<h2>Size and place</h2>`);
   if (state.base.type === "frame") note(p, "On a photo frame a picture goes on the border: it starts on the bottom edge. The window in the middle stays open.");
-  numField(p,{ label:"Width (mm)", min:5,max:250,step:0.5, get:()=>d.width, set:v=>d.width=v, onChange:ch, sub:()=>`Height ${(d.width/d.aspect).toFixed(1)} mm` });
+  // width and height go together (Session 34: the height can be set too, for lettering a size tall)
+  let hField = null;
+  const wField = numField(p,{ label:"Width (mm)", min:5,max:250,step:0.5, get:()=>d.width, set:v=>d.width=v, onChange:()=>{ ch(); if (hField) hField._sync(); } });
+  hField = numField(p,{ label:"Height (mm)", min:1,max:250,step:0.5, noReset:true, get:()=>+(d.width/d.aspect).toFixed(2), set:v=>{ d.width = clamp(v*d.aspect, 5, 250); },
+    onChange:()=>{ ch(); wField._sync(); } });
   numField(p,{ label:"Rotation (°)", min:-180,max:180,step:1, get:()=>d.rotation, set:v=>d.rotation=v, onChange:ch });
   if (FLAT[state.base.type]) segField(p,[["front","On the front"],["back","On the back"]],()=>d.side,
     v=>{ d.side = v; d._imgKey = ""; ch(); }, "two");
+  if (canWrap() && baseSoup && d.mode !== "relief"){
+    segField(p,[["wrap","Wrap it round"],["flat","Project it straight on"]],()=>wrapsRound(d) ? "wrap" : "flat", v=>{ d.wrap = v; renderTab(); ch(); }, "two");
+    note(p, wrapsRound(d) ? "Wrapped round the object like a label: its width is measured round the curve, so it keeps its true size."
+      : frameFor(d).n[1] > 0.7 || frameFor(d).n[1] < -0.7 ? "On a top or underneath a picture is always projected straight on."
+      : "Projected straight on, as from a projector: the picture gets wider where the surface turns away. Best for small pictures, or a shape that isn't round.");
+  }
   group(p,"Nudge and mirror", g2 => {
     note(g2, "Click the model in the preview to move this artwork, or nudge it with the arrow keys.");
     numField(g2,{ label:"Move across (mm)", min:-120,max:120,step:0.5, get:()=>d.offU, set:v=>d.offU=v, onChange:ch });
@@ -8964,6 +9130,10 @@ function tabArt(p){
     });
     buttonRow(p, [["Drop the background colour", ()=>dropBackground(d)]]);
   }
+  // the colour round most of the picture's edge is its background and prints nothing (Session 34); it can print
+  if (!consumer && d.mode !== "relief" && (d._bg >= 0 || d.keepBg))
+    checkField(p, d.keepBg ? "Print the background too" : `Print the background too (the ${esc(((state.slots[d._bg] || {}).name || "colour").toLowerCase())} round the picture)`,
+      () => !!d.keepBg, v => { d.keepBg = v; d._imgKey = ""; renderTab(); ch(); });
   }
   if (!consumer && d.mode !== "relief") group(p,"Outline", g2 => {
     checkField(g2,"Outline the whole artwork in one colour",()=>d.outline.on, v=>{ d.outline.on = v; renderTab(); ch(); });
@@ -9072,8 +9242,10 @@ function drawPreview(){
   cv.width = gx; cv.height = gy; cv.style.width = w+"px"; cv.style.height = Math.round(w/d.aspect)+"px";
   const x = cv.getContext("2d");
   if (d.previewMode === "original" || d.previewMode === "split"){
-    const src = sourceCanvas(d);
-    if (src) x.drawImage(src, 0, 0, gx, gy);
+    // the picture the same way round as its colours (mirrored, or on the back), so a click on either half
+    // leaves out the colour under it (Session 34: in Split the photo half was the other way round)
+    const src = sourceCanvas(d), flip = d.mirror !== (d.side === "back");
+    if (src){ x.save(); if (flip){ x.translate(gx, 0); x.scale(-1, 1); } x.drawImage(src, 0, 0, gx, gy); x.restore(); }
   }
   if (d.previewMode !== "original"){
     const im = x.createImageData(gx,gy), rgb = state.slots.map(s2=>C.hexToRgb(s2.hex));
@@ -9134,7 +9306,8 @@ async function addTextItem(){
   const t = { value:"Your name", font:"Manrope", weight:800 };
   await document.fonts.load('800 180px "Manrope"');
   const canvas = textCanvas(t);
-  const it = newItem("Text", canvas, { text:t, forceSlot:state.slots.length>1?1:0, mode:"flat", quality:"ultra", height:0.8 });
+  // trimmed to its letters (Session 34), so its width and height are the letters' own
+  const it = newItem("Text", canvas, { text:t, forceSlot:state.slots.length>1?1:0, mode:"flat", quality:"ultra", height:0.8, crop:true });
   it.src = canvas; it.thumb = thumbURL(canvas);
   state.items.push(it); state.active = state.items.length-1;
   renderTab(); schedule(); pushHistory();
@@ -9607,7 +9780,7 @@ function photoCard(c){
       : m < 0.75 ? `The outline matches the photo only ${Math.round(m*100)}%. Pick the side the photo was taken from, or drag it into place.${aiMapOf(v.ai) ? "" : " On a busy background, try Find the figure with AI below."}`
       : `The outline matches the photo ${Math.round(m*100)}%. Drag it or use the arrows to fine-tune.`; };
   showMatch();
-  // bent onto the model before its colours are read (v0.29)
+  // bent onto the model before its colours are read (v0.30)
   if (v.fit && photoStrict(v)){
     checkField(c, "Bend the photo a little to fit the model", () => photoBends(v), x => { if (x) delete v.bend; else v.bend = false; renderKeepFocus(); photoRepaint(); });
     const b = photoBends(v) && photoBendOf(v);
@@ -10544,6 +10717,14 @@ function sanitizeProject(data){
     if (it.rotation === undefined) it.rotation = 0;
     if (it.asset != null) it.asset = cleanStr(String(it.asset), 40, null);
     if (typeof it.uncut === "string" && it.uncut) it.uncut = cleanStr(it.uncut, 40, null); else delete it.uncut;
+    // how a cut-out was made (Session 34): with the AI, or by colour with its settings (to cut it again from the original)
+    const cb = it.cutBy;
+    if (it.uncut && cb && typeof cb === "object" && !Array.isArray(cb)){
+      it.cutBy = cb.by !== "colour" ? { by:"ai" } : { by:"colour", tol:Math.min(100, Math.max(0, cleanNum(cb.tol, 50))), holes:cb.holes === true,
+        inside:Math.min(9999, Math.max(0, Math.round(cleanNum(cb.inside, 0)))),
+        peel:(Array.isArray(cb.peel) ? cb.peel : []).filter(c => Array.isArray(c) && c.length === 3 && c.every(v => typeof v === "number" && isFinite(v))).slice(0, 4)
+          .map(c => c.map(v => Math.min(255, Math.max(0, Math.round(v))))) };
+    } else delete it.cutBy;
     it.place = it.place && typeof it.place === "object"
       ? { c: vec3(it.place.c, [0,0,0]), n: vec3(it.place.n, [0,1,0]) } : undefined;
     it.skip = Array.isArray(it.skip) ? it.skip.filter(x => Number.isInteger(x) && x >= 0 && x < MAX_SLOTS) : [];
@@ -10552,6 +10733,8 @@ function sanitizeProject(data){
     // cut into the object (Session 32): one of three words, and a depth in the slider's range
     it.cut = ["engrave","inlay"].includes(it.cut) ? it.cut : "raised";
     it.depth = Math.min(5, Math.max(0.2, cleanNum(it.depth, 0.8)));
+    it.wrap = ["wrap","flat"].includes(it.wrap) ? it.wrap : "auto";              // round a round object (Session 34)
+    it.keepBg = it.keepBg === true;                                                // print the background too (Session 34)
     if (it.example !== true) delete it.example;
     it.mm = Array.isArray(it.mm) && it.mm.length === 2 && it.mm.every(v => typeof v === "number" && isFinite(v) && v > 0.1 && v < 5000) ? it.mm.slice() : undefined;
     return it;
@@ -11107,7 +11290,7 @@ window.MakerForge = {
   get rev(){ return buildRev; },
   get busy(){ return busy || queued || rebuildPending || exampleBusy > 0 || photoJobsOut > 0 || photoFitting > 0 || photoBusy > 0; },
   thumb: modelThumb,
-  art: { cutout: aiCutout, uncut: aiUncut, hasBackground: pictureHasBackground },
+  art: { cutout: aiCutout, uncut: aiUncut, hasBackground: pictureHasBackground, wraps: wrapsRound },
   examples: { list: EXAMPLES, forType: EXAMPLE_FOR_TYPE, art: EXAMPLE_ART, canvas: exampleCanvas, load: loadExample, drop: dropExamples },
   get tracer(){ return tracerInfo; },
   get enclosure(){ return enclosureInfo; },

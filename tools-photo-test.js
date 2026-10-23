@@ -124,7 +124,7 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
   check(eyes.length > 0 && eyesKept > 0.6 && eyesGone < 0.2, "small details (the eyes) are kept with a small speck size and cleaned away with a big one",
     `${eyes.length} eye triangles: ${(eyesKept * 100).toFixed(0)}% kept at 1 mm², ${(eyesGone * 100).toFixed(0)}% at 40 mm²`);
 
-  // 5d. following the model's shape (v0.29): the colours chosen for the whole model at once, by graph cuts
+  // 5d. following the model's shape (v0.30): the colours chosen for the whole model at once, by graph cuts
   {
     // the max-flow itself, against every cut of small random graphs
     const rnd = C.seededRandom(42); let wrong = 0;
@@ -141,7 +141,7 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
       if (cut(C.graphCut(n, first, head, rev, cap.slice(), tr.slice())) !== best) wrong++;
     }
     check(!wrong, "the graph cut finds the cheapest cut (400 small graphs, against every cut)", `${wrong} wrong`);
-    // against each triangle taking its own pixels' colour (as before v0.29)
+    // against each triangle taking its own pixels' colour (as before v0.30)
     const old1 = new Uint8Array(topo.n).fill(255), old2 = new Uint8Array(topo.n).fill(255);
     C.paintFromPhotos(solid, topo, old1, [{ cam: "front", fit: F.fit, cls: clsF }], { slots, fill: true, speck: 1, shape: false });
     C.paintFromPhotos(solid, topo, old2, [{ cam: "front", fit: F.fit, cls: clsF }, { cam: "back", fit: Fb.fit, cls: clsB }], { slots, fill: true, speck: 1, shape: false });
@@ -155,7 +155,7 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
     check(skinOf(p1) > 0.8 && skinOf(p1) > skinOf(old1) + 0.2, "the backs of the legs and arms (the front photo cannot see them) take the skin of their fronts",
       `${behind.length} triangles: ${(skinOf(old1) * 100).toFixed(0)}% skin from the nearest colour, ${(skinOf(p1) * 100).toFixed(0)}% from the other side`);
   }
-  // 5e. bending a photo onto the model (v0.29): the photo's figure stands a little differently (arms 2.5 mm
+  // 5e. bending a photo onto the model (v0.30): the photo's figure stands a little differently (arms 2.5 mm
   // further out, legs 1.5 mm, the head 1 mm higher), as in an artist's picture of a model
   {
     const posed = { pos: Float32Array.from(solid.pos), idx: solid.idx }, moved = new Uint8Array(solid.pos.length / 3), I = solid.idx;
@@ -381,6 +381,14 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
   // left out of lining up, so it lines up roughly (it did not before: 45% outline, 54% of the surface right)
   check(aiBtn() && byColour.a < 0.05 && byColour.acc > 0.6, "by colour it lines up roughly (the books round it are left out of lining up), and the card offers the AI figure finder",
     `outline ${(byColour.match * 100).toFixed(0)}%, size off ${(byColour.a * 100).toFixed(0)}%, ${(byColour.acc * 100).toFixed(1)}% of the surface right`);
+  // the AI finding nothing (a flat map) keeps the colours' outline, and says so (v0.29.0: the photo lost its figure)
+  MF.paint.photo.ai.hooks.run = async (input, S) => new Float32Array(S * S);
+  const match0 = bv.match; let said = ""; const watch = setInterval(() => { said += " " + document.querySelector("#notice").textContent; }, 5);
+  aiBtn().click();
+  for (let i = 0; i < 200 && !/found no clear figure/.test(said); i++) await sleep(25);
+  await settle(); clearInterval(watch);
+  check(!bv.ai && /found no clear figure in the photo, so the outline found by its colours stays/.test(said) && bv.match === match0 && aiBtn(),
+    "the AI finding no figure: the outline found by its colours stays, and the card says so", `outline ${(bv.match * 100).toFixed(0)}%`);
   let netCalls = 0; MF.paint.photo.ai.hooks.run = async (input, S) => { netCalls++; return netRaw(input, S); };
   aiBtn().click();
   for (let i = 0; i < 600 && !(bv.ai && MF.paint.photo.info(bop) && !/Finding|Lining|Colouring/.test(document.querySelector("#statusLine").textContent)); i++) await sleep(50);
@@ -638,7 +646,7 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
   hv.views[1].fix = "<img src=x onerror=alert(1)>";
   hv.views[2].fix = [{ add: "yes", r: 1e9, p: [NaN, 5, -3, 0.5, 0.2, "x"] }, { p: "x" }, null, { add: true, r: -4, p: [0.5] }, { add: true, p: Array(9000).fill(0.5) }];
   hv.views[0].fit.k = 1e9; hv.views[2].fit.k = -3; hv.views[1].near = "<script>"; hv.views[3].near = 99;           // how close (Session 23)
-  hv.shape = "<img src=x onerror=alert(1)>"; hv.views[0].bend = "no"; hv.views[1].bend = false; hv.views[2].bend = { evil: 1 };   // v0.29
+  hv.shape = "<img src=x onerror=alert(1)>"; hv.views[0].bend = "no"; hv.views[1].bend = false; hv.views[2].bend = { evil: 1 };   // v0.30
   data.state.items = (data.state.items || []).concat([{ evil: 1 }, "<img src=x onerror=alert(1)>", "y".repeat(500), 7].map((u, i) => ({ id: 900 + i, name: "hostile " + i, uncut: u, width: 20 })));
   t0 = Date.now(); const e0 = env.errors.length; await open(JSON.stringify(data)); const hostileMs = Date.now() - t0;
   const ho = MF.state.paint.ops.find(o => o.k === "photo"), herr = env.errors.slice(e0).filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));

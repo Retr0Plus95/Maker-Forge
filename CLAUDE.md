@@ -47,7 +47,9 @@ Plus, depending on what changed:
 - enclosure work → `npm run test:enclosure`
 - painter work, or `meshEditor` / the paint steps / 3mf or OBJ reading and writing → `npm run test:paint`
 - phone case work, or `PHONES` / `heightSheet` → `npm run test:phonecase`
-- pictures on objects (placement, the Art tab), or the keys that move artwork → `npm run test:art`
+- pictures on objects (placement, the Art tab, `makeWrapProjector`, `buildCellMap`, `dropCellBackground`, `maskToPolys`' `keep`), taking a
+  picture's background away (`cutoutByColour`, `pictureBackground`, `plateColour`, the cut-out buttons), or the keys that move artwork →
+  `npm run test:art` (its test pictures, with their true coverage, are in `tools-cutout-pictures.js`)
 - colour from a photo (the `photo*` functions in `src/core.js`, the Paint tab's photo step) or the AI figure finder
   (`AI_FIGURE`, `models/`) → `npm run test:photo` (`CORE=1` for the engine only; the test figure and its photos are in
   `tools-photo-figure.js`; the model runs in Node through the `onnxruntime-web` dev dependency). The photo steps on the

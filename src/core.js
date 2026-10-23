@@ -4385,12 +4385,338 @@
     const fine = opt && opt.k > 0 ? photoFit(solid, best.cam, mask, W, H, mirror, null, false, opt) : null;
     return fine ? Object.assign(fine, { cam: best.cam, score: best.score }) : best;
   }
+  // ---- following the model's shape (v0.30) ----
+  // Each triangle reading the colour most of its photo pixels vote for gives ragged edges, specks, and sides no
+  // photo sees filled from whatever colour is nearest. Instead the colours are chosen for the whole model at
+  // once, as the cheapest colouring: going against the photo costs what the photo says (how many pixels
+  // disagree), and an edge between two colours costs its length, less where the model folds (a hem, a seam,
+  // the line between a boot and a sock), so edges settle into the model's own folds and specks go. Solved
+  // with graph cuts (alpha-expansion over Boykov–Kolmogorov max-flow).
+
+  // max-flow, min-cut (Boykov–Kolmogorov). Node i's arcs are first[i] .. first[i+1]-1: head[a] is where arc a
+  // goes (-1: none), rev[a] its reverse arc, cap[a] what it can still carry. tr[i] links node i to the source
+  // (> 0) or the sink (< 0). cap and tr are used up. Returns 1 for every node on the sink's side of the cut.
+  function graphCut(n, first, head, rev, cap, tr) {
+    const NONE = -1, TERM = -2, ORPH = -3;
+    const parent = new Int32Array(n).fill(NONE), sink = new Uint8Array(n), ts = new Int32Array(n), dist = new Int32Array(n);
+    const q = new Int32Array(n + 1), inq = new Uint8Array(n); let qh = 0, qt = 0, qn = 0;
+    const push = i => { if (inq[i]) return; inq[i] = 1; q[qt] = i; qt = qt === n ? 0 : qt + 1; qn++; };
+    let orph = new Int32Array(1024), on = 0;
+    const orphan = i => { if (on === orph.length) { const o = new Int32Array(on * 2); o.set(orph); orph = o; } orph[on++] = i; parent[i] = ORPH; };
+    for (let i = 0; i < n; i++) if (tr[i] !== 0) { sink[i] = tr[i] < 0 ? 1 : 0; parent[i] = TERM; dist[i] = 1; push(i); }
+    let time = 0, cur = -1;
+    for (;;) {
+      // grow the two search trees from an active node until they touch
+      let i = cur >= 0 && parent[cur] !== NONE ? cur : -1;
+      while (i < 0 && qn) { const j = q[qh]; qh = qh === n ? 0 : qh + 1; qn--; inq[j] = 0; if (parent[j] !== NONE) i = j; }
+      if (i < 0) break;
+      cur = -1;
+      let mid = -1;
+      for (let a = first[i], e = first[i + 1]; a < e; a++) {
+        const j = head[a]; if (j < 0 || !(sink[i] ? cap[rev[a]] > 0 : cap[a] > 0)) continue;
+        if (parent[j] === NONE) { sink[j] = sink[i]; parent[j] = rev[a]; ts[j] = ts[i]; dist[j] = dist[i] + 1; push(j); }
+        else if (sink[j] !== sink[i]) { mid = sink[i] ? rev[a] : a; break; }
+        else if (ts[j] <= ts[i] && dist[j] > dist[i]) { parent[j] = rev[a]; ts[j] = ts[i]; dist[j] = dist[i] + 1; }
+      }
+      time++;
+      if (mid < 0) continue;
+      cur = i;
+      // push what the path can carry from the source to the sink; arcs it fills leave orphans
+      const tail = head[rev[mid]], hd = head[mid];
+      let b = cap[mid];
+      for (let j = tail; ; ) { const a = parent[j]; if (a === TERM) { if (tr[j] < b) b = tr[j]; break; } if (cap[rev[a]] < b) b = cap[rev[a]]; j = head[a]; }
+      for (let j = hd; ; ) { const a = parent[j]; if (a === TERM) { if (-tr[j] < b) b = -tr[j]; break; } if (cap[a] < b) b = cap[a]; j = head[a]; }
+      cap[rev[mid]] += b; cap[mid] -= b;
+      for (let j = tail; ; ) { const a = parent[j]; if (a === TERM) { tr[j] -= b; if (!tr[j]) orphan(j); break; } cap[a] += b; cap[rev[a]] -= b; const k = head[a]; if (!cap[rev[a]]) orphan(j); j = k; }
+      for (let j = hd; ; ) { const a = parent[j]; if (a === TERM) { tr[j] += b; if (!tr[j]) orphan(j); break; } cap[rev[a]] += b; cap[a] -= b; const k = head[a]; if (!cap[a]) orphan(j); j = k; }
+      // each orphan finds a new parent in its own tree that still reaches the terminal, or leaves the tree
+      time++;
+      while (on) {
+        const o = orph[--on], s = sink[o];
+        let best = -1, dmin = 1e9;
+        for (let a0 = first[o], e = first[o + 1]; a0 < e; a0++) {
+          const j0 = head[a0]; if (j0 < 0 || sink[j0] !== s || parent[j0] === NONE || !(s ? cap[a0] > 0 : cap[rev[a0]] > 0)) continue;
+          let j = j0, d = 0;
+          for (;;) {
+            if (ts[j] === time) { d += dist[j]; break; }
+            const a = parent[j]; d++;
+            if (a === TERM) { ts[j] = time; dist[j] = 1; break; }
+            if (a === ORPH || a === NONE) { d = 1e9; break; }
+            j = head[a];
+          }
+          if (d < 1e9) {
+            if (d < dmin) { best = a0; dmin = d; }
+            for (let k = j0; ts[k] !== time; k = head[parent[k]]) { ts[k] = time; dist[k] = d--; }
+          }
+        }
+        if (best >= 0) { parent[o] = best; ts[o] = time; dist[o] = dmin + 1; continue; }
+        parent[o] = NONE;
+        for (let a0 = first[o], e = first[o + 1]; a0 < e; a0++) {
+          const j = head[a0]; if (j < 0 || sink[j] !== s) continue;
+          const a = parent[j]; if (a === NONE) continue;
+          if (s ? cap[a0] > 0 : cap[rev[a0]] > 0) push(j);
+          if (a !== TERM && a !== ORPH && head[a] === o) orphan(j);
+        }
+      }
+    }
+    const out = new Uint8Array(n);
+    for (let i = 0; i < n; i++) out[i] = parent[i] !== NONE && sink[i] ? 1 : 0;
+    return out;
+  }
+  // a mesh's triangles as a graph for graphCut: three arcs each, to the neighbours both sides know of
+  const meshGraphCache = new WeakMap();
+  function meshGraph(topo) {
+    let G = meshGraphCache.get(topo); if (G) return G;
+    const n = topo.n, nbr = topo.nbr, rev = new Int32Array(3 * n).fill(-1), first = new Int32Array(n + 1), head = Int32Array.from(nbr);
+    for (let t = 0; t <= n; t++) first[t] = 3 * t;
+    for (let t = 0; t < n; t++) for (let e = 0; e < 3; e++) {
+      const u = nbr[3 * t + e]; if (u < 0) continue;
+      for (let f = 0; f < 3; f++) if (nbr[3 * u + f] === t) { rev[3 * t + e] = 3 * u + f; break; }
+    }
+    for (let a = 0; a < 3 * n; a++) if (rev[a] < 0) head[a] = -1;
+    G = { n, first, head, rev }; meshGraphCache.set(topo, G);
+    return G;
+  }
+  // the cheapest colouring, from lab (changed): D[t*K + c] what colour c costs node t, W[a] what an edge
+  // between two colours costs across arc a (the same both ways). Each move lets any set of nodes take one
+  // colour (alpha-expansion); cycles of K moves until nothing gets cheaper. opt.band: only nodes within that many
+  // steps of an edge between colours (or that would rather have the colour) may move: much quicker, for
+  // tidying an answer that is nearly right. Returns the cost.
+  function cheapestLabels(G, D, W, K, lab, cycles, opt) {
+    opt = opt || {};
+    const { n, first, head, rev } = G, cap = new Float64Array(first[n]), tr = new Float64Array(n);
+    const cost = () => { let e = 0; for (let t = 0; t < n; t++) { e += D[t * K + lab[t]]; for (let a = first[t]; a < first[t + 1]; a++) { const u = head[a]; if (u > t && lab[u] !== lab[t]) e += W[a]; } } return e; };
+    let E = cost();
+    const free = new Uint8Array(n), ring = new Uint8Array(n), q = new Int32Array(n), old = new Int16Array(n);
+    for (let cyc = 0; cyc < (cycles || 2); cyc++) {
+      let better = false;
+      if (opt.band) {
+        ring.fill(0); let qt = 0;
+        for (let t = 0; t < n; t++) for (let a = first[t]; a < first[t + 1]; a++) { const u = head[a]; if (u >= 0 && lab[u] !== lab[t]) { ring[t] = 1; q[qt++] = t; break; } }
+        for (let qh = 0; qh < qt; qh++) { const t = q[qh]; if (ring[t] > opt.band) continue; for (let a = first[t]; a < first[t + 1]; a++) { const u = head[a]; if (u >= 0 && !ring[u]) { ring[u] = ring[t] + 1; q[qt++] = u; } } }
+      }
+      for (let al = 0; al < K; al++) {
+        for (let t = 0; t < n; t++) free[t] = !opt.band || ring[t] || D[t * K + al] < D[t * K + lab[t]] ? 1 : 0;
+        // each free node keeps its colour (source side) or takes al (sink side); the edge costs as below
+        cap.fill(0); tr.fill(0);
+        for (let t = 0; t < n; t++) {
+          if (!free[t]) continue;
+          const lt = lab[t]; let v = D[t * K + al] - D[t * K + lt];
+          for (let a = first[t]; a < first[t + 1]; a++) {
+            const u = head[a]; if (u < 0) continue;
+            const w = W[a]; if (!w) continue;
+            const lu = lab[u];
+            if (!free[u]) { v += (al !== lu ? w : 0) - (lt !== lu ? w : 0); continue; }
+            if (u < t) continue;
+            const A = lt !== lu ? w : 0, B = lt !== al ? w : 0, C = al !== lu ? w : 0;
+            v += C - A; tr[u] -= C; cap[a] = B + C - A;
+          }
+          tr[t] += v;
+        }
+        const s = graphCut(n, first, head, rev, cap, tr);
+        old.set(lab);
+        for (let t = 0; t < n; t++) if (s[t] && free[t]) lab[t] = al;
+        const E2 = cost();
+        if (E2 < E) { E = E2; better = true; } else if (E2 > E) lab.set(old);
+      }
+      if (!better) break;
+    }
+    return E;
+  }
+  // neighbouring triangles grouped into patches, at most maxN triangles and maxA in area each, never across a
+  // fold sharper than creaseCos (between neighbours) nor bending more than spanCos from where the patch began
+  function meshPatches(topo, maxN, maxA, creaseCos, spanCos) {
+    const n = topo.n, pid = new Int32Array(n).fill(-1), q = new Int32Array(n), N = topo.nrm;
+    let np = 0;
+    for (let s = 0; s < n; s++) {
+      if (pid[s] >= 0) continue;
+      pid[s] = np; let qh = 0, qt = 0, cnt = 1, ar = topo.area[s]; q[qt++] = s;
+      while (qh < qt && cnt < maxN && ar < maxA) {
+        const t = q[qh++];
+        for (let e = 0; e < 3 && cnt < maxN && ar < maxA; e++) {
+          const u = topo.nbr[3 * t + e]; if (u < 0 || pid[u] >= 0) continue;
+          if (N[3 * t] * N[3 * u] + N[3 * t + 1] * N[3 * u + 1] + N[3 * t + 2] * N[3 * u + 2] < creaseCos) continue;
+          if (N[3 * s] * N[3 * u] + N[3 * s + 1] * N[3 * u + 1] + N[3 * s + 2] * N[3 * u + 2] < spanCos) continue;
+          pid[u] = np; q[qt++] = u; cnt++; ar += topo.area[u];
+        }
+      }
+      np++;
+    }
+    return { pid, np };
+  }
+  // the patches as a graph: an arc between two patches that share edges, costing what those edges cost
+  function patchGraph(G, W, pid, np) {
+    const m = new Map();
+    for (let t = 0; t < G.n; t++) for (let a = G.first[t]; a < G.first[t + 1]; a++) {
+      const u = G.head[a]; if (u < 0) continue;
+      const p = pid[t], r = pid[u]; if (p >= r) continue;
+      const k = p * np + r; m.set(k, (m.get(k) || 0) + W[a]);
+    }
+    const first = new Int32Array(np + 1);
+    for (const k of m.keys()) { const p = Math.floor(k / np); first[p + 1]++; first[k - p * np + 1]++; }
+    for (let i = 0; i < np; i++) first[i + 1] += first[i];
+    const fill = Int32Array.from(first), na = first[np], head = new Int32Array(na), rev = new Int32Array(na), PW = new Float64Array(na);
+    for (const [k, w] of m) {
+      const p = Math.floor(k / np), r = k - p * np, a = fill[p]++, b = fill[r]++;
+      head[a] = r; head[b] = p; rev[a] = b; rev[b] = a; PW[a] = w; PW[b] = w;
+    }
+    return { G: { n: np, first, head, rev }, W: PW };
+  }
+  // for every triangle, the two nearest colours over the surface from where lab has one (start: how far away
+  // each of those begins; a step over a fold sharper than 50° counts 4 times). A queue of buckets a quarter of a
+  // typical step wide: close enough for a pull towards a colour, and quick on a big model.
+  function nearestTwo(topo, lab, start) {
+    const n = topo.n, d1 = new Float64Array(n).fill(Infinity), d2 = new Float64Array(n).fill(Infinity), l1 = new Int8Array(n).fill(-1), l2 = new Int8Array(n).fill(-1);
+    const cen = topo.cen, nrm = topo.nrm, crease = Math.cos(50 * Math.PI / 180), step = new Float32Array(3 * n);
+    let sum = 0, cnt = 0;
+    for (let t = 0; t < n; t++) for (let e = 0; e < 3; e++) {
+      const u = topo.nbr[3 * t + e]; if (u < 0) continue;
+      const x = cen[3 * u] - cen[3 * t], y = cen[3 * u + 1] - cen[3 * t + 1], z = cen[3 * u + 2] - cen[3 * t + 2], L = Math.sqrt(x * x + y * y + z * z);
+      step[3 * t + e] = L * (nrm[3 * u] * nrm[3 * t] + nrm[3 * u + 1] * nrm[3 * t + 1] + nrm[3 * u + 2] * nrm[3 * t + 2] < crease ? 4 : 1); sum += L; cnt++;
+    }
+    const bw = Math.max(1e-6, 0.25 * sum / Math.max(1, cnt));
+    let cap = 4 * n + 16, eN = new Int32Array(cap), eL = new Int8Array(cap), eD = new Float64Array(cap), eX = new Int32Array(cap), ne = 0, bh = new Int32Array(1024).fill(-1);
+    const add = (d, t, l) => {
+      const b = Math.floor(d / bw);
+      if (b >= bh.length) { let m = bh.length; while (m <= b) m *= 2; const h = new Int32Array(m).fill(-1); h.set(bh); bh = h; }
+      if (ne === cap) { cap *= 2; const a = new Int32Array(cap); a.set(eN); eN = a; const c = new Int8Array(cap); c.set(eL); eL = c; const f = new Float64Array(cap); f.set(eD); eD = f; const x = new Int32Array(cap); x.set(eX); eX = x; }
+      eN[ne] = t; eL[ne] = l; eD[ne] = d; eX[ne] = bh[b]; bh[b] = ne++;
+    };
+    for (let t = 0; t < n; t++) if (lab[t] >= 0) { d1[t] = start[t]; l1[t] = lab[t]; add(start[t], t, lab[t]); }
+    for (let b = 0; b < bh.length; b++) while (bh[b] >= 0) {
+      const k = bh[b]; bh[b] = eX[k];
+      const t = eN[k], l = eL[k], d = eD[k];
+      if (!((l === l1[t] && d === d1[t]) || (l === l2[t] && d === d2[t]))) continue;
+      for (let e = 0; e < 3; e++) {
+        const u = topo.nbr[3 * t + e]; if (u < 0) continue;
+        const nd = d + step[3 * t + e];
+        if (l === l1[u]) { if (nd < d1[u]) { d1[u] = nd; add(nd, u, l); } }
+        else if (nd < d1[u]) { d2[u] = d1[u]; l2[u] = l1[u]; d1[u] = nd; l1[u] = l; add(nd, u, l); }
+        else if (nd < d2[u]) { d2[u] = nd; l2[u] = l; add(nd, u, l); }
+      }
+    }
+    return { d1, d2, l1, l2 };
+  }
+
+  // ---- bending a photo onto the model (v0.30) ----
+  // A photo whose figure stands a little differently from the model (legs a little wider, arms a little lower,
+  // as in an artist's render) never quite lines up, and the model's shins then read the background or the
+  // boots. Once lined up, the photo is bent onto the model: every pixel of the model is moved, smoothly, to
+  // where the photo's figure is, by at most 3% of the photo's height, matching the two outlines' distance maps
+  // (demons registration, coarse to fine; another figure further away in the photo does not pull). fig: the
+  // photo's figure, W x H. Worked out at about 400 pixels: { w, h, dx, dy } (shifts in those pixels), with how
+  // much of the outlines overlap before and after; null when there is nothing to bend.
+  function photoBend(solid, cam, fit, fig, W, H, opt) {
+    opt = opt || {};
+    const s = Math.min(1, (opt.res || 400) / Math.max(W, H)), w = Math.max(8, Math.round(W * s)), h = Math.max(8, Math.round(H * s)), n = w * h;
+    const model = photoModelMask(solid, cam, fit, w, h, 0), F = new Uint8Array(n), cnt = new Float32Array(n), tot = new Float32Array(n);
+    for (let y = 0; y < H; y++) { const yy = Math.min(h - 1, Math.floor(y * h / H)); for (let x = 0; x < W; x++) { const k = yy * w + Math.min(w - 1, Math.floor(x * w / W)); tot[k]++; if (fig[y * W + x]) cnt[k]++; } }
+    let inM = 0, inF = 0;
+    for (let i = 0; i < n; i++) { F[i] = cnt[i] * 2 >= tot[i] && tot[i] > 0 ? 1 : 0; inM += model[i]; inF += F[i]; }
+    if (inM < 50 || inF < 50) return null;
+    const D = Math.max(3, Math.round(h * (opt.reach || 0.03)));
+    // signed distance from an outline (chamfer 3-4, pixels), + inside, − outside, no further than L
+    const sdf = (m, L) => {
+      const din = new Float32Array(n), dout = new Float32Array(n);
+      for (let i = 0; i < n; i++) { din[i] = m[i] ? 1e9 : 0; dout[i] = m[i] ? 0 : 1e9; }
+      for (const d of [din, dout]) {
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = y * w + x; let v = d[i]; if (!v) continue;
+          if (x > 0) v = Math.min(v, d[i - 1] + 3); if (y > 0) { v = Math.min(v, d[i - w] + 3); if (x > 0) v = Math.min(v, d[i - w - 1] + 4); if (x < w - 1) v = Math.min(v, d[i - w + 1] + 4); } d[i] = v; }
+        for (let y = h - 1; y >= 0; y--) for (let x = w - 1; x >= 0; x--) { const i = y * w + x; let v = d[i]; if (!v) continue;
+          if (x < w - 1) v = Math.min(v, d[i + 1] + 3); if (y < h - 1) { v = Math.min(v, d[i + w] + 3); if (x < w - 1) v = Math.min(v, d[i + w + 1] + 4); if (x > 0) v = Math.min(v, d[i + w - 1] + 4); } d[i] = v; }
+      }
+      const out = new Float32Array(n);
+      for (let i = 0; i < n; i++) out[i] = Math.max(-L, Math.min(L, m[i] ? din[i] / 3 - 0.5 : 0.5 - dout[i] / 3));
+      return out;
+    };
+    const far = sdf(model, 4 * D);
+    for (let i = 0; i < n; i++) if (far[i] <= -2 * D) F[i] = 0;          // only the figure near the model
+    const overlap = (dx, dy) => {
+      let a = 0, b = 0;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const i = y * w + x, xx = Math.round(x + (dx ? dx[i] : 0)), yy = Math.round(y + (dy ? dy[i] : 0)), f = xx >= 0 && yy >= 0 && xx < w && yy < h ? F[yy * w + xx] : 0;
+        if (model[i] && f) a++; if (model[i] || f) b++;
+      }
+      return b ? a / b : 0;
+    };
+    // coarse to fine: the distance maps halved twice
+    const levels = [{ M: sdf(model, D), F: sdf(F, D), w, h }];
+    for (let k = 1; k < 3; k++) {
+      const p = levels[k - 1], w2 = Math.ceil(p.w / 2), h2 = Math.ceil(p.h / 2), M2 = new Float32Array(w2 * h2), F2 = new Float32Array(w2 * h2);
+      for (let y = 0; y < h2; y++) for (let x = 0; x < w2; x++) {
+        let sm = 0, sf = 0, c = 0;
+        for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) { const xx = 2 * x + dx, yy = 2 * y + dy; if (xx < p.w && yy < p.h) { sm += p.M[yy * p.w + xx]; sf += p.F[yy * p.w + xx]; c++; } }
+        M2[y * w2 + x] = sm / c / 2; F2[y * w2 + x] = sf / c / 2;
+      }
+      levels.push({ M: M2, F: F2, w: w2, h: h2 });
+    }
+    // a box blur run twice, close to a Gaussian: keeps the bend smooth
+    const blur = (u, lw, lh, r, tmp) => {
+      for (let pass = 0; pass < 2; pass++) {
+        for (let y = 0; y < lh; y++) { let sm = 0, c = 0; const row = y * lw;
+          for (let x = -r; x < lw; x++) { if (x + r < lw) { sm += u[row + x + r]; c++; } if (x - r - 1 >= 0) { sm -= u[row + x - r - 1]; c--; } if (x >= 0) tmp[row + x] = sm / c; } }
+        for (let x = 0; x < lw; x++) { let sm = 0, c = 0;
+          for (let y = -r; y < lh; y++) { if (y + r < lh) { sm += tmp[(y + r) * lw + x]; c++; } if (y - r - 1 >= 0) { sm -= tmp[(y - r - 1) * lw + x]; c--; } if (y >= 0) u[y * lw + x] = sm / c; } }
+      }
+    };
+    let ux = null, uy = null;
+    const iters = [10, 30, 40];
+    for (let k = levels.length - 1; k >= 0; k--) {
+      const { M, F: Fk, w: lw, h: lh } = levels[k], lim = D / 2 ** k, tmp = new Float32Array(lw * lh);
+      if (!ux) { ux = new Float32Array(lw * lh); uy = new Float32Array(lw * lh); }
+      else {
+        const p = levels[k + 1], nx = new Float32Array(lw * lh), ny = new Float32Array(lw * lh);
+        for (let y = 0; y < lh; y++) for (let x = 0; x < lw; x++) { const j = Math.min(p.h - 1, y >> 1) * p.w + Math.min(p.w - 1, x >> 1); nx[y * lw + x] = 2 * ux[j]; ny[y * lw + x] = 2 * uy[j]; }
+        ux = nx; uy = ny;
+      }
+      for (let it = 0; it < iters[k]; it++) {
+        for (let y = 1; y < lh - 1; y++) for (let x = 1; x < lw - 1; x++) {
+          const i = y * lw + x, px = x + ux[i], py = y + uy[i];
+          if (px < 1 || py < 1 || px >= lw - 2 || py >= lh - 2) continue;
+          const x0 = Math.floor(px), y0 = Math.floor(py), fx = px - x0, fy = py - y0, j = y0 * lw + x0;
+          const f = (Fk[j] * (1 - fx) + Fk[j + 1] * fx) * (1 - fy) + (Fk[j + lw] * (1 - fx) + Fk[j + lw + 1] * fx) * fy;
+          const gx = ((Fk[j + 1] - Fk[j - 1]) * (1 - fy) + (Fk[j + lw + 1] - Fk[j + lw - 1]) * fy) / 2, gy = ((Fk[j + lw] - Fk[j - lw]) * (1 - fx) + (Fk[j + lw + 1] - Fk[j - lw + 1]) * fx) / 2;
+          const diff = M[i] - f, den = gx * gx + gy * gy + diff * diff;
+          if (den < 1e-6) continue;
+          ux[i] += diff * gx / den; uy[i] += diff * gy / den;
+          const m = Math.hypot(ux[i], uy[i]); if (m > lim) { ux[i] *= lim / m; uy[i] *= lim / m; }
+        }
+        blur(ux, lw, lh, 2, tmp); blur(uy, lw, lh, 2, tmp);
+      }
+    }
+    return { w, h, dx: ux, dy: uy, before: +overlap(null, null).toFixed(4), after: +overlap(ux, uy).toFixed(4) };
+  }
+  // a photo (W x H, any size) and its figure bent as photoBend says: each pixel shows the photo where the bend
+  // moves it to (the nearest pixel); returns { rgba, fig } (either may be null, for a mask alone)
+  function photoBendApply(rgba, fig, W, H, b) {
+    const out = rgba ? new Uint8ClampedArray(rgba) : null, f2 = fig ? new Uint8Array(fig) : null;
+    if (!b) return { rgba: out, fig: f2 };
+    const sx = b.w / W, sy = b.h / H;
+    for (let y = 0; y < H; y++) {
+      const fy0 = Math.min(b.h - 1, Math.max(0, (y + 0.5) * sy - 0.5)), y0 = Math.floor(fy0), y1 = Math.min(b.h - 1, y0 + 1), fy = fy0 - y0;
+      for (let x = 0; x < W; x++) {
+        const fx0 = Math.min(b.w - 1, Math.max(0, (x + 0.5) * sx - 0.5)), x0 = Math.floor(fx0), x1 = Math.min(b.w - 1, x0 + 1), fx = fx0 - x0;
+        const a = y0 * b.w + x0, c = y0 * b.w + x1, d = y1 * b.w + x0, e = y1 * b.w + x1;
+        const dx = ((b.dx[a] * (1 - fx) + b.dx[c] * fx) * (1 - fy) + (b.dx[d] * (1 - fx) + b.dx[e] * fx) * fy) / sx;
+        const dy = ((b.dy[a] * (1 - fx) + b.dy[c] * fx) * (1 - fy) + (b.dy[d] * (1 - fx) + b.dy[e] * fx) * fy) / sy;
+        if (!dx && !dy) continue;
+        const i = y * W + x, xx = Math.round(x + dx), yy = Math.round(y + dy);
+        if (xx < 0 || yy < 0 || xx >= W || yy >= H) { if (f2) f2[i] = 0; continue; }
+        const j = yy * W + xx;
+        if (out) { out[4 * i] = rgba[4 * j]; out[4 * i + 1] = rgba[4 * j + 1]; out[4 * i + 2] = rgba[4 * j + 2]; out[4 * i + 3] = rgba[4 * j + 3]; }
+        if (f2) f2[i] = fig[j];
+      }
+    }
+    return { rgba: out, fig: f2 };
+  }
   // colour the model from one or more lined-up photos: views [{ cam, fit, cls:{ w, h, data } }], every
-  // class c goes to slots[c]; o.fill paints what no photo sees from the nearest seen colour (not across
-  // creases sharper than 50° if it can help it), o.speck (mm²) joins smaller patches to their neighbour
+  // class c goes to slots[c]; o.fill paints what no photo sees too, o.speck (mm²) joins smaller patches to
+  // their neighbour. o.shape (v0.30, on unless false): the colours follow the model's shape (shapeLabels);
+  // false: each triangle takes its photo pixels' colour, with o.smooth's two tidying passes, and what no photo
+  // sees the nearest colour (not across creases sharper than 50° if it can help it)
   function paintFromPhotos(solid, topo, paint, views, o) {
     o = o || {};
-    const n = topo.n, K = Math.max(1, (o.slots || []).length), votes = new Float32Array(n * K), facing = new Float32Array(n);
+    const n = topo.n, K = Math.max(1, (o.slots || []).length), votes = new Float32Array(n * K), facing = new Float32Array(n), cams = [];
     // seen: a photo shows it at least this squarely (the weight below, 0..1), or a little less squarely
     // through pixels well inside the outline
     const minFacing = o.minFacing ?? 0.2, minInner = Math.min(minFacing, o.minInner ?? 0.05);
@@ -4403,6 +4729,7 @@
       const k = vw.fit && vw.fit.k > 0 ? Math.min(PHOTO_K_MAX, +vw.fit.k) : 0;
       let eye = null;
       if (k) { const ref = Array.isArray(vw.fit.ref) && vw.fit.ref.length === 4 ? vw.fit.ref : photoRef(solid, vw.cam), d = ref[2] + ref[3] / k; eye = [0, 1, 2].map(a => ref[0] * C.r[a] + ref[1] * C.up[a] + d * C.c[a]); }
+      cams.push({ C, eye, ppm: vw.fit.a * H });
       for (let t = 0; t < n; t++) {
         let f;
         if (eye) { const x = eye[0] - topo.cen[3 * t], y = eye[1] - topo.cen[3 * t + 1], z = eye[2] - topo.cen[3 * t + 2], l = Math.hypot(x, y, z) || 1; f = (topo.nrm[3 * t] * x + topo.nrm[3 * t + 1] * y + topo.nrm[3 * t + 2] * z) / l; }
@@ -4440,36 +4767,43 @@
     const lab = new Int16Array(n).fill(-1);
     for (let t = 0; t < n; t++) { if (facing[t] < minInner) continue; let bc = -1, bv = 0; for (let c = 0; c < K; c++) { const v = votes[t * K + c]; if (v > bv) { bv = v; bc = c; } } lab[t] = bc; }
     const seen = lab.reduce((s, c) => s + (c >= 0 ? 1 : 0), 0);
-    // one smoothing pass: a triangle whose three neighbours agree on another colour takes it
-    if (o.smooth !== false) for (let pass = 0; pass < 2; pass++) {
-      const next = new Int16Array(lab);
-      for (let t = 0; t < n; t++) {
-        const a = topo.nbr[3 * t], b = topo.nbr[3 * t + 1], c = topo.nbr[3 * t + 2];
-        if (a < 0 || b < 0 || c < 0) continue;
-        const la = lab[a], lb = lab[b], lc = lab[c];
-        if (la >= 0 && la === lb && lb === lc && la !== lab[t]) next[t] = la;
-        else if (lab[t] >= 0 && la >= 0 && la === lb && la !== lab[t] && lc !== lab[t]) next[t] = la;
+    // a colour seen squarely spreads before one only glimpsed at a low angle along the outline (where a fit a
+    // little off reads the background or a neighbouring part): v0.24.1
+    const B = solidBounds(solid), diag = Math.hypot(B.mx[0] - B.mn[0], B.mx[1] - B.mn[1], B.mx[2] - B.mn[2]), far = 0.04 * diag;
+    const start = t => o.fillTrust === false ? 0 : far * Math.max(0, 1 - facing[t] / 0.5);
+    if (o.shape !== false && seen) {
+      if (views.length && K > 1) shapeLabels(solid, topo, votes, lab, start, cams, K, diag, o);
+      else { const N2 = nearestTwo(topo, lab, Float64Array.from(lab, (c, t) => c >= 0 ? start(t) : 0)); for (let t = 0; t < n; t++) if (lab[t] < 0) lab[t] = N2.l1[t]; }
+      if (o.fill === false) for (let t = 0; t < n; t++) if (facing[t] < minInner) lab[t] = -1;
+    } else {
+      // one smoothing pass: a triangle whose three neighbours agree on another colour takes it
+      if (o.smooth !== false) for (let pass = 0; pass < 2; pass++) {
+        const next = new Int16Array(lab);
+        for (let t = 0; t < n; t++) {
+          const a = topo.nbr[3 * t], b = topo.nbr[3 * t + 1], c = topo.nbr[3 * t + 2];
+          if (a < 0 || b < 0 || c < 0) continue;
+          const la = lab[a], lb = lab[b], lc = lab[c];
+          if (la >= 0 && la === lb && lb === lc && la !== lab[t]) next[t] = la;
+          else if (lab[t] >= 0 && la >= 0 && la === lb && la !== lab[t] && lc !== lab[t]) next[t] = la;
+        }
+        lab.set(next);
       }
-      lab.set(next);
-    }
-    // what no photo sees: the nearest seen colour over the surface
-    if (o.fill !== false && seen < n) {
-      const dist = new Float64Array(n).fill(Infinity), heap = [];
-      const push = (d, t) => { heap.push([d, t]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
-      const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
-      // a colour seen squarely spreads before one only glimpsed at a low angle along the outline (where a
-      // fit a little off reads the background or a neighbouring part): v0.24.1
-      const B = solidBounds(solid), far = 0.04 * Math.hypot(B.mx[0] - B.mn[0], B.mx[1] - B.mn[1], B.mx[2] - B.mn[2]);
-      for (let t = 0; t < n; t++) if (lab[t] >= 0) { const d0 = o.fillTrust === false ? 0 : far * Math.max(0, 1 - facing[t] / 0.5); dist[t] = d0; push(d0, t); }
-      const cen = topo.cen, nrm = topo.nrm, crease = Math.cos(50 * Math.PI / 180);
-      while (heap.length) {
-        const [d, t] = pop(); if (d > dist[t]) continue;
-        for (let e = 0; e < 3; e++) {
-          const u = topo.nbr[3 * t + e]; if (u < 0) continue;
-          const step = Math.hypot(cen[3 * u] - cen[3 * t], cen[3 * u + 1] - cen[3 * t + 1], cen[3 * u + 2] - cen[3 * t + 2]);
-          const dot = nrm[3 * u] * nrm[3 * t] + nrm[3 * u + 1] * nrm[3 * t + 1] + nrm[3 * u + 2] * nrm[3 * t + 2];
-          const nd = d + step * (dot < crease ? 4 : 1);
-          if (nd < dist[u]) { dist[u] = nd; lab[u] = lab[t]; push(nd, u); }
+      // what no photo sees: the nearest seen colour over the surface
+      if (o.fill !== false && seen < n) {
+        const dist = new Float64Array(n).fill(Infinity), heap = [];
+        const push = (d, t) => { heap.push([d, t]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+        const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+        for (let t = 0; t < n; t++) if (lab[t] >= 0) { const d0 = start(t); dist[t] = d0; push(d0, t); }
+        const cen = topo.cen, nrm = topo.nrm, crease = Math.cos(50 * Math.PI / 180);
+        while (heap.length) {
+          const [d, t] = pop(); if (d > dist[t]) continue;
+          for (let e = 0; e < 3; e++) {
+            const u = topo.nbr[3 * t + e]; if (u < 0) continue;
+            const step = Math.hypot(cen[3 * u] - cen[3 * t], cen[3 * u + 1] - cen[3 * t + 1], cen[3 * u + 2] - cen[3 * t + 2]);
+            const dot = nrm[3 * u] * nrm[3 * t] + nrm[3 * u + 1] * nrm[3 * t + 1] + nrm[3 * u + 2] * nrm[3 * t + 2];
+            const nd = d + step * (dot < crease ? 4 : 1);
+            if (nd < dist[u]) { dist[u] = nd; lab[u] = lab[t]; push(nd, u); }
+          }
         }
       }
     }
@@ -4494,6 +4828,79 @@
     let painted = 0;
     for (let t = 0; t < n; t++) { const c = lab[t]; if (c >= 0 && o.slots[c] != null && o.slots[c] !== LEAVE) { paint[t] = o.slots[c]; painted++; } }
     return { seen, painted, n };
+  }
+  // the colours, following the model's shape (v0.30): lab comes in with each seen triangle's own colour (-1
+  // where no photo sees it) and leaves with every triangle's. What each colour costs a triangle:
+  //   seen: how many of its photo pixels say otherwise (in mm², so that every photo counts alike);
+  //   unseen, facing away from a photo: the colour on the other side of the same part (a ray through it towards
+  //     the camera, to the first face that looks back at the camera: the back of a leg is the leg's front);
+  //   unseen otherwise: a pull towards the nearest seen colour, weaker where two colours are about as near.
+  // An edge between colours costs its length (a pixel of photo against a pixel of edge, o.beta), less across a
+  // fold (exp(-(1 - cos angle) / 0.15): a hem's 30° fold costs about a third). The cheapest colouring is found on
+  // patches of a few pixels' size first, then triangle by triangle near the edges.
+  function shapeLabels(solid, topo, votes, lab, start, cams, K, diag, o) {
+    const n = topo.n, far = 0.04 * diag, ppm = Math.max(1e-6, ...cams.map(c => c.ppm)), bmm = (o.beta ?? 1) / ppm;
+    const N2 = nearestTwo(topo, lab, Float64Array.from(lab, (c, t) => c >= 0 ? start(t) : 0));
+    // the other side of the same part: one ray for each small group of triangles (1.5% of the model across)
+    const thr = new Int8Array(n).fill(-1), P = solid.pos, I = solid.idx, near = 0.02 * diag, eps = 1e-3 * diag;
+    if (o.through !== false) {
+      const rg = meshPatches(topo, 64, (0.015 * diag) ** 2, Math.cos(25 * Math.PI / 180), Math.cos(40 * Math.PI / 180)), gl = new Int8Array(rg.np).fill(-2);
+      let bvh = null;
+      for (let t = 0; t < n; t++) {
+        if (lab[t] >= 0 || !(N2.d1[t] > near)) continue;
+        const p = rg.pid[t];
+        if (gl[p] === -2) {
+          gl[p] = -1;
+          let dir = null, bf = 0.2;                    // the camera it faces most squarely away from
+          for (const c of cams) {
+            let x = c.C.c[0], y = c.C.c[1], z = c.C.c[2];
+            if (c.eye) { x = c.eye[0] - topo.cen[3 * t]; y = c.eye[1] - topo.cen[3 * t + 1]; z = c.eye[2] - topo.cen[3 * t + 2]; const l = Math.hypot(x, y, z) || 1; x /= l; y /= l; z /= l; }
+            const f = -(topo.nrm[3 * t] * x + topo.nrm[3 * t + 1] * y + topo.nrm[3 * t + 2] * z);
+            if (f >= bf) { bf = f; dir = [x, y, z]; }
+          }
+          if (dir) {
+            if (!bvh) bvh = meshBVH(P, I, 8);
+            const hit = bvhRaycast(bvh, P, I, [topo.cen[3 * t] + dir[0] * eps, topo.cen[3 * t + 1] + dir[1] * eps, topo.cen[3 * t + 2] + dir[2] * eps], dir, Infinity, false), h = hit ? hit.tri : -1;
+            if (h >= 0 && lab[h] >= 0 && topo.nrm[3 * h] * dir[0] + topo.nrm[3 * h + 1] * dir[1] + topo.nrm[3 * h + 2] * dir[2] > 0) gl[p] = lab[h];
+          }
+        }
+        thr[t] = gl[p];
+      }
+    }
+    // the costs, as whole numbers (a typical edge between two colours about 64; none past 10⁹, so a huge
+    // triangle among tiny ones cannot overflow)
+    const SC = 64 / (bmm * Math.sqrt(topo.total / n)), D = new Int32Array(n * K), mu = 3 * bmm / far, tau = 6 * bmm / far;
+    const whole = x => Math.min(1e9, Math.round(x));
+    for (let t = 0; t < n; t++) {
+      if (lab[t] >= 0) {
+        let V = 0; for (let c = 0; c < K; c++) V += votes[t * K + c];
+        for (let c = 0; c < K; c++) D[t * K + c] = whole(SC * (V - votes[t * K + c]) / (ppm * ppm));
+      } else if (thr[t] >= 0) for (let c = 0; c < K; c++) D[t * K + c] = c === thr[t] ? 0 : whole(SC * tau * topo.area[t]);
+      else {
+        const A = topo.area[t], dd = Math.min(1, (N2.d2[t] - N2.d1[t]) / far);
+        for (let c = 0; c < K; c++) D[t * K + c] = c === N2.l1[t] ? 0 : whole(SC * mu * A * (c === N2.l2[t] && dd >= 0 ? dd : 1));
+      }
+    }
+    const G = meshGraph(topo), W = new Int32Array(3 * n);
+    for (let t = 0; t < n; t++) for (let e = 0; e < 3; e++) {
+      const a = 3 * t + e, u = G.head[a]; if (u < 0) continue;
+      const p = 3 * I[3 * t + e], q = 3 * I[3 * t + (e + 1) % 3], L = Math.hypot(P[q] - P[p], P[q + 1] - P[p + 1], P[q + 2] - P[p + 2]);
+      const dot = topo.nrm[3 * t] * topo.nrm[3 * u] + topo.nrm[3 * t + 1] * topo.nrm[3 * u + 1] + topo.nrm[3 * t + 2] * topo.nrm[3 * u + 2];
+      W[a] = Math.max(1, whole(SC * bmm * L * Math.max(0.05, Math.exp(-(1 - dot) / 0.15))));
+    }
+    // start from each triangle's own colour, or the nearest one
+    const L0 = Int16Array.from(lab, (c, t) => c >= 0 ? c : Math.max(0, N2.l1[t]));
+    // patches of about 2 x 2 photo pixels (at most 12 triangles), when that makes the problem a good deal smaller
+    const pt = meshPatches(topo, 12, (2 / ppm) ** 2, Math.cos(25 * Math.PI / 180), Math.cos(40 * Math.PI / 180));
+    if (pt.np < 0.7 * n) {
+      const { pid, np } = pt, PG = patchGraph(G, W, pid, np), PD = new Float64Array(np * K), area = new Float64Array(np * K), PL = new Int16Array(np);
+      for (let t = 0; t < n; t++) { const p = pid[t]; for (let c = 0; c < K; c++) PD[p * K + c] += D[t * K + c]; area[p * K + L0[t]] += topo.area[t]; }
+      for (let p = 0; p < np; p++) { let b = 0; for (let c = 1; c < K; c++) if (area[p * K + c] > area[p * K + b]) b = c; PL[p] = b; }
+      cheapestLabels(PG.G, PD, PG.W, K, PL, 3);
+      for (let t = 0; t < n; t++) L0[t] = PL[pid[t]];
+      cheapestLabels(G, D, W, K, L0, 2, { band: 15 });
+    } else cheapestLabels(G, D, W, K, L0, 2);
+    lab.set(L0);
   }
 
   // ---- reading other people's models ----
@@ -5168,7 +5575,7 @@
     gridAround, heightSheet,
     meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, gradientCuts, gradientLayers, paintGradient, paintSwap, meshShells, paintShells,
     meshRegions, paintRegions, paintNoise, paintPictureWrap, paintCurvature, curvatureClasses, layerSlots, pauseColours, colourChanges, paintBrush, brushTris, symmetryCopies, areaTris, paintFill, paintPicture, parseOBJ, parse3MFModel,
-    PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, photoRef, photoUV, PHOTO_K_MAX, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, photoFitCloseness, photoFitFull, photoFitClosenessSteps, photoFitFullSteps, paintFromPhotos, photoLight, photoUnshade, photoLitBy, photoTriNormals, meshBVH, bvhRaycast,
+    PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, photoRef, photoUV, PHOTO_K_MAX, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, photoFitCloseness, photoFitFull, photoFitClosenessSteps, photoFitFullSteps, paintFromPhotos, photoBend, photoBendApply, graphCut, cheapestLabels, photoLight, photoUnshade, photoLitBy, photoTriNormals, meshBVH, bvhRaycast,
     photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure, cutoutWithMap, edgeOpacity, pictureBackground, cutoutByColour, plateColour, cutoutCombine, photoFixMap, photoFixMask,
     parseGLB, parseGLTF, parseMTL, parseOBJColours, modelTriColours, modelPalette, modelColourLabels,
     cutBase, cutFree, cutSolid, cutFlat, cutSources, cutCorners, qrEncode, qrPayload, qrLink

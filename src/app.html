@@ -434,7 +434,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.29.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.30.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -3745,14 +3745,16 @@ function helperMain(){
         // light and the evened-out pixels (for picking the colours)
         const [solid, model, views, pal, opt] = args, lights = [], shaded = [], ready = [];
         const figOf = (s, px, w, h) => { const f = s.ai ? PRCore.photoMaskFromMap(s.ai.v, s.ai.w, s.ai.h, w, h) : PRCore.photoMask(px, w, h, s.tol); return s.fix ? PRCore.photoFixMask(f, w, h, s.fix) : f; };
+        // a photo bent onto the model (v0.30): the page's bend, used at every size (its light from the photo as it is)
+        const bent = (rgba, fig, w, h, b) => b ? PRCore.photoBendApply(rgba, fig, w, h, b) : { rgba, fig };
         for (const v of views){
-          const fig = figOf(v.fig, v.raw, v.w, v.h); let px = v.rgba || v.raw, L = v.shade && v.shade.L || null;
+          const B = bent(v.raw, figOf(v.fig, v.raw, v.w, v.h), v.w, v.h, v.bend), fig = B.fig; let px = v.rgba || B.rgba, L = v.shade && v.shade.L || null;
           if (v.shade && v.shade.light){
             const lp = v.shade.light, use = PRCore.photoModelMask(model, v.cam, v.fit, lp.w, lp.h, 3), lf = figOf(v.fig, lp.rgba, lp.w, lp.h);
             for (let i = 0; i < use.length; i++) if (!lf[i]) use[i] = 0;
             try { L = PRCore.photoLight(lp.rgba, lp.w, lp.h, model, v.cam, v.fit, use); } catch (err){ L = null; }
           }
-          if (v.shade && L) px = PRCore.photoUnshade(v.raw, v.w, v.h, model, v.cam, v.fit, L, fig);
+          if (v.shade && L) px = PRCore.photoUnshade(B.rgba, v.w, v.h, model, v.cam, v.fit, L, fig);
           lights.push(L); shaded.push(v.shade && L ? px : null);
           if (solid) ready.push(PRCore.photoView(px, v.w, v.h, solid, v.cam, v.fit, pal, fig, v.strict));
         }
@@ -4789,7 +4791,34 @@ async function photoFitNow(o, v, search){
 const photoLightCache = new Map(), photoShadeCache = new Map();
 const cacheSet = (m, k, v, n) => { m.set(k, v); if (m.size > n) m.delete(m.keys().next().value); return v; };
 const photoLightKey = (v, f) => JSON.stringify([v.asset, photoCamOf(v), f, v.ai || "", v.tol, photoFixKey(v)]);
-const photoShadeKey = (v, w, f, L) => JSON.stringify([v.asset, w, photoCamOf(v), f, L, v.ai || "", v.tol, photoFixKey(v)]);
+const photoShadeKey = (v, w, f, L, bent) => JSON.stringify([v.asset, w, photoCamOf(v), f, L, v.ai || "", v.tol, photoFixKey(v), !!bent]);
+/* bending a photo onto the model (v0.30): a figure that stands a little differently from the model (an artist's
+   render, legs a little wider, arms a little lower) never quite lines up, and the model's shins then read the
+   background or the boots. Once a photo is lined up it is bent onto the model by a few pixels (core photoBend)
+   before the model's colours are read from it (its light and its colours are still found in the photo as it
+   is: the bend only says where they land). Per photo, on unless switched off (v.bend false), for an outline that
+   can be trusted (the AI's, or fixed by hand: the colour method's can lose white shorts on a light background,
+   and the model would be squeezed into the gap); worked out once per fit from the figure at PHOTO_RES and used
+   at every size */
+const photoBends = v => v.bend !== false && photoStrict(v);
+const photoBendCache = new Map(), photoBentCache = new WeakMap();
+function photoBendOf(v){
+  const model = photoModel(), f = photoBends(v) && v.fit && model && photoFitNowFor(v), px = f && photoPixels(v.asset, PHOTO_RES);
+  if (!px) return null;
+  const key = JSON.stringify([v.asset, px.w, photoCamOf(v), f, v.ai || "", v.tol, photoFixKey(v)]);
+  if (photoBendCache.has(key)) return photoBendCache.get(key);
+  let b = null; try { b = C.photoBend(model, photoCamOf(v), f, photoFigure(v, px), px.w, px.h); } catch (err){ console.error(err); }
+  return cacheSet(photoBendCache, key, b, 12);
+}
+// the photo and its figure as the colours are read from them: bent onto the model when it is lined up
+function photoBent(v, px){
+  const b = photoBendOf(v);
+  if (!b) return { rgba:px.rgba, fig:photoFigure(v, px) };
+  let m = photoBentCache.get(b); if (!m){ m = new Map(); photoBentCache.set(b, m); }
+  const key = px.w + "x" + px.h + "|" + photoFixKey(v);
+  if (!m.has(key)) m.set(key, C.photoBendApply(px.rgba, photoFigure(v, px), px.w, px.h, b));
+  return m.get(key);
+}
 function photoLightOf(v){
   const model = photoModel(), f = v.fit && model && photoFitNowFor(v), px = f && photoPixels(v.asset, 480);
   if (!px) return null;
@@ -4802,14 +4831,17 @@ function photoLightOf(v){
   return cacheSet(photoLightCache, key, L, 12);
 }
 // the pixels to read colours from: the photo, with the light taken out when the step asks for it
-function photoReadPixels(o, v, px){
-  if (o.shade !== true) return px.rgba;
-  const model = photoModel(), f = v.fit && model && photoFitNowFor(v), L = f && photoLightOf(v);
-  if (!L) return px.rgba;
-  const key = photoShadeKey(v, px.w, f, L);
+// straight: the photo as it is (to pick its colours from), else bent onto the model (to colour the model from)
+function photoReadPixels(o, v, px, straight){
+  const model = photoModel(), f = v.fit && model && photoFitNowFor(v);
+  const B = f && !straight ? photoBent(v, px) : { rgba:px.rgba, fig:null }, L = f && o.shade === true && photoLightOf(v);
+  if (!L) return B.rgba;
+  const bent = B.rgba !== px.rgba, key = photoShadeKey(v, px.w, f, L, bent);
   if (photoShadeCache.has(key)) return photoShadeCache.get(key);
-  return cacheSet(photoShadeCache, key, C.photoUnshade(px.rgba, px.w, px.h, model, photoCamOf(v), f, L, photoFigure(v, px)), 6);
+  return cacheSet(photoShadeCache, key, C.photoUnshade(B.rgba, px.w, px.h, model, photoCamOf(v), f, L, B.fig || photoFigure(v, px)), 6);
 }
+// the figure as the colours are read: bent with the photo once it is lined up
+const photoFigureRead = (v, px) => v.fit && photoModel() ? photoBent(v, px).fig : photoFigure(v, px);
 // the AI's outline, or one fixed by hand, is trusted everywhere: what it calls background is never read
 // (the colour method's can lose white clothes on a white background, so the model's middle always counts)
 const photoStrict = v => !!aiMapOf(v.ai) || !!(v.fix && v.fix.length);
@@ -4829,7 +4861,7 @@ function photoPickColours(o){
     const f = v.fit && model ? photoFitNowFor(v) : null, rim = f ? Math.max(2, Math.round(0.02 * f.a * photoBox(model, photoCamOf(v))[2] * px.h)) : 0;
     const m = f ? C.photoModelMask(model, photoCamOf(v), f, px.w, px.h, rim) : photoFigure(v, px);
     if (f && v.fix && v.fix.length){ const fm = C.photoFixMap(v.fix, px.w, px.h); for (let i=0;i<m.length;i++) if (fm[i] === 2) m[i] = 0; }
-    parts.push([f ? photoReadPixels(o, v, px) : px.rgba, m]);
+    parts.push([f ? photoReadPixels(o, v, px, true) : px.rgba, m]);
   }
   const n = parts.reduce((s, q) => s + q[1].length, 0);
   if (!n){ o.pal = []; o.slots = []; return; }
@@ -4876,7 +4908,7 @@ function photoNearestFilaments(o){
 const photoInfo = new WeakMap();                     // step -> what the last colouring saw
 function photoLabels(pc, o){
   const fits = o.views.map(photoFitNowFor);
-  const key = JSON.stringify([o.views.map((v, i) => [v.asset, v.cam, fits[i], v.tol, v.ai || "", photoFixKey(v)]), o.pal, o.fill, o.speck, o.smooth, o.shade === true]);
+  const key = JSON.stringify([o.views.map((v, i) => [v.asset, v.cam, fits[i], v.tol, v.ai || "", photoFixKey(v), photoBends(v)]), o.pal, o.fill, o.speck, o.smooth, o.shape !== false, o.shade === true]);
   if (!pc.photo) pc.photo = new Map();
   let r = pc.photo.get(key); if (r) return r;
   // a big model: the helper thread does the work, and the model keeps its last colours from the photos meanwhile
@@ -4889,13 +4921,13 @@ function photoLabels(pc, o){
     const f = fits[i], px = f && photoPixels(v.asset, PHOTO_RES);
     // a fit that makes the model many times bigger than the photo is broken (a hand-edited file): skip it
     if (!px || !(f.a * D < 4)) return;
-    views.push(C.photoView(photoReadPixels(o, v, px), px.w, px.h, pc.solid, photoCamOf(v), f, o.pal, photoFigure(v, px), photoStrict(v)));
+    views.push(C.photoView(photoReadPixels(o, v, px), px.w, px.h, pc.solid, photoCamOf(v), f, o.pal, photoFigureRead(v, px), photoStrict(v)));
   });
   const n = pc.topo.n, lab = new Int16Array(n).fill(-1);
   let info = { seen:0, painted:0, n };
   if (views.length && o.pal.length){
     const tmp = new Uint8Array(n).fill(PAINT_LEAVE);
-    info = C.paintFromPhotos(pc.solid, pc.topo, tmp, views, { slots:o.pal.map((_, i) => i), fill:o.fill, speck:o.speck, smooth:o.smooth });
+    info = C.paintFromPhotos(pc.solid, pc.topo, tmp, views, { slots:o.pal.map((_, i) => i), fill:o.fill, speck:o.speck, smooth:o.smooth, shape:o.shape !== false });
     for (let t=0;t<n;t++) if (tmp[t] !== PAINT_LEAVE) lab[t] = tmp[t];
   }
   r = { lab, info, views:views.length, pal:o.pal.length };
@@ -4911,15 +4943,16 @@ function photoLabels(pc, o){
 let photoHelperMin = 40000, photoJobsOut = 0, photoHelperRuns = 0, photoWaiting = 0, photoBusy = 0;
 // one photo as the helper needs it: the pixels (and the evened-out ones when already known), the figure's
 // recipe (its outline is found again there), and the light: known, or the smaller photo to find it in
-function photoHelperView(o, v, f, res){
+// (bent: the photo bent onto the model, for colouring it; else as it is, for picking its colours)
+function photoHelperView(o, v, f, res, bent){
   const px = photoPixels(v.asset, res); if (!px) return null;
-  const m = aiMapOf(v.ai), spec = { raw:px.rgba, rgba:null, w:px.w, h:px.h, cam:photoCamOf(v), fit:f, strict:photoStrict(v), shade:null,
-    fig:{ tol:v.tol, ai:m ? { v:m.v, w:m.w, h:m.h } : null, fix:v.fix && v.fix.length ? v.fix : null } };
+  const m = aiMapOf(v.ai), b = bent && f && photoBendOf(v), spec = { raw:px.rgba, rgba:null, w:px.w, h:px.h, cam:photoCamOf(v), fit:f, strict:photoStrict(v), shade:null,
+    fig:{ tol:v.tol, ai:m ? { v:m.v, w:m.w, h:m.h } : null, fix:v.fix && v.fix.length ? v.fix : null }, bend:b ? { w:b.w, h:b.h, dx:b.dx, dy:b.dy } : null };
   if (o.shade !== true || !f) return spec;
   const lk = photoLightKey(v, f);
   if (photoLightCache.has(lk)){
     const L = photoLightCache.get(lk); if (!L) return spec;
-    const sk = photoShadeKey(v, px.w, f, L);
+    const sk = photoShadeKey(v, px.w, f, L, !!b);
     if (photoShadeCache.has(sk)) spec.rgba = photoShadeCache.get(sk); else spec.shade = { L };
   } else { const lp = photoPixels(v.asset, 480); if (lp) spec.shade = { light:{ rgba:lp.rgba, w:lp.w, h:lp.h } }; }
   return spec;
@@ -4930,7 +4963,7 @@ function photoKeep(views, specs, res){
     if (!sp.shade) return;
     const v = views[j], L = res.lights[j];
     if (sp.shade.light) cacheSet(photoLightCache, photoLightKey(v, sp.fit), L, 12);
-    if (L && res.shaded[j]) cacheSet(photoShadeCache, photoShadeKey(v, sp.w, sp.fit, L), res.shaded[j], 6);
+    if (L && res.shaded[j]) cacheSet(photoShadeCache, photoShadeKey(v, sp.w, sp.fit, L, !!sp.bend), res.shaded[j], 6);
   });
 }
 function photoLabelsOnHelper(pc, o, key, fits){
@@ -4939,10 +4972,10 @@ function photoLabelsOnHelper(pc, o, key, fits){
   const model = photoModel(), B = C.solidBounds(pc.solid), D = Math.hypot(B.mx[0]-B.mn[0], B.mx[1]-B.mn[1], B.mx[2]-B.mn[2]) || 1, views = [], specs = [];
   o.views.forEach((v, i) => {
     const f = fits[i]; if (!f || !photoPixels(v.asset, PHOTO_RES) || !(f.a * D < 4)) return;
-    views.push(v); specs.push(photoHelperView(o, v, f, PHOTO_RES));
+    views.push(v); specs.push(photoHelperView(o, v, f, PHOTO_RES, true));
   });
   const pal = o.pal.length, job = onHelper("photoPaint", [{ pos:pc.solid.pos, idx:pc.solid.idx }, model ? { pos:model.pos, idx:model.idx } : null, specs, o.pal,
-    { slots:o.pal.map((_, i) => i), fill:o.fill, speck:o.speck, smooth:o.smooth }]);
+    { slots:o.pal.map((_, i) => i), fill:o.fill, speck:o.speck, smooth:o.smooth, shape:o.shape !== false }]);
   if (!job) return false;
   photoJobsOut++; pc.photoJobs.set(key, job);
   job.then(res => {
@@ -4993,7 +5026,7 @@ async function photoRepaintNow(){
   await wait();                                                                // the helper thread colouring it
   setBusy(false); pushHistory(); logLine(`Painted in ${Math.round(performance.now() - t0)} ms`);
 }
-function newPhotoOp(){ return { k:"photo", views:[], pal:[], slots:[], colours:clamp(Math.round(state.printer.colors || 4), 2, MAX_SLOTS), use:"photo", fill:true, speck:1, smooth:true, shade:true }; }
+function newPhotoOp(){ return { k:"photo", views:[], pal:[], slots:[], colours:clamp(Math.round(state.printer.colors || 4), 2, MAX_SLOTS), use:"photo", fill:true, speck:1, smooth:true, shape:true, shade:true }; }
 const photoOpOf = () => { const ops = state.paint.ops; for (let i = ops.length - 1; i >= 0; i--) if (ops[i].k === "photo") return ops[i]; return null; };
 // photos dropped on the Paint tab: kept like pictures, lined up, and the model coloured from them
 const photoInput = Object.assign(document.createElement("input"), { type:"file", accept:"image/png,image/jpeg,image/webp,image/gif", multiple:true, id:"photoInput", className:"vh" });
@@ -9595,7 +9628,7 @@ function drawPhotoPreview(cv, o, v){
   if (v.fit && model){
     const cam = photoCamOf(v), fit = photoFitNowFor(v);
     if (show === "colours" && o.pal.length){
-      const cls = C.photoView(photoReadPixels(o, v, px), W, H, model, cam, fit, o.pal, photoFigure(v, px), photoStrict(v)).cls.data;
+      const cls = C.photoView(photoReadPixels(o, v, px), W, H, model, cam, fit, o.pal, photoFigureRead(v, px), photoStrict(v)).cls.data;
       for (let i=0;i<W*H;i++){
         const c = cls[i];
         if (c >= 0){ const s = o.slots[c], rgb = s !== PAINT_LEAVE && state.slots[s] ? C.hexToRgb(state.slots[s].hex) : o.pal[c].rgb; d[4*i] = rgb[0]; d[4*i+1] = rgb[1]; d[4*i+2] = rgb[2]; }
@@ -9747,6 +9780,14 @@ function photoCard(c){
       : m < 0.75 ? `The outline matches the photo only ${Math.round(m*100)}%. Pick the side the photo was taken from, or drag it into place.${aiMapOf(v.ai) ? "" : " On a busy background, try Find the figure with AI below."}`
       : `The outline matches the photo ${Math.round(m*100)}%. Drag it or use the arrows to fine-tune.`; };
   showMatch();
+  // bent onto the model before its colours are read (v0.30)
+  if (v.fit && photoStrict(v)){
+    checkField(c, "Bend the photo a little to fit the model", () => photoBends(v), x => { if (x) delete v.bend; else v.bend = false; renderKeepFocus(); photoRepaint(); });
+    const b = photoBends(v) && photoBendOf(v);
+    note(c, !photoBends(v) ? "Off: where the figure in the photo stands a little differently from the model, the model's edges read the background."
+      : b && b.after > b.before + 0.01 ? `The figure in the photo stands a little differently from the model, so the photo is bent by a few pixels to fit before its colours are read: the outlines overlap ${Math.round(b.after*100)}%, from ${Math.round(b.before*100)}% as lined up.`
+      : "For a figure that stands a little differently from the model (an artist's picture of it, say): the photo is bent by a few pixels to fit before its colours are read.");
+  }
   // where it was taken from
   segField(c, [["front","Front"],["right","Right"],["back","Back"],["left","Left"],["top","Top"]], () => photoSideOf(v), async k => {
     const s0 = PHOTO_SIDES[k]; v.cam = { yaw:s0[0], pitch:s0[1] }; await photoFitNow(o, v, true); await photoColoursNow(o); renderKeepFocus(); photoRepaint(); }, "five");
@@ -9801,10 +9842,13 @@ function photoCard(c){
     ["Pick the colours again", async () => { await photoColoursNow(o); renderTab(); photoRepaint(); }]]);
   // clean-up
   c.insertAdjacentHTML("beforeend", `<h3>Finishing</h3>`);
-  checkField(c, "Colour what the photos cannot see from the nearest colour", () => o.fill, x => { o.fill = x; photoRepaint(); });
+  checkField(c, "Colour what the photos cannot see", () => o.fill, x => { o.fill = x; photoRepaint(); });
   numField(c, { label:"Clean up specks smaller than (mm²)", min:0, max:50, step:0.5, def:1, get:()=>o.speck, set:x=>o.speck = x, onChange:() => photoLater(() => photoRepaint()),
     sub:()=>"Small spots of the wrong colour join the colour round them. Keep it small to keep eyes and buttons." });
-  checkField(c, "Smooth ragged edges between colours", () => o.smooth, x => { o.smooth = x; photoRepaint(); });
+  checkField(c, "Follow the model's shape", () => o.shape !== false, x => { o.shape = x; photoRepaint(); renderKeepFocus(); });
+  note(c, o.shape !== false ? "Colour edges settle into the model's own folds and seams, and stray specks go. What the photos cannot see takes the colour on the other side of the same part (the back of a leg from its front), or the nearest one."
+    : "Off: each part takes the colour its photo pixels show, and what the photos cannot see takes the nearest colour.");
+  if (o.shape === false) checkField(c, "Smooth ragged edges between colours", () => o.smooth, x => { o.smooth = x; photoRepaint(); });
   if ((state.paint.detail || "auto") !== "fine") note(c, "Small details such as eyes need small triangles: set <b>Paint detail</b> (the last page) to Fine to follow them more closely.");
   const seen = document.createElement("p"); seen.className = "hint"; seen.id = "photoSeen"; seen.setAttribute("aria-live", "polite"); c.appendChild(seen);
   updatePhotoInfo();
@@ -9814,7 +9858,7 @@ function updatePhotoInfo(){
   const el = document.getElementById("photoSeen"), o = state.paint && photoOpOf(), info = o && photoInfo.get(o);
   if (!el || !info || !info.n) return;
   const pct = Math.round(100 * info.seen / info.n);
-  el.textContent = `The photos show ${pct}% of the model's surface. ${o.fill ? "The rest took the nearest colour" : "The rest keeps its own colour"}` +
+  el.textContent = `The photos show ${pct}% of the model's surface. ${!o.fill ? "The rest keeps its own colour" : o.shape !== false ? "The rest took the colour on the other side of the same part, or the nearest one" : "The rest took the nearest colour"}` +
     (o.views.length === 1 && pct < 70 ? ": a photo from the back makes that part right too." : ".") +
     " Touch it up with the brush and fill below: they paint on top of this step.";
 }
@@ -10597,7 +10641,7 @@ function cleanPaint(P0){
             near:fin(v.near) ? +num(v.near, 0, C.PHOTO_K_MAX, 0).toFixed(2) : undefined,
             tol:Math.round(num(v.tol, 0, 100, 35)), match:num(v.match, 0, 1, 0),
             box:Array.isArray(v.box) && v.box.length === 3 && v.box.every(fin) && v.box[2] > 1e-3 ? v.box.map(x => num(x, -1e4, 1e4, 0)) : undefined,
-            ai:typeof v.ai === "string" && v.ai ? cleanStr(v.ai, 40, "") : undefined, fix:cleanPhotoFix(v.fix) };
+            ai:typeof v.ai === "string" && v.ai ? cleanStr(v.ai, 40, "") : undefined, fix:cleanPhotoFix(v.fix), bend:v.bend === false ? false : undefined };
         });
         const pal = (Array.isArray(o.pal) ? o.pal : []).filter(plain).slice(0, 8).map(c => {
           const rgb = [0,1,2].map(i => Math.round(num(Array.isArray(c.rgb) ? c.rgb[i] : 128, 0, 255, 128)));
@@ -10607,7 +10651,7 @@ function cleanPaint(P0){
         });
         const sl = slots(o.slots, 8).slice(0, pal.length); while (sl.length < pal.length) sl.push(PAINT_LEAVE);
         return { k:"photo", views, pal, slots:sl, colours:Math.round(num(o.colours, 2, MAX_SLOTS, 4)), use:one(o.use, ["photo","mine"]),
-          fill:o.fill !== false, speck:num(o.speck, 0, 50, 1), smooth:o.smooth !== false, shade:o.shade === true };
+          fill:o.fill !== false, speck:num(o.speck, 0, 50, 1), smooth:o.smooth !== false, shape:o.shape !== false, shade:o.shade === true };
       }
       default: return null;
     }
@@ -11263,7 +11307,7 @@ window.MakerForge = {
     hit: paintHit, pick: paintPick, recolour: paintRecolour, colourAt, area: paintArea, previewTris, prepare: preparePaint, get previewCount(){ return previewCount; }, cleanPrinter, showLayerCut, get prefs(){ return prefs; }, applyPrefs, findDefault, cleanPaint,
     photo: { ai: { hooks: aiHooks, find: aiFindFigures, config: AI_FIGURE, state: aiState, sha256: sha256Hex, get: aiGet, mapOf: aiMapOf },
       figure: (v, w, h) => { const px = photoPixels(v.asset, Math.max(w, h)); return px && photoFigure(v, px); },
-      add: addPaintPhotos, fit: photoFitView, colours: photoPickColours,
+      add: addPaintPhotos, fit: photoFitView, colours: photoPickColours, lightOf: photoLightOf, bendOf: photoBendOf, read: photoReadPixels, pixels: photoPixels,
       // the helper thread's share (Session 30): from how many triangles it colours, and forgetting every result
       get helperMin(){ return photoHelperMin; }, set helperMin(n){ photoHelperMin = n; }, get jobs(){ return photoJobsOut; }, get helperRuns(){ return photoHelperRuns; },
       forget: () => { photoLightCache.clear(); photoShadeCache.clear(); modelParts.forEach(p => { if (p.pc){ p.pc.photo = null; p.pc.photoLast = null; p.pc.photoOnPage = false; } }); }, setFilaments: photoSetFilaments, nearest: photoNearestFilaments, get op(){ return photoOpOf(); }, info: o => photoInfo.get(o), labels: photoLabels, colourWord } },

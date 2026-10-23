@@ -63,7 +63,7 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
   t0 = Date.now();
   const p1 = new Uint8Array(topo.n).fill(255), r1 = C.paintFromPhotos(solid, topo, p1, [{ cam: "front", fit: F.fit, cls: clsF }], { slots, fill: true, speck: 1 });
   const ms1 = Date.now() - t0, acc1 = score(topo, p1, cls, out);
-  check(acc1 > 0.85 && r1.painted === topo.n, "from the front photo alone: most of the figure right, and every part coloured (the back from the nearest colour)",
+  check(acc1 > 0.85 && r1.painted === topo.n, "from the front photo alone: most of the figure right, and every part coloured (the back from the other side of each part)",
     `${(acc1 * 100).toFixed(1)}% of the surface, ${r1.seen} of ${r1.n} triangles seen, ${ms1} ms`);
   t0 = Date.now();
   const p2 = new Uint8Array(topo.n).fill(255), r2 = C.paintFromPhotos(solid, topo, p2, [{ cam: "front", fit: F.fit, cls: clsF }, { cam: "back", fit: Fb.fit, cls: clsB }], { slots, fill: true, speck: 1 });
@@ -105,12 +105,13 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
     const ref = C.photoRef(solid, camC), tf = { a: 6.3 / H, tx: 0.5 - 6.3 / H * ref[0], ty: 0.5 + 6.3 / H * ref[1], rot: 0.02, mirror: false, k: K, ref };
     const img = render(solid, topo, cls, camC, tf, W, H, seed), mk = C.photoMask(img.rgba, W, H, 35);
     t0 = Date.now(); const far = C.photoFit(solid, camC, mk, W, H, false), near = C.photoFitCloseness(solid, camC, mk, W, H, false), msC = Date.now() - t0;
-    const accOf = fit => { const vw = C.photoView(img.rgba, W, H, solid, camC, fit, pal, mk), p = new Uint8Array(topo.n).fill(255);
-      C.paintFromPhotos(solid, topo, p, [vw], { slots, fill: true, speck: 1 }); return score(topo, p, cls, out); };
-    const aFar = accOf(far.fit), aNear = accOf(near.fit);
-    check(near && Math.abs((near.fit.k || 0) - K) < 0.12 && aNear > aFar + 0.1,
+    // (each triangle from its own pixels, shape: false, to see what the closeness alone does)
+    const accOf = (fit, shape) => { const vw = C.photoView(img.rgba, W, H, solid, camC, fit, pal, mk), p = new Uint8Array(topo.n).fill(255);
+      C.paintFromPhotos(solid, topo, p, [vw], { slots, fill: true, speck: 1, shape }); return score(topo, p, cls, out); };
+    const aFar = accOf(far.fit, false), aNear = accOf(near.fit, false), aShape = accOf(near.fit);
+    check(near && Math.abs((near.fit.k || 0) - K) < 0.12 && aNear > aFar + 0.1 && aShape > aNear,
       `a close-up photo (the camera ${(1 / K).toFixed(1)} model heights away, ${camC.yaw}° round, ${camC.pitch}° up): how close is found, and the colours come out far better`,
-      near && `k ${near.fit.k} (really ${K}); ${(aFar * 100).toFixed(1)}% of the surface right as if from far away, ${(aNear * 100).toFixed(1)}% allowing for it; ${msC} ms`);
+      near && `k ${near.fit.k} (really ${K}); ${(aFar * 100).toFixed(1)}% of the surface right as if from far away, ${(aNear * 100).toFixed(1)}% allowing for it, ${(aShape * 100).toFixed(1)}% following the model's shape; ${msC} ms`);
   }
   const farK = C.photoFitCloseness(solid, "front", m, W, H, false);
   check(farK && !(farK.fit.k >= 0.15), "a photo from far away is not taken for a close-up", farK && `k ${farK.fit.k || 0}`);
@@ -123,12 +124,67 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
   check(eyes.length > 0 && eyesKept > 0.6 && eyesGone < 0.2, "small details (the eyes) are kept with a small speck size and cleaned away with a big one",
     `${eyes.length} eye triangles: ${(eyesKept * 100).toFixed(0)}% kept at 1 mm², ${(eyesGone * 100).toFixed(0)}% at 40 mm²`);
 
+  // 5d. following the model's shape (v0.30): the colours chosen for the whole model at once, by graph cuts
+  {
+    // the max-flow itself, against every cut of small random graphs
+    const rnd = C.seededRandom(42); let wrong = 0;
+    for (let trial = 0; trial < 400; trial++) {
+      const n = 2 + Math.floor(rnd() * 10), head = new Int32Array(3 * n).fill(-1), rev = new Int32Array(3 * n).fill(-1), first = Int32Array.from({ length: n + 1 }, (_, i) => 3 * i);
+      for (let k = 0; k < 2 * n; k++) {
+        const a = Math.floor(rnd() * n), b = Math.floor(rnd() * n); if (a === b || [0, 1, 2].some(e => head[3 * a + e] === b)) continue;
+        const ea = [0, 1, 2].find(e => head[3 * a + e] < 0), eb = [0, 1, 2].find(e => head[3 * b + e] < 0); if (ea === undefined || eb === undefined) continue;
+        head[3 * a + ea] = b; head[3 * b + eb] = a; rev[3 * a + ea] = 3 * b + eb; rev[3 * b + eb] = 3 * a + ea;
+      }
+      const cap = Float64Array.from({ length: 3 * n }, (_, a) => head[a] >= 0 && rnd() > 0.3 ? Math.floor(rnd() * 10) : 0), tr = Float64Array.from({ length: n }, () => Math.floor(rnd() * 21) - 10);
+      const cut = x => { let c = 0; for (let i = 0; i < n; i++) c += tr[i] > 0 && x[i] ? tr[i] : tr[i] < 0 && !x[i] ? -tr[i] : 0; for (let a = 0; a < 3 * n; a++) if (head[a] >= 0 && !x[a / 3 | 0] && x[head[a]]) c += cap[a]; return c; };
+      let best = Infinity; for (let m = 0; m < 1 << n; m++) best = Math.min(best, cut(Array.from({ length: n }, (_, i) => m >> i & 1)));
+      if (cut(C.graphCut(n, first, head, rev, cap.slice(), tr.slice())) !== best) wrong++;
+    }
+    check(!wrong, "the graph cut finds the cheapest cut (400 small graphs, against every cut)", `${wrong} wrong`);
+    // against each triangle taking its own pixels' colour (as before v0.30)
+    const old1 = new Uint8Array(topo.n).fill(255), old2 = new Uint8Array(topo.n).fill(255);
+    C.paintFromPhotos(solid, topo, old1, [{ cam: "front", fit: F.fit, cls: clsF }], { slots, fill: true, speck: 1, shape: false });
+    C.paintFromPhotos(solid, topo, old2, [{ cam: "front", fit: F.fit, cls: clsF }, { cam: "back", fit: Fb.fit, cls: clsB }], { slots, fill: true, speck: 1, shape: false });
+    const o1 = score(topo, old1, cls, out), o2 = score(topo, old2, cls, out);
+    check(acc1 > o1 + 0.03 && acc2 >= o2, "following the model's shape: more of the figure right than each triangle taking its own pixels' colour",
+      `front photo ${(o1 * 100).toFixed(1)}% → ${(acc1 * 100).toFixed(1)}%, front and back ${(o2 * 100).toFixed(1)}% → ${(acc2 * 100).toFixed(1)}%`);
+    // the backs of the legs and arms, which the front photo cannot see, from the other side of each
+    const skinSlot = slots[pal.map(p => dE(p.rgb, PAL.skin)).indexOf(Math.min(...pal.map(p => dE(p.rgb, PAL.skin))))];
+    const behind = []; for (let t = 0; t < topo.n; t++) if (out[t] && /leg|arm/.test(PART_NAMES[fig.partOf[t]]) && topo.cen[3 * t + 2] < -2.5 && cls[t] === NAMES.indexOf("skin")) behind.push(t);
+    const skinOf = p => behind.filter(t => p[t] === skinSlot).length / behind.length;
+    check(skinOf(p1) > 0.8 && skinOf(p1) > skinOf(old1) + 0.2, "the backs of the legs and arms (the front photo cannot see them) take the skin of their fronts",
+      `${behind.length} triangles: ${(skinOf(old1) * 100).toFixed(0)}% skin from the nearest colour, ${(skinOf(p1) * 100).toFixed(0)}% from the other side`);
+  }
+  // 5e. bending a photo onto the model (v0.30): the photo's figure stands a little differently (arms 2.5 mm
+  // further out, legs 1.5 mm, the head 1 mm higher), as in an artist's picture of a model
+  {
+    const posed = { pos: Float32Array.from(solid.pos), idx: solid.idx }, moved = new Uint8Array(solid.pos.length / 3), I = solid.idx;
+    const shift = { 1: [-1.5, 0], 2: [1.5, 0], 4: [-2.5, 0], 5: [2.5, 0], 6: [0, 1], 7: [0, 1] };
+    for (let t = 0; t < topo.n; t++) { const sh = shift[fig.partOf[t]]; if (!sh) continue; for (let k = 0; k < 3; k++) { const v = I[3 * t + k]; if (moved[v]) continue; moved[v] = 1; posed.pos[3 * v] += sh[0]; posed.pos[3 * v + 1] += sh[1]; } }
+    const shot = render(posed, C.meshTopology(posed), cls, "front", trueFront, W, H, 7), mp = C.photoMask(shot.rgba, W, H, 35);
+    const Fp = C.photoFit(solid, "front", mp, W, H, false);
+    t0 = Date.now(); const bend = C.photoBend(solid, "front", Fp.fit, mp, W, H), bendMs = Date.now() - t0;
+    const colourOf = (rgba, fig) => { const p = new Uint8Array(topo.n).fill(255); C.paintFromPhotos(solid, topo, p, [C.photoView(rgba, W, H, solid, "front", Fp.fit, pal, fig)], { slots, fill: true, speck: 1 }); return score(topo, p, cls, out); };
+    const B = C.photoBendApply(shot.rgba, mp, W, H, bend), straight = colourOf(shot.rgba, mp), bent = colourOf(B.rgba, B.fig);
+    check(bend && bend.after > bend.before + 0.03 && bent > straight + 0.01, "a figure that stands a little differently: the photo is bent onto the model, and more of it comes out right",
+      bend && `outlines overlap ${(bend.before * 100).toFixed(1)}% → ${(bend.after * 100).toFixed(1)}% (${bendMs} ms); ${(straight * 100).toFixed(1)}% of the surface right → ${(bent * 100).toFixed(1)}%`);
+  }
+
   // 5b. the AI figure finder: a plain background, then a busy one where the colour method gets lost
   {
     const overlap = (m, truthMask) => { let a = 0, b = 0; for (let i = 0; i < W * H; i++) { if (m[i] && truthMask[i]) a++; if (m[i] || truthMask[i]) b++; } return a / b; };
     t0 = Date.now(); const mapPlain = await figureNet(front.rgba, W, H), netMs = Date.now() - t0;
     const aiPlain = C.photoMaskFromMap(mapPlain, 320, 320, W, H);
     check(overlap(aiPlain, front.mask) > 0.9, "AI figure finder: the figure on a plain background", `overlap ${(overlap(aiPlain, front.mask) * 100).toFixed(1)}%, ${netMs} ms (the first run loads the model)`);
+    // a photo of the model as it is, its figure found by the AI: bending it onto the model changes next to nothing
+    {
+      const Fa = C.photoFit(solid, "front", aiPlain, W, H, false), still = C.photoBend(solid, "front", Fa.fit, aiPlain, W, H);
+      let most = 0, mean = 0, cnt = 0; if (still) for (let i = 0; i < still.dx.length; i++) { const d = Math.hypot(still.dx[i], still.dy[i]) / still.h * H; most = Math.max(most, d); mean += d; cnt++; }
+      const colourOf = (rgba, fig) => { const p = new Uint8Array(topo.n).fill(255); C.paintFromPhotos(solid, topo, p, [C.photoView(rgba, W, H, solid, "front", Fa.fit, pal, fig, true)], { slots, fill: true, speck: 1 }); return score(topo, p, cls, out); };
+      const B = C.photoBendApply(front.rgba, aiPlain, W, H, still), a0 = colourOf(front.rgba, aiPlain), a1 = colourOf(B.rgba, B.fig);
+      check(still && a1 >= a0 - 0.003, "a photo of the model as it is: bending it changes next to nothing",
+        still && `overlap ${(still.before * 100).toFixed(1)}% → ${(still.after * 100).toFixed(1)}%, moved ${(mean / cnt).toFixed(1)} pixels on average, at most ${most.toFixed(1)}; ${(a0 * 100).toFixed(1)}% of the surface right → ${(a1 * 100).toFixed(1)}%`);
+    }
     const busy = onBusyBackground(front, W, H, 7), colourBusy = C.photoMask(busy.rgba, W, H, 35);
     t0 = Date.now(); const mapBusy = await figureNet(busy.rgba, W, H), busyMs = Date.now() - t0;
     const aiBusy = C.photoMaskFromMap(mapBusy, 320, 320, W, H);
@@ -590,6 +646,7 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
   hv.views[1].fix = "<img src=x onerror=alert(1)>";
   hv.views[2].fix = [{ add: "yes", r: 1e9, p: [NaN, 5, -3, 0.5, 0.2, "x"] }, { p: "x" }, null, { add: true, r: -4, p: [0.5] }, { add: true, p: Array(9000).fill(0.5) }];
   hv.views[0].fit.k = 1e9; hv.views[2].fit.k = -3; hv.views[1].near = "<script>"; hv.views[3].near = 99;           // how close (Session 23)
+  hv.shape = "<img src=x onerror=alert(1)>"; hv.views[0].bend = "no"; hv.views[1].bend = false; hv.views[2].bend = { evil: 1 };   // v0.30
   data.state.items = (data.state.items || []).concat([{ evil: 1 }, "<img src=x onerror=alert(1)>", "y".repeat(500), 7].map((u, i) => ({ id: 900 + i, name: "hostile " + i, uncut: u, width: 20 })));
   t0 = Date.now(); const e0 = env.errors.length; await open(JSON.stringify(data)); const hostileMs = Date.now() - t0;
   const ho = MF.state.paint.ops.find(o => o.k === "photo"), herr = env.errors.slice(e0).filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
@@ -607,6 +664,8 @@ async function figureNet(rgba, w, h) { return C.photoNetOutput(await netRaw(C.ph
     hf && `${hf[0].length} strokes, ${hfN} numbers; ${JSON.stringify(hf[2] && hf[2][0])}; huge brushes ${fixMs} ms`);
   check(ho && ho.views[0].fit.k === C.PHOTO_K_MAX && ho.views[2].fit.k === undefined && ho.views[1].near === undefined && ho.views[3].near === C.PHOTO_K_MAX,
     "how close a camera was, from a project file: clamped, and nonsense dropped", ho && JSON.stringify([ho.views[0].fit.k, ho.views[2].fit.k, ho.views[1].near, ho.views[3].near]));
+  check(ho && ho.shape === true && ho.views[0].bend === undefined && ho.views[1].bend === false && ho.views[2].bend === undefined,
+    "following the model's shape and bending a photo, from a project file: on unless plainly switched off", ho && JSON.stringify([ho.shape, ho.views[0].bend, ho.views[1].bend, ho.views[2].bend]));
   const hu = MF.state.items.filter(x => /^hostile/.test(x.name)).map(x => x.uncut);
   check(hu.length === 4 && hu[0] === undefined && hu[3] === undefined && hu[1].length <= 40 && hu[2].length === 40, "a picture's original (before an AI cut-out) is only ever a short name", JSON.stringify(hu).slice(0, 80));
   check(hostileMs < 20000 && !herr.length && !document.querySelector("#panel b b") && !document.querySelector("#panel img[src=x]"), "it opens quickly without errors and no markup gets in",

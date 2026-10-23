@@ -3,6 +3,21 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.30.0
+
+Colour from a photo, far more accurate: the colours follow the model's own shape, and a photo whose figure stands a little differently is bent to fit.
+
+- **Follow the model's shape** (under **Finishing**, on by default). The colours are worked out for the whole model at once instead of one little triangle at a time: edges between colours settle into the model's own folds and seams (a hem, a sock top, the line round a boot), and ragged edges and stray specks go. A big model still colours in a few seconds, in the background.
+- **The sides a photo can't see take the colour on the other side of the same part:** the back of a leg from its front, the back of a sleeve from its front. They used to take the nearest colour.
+- **Bend the photo a little to fit the model** (for each photo whose figure was found with the AI or fixed by hand, on by default). When the figure in the photo stands a little differently from the model, as in an artist's picture of it, the photo is bent by a few pixels so its outline meets the model's before the colours are read. The card says how much closer the outlines came.
+- On the test figure a front photo alone now gets 91% of the surface right (85% before), and front and back together 98%.
+
+**Fixed**
+- The back of a figure coloured from one front photo came out as a patchwork of colours.
+- Legs and arms came out with grey patches where the photo's pose differed a little from the model's.
+- The top of a figure's base, seen at a low angle in the photo, came out in streaks.
+- Colour edges came out ragged, with specks of other colours along them.
+
 ## 0.29.0
 
 Pictures: backgrounds taken away properly, and pictures that print the size and shape you drew them.

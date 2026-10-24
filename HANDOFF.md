@@ -373,132 +373,136 @@ The browser check's round trip had two faults of its own, fixed: it counted only
 
 ### 50 ideas for next sessions (tools we are working on now)
 
+Status checked against v0.30.0 (2026-10-24): 16 done, 11 partly done, 23 open.
+
 **Project box**
 1. Logo on the lid: pick an artwork and emboss, engrave or inlay it (reuse the tracer's flush-inlay code) in a second colour. (done, Session 12: inlay or engraved; not embossed, the lid prints face down)
 2. Text labels next to openings ("USB-C", "ON/OFF", "12V") engraved 0.4 mm into the wall, one field per opening. (done, Session 12)
-3. Snap-fit lid: flexible cantilever hooks on the lip and matching windows in the walls, no screws.
+3. Snap-fit lid: flexible cantilever hooks on the lip and matching windows in the walls, no screws. (open)
 4. Sliding lid: grooves in two walls, a lid that slides in, optional finger notch and end stop. (done, Session 12; no end stop yet)
-5. Hinged lid: print-in-place pin hinge along the back edge, printed as one piece with clearance.
-6. Board ghost: draw the chosen board (and its USB, HDMI, header positions) as a see-through preview in the box, and one-click "add openings for this board's ports" that lines them up automatically.
-7. Import a board outline and mounting holes from a KiCad `.kicad_pcb` or a Gerber edge-cuts file.
-8. Battery bays: 18650 / 21700 / AA / 9V holders with spring slots and wire channels, as a floor insert.
+5. Hinged lid: print-in-place pin hinge along the back edge, printed as one piece with clearance. (open)
+6. Board ghost: draw the chosen board (and its USB, HDMI, header positions) as a see-through preview in the box, and one-click "add openings for this board's ports" that lines them up automatically. (open)
+7. Import a board outline and mounting holes from a KiCad `.kicad_pcb` or a Gerber edge-cuts file. (open)
+8. Battery bays: 18650 / 21700 / AA / 9V holders with spring slots and wire channels, as a floor insert. (open)
 9. Magnet pockets in the corners of the lid and box (6 × 3, 8 × 2 …), sized for press-fit with a glue gap. (done, Session 12: magnet lid)
-10. Gasket groove for a TPU seal and a separate printable TPU gasket: splash-proof boxes.
-11. Wall-mount tabs and DIN-rail clips on the back; a VESA 75/100 pattern for screens.
+10. Gasket groove for a TPU seal and a separate printable TPU gasket: splash-proof boxes. (open)
+11. Wall-mount tabs and DIN-rail clips on the back; a VESA 75/100 pattern for screens. (partly: a wall-mount keyhole is one of the box's openings; no tabs, DIN rail or VESA)
 12. Feet: rubber-foot recesses in the floor, or printed feet with a chamfer, and cable exit notches in the wall top edge. (done, Session 12: foot recesses and notches to the top edge; printed feet not done)
-13. Split tall boxes into rings that stack and screw together when the box is taller than the printer.
-14. Ribs and bosses anywhere: click on a wall to add an M3 boss or a PCB guide rail (card-guide slots for boards that slide in).
-15. Knob generator: printed knobs for 6 mm D-shaft and 18T knurled pots, with a pointer line, in the second colour.
+13. Split tall boxes into rings that stack and screw together when the box is taller than the printer. (open)
+14. Ribs and bosses anywhere: click on a wall to add an M3 boss or a PCB guide rail (card-guide slots for boards that slide in). (partly: standoffs for the chosen board; no bosses or guide rails placed by clicking)
+15. Knob generator: printed knobs for 6 mm D-shaft and 18T knurled pots, with a pointer line, in the second colour. (open)
 
 **Tracer**
 16. Hanging hole, keychain loop or bail on the back plate, placed automatically where there's room. (done, Session 12: hole and loop; no bail)
 17. Screw bosses and counterbored mounting holes on the back plate (reuse the enclosure's SCREWS table). (done, Session 12: 2 or 4 countersunk holes; no bosses yet)
-18. Reference object scaling: a coin or credit card in the photo sets the scale (known sizes built in).
-19. Multi-level tracing: several brightness bands become stacked layers, each its own height and colour.
+18. Reference object scaling: a coin or credit card in the photo sets the scale (known sizes built in). (open; the tracer scales from a sheet of paper instead, Session 6)
+19. Multi-level tracing: several brightness bands become stacked layers, each its own height and colour. (open in the tracer; the Lightbox's layered paper-cut shadow box does something like it for pictures)
 20. SVG import: skip the photo and trace a real vector logo exactly. (partly, Session 12: drawn sharp at 2000 px with its real size; still rasterised, not read as paths)
-21. Stand for the traced shape: a slot base so a logo stands on a desk.
-22. Mirror-pair export: part and its mirror image side by side (left and right brackets).
+21. Stand for the traced shape: a slot base so a logo stands on a desk. (open)
+22. Mirror-pair export: part and its mirror image side by side (left and right brackets). (open; only the double-sided name plate has a mirrored copy)
 23. Stroke-thicken for logos with hairlines: minimum line width so nothing prints thinner than two perimeters. (done, Session 12)
-24. Cookie-stamp mode: the traced logo as a raised stamp with a handle on the back.
-25. Hollow cover with a lip or snap ring so it clicks onto the thing it covers; "fits over an object of W × D" mode where the inside, not the outside, gets the typed size.
+24. Cookie-stamp mode: the traced logo as a raised stamp with a handle on the back. (open; the cookie cutter has no stamp)
+25. Hollow cover with a lip or snap ring so it clicks onto the thing it covers; "fits over an object of W × D" mode where the inside, not the outside, gets the typed size. (partly, Session 11: the hollow cover; no lip, snap ring or sizing by the inside)
 26. Keep the colours: trace each colour of a multi-colour logo to its own part and filament slot. (done, Session 12: a coloured face on a body)
-27. Live caliper overlay: show the measured dimensions on the picture as you hover edges.
+27. Live caliper overlay: show the measured dimensions on the picture as you hover edges. (partly: the tracer's table gives sizes between fitted edges, the way calipers measure; nothing live on hover)
 
 **Rulers and measuring**
 28. A measuring tape tool: click two points on the model, get the distance (and angle). (done, Session 12; no angle yet)
 29. Section view: a slider that cuts the model at a height to show wall thickness and internal posts. (done, Session 12)
-30. Ghost of a reference object on the bed (a credit card, an AA battery, a hand) for instant scale.
-31. Grid snapping in the enclosure: drag openings on a 2D face view with snapping to 0.5 mm and to other openings' centres.
+30. Ghost of a reference object on the bed (a credit card, an AA battery, a hand) for instant scale. (open)
+31. Grid snapping in the enclosure: drag openings on a 2D face view with snapping to 0.5 mm and to other openings' centres. (open: openings are placed by typing their position)
 32. An inch ruler when the units setting is inches. (done, Session 12)
 
 **Lithophane**
-33. Colour lithophane (CMYK-style layered filament swap) for printers with an AMS.
-34. Heart, circle and hexagon night-light boxes with a built-in LED tea-light holder.
-35. Moon and globe lithophanes (sphere mapping) with a stand.
-36. Frame for a flat lithophane with a slot for an LED strip and a USB-C opening (reuse the enclosure openings).
+33. Colour lithophane (CMYK-style layered filament swap) for printers with an AMS. (open)
+34. Heart, circle and hexagon night-light boxes with a built-in LED tea-light holder. (partly: the Lithophane lamp, a cylinder that sits over an LED tea light, and heart and oval outlines on flat lithophanes; no closed night-light boxes)
+35. Moon and globe lithophanes (sphere mapping) with a stand. (open)
+36. Frame for a flat lithophane with a slot for an LED strip and a USB-C opening (reuse the enclosure openings). (partly: the Lightbox prints a backlit picture in a frame whose stand has a channel for an LED strip; no frame for a lithophane, no USB-C opening)
 
 **Jigsaw, name plates, flat shapes**
-37. Jigsaw puzzle box: a lid with the picture on it and a tray (reuse the enclosure lid).
-38. "Missing piece" gift puzzle: one piece with a personal message on the back in a second colour.
-39. Name plate with a USB-C cable holder or a magnet pocket for the fridge.
-40. Door sign with screw holes and a keyhole on the back.
-41. Coaster set generator: flat shape + artwork + cork recess on the bottom.
+37. Jigsaw puzzle box: a lid with the picture on it and a tray (reuse the enclosure lid). (partly: a tray or frame can print with the puzzle; no lid with the picture)
+38. "Missing piece" gift puzzle: one piece with a personal message on the back in a second colour. (partly: each piece can carry an engraved grid reference; no message on one piece)
+39. Name plate with a USB-C cable holder or a magnet pocket for the fridge. (open; the bobble head has a magnet pocket, name plates don't)
+40. Door sign with screw holes and a keyhole on the back. (open)
+41. Coaster set generator: flat shape + artwork + cork recess on the bottom. (partly: a hexagon coaster quick start; no cork recess, no set)
 42. Batch name plates from a CSV (a class, a wedding): one plate per name, packed onto the bed. (done, Session 12)
 
 **Printability and export**
-43. Auto-orient for boxes: choose the face that needs the least bridging for each lid and panel.
+43. Auto-orient for boxes: choose the face that needs the least bridging for each lid and panel. (partly: Optimize turns the whole model for printing; not per lid or panel)
 44. Bridge-aware openings: when a wall opening is wider than the bridge limit, offer a pointed or arched top automatically. (done, Session 12: pointed tops, square-top port holes, notches)
-45. Per-part print settings in the 3MF (for example 100 % infill on screw posts, a modifier volume for insert bosses).
+45. Per-part print settings in the 3MF (for example 100 % infill on screw posts, a modifier volume for insert bosses). (open)
 46. Print a test coupon: a small plate with the chosen insert hole, a USB-C cutout and a lid-lip sample, to dial in fits before printing the box. (done, Session 12: the fit-test box)
-47. Export a PDF assembly sheet: dimensions, screw list (4 × M3 × 8 countersunk, 4 inserts), and a picture of each face.
-48. Bambu colour mapping: try `m:colorgroup` in the 3MF so Bambu's filament mapping dialog appears.
+47. Export a PDF assembly sheet: dimensions, screw list (4 × M3 × 8 countersunk, 4 inserts), and a picture of each face. (open)
+48. Bambu colour mapping: try `m:colorgroup` in the 3MF so Bambu's filament mapping dialog appears. (researched in Session 30, not done: Bambu Studio's import of such colours was still buggy)
 49. Share link: pack the project into a URL so a friend can open the same box. (done, Session 12: pictures left out)
-50. A community parts library: the CUTOUTS table as a JSON file users can extend (their own modules, with photos), imported and exported from the Project tab.
+50. A community parts library: the CUTOUTS table as a JSON file users can extend (their own modules, with photos), imported and exported from the Project tab. (open)
 
 
 ### 50 more ideas (Session 13)
 
+Status checked against v0.30.0 (2026-10-24): 15 done, 11 partly done, 24 open.
+
 Painter
-1. Colour AI-generated models: read OBJ vertex colours and GLB/glTF textures, then quantise to the loaded filaments.
-2. Wrap a picture round a model (cylindrical and spherical projection), not only straight through it.
-3. Export sub-triangle paint (TriangleSelector split trees) so edges are exact without refining the mesh: smaller files.
-4. A layer preview: slide through the heights and see each layer's colours, with the number of colour changes.
-5. A purge and waste estimate per printer type (AMS, CFS, tool changer), and a "fewer changes" option that merges thin bands.
-6. Height bands as colour-change pauses (M600) for single-nozzle printers without an AMS, exported per slicer.
-7. A box select: drag a rectangle on the view to paint everything inside it (front faces or all the way through).
-8. Radial symmetry (4, 6, 8 ways) for mandalas and vases, and front / back mirroring.
-9. A brush that stops at sharp edges ("magnetic"), and a soft brush that paints only faces within an angle of the first.
-10. Colour by curvature (edges and hollows darker) for weathered, stone and wood looks.
-11. Named paint layers that can be hidden and shown, and strokes grouped per layer.
-12. A BVH for raycasting, so brushing a million-triangle model stays smooth.
-13. Keep paint when the imported model is scaled or mirrored (paint in model space: it already follows scale; check mirror).
-14. Paint by picking a colour on the model (eyedropper) and "select all of this colour".
-15. Save the imported model inside the project file (compressed), so a painted import reopens without the original file.
+1. Colour AI-generated models: read OBJ vertex colours and GLB/glTF textures, then quantise to the loaded filaments. (done, Session 20)
+2. Wrap a picture round a model (cylindrical and spherical projection), not only straight through it. (done, Session 18; pictures on objects wrap too since Session 34)
+3. Export sub-triangle paint (TriangleSelector split trees) so edges are exact without refining the mesh: smaller files. (open)
+4. A layer preview: slide through the heights and see each layer's colours, with the number of colour changes. (done, Session 18)
+5. A purge and waste estimate per printer type (AMS, CFS, tool changer), and a "fewer changes" option that merges thin bands. (partly, Session 18: the purge and waste estimate; no "fewer changes" option)
+6. Height bands as colour-change pauses (M600) for single-nozzle printers without an AMS, exported per slicer. (done, Session 30)
+7. A box select: drag a rectangle on the view to paint everything inside it (front faces or all the way through). (done, Session 18, with a lasso too)
+8. Radial symmetry (4, 6, 8 ways) for mandalas and vases, and front / back mirroring. (done, Session 18: radial symmetry and a mirror)
+9. A brush that stops at sharp edges ("magnetic"), and a soft brush that paints only faces within an angle of the first. (done, Session 18: the smart brush)
+10. Colour by curvature (edges and hollows darker) for weathered, stone and wood looks. (done, Session 18)
+11. Named paint layers that can be hidden and shown, and strokes grouped per layer. (done, Session 30: named steps that can be hidden)
+12. A BVH for raycasting, so brushing a million-triangle model stays smooth. (done, Session 22)
+13. Keep paint when the imported model is scaled or mirrored (paint in model space: it already follows scale; check mirror). (done, Session 30)
+14. Paint by picking a colour on the model (eyedropper) and "select all of this colour". (done, Session 18)
+15. Save the imported model inside the project file (compressed), so a painted import reopens without the original file. (done, Session 19: a saved project file keeps the model; the autosave and share links leave it out)
 
 Phone cases
-16. Flexible button covers (raised TPU bumps) instead of holes.
-17. A raised camera guard ring printed with a 45° inside chamfer.
-18. A MagSafe ring recess in the back, and a strap loop or lanyard holes at the bottom corners.
-19. A card pocket on the back, and a print-in-place kickstand.
-20. Measure a phone that is not in the list from a photo on paper (the tracer's paper scaling), camera included.
-21. Exact camera and button positions from Apple's and Samsung's accessory design guidelines, checked with real phones.
-22. Tablets (iPad, Galaxy Tab), e-readers and game controllers.
-23. Grip textures on the sides and a name engraved or painted on the back.
+16. Flexible button covers (raised TPU bumps) instead of holes. (open)
+17. A raised camera guard ring printed with a 45° inside chamfer. (open)
+18. A MagSafe ring recess in the back, and a strap loop or lanyard holes at the bottom corners. (open)
+19. A card pocket on the back, and a print-in-place kickstand. (open)
+20. Measure a phone that is not in the list from a photo on paper (the tracer's paper scaling), camera included. (open)
+21. Exact camera and button positions from Apple's and Samsung's accessory design guidelines, checked with real phones. (open)
+22. Tablets (iPad, Galaxy Tab), e-readers and game controllers. (open)
+23. Grip textures on the sides and a name engraved or painted on the back. (partly, Session 31: a picture or name inlaid or engraved in the back; no grip texture)
 
 Printers and slicing
-24. Dual-nozzle beds: narrow the bed automatically when both nozzles are used (X2D, H2D, H2C), and show exclusion zones (the A1's purge area).
-25. Put the printer and plate settings into the 3mf, so Bambu Studio and PrusaSlicer open with the right printer.
-26. A "my spools" library: brand, colour code, material and price, used for the palette and cost.
-27. Material presets that set fit clearances (TPU cases, PETG boxes, PLA snap fits).
-28. Test one painted export in each slicer from the command line (PrusaSlicer and OrcaSlicer both have a CLI) in the test suite.
+24. Dual-nozzle beds: narrow the bed automatically when both nozzles are used (X2D, H2D, H2C), and show exclusion zones (the A1's purge area). (partly: the X2D's notes say both nozzles narrow the bed to about 235 mm; not applied, no exclusion zones)
+25. Put the printer and plate settings into the 3mf, so Bambu Studio and PrusaSlicer open with the right printer. (open: Bambu Studio ignores a third-party file's settings, Session 10)
+26. A "my spools" library: brand, colour code, material and price, used for the palette and cost. (partly: each filament has a name, material and price per kilo; not kept as a library between projects)
+27. Material presets that set fit clearances (TPU cases, PETG boxes, PLA snap fits). (open)
+28. Test one painted export in each slicer from the command line (PrusaSlicer and OrcaSlicer both have a CLI) in the test suite. (open)
 
 Easy to use
-29. A guided mode: a few big questions (what, for whom, which colours) that set everything up.
-30. Describe the model in words for screen readers (size, parts, colours, warnings) and announce each finished build.
-31. Keyboard control of the 3D view (arrows turn, + and − zoom) with a visible focus ring on the view.
-32. A search box for settings.
-33. Colour-blind friendly palettes and a pattern overlay in the view to tell filaments apart.
-34. A tablet layout with bottom sheets and bigger touch targets.
-35. An undo list with named steps.
-36. Every warning with a small picture of the problem and the fix.
-37. Translations, with right-to-left layout for Arabic and Hebrew.
-38. Remember the last page per object between visits, and a "recently made" row.
+29. A guided mode: a few big questions (what, for whom, which colours) that set everything up. (open)
+30. Describe the model in words for screen readers (size, parts, colours, warnings) and announce each finished build. (partly: messages are announced to screen readers and can be read aloud; no description of the model)
+31. Keyboard control of the 3D view (arrows turn, + and − zoom) with a visible focus ring on the view. (open)
+32. A search box for settings. (open)
+33. Colour-blind friendly palettes and a pattern overlay in the view to tell filaments apart. (done, Session 18)
+34. A tablet layout with bottom sheets and bigger touch targets. (done, Session 21)
+35. An undo list with named steps. (open: undo and redo, without a list)
+36. Every warning with a small picture of the problem and the fix. (partly: the print check marks problem areas on the model; the messages have no pictures)
+37. Translations, with right-to-left layout for Arabic and Hebrew. (open)
+38. Remember the last page per object between visits, and a "recently made" row. (partly: the last few projects are listed; the page per object is not remembered)
 
 Speed and reliability
-39. Move tracing, refining, painting and the printability check into a Web Worker, so the page never freezes.
-40. Save to IndexedDB with the last five versions, instead of one localStorage entry with a size limit.
-41. Work offline as an installable app (service worker, fonts and libraries cached).
-42. A memory guard: warn before an import or a paint detail would use more than the browser can give.
-43. Run the real-browser check in CI on every push, with screenshots attached to the pull request.
+39. Move tracing, refining, painting and the printability check into a Web Worker, so the page never freezes. (partly, Sessions 22 and 30: the print check, picking boxes and colour from a photo run on a helper thread; builds still run on the page)
+40. Save to IndexedDB with the last five versions, instead of one localStorage entry with a size limit. (open)
+41. Work offline as an installable app (service worker, fonts and libraries cached). (open)
+42. A memory guard: warn before an import or a paint detail would use more than the browser can give. (partly: hard limits keep a build from running away; no warning before a big import)
+43. Run the real-browser check in CI on every push, with screenshots attached to the pull request. (open: the workflows run only after merges, for squashes and releases)
 
 New tools
-44. Gridfinity bins with labels in a second colour.
-45. Cable clips, cable tags and wall hooks from a diameter and a screw size.
-46. Plant pots with saucers and drainage, painted with the fade or stripes.
-47. Knobs and keycaps with inlaid text or symbols.
-48. Colour lithophanes (a CMY layer stack behind white).
-49. Stencils and cookie stamps from the tracer, with bridges added automatically.
-50. Topographic relief maps from an elevation picture, painted by height.
+44. Gridfinity bins with labels in a second colour. (open)
+45. Cable clips, cable tags and wall hooks from a diameter and a screw size. (open)
+46. Plant pots with saucers and drainage, painted with the fade or stripes. (partly: vases and pots, the turned shapes and the Cactus pot quick start; no saucer or drainage)
+47. Knobs and keycaps with inlaid text or symbols. (open)
+48. Colour lithophanes (a CMY layer stack behind white). (open)
+49. Stencils and cookie stamps from the tracer, with bridges added automatically. (open)
+50. Topographic relief maps from an elevation picture, painted by height. (partly: the Contour map plaque quick start and photo relief; no elevation file)
 
 ## Session 14: ready to go public, no Google Fonts (v0.17.1)
 
@@ -1228,6 +1232,146 @@ The full audit (`node tools-audit.js index.html`, every object) flags the card's
 **Not done, next**: an open mouth and dark hair take the darkest of four colours (dark green on the CR7); a sixth colour or the brush fixes it, but a "small dark details" hint could keep them in the colour round them. The bend only knows outlines (an arm in front of the body is not moved inside the body's outline); per-part lining up would do that. The crest on the base top, seen at a grazing angle, is lost; reading such faces from a sharper photo (PHOTO_RES 900) or a second photo from above would bring it back. Correction by example (a stroke that re-colours the region the solver joined to it) was looked at and left: **Fill → Fill the same colour** already does that on the result.
 
 **Still to check by hand**: a real photo of a real printed figure; the speed on a phone (6 s on this machine's Node for the CR7).
+
+## Session 36: the idea lists checked, and 100 more ideas (no app change; still v0.30.0)
+
+Asked: "was there a list of 50 new ideas somewhere?", then "go for it and add 100 more ideas, 10 of them that are huge and very useful for makers". Earlier in the same conversation the owner described a **litho book** (see Unfinished) and said not to build it yet.
+
+**The two lists checked** against the code on `main` (v0.30.0), each idea marked done, partly done or open, with the session that did it: Session 12's 50 ideas, 16 done, 11 partly, 23 open; Session 13's 50, 15 done, 11 partly, 24 open. A mark says what is there, not what the idea asked for: "partly" names the half that is missing.
+
+### 100 more ideas (Session 36)
+
+None of these is started. Each is new: not in the two lists above, not in Unfinished, not already in the app.
+
+**The ten big ones** (each a session or more; each a reason for a maker to open the app)
+1. **Filament painting, HueForge-style.** A photo printed in 3 to 6 filaments stacked layer by layer, the colours mixing by how much light each filament lets through (its TD value, typed in or measured with a printed test). Pick the filaments and the swap heights by optimisation against the photo, show the backlit and front-lit result, and export the swap list and a 3MF with the colour changes (pauses for one-nozzle printers already exist). The most-asked-for kind of picture print, and the app has most of the pieces: lithophane thickness, paint by height, pauses.
+2. **Mechanisms toolkit.** Threads (ISO metric, bottle caps and jar lids, with clearance for the nozzle), spur and planetary gears (module, teeth, bore with a D-flat or a hex), print-in-place hinges, living hinges, snap-fit hooks with the strain worked out for PLA, PETG or TPU, dovetails and press-fit pins. Each with a fit-test coupon (three clearances side by side), so the right one is picked from a print.
+3. **Model doctor.** For any imported model: close holes and fix flipped faces (Manifold), thicken walls thinner than the nozzle, hollow with drain holes and an even wall (for resin or to save filament), decimate to a triangle budget, and split a model too big for the bed into pieces that fit, with pin holes and a labelled assembly picture. Most broken downloads become printable without another program.
+4. **Plate planner and seller's toolkit.** Many objects (different ones, or one per row of a spreadsheet of orders: name, colour, size) packed onto as many plates as needed, each plate a 3MF plate with its time, filament and colour changes; per item the material, power and wear cost and a price with a margin; a packing list and printed labels (order number, name) for each bag. For makers who sell at fairs and online.
+5. **Send to the printer.** Upload the export straight to the printer from the page: Bambu printers on the LAN, OctoPrint, Moonraker (Klipper) and PrusaLink. Add a slicer compiled to WebAssembly for real print times, filament and a layer preview, instead of the estimate. One click from design to printing, with the printer's own profiles.
+6. **3D relief from any photo, with AI depth.** A small depth model (for example Depth Anything V2 Small, Apache-2.0, run by the ONNX Runtime Web the app already loads for the figure finder; a bigger download than the figure finder's, so checked and loaded only when asked for) turns a portrait, a pet or a landscape into a true relief: medallions, coins, plaques, a bust relief on a box lid, a 3D lithophane. Far better than brightness as height, which makes a dark sweater a hole.
+7. **Workshop organiser from a photo.** Lay tools on a sheet of paper, take one photo, and get a drawer insert or wall board with a pocket for each tool (the tracer's paper scaling and outlines), finger notches to lift them out, an engraved name under each, a contrasting colour at the bottom so a missing tool shows, and Gridfinity sizes as an option (bins and baseplates of any size, a standard many makers use).
+8. **Sign maker.** Channel letters and neon-style signs: hollow letters with a slot for an LED strip, a diffuser face printed in white or clear, a back with wire paths and screw or keyhole mounts, letters joined by a rail or set on a backboard, and the LED strip's length worked out. House numbers, shop signs, gaming-room names: a popular thing to make and sell.
+9. **Tactile and Braille.** Braille text set to the standard dot sizes and spacing (Grade 1 and Grade 2 English, more languages), signs with raised letters and Braille together for doors, tactile maps and diagrams from a picture (lines raised, areas textured, a key in Braille), and labels for kitchen jars and medicine. Useful far beyond hobby printing, and almost nothing else makes it easy.
+10. **Fix-it parts library.** The everyday parts that break: knobs, shelf pins, furniture feet and glides, battery covers, cable clips, curtain hooks, drawer runners' wheels, appliance caps and buttons. Each from two or three caliper measurements, with a picture of where to measure, a fit-test version, and a note on which material lasts (PETG or TPU).
+
+**Pictures and art**
+11. Several pictures on one object, each from the Art tab list, with "Arrange" to line them up, space them evenly or put one in each corner.
+12. A text path: words along a circle or an arc, for coins, badges and the rim of a coaster.
+13. Outline text and pictures with a second colour's stroke on the outside only, at a set width, for text that reads on any background.
+14. A gradient fill for text and shapes, made of bands of the loaded filaments.
+15. Clip art built in: a small drawn library (stars, hearts, paws, flowers, sports, music, holidays) to drop on anything without searching the web.
+16. A picture's own outline as the object's shape for every flat object (a coaster or a magnet shaped like the logo), not only the cookie cutter and the tracer.
+17. Halftone and dither for one-colour prints: a photo as dots or lines of one filament on another, sized so no dot is under a nozzle wide.
+18. A preview of the picture as it prints at true size on screen (a ruler on the side), so a 12 mm logo is seen at 12 mm.
+
+**Lithophanes**
+19. A matching frame for each lithophane shape, with a slot that holds a battery LED puck and a switch hole.
+20. Calibration from a printed test strip: photograph the lit strip, and the preview's light constant and the best thicknesses are worked out from it.
+21. A lithophane box: four or six panels, each with its own photo, joined at the corners, on a base that holds the light.
+22. A panorama lithophane for wide photos, bent into an S or a wave so it stands by itself.
+23. A night light that plugs in: a lithophane with a housing that fits a common plug-in LED night light.
+24. Lithophane window hangers: a frame with a hook and a suction-cup loop, thin enough to glow in daylight.
+25. A hidden-message lithophane: a picture that only shows when lit (the front printed flat in another colour).
+26. Brightness and contrast curves for lithophanes, with a histogram, so faces don't come out too dark.
+
+**Name plates, keychains and tags**
+27. Pet tags with the phone number engraved on the back and a ring of the right size for a collar.
+28. Luggage tags with a strap slot, the name on the front and contact details hidden under a flap.
+29. Desk name plates with a stand (a wedge or a triangular bar) and the name on both sides.
+30. Wedding and party place cards that stand, from a list of guests, with table numbers.
+31. Keychains that hold an AirTag or a Tile, with the name on the cover.
+32. Bag and backpack charms in two layers, a shaker charm with a clear window (a pause for the beads).
+33. Word art keychains in script fonts with all letters joined automatically into one piece.
+
+**Business cards**
+34. A stand for the cards on a table, with the logo, holding 20 or 50 cards.
+35. NFC tags written from the app: Web NFC on Android writes the contact or link straight to the tag before it goes in.
+36. Loyalty and stamp cards with punch-out or tick spots, and gift cards with a code.
+37. Card sizes and layouts for ID badges, with a slot for a lanyard clip.
+
+**Jigsaw and games**
+38. A puzzle in the shape of the picture's subject (the outline of a dog), every piece a part of it.
+39. A sliding-tile puzzle (the 15-puzzle) from a picture: tiles that slide in a frame, printed in place.
+40. Tabletop gaming: miniature bases with textures, dice towers, card holders, token trays, terrain tiles that clip together.
+41. Board game inserts: a box's inside size typed in, trays for each component, a lid that closes flush.
+42. A chess or checkers set from a picture set, with a board in two colours and pieces that store under it.
+
+**Phone cases and gadgets**
+43. Phone stands and docks: an angle, a cable slot, a name, for any phone in the list.
+44. Cases for small gadgets from their size: AirPods, game cartridges, a remote control, a power bank.
+45. Camera accessories: lens caps, hot-shoe covers, cable clips for a gimbal.
+46. A watch band adapter and a band in TPU, from the lug width.
+
+**Project boxes**
+47. Cable glands (PG7 to PG16) printed with the box, and a strain-relief clamp for a loose cable.
+48. Light pipes for LEDs on a board, from the LED's position to a hole in the lid.
+49. Buttons through the lid: a printed cap with a stem that presses a tact switch on the board below.
+50. Display windows sized for common screens (0.96", 1.3" OLED, 2.4" TFT, e-paper), with the bezel and mounting clips.
+51. Vent louvres and fan guards that print without support, placed on a wall with a size.
+52. Labels on the box's walls in a second colour (not only engraved), and a QR code for the project's notes.
+
+**Colour painter and colour from a photo**
+53. Paint with a picture as a stamp: click to place a decal from the Art tab on any curved model, the paint following the surface.
+54. A colour palette from a photo for the whole project: the filaments set to the five main colours of any picture, with the nearest real filaments named.
+55. "Small dark details" kept: eyes and mouths keep the colour round them unless they are big enough to print.
+56. Per-part lining up for colour from a photo: the arms and head moved separately to their places in the photo.
+57. A second photo from above for tops (hats, shoulders, the base's crest).
+58. Paint from a short video: frames taken round the figure, each lined up, for every side at once.
+59. Fill by connected region with a tolerance on the angle between faces, like a paint bucket for 3D.
+60. A stripe brush that paints bands round a model, for socks, sleeves and trims.
+
+**Imported models**
+61. Read STEP files (Opencascade compiled to WebAssembly) for parts made in CAD.
+62. Read 3MF files with several plates and objects and keep their names and plates.
+63. Scale to a known length: click two points on the model and type what the distance should be.
+64. Add a base or a stand to any model: a round, square or shaped plinth with a name on its front.
+65. Emboss text onto a curved model's surface, raised and following it (not only engraved).
+66. Mirror, rotate by 90°, and lay on a face picked by clicking.
+67. A display stand or wall mount for an imported figure: a peg hole drilled into its base and a matching stand or bracket.
+
+**Printability and export**
+68. Supports drawn by the app for the few spots that need them (tree supports with a gap), for slicers set to "none".
+69. A seam picture: where the seam of each layer will be, from the shape, with a suggestion to hide it.
+70. Warping risk for big flat parts in ABS, ASA or PA, with mouse ears added at the corners.
+71. A time estimate that knows the printer's speeds, compared to the slicer's when one is sent back.
+72. Ironing hints: the flat tops that would look better ironed, marked on the model, with the slicer setting to use.
+73. STL and 3MF thumbnails written in the file, so file managers and slicers show the model.
+74. Export for resin printers: hollowing, drain holes and a support-friendly tilt.
+75. Export the colours as an OBJ with a texture, for showing a model online or in a render.
+
+**Easy to use**
+76. A "what can I make with this?" start: drop any file (photo, logo, model, list of names) and the app suggests the objects that use it.
+77. Templates people can save: a project as a starting point with its own name and picture on the Start page.
+78. Presets per printer for every object (sizes that fit the bed, colours that fit the AMS).
+79. A side-by-side compare of two versions of a project.
+80. A print diary: every export kept with its date, settings, picture and a note on how the print went.
+81. A beginner mode that hides advanced settings, and a toggle to show them all.
+82. Big-screen mode for a TV or projector at a club or a class.
+83. A short animated tip for each object the first time it is opened, which can be switched off.
+
+**Speed and reliability**
+84. Open huge models (several million triangles) by streaming the file and simplifying while reading.
+85. A crash-safe autosave of the last good state, with a restore offer after a reload.
+86. GPU picking and painting through WebGL for models over a million triangles.
+87. Every build cancellable: a newer change stops the old build at once.
+
+**Calibration and learning**
+88. Calibration prints from the app: temperature tower, retraction test, flow cube, tolerance gauge, overhang and bridge tests, each labelled with its values for the chosen filament.
+89. A filament test swatch: a small tag for each spool with its brand, colour, temperature and a thickness ladder for lithophanes and filament painting.
+90. Tolerance learning: after a fit test, the measured fit is stored per printer and used by every object with a fit.
+91. School kits: molecule models from a formula, maths surfaces from an equation, a topographic map from a place name's height data.
+92. A "how it prints" animation: the layers built up in the view, with the colour changes shown.
+
+**More small tools**
+93. Wall plate covers for switches and sockets (UK, EU, US sizes), with a name or a pattern.
+94. Cable chains and cable combs from a cable count and diameter.
+95. Hooks, brackets and shelf supports from a load, a screw size and a wall type.
+96. Plant labels and garden markers from a list, with a spike that goes into the soil.
+97. Bookmarks with a picture or a name, thin and flexible in PETG or TPU.
+98. Spiral-vase-mode pots and lamp shades with patterns (Voronoi, waves, a picture embossed), printed with one wall.
+99. Drawer handles and knobs in matching sets, from the hole spacing.
+100. Ring sizers and rings with an engraved or inlaid name, from a ring size.
 
 ## Unfinished (in priority order)
 

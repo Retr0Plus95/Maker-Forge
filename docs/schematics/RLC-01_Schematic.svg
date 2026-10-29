@@ -335,8 +335,8 @@
 <text x="722.0" y="900.0" font-size="13.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">D7, D10  pulse at boot (GPIO14, GPIO5)</text>
 <text x="722.0" y="922.0" font-size="13.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">D8, A0   boot strapping pins (GPIO12, GPIO2)</text>
 <text x="722.0" y="944.0" font-size="13.5" fill="#e6eef7" text-anchor="start" font-weight="normal"></text>
-<text x="722.0" y="966.0" font-size="13.5" fill="#e6eef7" text-anchor="start" font-weight="normal">USB: upload with the 12 V unplugged,</text>
-<text x="722.0" y="988.0" font-size="13.5" fill="#e6eef7" text-anchor="start" font-weight="normal">or over Wi-Fi once the firmware is in.</text>
+<text x="722.0" y="966.0" font-size="13.5" fill="#e6eef7" text-anchor="start" font-weight="normal">USB and 12 V together are fine (D2 blocks</text>
+<text x="722.0" y="988.0" font-size="13.5" fill="#e6eef7" text-anchor="start" font-weight="normal">both ways). First upload: the R32 alone.</text>
 <text x="722.0" y="1010.0" font-size="13.5" fill="#e6eef7" text-anchor="start" font-weight="normal"></text>
 <text x="722.0" y="1032.0" font-size="13.5" fill="#7cc4f2" text-anchor="start" font-weight="normal">Pin map and jumper list: sheet 2.</text>
 <rect x="1190.0" y="90.0" width="740.0" height="760.0" rx="6" stroke="#4f8fd0" stroke-width="2" fill="none" stroke-dasharray="10 7"/>

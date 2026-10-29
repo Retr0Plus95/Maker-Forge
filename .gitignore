@@ -1,2 +1,21 @@
+# host test binary, Python caches
 test/test_core
 __pycache__/
+*.pyc
+
+# Arduino build output
+build/
+*.bin
+*.elf
+*.map
+
+# Node (Playwright for the page test and pictures)
+node_modules/
+package-lock.json
+
+# editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*~

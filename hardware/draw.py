@@ -396,7 +396,7 @@ def schematic_sheet():
     notes = [("Female-female Dupont jumpers into the R32's own", LINE), ("header sockets: nothing is soldered to the R32.", LINE),
              ("", LINE), ("Pins with no job at boot only. Not used:", AMBER), ("D4, D5   labels differ between R32 makers", DIM),
              ("D7, D10  pulse at boot (GPIO14, GPIO5)", DIM), ("D8, A0   boot strapping pins (GPIO12, GPIO2)", DIM),
-             ("", LINE), ("USB: upload with the 12 V unplugged,", LINE), ("or over Wi-Fi once the firmware is in.", LINE),
+             ("", LINE), ("USB and 12 V together are fine (D2 blocks", LINE), ("both ways). First upload: the R32 alone.", LINE),
              ("", LINE), ("Pin map and jumper list: sheet 2.", BLUE)]
     for i, (n, col) in enumerate(notes):
         s.text(722, 790 + i * 22, n, size=13.5, fill=col)

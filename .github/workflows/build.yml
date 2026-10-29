@@ -1,0 +1,43 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: tests and checks
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Firmware logic (host tests)
+        run: make -C test
+      - name: Netlist, perfboard layout and box clearances
+        run: |
+          python3 hardware/netlist.py
+          python3 hardware/check_layout.py
+          python3 hardware/check_box.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Web page in Chromium
+        run: |
+          npm install --no-save playwright@1.63.0
+          npx playwright install --with-deps chromium
+          node test/web_page_test.js
+
+  firmware:
+    name: compile for the D1 R32
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: ESP32 core
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32@3.3.12 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+      - name: Compile
+        run: arduino-cli compile --fqbn esp32:esp32:d1_uno32 --warnings all firmware/RGBLampController

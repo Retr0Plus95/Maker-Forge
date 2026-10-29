@@ -1,5 +1,5 @@
 // Pictures of the box from Maker Forge itself, in Chromium (Playwright): the app with the box on the plate, and
-// close-ups of the front, the back and the inside. Writes images/box-*.jpg.
+// close-ups of the front, the back and the inside. Writes images/box-*.jpg and enclosure/share-link.txt.
 //   node enclosure/render_box.js [path to a Maker Forge checkout, default ../Maker-Forge]
 "use strict";
 const fs = require("fs");
@@ -37,6 +37,10 @@ fs.mkdirSync(IMG, { recursive: true });
     MF.render(); MF.rebuild(true);
   }, design);
   await idle();
+  // the same box as a Maker Forge link (compressed here: the browser has CompressionStream)
+  const url = await page.evaluate(async () => (await MakerForge.shareLink()).url);
+  fs.writeFileSync(path.join(here, "share-link.txt"), "https://forge.retr0plus.se/" + url.slice(url.indexOf("#")) + "\n");
+  console.log("  enclosure/share-link.txt");
   await page.evaluate(() => { const n = document.querySelector("#notice"); if (n) n.classList.remove("show"); });
   await page.screenshot({ path: path.join(IMG, "box-maker-forge.jpg"), type: "jpeg", quality: 86 });
   console.log("  images/box-maker-forge.jpg");

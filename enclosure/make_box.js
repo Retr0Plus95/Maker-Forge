@@ -4,7 +4,6 @@
 //   enclosure/rgb-lamp-controller-box.3mf         (PrusaSlicer and others)
 //   enclosure/stl/*.stl                           (each part on its own)
 //   enclosure/rgb-lamp-controller-box.forge.json  (open it in Maker Forge to change the box: Project > Open)
-//   enclosure/share-link.txt                      (the same box as a Maker Forge link)
 //
 //   node enclosure/make_box.js [path to a Maker Forge checkout, default ../Maker-Forge]
 // Needs the Maker Forge repository with its npm dev dependencies (jsdom) and a built index.html.
@@ -98,10 +97,6 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
   project.saved = "2026-10-29T00:00:00.000Z";                       // a fixed date keeps the file stable in git
   fs.writeFileSync(out("rgb-lamp-controller-box.forge.json"), JSON.stringify(project) + "\n");
   console.log("  rgb-lamp-controller-box.forge.json");
-  const link = await MF.shareLink();
-  const tail = link.url.slice(link.url.indexOf("#"));
-  fs.writeFileSync(out("share-link.txt"), "https://forge.retr0plus.se/" + tail + "\n");
-  console.log("  share-link.txt");
 
   // Maker Forge's printability check, as its Print tab shows it
   let pr = null;

@@ -1,0 +1,36 @@
+{
+  "maker_forge": "Maker Forge: free multi-colour 3D print designer",
+  "size_mm": [
+    171,
+    91,
+    50
+  ],
+  "plate_mm": [
+    171.5,
+    210.2,
+    50
+  ],
+  "parts": [
+    {
+      "name": "Box",
+      "triangles": 11792,
+      "cm3": 98.8
+    },
+    {
+      "name": "Lid",
+      "triangles": 15088,
+      "cm3": 38
+    },
+    {
+      "name": "Pilot light lenses (1)",
+      "triangles": 112,
+      "cm3": 0.2
+    }
+  ],
+  "grams": 170,
+  "printability": {
+    "support_mm2": 0,
+    "bridges": 1,
+    "notes": []
+  }
+}

@@ -1,0 +1,206 @@
+{
+  "title": "RGB Lamp Controller box",
+  "about": "Maker Forge project box (Functional > Project box). All sizes in mm. Box coordinates: X to the right seen from the front, Y towards the back, from the middle of the box. On a wall, u runs along the face (to the right seen from outside) and v is the height above the bed; on the floor and the lid, u = X and v = Y.",
+  "enclosure": {
+    "w": 171,
+    "d": 91,
+    "h": 50,
+    "wall": 2.4,
+    "floor": 2.4,
+    "radius": 4,
+    "lid": "screw",
+    "lidThick": 2.4,
+    "lipH": 3,
+    "lipW": 1.2,
+    "fit": 0.2,
+    "fasten": "insert",
+    "screw": "M3",
+    "head": "sink",
+    "teardrop": true,
+    "grow": true,
+    "clear": 0.2,
+    "magnet": "6x2",
+    "feet": "none",
+    "footSize": "8",
+    "footDepth": 1,
+    "labelH": 4,
+    "labelLine": 0.6,
+    "labelDepth": 0.4,
+    "logo": {
+      "on": false,
+      "mode": "inlay",
+      "width": 40,
+      "x": 0,
+      "y": 0,
+      "depth": 0.6
+    },
+    "test": false,
+    "lensSlot": 0,
+    "board": "custom",
+    "boardX": 30,
+    "boardY": 0,
+    "boardRot": false,
+    "standH": 5,
+    "bw": 90,
+    "bd": 70,
+    "bsx": 84,
+    "bsy": 64,
+    "bscrew": "M2.5",
+    "boxSlot": 1,
+    "lidSlot": 1,
+    "cut": [
+      {
+        "face": "front",
+        "kind": "round",
+        "u": 8,
+        "v": 36,
+        "dia": 6.5,
+        "label": "IR",
+        "labelPos": "below"
+      },
+      {
+        "face": "front",
+        "kind": "pilotp5",
+        "u": 30,
+        "v": 36,
+        "label": "STATUS",
+        "labelPos": "below"
+      },
+      {
+        "face": "front",
+        "kind": "btn",
+        "u": 64,
+        "v": 36,
+        "label": "ON/OFF",
+        "labelPos": "below"
+      },
+      {
+        "face": "back",
+        "kind": "rect",
+        "u": 37,
+        "v": 13.3,
+        "w": 12,
+        "h": 8,
+        "r": 2,
+        "label": "USB",
+        "labelPos": "above",
+        "top": "pointed"
+      },
+      {
+        "face": "back",
+        "kind": "barrel",
+        "u": 2,
+        "v": 34,
+        "label": "12V",
+        "labelPos": "below"
+      },
+      {
+        "face": "back",
+        "kind": "round",
+        "u": -46.5,
+        "v": 34,
+        "dia": 12.2,
+        "label": "STRIP",
+        "labelPos": "below"
+      },
+      {
+        "face": "top",
+        "kind": "vent",
+        "u": 11,
+        "v": 8,
+        "w": 36,
+        "h": 18,
+        "style": "slots",
+        "label": "RGB LAMP",
+        "labelPos": "below"
+      },
+      {
+        "face": "bottom",
+        "kind": "vent",
+        "u": 30,
+        "v": -6,
+        "w": 44,
+        "h": 20,
+        "style": "slots"
+      },
+      {
+        "face": "bottom",
+        "kind": "hole",
+        "u": -72.56,
+        "v": 27.63,
+        "dia": 3.4
+      },
+      {
+        "face": "bottom",
+        "kind": "hole",
+        "u": -24.3,
+        "v": 26.36,
+        "dia": 3.4
+      },
+      {
+        "face": "bottom",
+        "kind": "hole",
+        "u": -67.48,
+        "v": -24.44,
+        "dia": 3.4
+      },
+      {
+        "face": "bottom",
+        "kind": "hole",
+        "u": -39.54,
+        "v": -24.44,
+        "dia": 3.4
+      }
+    ]
+  },
+  "r32": {
+    "note": "WeMos D1 R32 (Uno outline 68.6 x 53.3), turned so its USB edge faces the back wall: box X = left + board y, box Y = back - board x (board x, y as on the Arduino Uno drawing, USB edge at x = 0).",
+    "left": -75.1,
+    "back": 41.6,
+    "standoff": 8,
+    "holes": [
+      [
+        13.97,
+        2.54
+      ],
+      [
+        15.24,
+        50.8
+      ],
+      [
+        66.04,
+        7.62
+      ],
+      [
+        66.04,
+        35.56
+      ]
+    ],
+    "usb_y": 38.1
+  },
+  "perfboard": {
+    "note": "7 x 9 cm, top edge (row 1) to the back wall, left edge (column 1) to the R32",
+    "x": 30,
+    "y": 0,
+    "w": 90,
+    "h": 70
+  },
+  "panel_parts": {
+    "U2": 0,
+    "LED1": 1,
+    "SW1": 2,
+    "R32 USB": 3,
+    "J1": 4,
+    "J7": 5
+  },
+  "slots": [
+    {
+      "hex": "#e9edf0",
+      "name": "Clear PETG (lens)"
+    },
+    {
+      "hex": "#5b6470",
+      "name": "Grey PETG (box and lid)"
+    }
+  ]
+}

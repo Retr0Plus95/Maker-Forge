@@ -1,0 +1,521 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 1400" width="2000" height="1400" font-family="DejaVu Sans Mono, Menlo, Consolas, monospace"><rect x="0.0" y="0.0" width="2000.0" height="1400.0" rx="0" stroke="none" stroke-width="2" fill="#0d2545"/>
+<line x1="0.0" y1="0.0" x2="0.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="40.0" y1="0.0" x2="40.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="80.0" y1="0.0" x2="80.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="120.0" y1="0.0" x2="120.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="160.0" y1="0.0" x2="160.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="200.0" y1="0.0" x2="200.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="240.0" y1="0.0" x2="240.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="280.0" y1="0.0" x2="280.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="320.0" y1="0.0" x2="320.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="360.0" y1="0.0" x2="360.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="400.0" y1="0.0" x2="400.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="440.0" y1="0.0" x2="440.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="480.0" y1="0.0" x2="480.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="520.0" y1="0.0" x2="520.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="560.0" y1="0.0" x2="560.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="600.0" y1="0.0" x2="600.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="640.0" y1="0.0" x2="640.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="680.0" y1="0.0" x2="680.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="720.0" y1="0.0" x2="720.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="760.0" y1="0.0" x2="760.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="800.0" y1="0.0" x2="800.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="840.0" y1="0.0" x2="840.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="880.0" y1="0.0" x2="880.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="920.0" y1="0.0" x2="920.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="960.0" y1="0.0" x2="960.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1000.0" y1="0.0" x2="1000.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1040.0" y1="0.0" x2="1040.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1080.0" y1="0.0" x2="1080.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1120.0" y1="0.0" x2="1120.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1160.0" y1="0.0" x2="1160.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1200.0" y1="0.0" x2="1200.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1240.0" y1="0.0" x2="1240.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1280.0" y1="0.0" x2="1280.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1320.0" y1="0.0" x2="1320.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1360.0" y1="0.0" x2="1360.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1400.0" y1="0.0" x2="1400.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1440.0" y1="0.0" x2="1440.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1480.0" y1="0.0" x2="1480.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1520.0" y1="0.0" x2="1520.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1560.0" y1="0.0" x2="1560.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1600.0" y1="0.0" x2="1600.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1640.0" y1="0.0" x2="1640.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1680.0" y1="0.0" x2="1680.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1720.0" y1="0.0" x2="1720.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1760.0" y1="0.0" x2="1760.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1800.0" y1="0.0" x2="1800.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1840.0" y1="0.0" x2="1840.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1880.0" y1="0.0" x2="1880.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1920.0" y1="0.0" x2="1920.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="1960.0" y1="0.0" x2="1960.0" y2="1400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="0.0" x2="2000.0" y2="0.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="40.0" x2="2000.0" y2="40.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="80.0" x2="2000.0" y2="80.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="120.0" x2="2000.0" y2="120.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="160.0" x2="2000.0" y2="160.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="200.0" x2="2000.0" y2="200.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="240.0" x2="2000.0" y2="240.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="280.0" x2="2000.0" y2="280.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="320.0" x2="2000.0" y2="320.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="360.0" x2="2000.0" y2="360.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="400.0" x2="2000.0" y2="400.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="440.0" x2="2000.0" y2="440.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="480.0" x2="2000.0" y2="480.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="520.0" x2="2000.0" y2="520.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="560.0" x2="2000.0" y2="560.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="600.0" x2="2000.0" y2="600.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="640.0" x2="2000.0" y2="640.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="680.0" x2="2000.0" y2="680.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="720.0" x2="2000.0" y2="720.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="760.0" x2="2000.0" y2="760.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="800.0" x2="2000.0" y2="800.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="840.0" x2="2000.0" y2="840.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="880.0" x2="2000.0" y2="880.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="920.0" x2="2000.0" y2="920.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="960.0" x2="2000.0" y2="960.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="1000.0" x2="2000.0" y2="1000.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="1040.0" x2="2000.0" y2="1040.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="1080.0" x2="2000.0" y2="1080.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="1120.0" x2="2000.0" y2="1120.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="1160.0" x2="2000.0" y2="1160.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="1200.0" x2="2000.0" y2="1200.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="1240.0" x2="2000.0" y2="1240.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="1280.0" x2="2000.0" y2="1280.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="1320.0" x2="2000.0" y2="1320.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<line x1="0.0" y1="1360.0" x2="2000.0" y2="1360.0" stroke="#14325a" stroke-width="1" stroke-linecap="butt"/>
+<rect x="24.0" y="24.0" width="1952.0" height="1352.0" rx="0" stroke="#e6eef7" stroke-width="3" fill="none"/>
+<rect x="40.0" y="40.0" width="1920.0" height="1320.0" rx="0" stroke="#e6eef7" stroke-width="1.2" fill="none"/>
+<text x="90.0" y="108.0" font-size="34" fill="#e6eef7" text-anchor="start" font-weight="bold" letter-spacing="2">RGB LAMP CONTROLLER — REFERENCE</text>
+<text x="90.0" y="146.0" font-size="18" fill="#7cc4f2" text-anchor="start" font-weight="normal">D1 R32 pins · jumpers · panel leads · the remotes' keys</text>
+<rect x="70.0" y="190.0" width="900.0" height="610.0" rx="6" stroke="#4f8fd0" stroke-width="2" fill="none" stroke-dasharray="10 7"/>
+<rect x="88.0" y="178.0" width="550.4" height="24.0" rx="0" stroke="none" stroke-width="2" fill="#0d2545"/>
+<text x="100.0" y="197.0" font-size="18" fill="#7cc4f2" text-anchor="start" font-weight="bold" letter-spacing="1.5">D1 R32 — HEADERS SEEN FROM ABOVE (not to scale)</text>
+<rect x="110.0" y="322.0" width="830.0" height="290.0" rx="14" stroke="#7cc4f2" stroke-width="3" fill="#10305a"/>
+<rect x="96.0" y="392.0" width="84.0" height="54.0" rx="4" stroke="#e6eef7" stroke-width="2" fill="#0d2545"/>
+<text x="138.0" y="424.0" font-size="12" fill="#8aa6c4" text-anchor="middle" font-weight="normal">micro-USB</text>
+<rect x="96.0" y="522.0" width="84.0" height="64.0" rx="4" stroke="#e6eef7" stroke-width="2" fill="#0d2545"/>
+<text x="138.0" y="559.0" font-size="12" fill="#8aa6c4" text-anchor="middle" font-weight="normal">DC jack</text>
+<rect x="440.0" y="417.0" width="200.0" height="110.0" rx="3" stroke="#8aa6c4" stroke-width="2" fill="#0d2545"/>
+<text x="540.0" y="468.0" font-size="16" fill="#8aa6c4" text-anchor="middle" font-weight="bold">ESP32</text>
+<text x="540.0" y="490.0" font-size="12" fill="#8aa6c4" text-anchor="middle" font-weight="normal">WROOM-32</text>
+<rect x="169.0" y="341.0" width="22.0" height="22.0" rx="0" stroke="#8aa6c4" stroke-width="1.4" fill="#0d2545"/>
+<text x="180.0" y="294.0" font-size="12.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">SCL</text>
+<text x="180.0" y="312.0" font-size="11" fill="#8aa6c4" text-anchor="middle" font-weight="normal">IO22</text>
+<rect x="209.0" y="341.0" width="22.0" height="22.0" rx="0" stroke="#8aa6c4" stroke-width="1.4" fill="#0d2545"/>
+<text x="220.0" y="294.0" font-size="12.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">SDA</text>
+<text x="220.0" y="312.0" font-size="11" fill="#8aa6c4" text-anchor="middle" font-weight="normal">IO21</text>
+<rect x="249.0" y="341.0" width="22.0" height="22.0" rx="0" stroke="#8aa6c4" stroke-width="1.4" fill="#0d2545"/>
+<text x="260.0" y="294.0" font-size="12.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">AREF</text>
+<rect x="289.0" y="341.0" width="22.0" height="22.0" rx="0" stroke="#f2c14e" stroke-width="2.4" fill="#0d2545"/>
+<text x="300.0" y="294.0" font-size="12.5" fill="#f2c14e" text-anchor="middle" font-weight="bold">GND</text>
+<text x="300.0" y="388.0" font-size="12" fill="#e6eef7" text-anchor="middle" font-weight="bold">0 V</text>
+<rect x="329.0" y="341.0" width="22.0" height="22.0" rx="0" stroke="#f2c14e" stroke-width="2.4" fill="#0d2545"/>
+<text x="340.0" y="294.0" font-size="12.5" fill="#f2c14e" text-anchor="middle" font-weight="bold">D13</text>
+<text x="340.0" y="312.0" font-size="11" fill="#f2c14e" text-anchor="middle" font-weight="normal">IO18</text>
+<text x="340.0" y="388.0" font-size="12" fill="#e6eef7" text-anchor="middle" font-weight="bold">LED</text>
+<rect x="369.0" y="341.0" width="22.0" height="22.0" rx="0" stroke="#f2c14e" stroke-width="2.4" fill="#0d2545"/>
+<text x="380.0" y="294.0" font-size="12.5" fill="#f2c14e" text-anchor="middle" font-weight="bold">D12</text>
+<text x="380.0" y="312.0" font-size="11" fill="#f2c14e" text-anchor="middle" font-weight="normal">IO19</text>
+<text x="380.0" y="388.0" font-size="12" fill="#e6eef7" text-anchor="middle" font-weight="bold">BTN</text>
+<rect x="409.0" y="341.0" width="22.0" height="22.0" rx="0" stroke="#f2c14e" stroke-width="2.4" fill="#0d2545"/>
+<text x="420.0" y="294.0" font-size="12.5" fill="#f2c14e" text-anchor="middle" font-weight="bold">D11</text>
+<text x="420.0" y="312.0" font-size="11" fill="#f2c14e" text-anchor="middle" font-weight="normal">IO23</text>
+<text x="420.0" y="388.0" font-size="12" fill="#e6eef7" text-anchor="middle" font-weight="bold">BLUE</text>
+<rect x="449.0" y="341.0" width="22.0" height="22.0" rx="0" stroke="#ff6b6b" stroke-width="1.4" fill="#0d2545"/>
+<text x="460.0" y="294.0" font-size="12.5" fill="#ff6b6b" text-anchor="middle" font-weight="normal">D10</text>
+<text x="460.0" y="312.0" font-size="11" fill="#ff6b6b" text-anchor="middle" font-weight="normal">IO5</text>
+<rect x="489.0" y="341.0" width="22.0" height="22.0" rx="0" stroke="#ff6b6b" stroke-width="1.4" fill="#0d2545"/>
+<text x="500.0" y="294.0" font-size="12.5" fill="#ff6b6b" text-anchor="middle" font-weight="normal">D9</text>
+<text x="500.0" y="312.0" font-size="11" fill="#ff6b6b" text-anchor="middle" font-weight="normal">IO13</text>
+<rect x="529.0" y="341.0" width="22.0" height="22.0" rx="0" stroke="#ff6b6b" stroke-width="1.4" fill="#0d2545"/>
+<text x="540.0" y="294.0" font-size="12.5" fill="#ff6b6b" text-anchor="middle" font-weight="normal">D8</text>
+<text x="540.0" y="312.0" font-size="11" fill="#ff6b6b" text-anchor="middle" font-weight="normal">IO12</text>
+<rect x="585.0" y="341.0" width="22.0" height="22.0" rx="0" stroke="#ff6b6b" stroke-width="1.4" fill="#0d2545"/>
+<text x="596.0" y="294.0" font-size="12.5" fill="#ff6b6b" text-anchor="middle" font-weight="normal">D7</text>
+<text x="596.0" y="312.0" font-size="11" fill="#ff6b6b" text-anchor="middle" font-weight="normal">IO14</text>
+<rect x="625.0" y="341.0" width="22.0" height="22.0" rx="0" stroke="#f2c14e" stroke-width="2.4" fill="#0d2545"/>
+<text x="636.0" y="294.0" font-size="12.5" fill="#f2c14e" text-anchor="middle" font-weight="bold">D6</text>
+<text x="636.0" y="312.0" font-size="11" fill="#f2c14e" text-anchor="middle" font-weight="normal">IO27</text>
+<text x="636.0" y="388.0" font-size="12" fill="#e6eef7" text-anchor="middle" font-weight="bold">GREEN</text>
+<rect x="665.0" y="341.0" width="22.0" height="22.0" rx="0" stroke="#ff6b6b" stroke-width="1.4" fill="#0d2545"/>
+<text x="676.0" y="294.0" font-size="12.5" fill="#ff6b6b" text-anchor="middle" font-weight="normal">D5</text>
+<text x="676.0" y="312.0" font-size="11" fill="#ff6b6b" text-anchor="middle" font-weight="normal">IO16?</text>
+<rect x="705.0" y="341.0" width="22.0" height="22.0" rx="0" stroke="#ff6b6b" stroke-width="1.4" fill="#0d2545"/>
+<text x="716.0" y="294.0" font-size="12.5" fill="#ff6b6b" text-anchor="middle" font-weight="normal">D4</text>
+<text x="716.0" y="312.0" font-size="11" fill="#ff6b6b" text-anchor="middle" font-weight="normal">IO17?</text>
+<rect x="745.0" y="341.0" width="22.0" height="22.0" rx="0" stroke="#f2c14e" stroke-width="2.4" fill="#0d2545"/>
+<text x="756.0" y="294.0" font-size="12.5" fill="#f2c14e" text-anchor="middle" font-weight="bold">D3</text>
+<text x="756.0" y="312.0" font-size="11" fill="#f2c14e" text-anchor="middle" font-weight="normal">IO25</text>
+<text x="756.0" y="388.0" font-size="12" fill="#e6eef7" text-anchor="middle" font-weight="bold">RED</text>
+<rect x="785.0" y="341.0" width="22.0" height="22.0" rx="0" stroke="#f2c14e" stroke-width="2.4" fill="#0d2545"/>
+<text x="796.0" y="294.0" font-size="12.5" fill="#f2c14e" text-anchor="middle" font-weight="bold">D2</text>
+<text x="796.0" y="312.0" font-size="11" fill="#f2c14e" text-anchor="middle" font-weight="normal">IO26</text>
+<text x="796.0" y="388.0" font-size="12" fill="#e6eef7" text-anchor="middle" font-weight="bold">IR</text>
+<rect x="825.0" y="341.0" width="22.0" height="22.0" rx="0" stroke="#ff6b6b" stroke-width="1.4" fill="#0d2545"/>
+<text x="836.0" y="294.0" font-size="12.5" fill="#ff6b6b" text-anchor="middle" font-weight="normal">D1</text>
+<text x="836.0" y="312.0" font-size="11" fill="#ff6b6b" text-anchor="middle" font-weight="normal">IO1</text>
+<rect x="865.0" y="341.0" width="22.0" height="22.0" rx="0" stroke="#ff6b6b" stroke-width="1.4" fill="#0d2545"/>
+<text x="876.0" y="294.0" font-size="12.5" fill="#ff6b6b" text-anchor="middle" font-weight="normal">D0</text>
+<text x="876.0" y="312.0" font-size="11" fill="#ff6b6b" text-anchor="middle" font-weight="normal">IO3</text>
+<rect x="329.0" y="571.0" width="22.0" height="22.0" rx="0" stroke="#ff6b6b" stroke-width="1.4" fill="#0d2545"/>
+<text x="340.0" y="634.0" font-size="12.5" fill="#ff6b6b" text-anchor="middle" font-weight="normal">IO0</text>
+<rect x="369.0" y="571.0" width="22.0" height="22.0" rx="0" stroke="#8aa6c4" stroke-width="1.4" fill="#0d2545"/>
+<text x="380.0" y="634.0" font-size="12.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">IOREF</text>
+<rect x="409.0" y="571.0" width="22.0" height="22.0" rx="0" stroke="#8aa6c4" stroke-width="1.4" fill="#0d2545"/>
+<text x="420.0" y="634.0" font-size="12.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">RST</text>
+<rect x="449.0" y="571.0" width="22.0" height="22.0" rx="0" stroke="#f2c14e" stroke-width="2.4" fill="#0d2545"/>
+<text x="460.0" y="634.0" font-size="12.5" fill="#f2c14e" text-anchor="middle" font-weight="bold">3V3</text>
+<text x="460.0" y="558.0" font-size="12" fill="#e6eef7" text-anchor="middle" font-weight="bold">3V3</text>
+<rect x="489.0" y="571.0" width="22.0" height="22.0" rx="0" stroke="#f2c14e" stroke-width="2.4" fill="#0d2545"/>
+<text x="500.0" y="634.0" font-size="12.5" fill="#f2c14e" text-anchor="middle" font-weight="bold">5V</text>
+<text x="500.0" y="558.0" font-size="12" fill="#e6eef7" text-anchor="middle" font-weight="bold">5V</text>
+<rect x="529.0" y="571.0" width="22.0" height="22.0" rx="0" stroke="#f2c14e" stroke-width="2.4" fill="#0d2545"/>
+<text x="540.0" y="634.0" font-size="12.5" fill="#f2c14e" text-anchor="middle" font-weight="bold">GND</text>
+<text x="540.0" y="558.0" font-size="12" fill="#e6eef7" text-anchor="middle" font-weight="bold">0 V</text>
+<rect x="569.0" y="571.0" width="22.0" height="22.0" rx="0" stroke="#f2c14e" stroke-width="2.4" fill="#0d2545"/>
+<text x="580.0" y="634.0" font-size="12.5" fill="#f2c14e" text-anchor="middle" font-weight="bold">GND</text>
+<text x="580.0" y="558.0" font-size="12" fill="#e6eef7" text-anchor="middle" font-weight="bold">0 V</text>
+<rect x="609.0" y="571.0" width="22.0" height="22.0" rx="0" stroke="#8aa6c4" stroke-width="1.4" fill="#0d2545"/>
+<text x="620.0" y="634.0" font-size="12.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">VIN</text>
+<rect x="665.0" y="571.0" width="22.0" height="22.0" rx="0" stroke="#ff6b6b" stroke-width="1.4" fill="#0d2545"/>
+<text x="676.0" y="634.0" font-size="12.5" fill="#ff6b6b" text-anchor="middle" font-weight="normal">A0</text>
+<text x="676.0" y="652.0" font-size="11" fill="#ff6b6b" text-anchor="middle" font-weight="normal">IO2</text>
+<rect x="705.0" y="571.0" width="22.0" height="22.0" rx="0" stroke="#8aa6c4" stroke-width="1.4" fill="#0d2545"/>
+<text x="716.0" y="634.0" font-size="12.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">A1</text>
+<text x="716.0" y="652.0" font-size="11" fill="#8aa6c4" text-anchor="middle" font-weight="normal">IO4</text>
+<rect x="745.0" y="571.0" width="22.0" height="22.0" rx="0" stroke="#8aa6c4" stroke-width="1.4" fill="#0d2545"/>
+<text x="756.0" y="634.0" font-size="12.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">A2</text>
+<text x="756.0" y="652.0" font-size="11" fill="#8aa6c4" text-anchor="middle" font-weight="normal">IO35</text>
+<rect x="785.0" y="571.0" width="22.0" height="22.0" rx="0" stroke="#8aa6c4" stroke-width="1.4" fill="#0d2545"/>
+<text x="796.0" y="634.0" font-size="12.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">A3</text>
+<text x="796.0" y="652.0" font-size="11" fill="#8aa6c4" text-anchor="middle" font-weight="normal">IO34</text>
+<rect x="825.0" y="571.0" width="22.0" height="22.0" rx="0" stroke="#8aa6c4" stroke-width="1.4" fill="#0d2545"/>
+<text x="836.0" y="634.0" font-size="12.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">A4</text>
+<text x="836.0" y="652.0" font-size="11" fill="#8aa6c4" text-anchor="middle" font-weight="normal">IO36</text>
+<rect x="865.0" y="571.0" width="22.0" height="22.0" rx="0" stroke="#8aa6c4" stroke-width="1.4" fill="#0d2545"/>
+<text x="876.0" y="634.0" font-size="12.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">A5</text>
+<text x="876.0" y="652.0" font-size="11" fill="#8aa6c4" text-anchor="middle" font-weight="normal">IO39</text>
+<rect x="110.0" y="732.0" width="14.0" height="14.0" rx="0" stroke="#f2c14e" stroke-width="2" fill="none"/>
+<text x="134.0" y="744.0" font-size="14" fill="#e6eef7" text-anchor="start" font-weight="normal">used here</text>
+<rect x="350.0" y="732.0" width="14.0" height="14.0" rx="0" stroke="#ff6b6b" stroke-width="2" fill="none"/>
+<text x="374.0" y="744.0" font-size="14" fill="#e6eef7" text-anchor="start" font-weight="normal">left free on purpose</text>
+<rect x="590.0" y="732.0" width="14.0" height="14.0" rx="0" stroke="#8aa6c4" stroke-width="2" fill="none"/>
+<text x="614.0" y="744.0" font-size="14" fill="#e6eef7" text-anchor="start" font-weight="normal">free</text>
+<text x="110.0" y="772.0" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">Free on purpose: D0/D1 serial · IO0, A0 (IO2), D8 (IO12) boot pins · D7 (IO14), D10 (IO5) pulse at boot ·</text>
+<text x="110.0" y="790.0" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">D4/D5 are IO17/IO16 on most R32s but IO10/IO9 on some. A2/A4 may be misprinted IO36/IO35.</text>
+<rect x="1000.0" y="190.0" width="930.0" height="610.0" rx="6" stroke="#4f8fd0" stroke-width="2" fill="none" stroke-dasharray="10 7"/>
+<rect x="1018.0" y="178.0" width="315.2" height="24.0" rx="0" stroke="none" stroke-width="2" fill="#0d2545"/>
+<text x="1030.0" y="197.0" font-size="18" fill="#7cc4f2" text-anchor="start" font-weight="bold" letter-spacing="1.5">J3 JUMPERS AND PANEL LEADS</text>
+<text x="1024.0" y="238.0" font-size="13" fill="#8aa6c4" text-anchor="start" font-weight="normal">FROM</text>
+<text x="1124.0" y="238.0" font-size="13" fill="#8aa6c4" text-anchor="start" font-weight="normal">TO</text>
+<text x="1290.0" y="238.0" font-size="13" fill="#8aa6c4" text-anchor="start" font-weight="normal">WHAT</text>
+<text x="1640.0" y="238.0" font-size="13" fill="#8aa6c4" text-anchor="start" font-weight="normal">WIRE</text>
+<text x="1024.0" y="264.0" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">T1.IN</text>
+<text x="1124.0" y="264.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">J1.+</text>
+<text x="1290.0" y="264.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">12 V in, centre pin</text>
+<text x="1640.0" y="264.0" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">red, 0.5 mm² (20 AWG)</text>
+<text x="1024.0" y="285.5" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">T1.GND</text>
+<text x="1124.0" y="285.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">J1.-</text>
+<text x="1290.0" y="285.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">0 V in, sleeve</text>
+<text x="1640.0" y="285.5" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">black, 0.5 mm² (20 AWG)</text>
+<text x="1024.0" y="307.0" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J2.12V</text>
+<text x="1124.0" y="307.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">J7.1</text>
+<text x="1290.0" y="307.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">strip +12 V</text>
+<text x="1640.0" y="307.0" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">red, 0.5 mm² (20 AWG)</text>
+<text x="1024.0" y="328.5" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J2.R</text>
+<text x="1124.0" y="328.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">J7.2</text>
+<text x="1290.0" y="328.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">strip R</text>
+<text x="1640.0" y="328.5" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">0.5 mm² (20 AWG)</text>
+<text x="1024.0" y="350.0" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J2.G</text>
+<text x="1124.0" y="350.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">J7.3</text>
+<text x="1290.0" y="350.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">strip G</text>
+<text x="1640.0" y="350.0" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">0.5 mm² (20 AWG)</text>
+<text x="1024.0" y="371.5" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J2.B</text>
+<text x="1124.0" y="371.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">J7.4</text>
+<text x="1290.0" y="371.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">strip B</text>
+<text x="1640.0" y="371.5" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">0.5 mm² (20 AWG)</text>
+<text x="1024.0" y="393.0" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J4.OUT</text>
+<text x="1124.0" y="393.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">U2.OUT</text>
+<text x="1290.0" y="393.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">IR receiver out</text>
+<text x="1640.0" y="393.0" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">3-way Dupont lead</text>
+<text x="1024.0" y="414.5" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J4.GND</text>
+<text x="1124.0" y="414.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">U2.GND</text>
+<text x="1290.0" y="414.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">IR receiver 0 V</text>
+<text x="1640.0" y="414.5" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">3-way Dupont lead</text>
+<text x="1024.0" y="436.0" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J4.VS</text>
+<text x="1124.0" y="436.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">U2.VS</text>
+<text x="1290.0" y="436.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">IR receiver supply</text>
+<text x="1640.0" y="436.0" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">3-way Dupont lead</text>
+<text x="1024.0" y="457.5" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J5.BTN</text>
+<text x="1124.0" y="457.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">SW1.1</text>
+<text x="1290.0" y="457.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">button</text>
+<text x="1640.0" y="457.5" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">2-way Dupont lead</text>
+<text x="1024.0" y="479.0" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J5.GND</text>
+<text x="1124.0" y="479.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">SW1.2</text>
+<text x="1290.0" y="479.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">button 0 V</text>
+<text x="1640.0" y="479.0" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">2-way Dupont lead</text>
+<text x="1024.0" y="500.5" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J6.LED</text>
+<text x="1124.0" y="500.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">LED1.A</text>
+<text x="1290.0" y="500.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">status LED anode (long leg)</text>
+<text x="1640.0" y="500.5" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">2-way Dupont lead</text>
+<text x="1024.0" y="522.0" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J6.GND</text>
+<text x="1124.0" y="522.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">LED1.K</text>
+<text x="1290.0" y="522.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">status LED cathode (flat side)</text>
+<text x="1640.0" y="522.0" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">2-way Dupont lead</text>
+<text x="1024.0" y="543.5" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J3.5V</text>
+<text x="1124.0" y="543.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">M1.5V</text>
+<text x="1290.0" y="543.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">R32 power header: 5V</text>
+<text x="1640.0" y="543.5" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">female-female jumper</text>
+<text x="1024.0" y="565.0" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J3.GND1</text>
+<text x="1124.0" y="565.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">M1.GND</text>
+<text x="1290.0" y="565.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">R32 power header: GND</text>
+<text x="1640.0" y="565.0" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">female-female jumper</text>
+<text x="1024.0" y="586.5" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J3.GND2</text>
+<text x="1124.0" y="586.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">M1.GND_D13</text>
+<text x="1290.0" y="586.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">R32 GND beside D13</text>
+<text x="1640.0" y="586.5" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">female-female jumper</text>
+<text x="1024.0" y="608.0" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J3.3V3</text>
+<text x="1124.0" y="608.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">M1.3V3</text>
+<text x="1290.0" y="608.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">R32 power header: 3V3</text>
+<text x="1640.0" y="608.0" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">female-female jumper</text>
+<text x="1024.0" y="629.5" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J3.R</text>
+<text x="1124.0" y="629.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">M1.D3</text>
+<text x="1290.0" y="629.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">R32 D3 (GPIO25): red</text>
+<text x="1640.0" y="629.5" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">female-female jumper</text>
+<text x="1024.0" y="651.0" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J3.G</text>
+<text x="1124.0" y="651.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">M1.D6</text>
+<text x="1290.0" y="651.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">R32 D6 (GPIO27): green</text>
+<text x="1640.0" y="651.0" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">female-female jumper</text>
+<text x="1024.0" y="672.5" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J3.B</text>
+<text x="1124.0" y="672.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">M1.D11</text>
+<text x="1290.0" y="672.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">R32 D11 (GPIO23): blue</text>
+<text x="1640.0" y="672.5" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">female-female jumper</text>
+<text x="1024.0" y="694.0" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J3.IR</text>
+<text x="1124.0" y="694.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">M1.D2</text>
+<text x="1290.0" y="694.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">R32 D2 (GPIO26): IR</text>
+<text x="1640.0" y="694.0" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">female-female jumper</text>
+<text x="1024.0" y="715.5" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J3.BTN</text>
+<text x="1124.0" y="715.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">M1.D12</text>
+<text x="1290.0" y="715.5" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">R32 D12 (GPIO19): button</text>
+<text x="1640.0" y="715.5" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">female-female jumper</text>
+<text x="1024.0" y="737.0" font-size="13" fill="#f2c14e" text-anchor="start" font-weight="bold">J3.LED</text>
+<text x="1124.0" y="737.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">M1.D13</text>
+<text x="1290.0" y="737.0" font-size="13" fill="#e6eef7" text-anchor="start" font-weight="normal">R32 D13 (GPIO18): status LED</text>
+<text x="1640.0" y="737.0" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">female-female jumper</text>
+<text x="1024.0" y="766.5" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">M1 the D1 R32 · J1 DC jack · J7 strip socket · U2 IR receiver · SW1 button · LED1 light</text>
+<rect x="70.0" y="830.0" width="1860.0" height="284.0" rx="6" stroke="#4f8fd0" stroke-width="2" fill="none" stroke-dasharray="10 7"/>
+<rect x="88.0" y="818.0" width="864.0" height="24.0" rx="0" stroke="none" stroke-width="2" fill="#0d2545"/>
+<text x="100.0" y="837.0" font-size="18" fill="#7cc4f2" text-anchor="start" font-weight="bold" letter-spacing="1.5">THE REMOTES — every key and the code the serial monitor prints for it (NEC)</text>
+<rect x="96.0" y="856.0" width="562.0" height="222.0" rx="20" stroke="#e6eef7" stroke-width="2" fill="#0a1d38"/>
+<text x="114.0" y="884.0" font-size="15" fill="#f2c14e" text-anchor="start" font-weight="bold">24 KEYS · each column is a row of keys</text>
+<rect x="112.0" y="900.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="153.0" y="915.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">BRIGHT +</text>
+<text x="153.0" y="928.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">F700FF</text>
+<rect x="112.0" y="940.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="153.0" y="955.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">BRIGHT −</text>
+<text x="153.0" y="968.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">F7807F</text>
+<rect x="112.0" y="980.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="153.0" y="995.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">OFF</text>
+<text x="153.0" y="1008.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">F740BF</text>
+<rect x="112.0" y="1020.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="153.0" y="1035.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">ON</text>
+<text x="153.0" y="1048.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">F7C03F</text>
+<rect x="200.0" y="900.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#ff0000"/>
+<text x="241.0" y="928.0" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="normal">F720DF</text>
+<rect x="200.0" y="940.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#00ff00"/>
+<text x="241.0" y="968.0" font-size="10.5" fill="#111" text-anchor="middle" font-weight="normal">F7A05F</text>
+<rect x="200.0" y="980.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#0000ff"/>
+<text x="241.0" y="1008.0" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="normal">F7609F</text>
+<rect x="200.0" y="1020.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#ffffff"/>
+<text x="241.0" y="1035.0" font-size="12" fill="#111" text-anchor="middle" font-weight="bold">W</text>
+<text x="241.0" y="1048.0" font-size="10.5" fill="#111" text-anchor="middle" font-weight="normal">F7E01F</text>
+<rect x="288.0" y="900.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#ff2800"/>
+<text x="329.0" y="928.0" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="normal">F710EF</text>
+<rect x="288.0" y="940.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#00ff5a"/>
+<text x="329.0" y="968.0" font-size="10.5" fill="#111" text-anchor="middle" font-weight="normal">F7906F</text>
+<rect x="288.0" y="980.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#3200ff"/>
+<text x="329.0" y="1008.0" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="normal">F750AF</text>
+<rect x="288.0" y="1020.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="329.0" y="1035.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">FLASH</text>
+<text x="329.0" y="1048.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">F7D02F</text>
+<rect x="376.0" y="900.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#ff5a00"/>
+<text x="417.0" y="928.0" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="normal">F730CF</text>
+<rect x="376.0" y="940.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#00ffb4"/>
+<text x="417.0" y="968.0" font-size="10.5" fill="#111" text-anchor="middle" font-weight="normal">F7B04F</text>
+<rect x="376.0" y="980.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#6e00ff"/>
+<text x="417.0" y="1008.0" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="normal">F7708F</text>
+<rect x="376.0" y="1020.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="417.0" y="1035.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">STROBE</text>
+<text x="417.0" y="1048.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">F7F00F</text>
+<rect x="464.0" y="900.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#ff9600"/>
+<text x="505.0" y="928.0" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="normal">F708F7</text>
+<rect x="464.0" y="940.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#00c8ff"/>
+<text x="505.0" y="968.0" font-size="10.5" fill="#111" text-anchor="middle" font-weight="normal">F78877</text>
+<rect x="464.0" y="980.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#b400ff"/>
+<text x="505.0" y="1008.0" font-size="10.5" fill="#111" text-anchor="middle" font-weight="normal">F748B7</text>
+<rect x="464.0" y="1020.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="505.0" y="1035.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">FADE 7</text>
+<text x="505.0" y="1048.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">F7C837</text>
+<rect x="552.0" y="900.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#ffdc00"/>
+<text x="593.0" y="928.0" font-size="10.5" fill="#111" text-anchor="middle" font-weight="normal">F728D7</text>
+<rect x="552.0" y="940.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#008cff"/>
+<text x="593.0" y="968.0" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="normal">F7A857</text>
+<rect x="552.0" y="980.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#ff00a0"/>
+<text x="593.0" y="1008.0" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="normal">F76897</text>
+<rect x="552.0" y="1020.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="593.0" y="1035.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">SMOOTH</text>
+<text x="593.0" y="1048.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">F7E817</text>
+<rect x="682.0" y="856.0" width="1002.0" height="222.0" rx="20" stroke="#e6eef7" stroke-width="2" fill="#0a1d38"/>
+<text x="700.0" y="884.0" font-size="15" fill="#f2c14e" text-anchor="start" font-weight="bold">44 KEYS · the same way round, top row first</text>
+<rect x="698.0" y="900.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="739.0" y="915.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">BRIGHT +</text>
+<text x="739.0" y="928.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FF3AC5</text>
+<rect x="698.0" y="940.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="739.0" y="955.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">BRIGHT −</text>
+<text x="739.0" y="968.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FFBA45</text>
+<rect x="698.0" y="980.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="739.0" y="995.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">PLAY/II</text>
+<text x="739.0" y="1008.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FF827D</text>
+<rect x="698.0" y="1020.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="739.0" y="1035.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">POWER</text>
+<text x="739.0" y="1048.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FF02FD</text>
+<rect x="786.0" y="900.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#ff0000"/>
+<text x="827.0" y="928.0" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="normal">FF1AE5</text>
+<rect x="786.0" y="940.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#00ff00"/>
+<text x="827.0" y="968.0" font-size="10.5" fill="#111" text-anchor="middle" font-weight="normal">FF9A65</text>
+<rect x="786.0" y="980.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#0000ff"/>
+<text x="827.0" y="1008.0" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="normal">FFA25D</text>
+<rect x="786.0" y="1020.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#ffffff"/>
+<text x="827.0" y="1035.0" font-size="12" fill="#111" text-anchor="middle" font-weight="bold">W</text>
+<text x="827.0" y="1048.0" font-size="10.5" fill="#111" text-anchor="middle" font-weight="normal">FF22DD</text>
+<rect x="874.0" y="900.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#ff2800"/>
+<text x="915.0" y="928.0" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="normal">FF2AD5</text>
+<rect x="874.0" y="940.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#00ff5a"/>
+<text x="915.0" y="968.0" font-size="10.5" fill="#111" text-anchor="middle" font-weight="normal">FFAA55</text>
+<rect x="874.0" y="980.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#3200ff"/>
+<text x="915.0" y="1008.0" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="normal">FF926D</text>
+<rect x="874.0" y="1020.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#ffaa96"/>
+<text x="915.0" y="1048.0" font-size="10.5" fill="#111" text-anchor="middle" font-weight="normal">FF12ED</text>
+<rect x="962.0" y="900.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#ff5a00"/>
+<text x="1003.0" y="928.0" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="normal">FF0AF5</text>
+<rect x="962.0" y="940.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#00ffb4"/>
+<text x="1003.0" y="968.0" font-size="10.5" fill="#111" text-anchor="middle" font-weight="normal">FF8A75</text>
+<rect x="962.0" y="980.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#6e00ff"/>
+<text x="1003.0" y="1008.0" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="normal">FFB24D</text>
+<rect x="962.0" y="1020.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#ff78b4"/>
+<text x="1003.0" y="1048.0" font-size="10.5" fill="#111" text-anchor="middle" font-weight="normal">FF32CD</text>
+<rect x="1050.0" y="900.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#ff9600"/>
+<text x="1091.0" y="928.0" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="normal">FF38C7</text>
+<rect x="1050.0" y="940.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#00c8ff"/>
+<text x="1091.0" y="968.0" font-size="10.5" fill="#111" text-anchor="middle" font-weight="normal">FFB847</text>
+<rect x="1050.0" y="980.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#b400ff"/>
+<text x="1091.0" y="1008.0" font-size="10.5" fill="#111" text-anchor="middle" font-weight="normal">FF7887</text>
+<rect x="1050.0" y="1020.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#aac8ff"/>
+<text x="1091.0" y="1048.0" font-size="10.5" fill="#111" text-anchor="middle" font-weight="normal">FFF807</text>
+<rect x="1138.0" y="900.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#ffdc00"/>
+<text x="1179.0" y="928.0" font-size="10.5" fill="#111" text-anchor="middle" font-weight="normal">FF18E7</text>
+<rect x="1138.0" y="940.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#008cff"/>
+<text x="1179.0" y="968.0" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="normal">FF9867</text>
+<rect x="1138.0" y="980.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#ff00a0"/>
+<text x="1179.0" y="1008.0" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="normal">FF58A7</text>
+<rect x="1138.0" y="1020.0" width="82.0" height="34.0" rx="9" stroke="#00000066" stroke-width="1" fill="#8cb4ff"/>
+<text x="1179.0" y="1048.0" font-size="10.5" fill="#111" text-anchor="middle" font-weight="normal">FFD827</text>
+<rect x="1226.0" y="900.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="1267.0" y="915.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">RED +</text>
+<text x="1267.0" y="928.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FF28D7</text>
+<rect x="1226.0" y="940.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="1267.0" y="955.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">GREEN +</text>
+<text x="1267.0" y="968.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FFA857</text>
+<rect x="1226.0" y="980.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="1267.0" y="995.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">BLUE +</text>
+<text x="1267.0" y="1008.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FF6897</text>
+<rect x="1226.0" y="1020.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="1267.0" y="1035.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">QUICK</text>
+<text x="1267.0" y="1048.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FFE817</text>
+<rect x="1314.0" y="900.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="1355.0" y="915.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">RED −</text>
+<text x="1355.0" y="928.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FF08F7</text>
+<rect x="1314.0" y="940.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="1355.0" y="955.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">GREEN −</text>
+<text x="1355.0" y="968.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FF8877</text>
+<rect x="1314.0" y="980.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="1355.0" y="995.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">BLUE −</text>
+<text x="1355.0" y="1008.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FF48B7</text>
+<rect x="1314.0" y="1020.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="1355.0" y="1035.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">SLOW</text>
+<text x="1355.0" y="1048.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FFC837</text>
+<rect x="1402.0" y="900.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="1443.0" y="915.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">DIY1</text>
+<text x="1443.0" y="928.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FF30CF</text>
+<rect x="1402.0" y="940.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="1443.0" y="955.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">DIY2</text>
+<text x="1443.0" y="968.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FFB04F</text>
+<rect x="1402.0" y="980.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="1443.0" y="995.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">DIY3</text>
+<text x="1443.0" y="1008.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FF708F</text>
+<rect x="1402.0" y="1020.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="1443.0" y="1035.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">AUTO</text>
+<text x="1443.0" y="1048.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FF00FF</text>
+<rect x="1490.0" y="900.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="1531.0" y="915.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">DIY4</text>
+<text x="1531.0" y="928.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FF10EF</text>
+<rect x="1490.0" y="940.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="1531.0" y="955.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">DIY5</text>
+<text x="1531.0" y="968.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FF906F</text>
+<rect x="1490.0" y="980.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="1531.0" y="995.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">DIY6</text>
+<text x="1531.0" y="1008.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FF50AF</text>
+<rect x="1490.0" y="1020.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="1531.0" y="1035.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">FLASH</text>
+<text x="1531.0" y="1048.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FFF00F</text>
+<rect x="1578.0" y="900.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="1619.0" y="915.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">JUMP 3</text>
+<text x="1619.0" y="928.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FF20DF</text>
+<rect x="1578.0" y="940.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="1619.0" y="955.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">JUMP 7</text>
+<text x="1619.0" y="968.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FFA05F</text>
+<rect x="1578.0" y="980.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="1619.0" y="995.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">FADE 3</text>
+<text x="1619.0" y="1008.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FF609F</text>
+<rect x="1578.0" y="1020.0" width="82.0" height="34.0" rx="9" stroke="#8aa6c4" stroke-width="1.5" fill="#1d3557"/>
+<text x="1619.0" y="1035.0" font-size="11.5" fill="#e6eef7" text-anchor="middle" font-weight="bold">FADE 7</text>
+<text x="1619.0" y="1048.0" font-size="10.5" fill="#8aa6c4" text-anchor="middle" font-weight="normal">FFE01F</text>
+<text x="96.0" y="1100.0" font-size="12.5" fill="#8aa6c4" text-anchor="start" font-weight="normal">DIY1-6: press to recall, hold 2 s to store the colour that was showing. Another remote: press its keys with the serial monitor open (115200 baud) and add the codes to lamp_core.h.</text>
+<rect x="70.0" y="1134.0" width="1330.0" height="210.0" rx="0" stroke="#e6eef7" stroke-width="2" fill="none"/>
+<text x="92.0" y="1164.0" font-size="18" fill="#f2c14e" text-anchor="start" font-weight="bold" letter-spacing="2">BUTTON AND STATUS LIGHT</text>
+<text x="92.0" y="1192.0" font-size="14" fill="#7cc4f2" text-anchor="start" font-weight="bold">Button: click</text>
+<text x="420.0" y="1192.0" font-size="14" fill="#e6eef7" text-anchor="start" font-weight="normal">on / off</text>
+<text x="92.0" y="1211.0" font-size="14" fill="#7cc4f2" text-anchor="start" font-weight="bold">Double click</text>
+<text x="420.0" y="1211.0" font-size="14" fill="#e6eef7" text-anchor="start" font-weight="normal">next effect</text>
+<text x="92.0" y="1230.0" font-size="14" fill="#7cc4f2" text-anchor="start" font-weight="bold">Hold</text>
+<text x="420.0" y="1230.0" font-size="14" fill="#e6eef7" text-anchor="start" font-weight="normal">dim up or down (the direction changes each hold)</text>
+<text x="92.0" y="1249.0" font-size="14" fill="#7cc4f2" text-anchor="start" font-weight="bold">Hold while plugging in, 5 s</text>
+<text x="420.0" y="1249.0" font-size="14" fill="#e6eef7" text-anchor="start" font-weight="normal">forget the Wi-Fi and open the set-up network again</text>
+<text x="92.0" y="1268.0" font-size="14" fill="#7cc4f2" text-anchor="start" font-weight="bold">Status light: slow blink</text>
+<text x="420.0" y="1268.0" font-size="14" fill="#e6eef7" text-anchor="start" font-weight="normal">set-up network RGB-Lamp-setup is open (password lamp-setup)</text>
+<text x="92.0" y="1287.0" font-size="14" fill="#7cc4f2" text-anchor="start" font-weight="bold">Fast blink</text>
+<text x="420.0" y="1287.0" font-size="14" fill="#e6eef7" text-anchor="start" font-weight="normal">joining your Wi-Fi</text>
+<text x="92.0" y="1306.0" font-size="14" fill="#7cc4f2" text-anchor="start" font-weight="bold">Short flash</text>
+<text x="420.0" y="1306.0" font-size="14" fill="#e6eef7" text-anchor="start" font-weight="normal">a remote key was received</text>
+<text x="92.0" y="1325.0" font-size="14" fill="#7cc4f2" text-anchor="start" font-weight="bold">Dark</text>
+<text x="420.0" y="1325.0" font-size="14" fill="#e6eef7" text-anchor="start" font-weight="normal">all well</text>
+<rect x="1422.0" y="1134.0" width="508.0" height="210.0" rx="0" stroke="#e6eef7" stroke-width="2" fill="none"/>
+<text x="1440.0" y="1172.0" font-size="24" fill="#e6eef7" text-anchor="start" font-weight="bold" letter-spacing="2">RGB LAMP CONTROLLER</text>
+<text x="1440.0" y="1198.0" font-size="14" fill="#8aa6c4" text-anchor="start" font-weight="normal" letter-spacing="1.5">ESP32 (D1 R32) · 12 V RGB STRIP DRIVER</text>
+<line x1="1422.0" y1="1214.0" x2="1930.0" y2="1214.0" stroke="#e6eef7" stroke-width="1.2" stroke-linecap="round"/>
+<text x="1440.0" y="1231.3" font-size="12" fill="#8aa6c4" text-anchor="start" font-weight="normal" letter-spacing="1">DRAWING</text>
+<text x="1440.0" y="1250.4" font-size="16" fill="#f2c14e" text-anchor="start" font-weight="bold">SHEET 2 — REFERENCE</text>
+<text x="1690.0" y="1231.3" font-size="12" fill="#8aa6c4" text-anchor="start" font-weight="normal" letter-spacing="1">SHEET</text>
+<text x="1690.0" y="1250.4" font-size="16" fill="#f2c14e" text-anchor="start" font-weight="bold">2 OF 4</text>
+<line x1="1422.0" y1="1257.3" x2="1930.0" y2="1257.3" stroke="#e6eef7" stroke-width="1" stroke-linecap="round"/>
+<text x="1440.0" y="1274.7" font-size="12" fill="#8aa6c4" text-anchor="start" font-weight="normal" letter-spacing="1">DRAWING No.</text>
+<text x="1440.0" y="1293.7" font-size="16" fill="#e6eef7" text-anchor="start" font-weight="bold">RLC-2026-02</text>
+<text x="1690.0" y="1274.7" font-size="12" fill="#8aa6c4" text-anchor="start" font-weight="normal" letter-spacing="1">REV</text>
+<text x="1690.0" y="1293.7" font-size="16" fill="#e6eef7" text-anchor="start" font-weight="bold">A</text>
+<line x1="1422.0" y1="1300.7" x2="1930.0" y2="1300.7" stroke="#e6eef7" stroke-width="1" stroke-linecap="round"/>
+<text x="1440.0" y="1318.0" font-size="12" fill="#8aa6c4" text-anchor="start" font-weight="normal" letter-spacing="1">SCALE</text>
+<text x="1440.0" y="1337.1" font-size="16" fill="#e6eef7" text-anchor="start" font-weight="bold">NTS</text>
+<text x="1690.0" y="1318.0" font-size="12" fill="#8aa6c4" text-anchor="start" font-weight="normal" letter-spacing="1">SUPPLY</text>
+<text x="1690.0" y="1337.1" font-size="16" fill="#e6eef7" text-anchor="start" font-weight="bold">12 VDC 2 A</text>
+<line x1="1676.0" y1="1214.0" x2="1676.0" y2="1344.0" stroke="#e6eef7" stroke-width="1" stroke-linecap="round"/></svg>

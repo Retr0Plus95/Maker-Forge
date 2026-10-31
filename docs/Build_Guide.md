@@ -390,7 +390,7 @@ steps when Wi-Fi transmits.
 ## 16. What has been tested and what hasn't
 
 **Tested here:**
-- the firmware's logic on a computer: 53 checks of gamma, effects, the saved state (including half-written and
+- the firmware's logic on a computer: 56 checks of gamma, fades, effects, the saved state (including half-written and
   nonsense records), the remote decoder against recorded remote timings (with receiver timing errors, repeats,
   noise and half frames), the key map and the button (`make -C test`);
 - the sketch compiles for the WEMOS D1 R32 with arduino-esp32 3.3 with no warnings;

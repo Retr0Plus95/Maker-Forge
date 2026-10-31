@@ -77,7 +77,7 @@ open [`rgb-lamp-controller-box.forge.json`](enclosure/rgb-lamp-controller-box.fo
 ## Checks
 
 ```
-make -C test                       # firmware logic, 53 checks
+make -C test                       # firmware logic, 56 checks
 node test/web_page_test.js         # the phone page in Chromium (Playwright)
 python3 hardware/check_layout.py   # perfboard layout against the netlist
 python3 hardware/check_box.py      # panel parts clear the boards and the lid

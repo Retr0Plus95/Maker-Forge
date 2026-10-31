@@ -288,6 +288,30 @@ inline State apply(State s, const Action& a) {
   return s;
 }
 
+// ---------------------------------------------------------------- fading
+
+// What the strip shows, eased towards the target duty (0..4095 per channel) at full scale per fadeMs.
+// begin() at the end of set-up, so the first frame after power-up fades in instead of jumping to full.
+class Fader {
+ public:
+  explicit Fader(uint32_t fadeMs = 300) : fadeMs_(fadeMs) {}
+  void begin(uint32_t ms) { last_ = ms; cur_[0] = cur_[1] = cur_[2] = 0; }
+  void frame(uint32_t ms, const uint16_t target[3], bool snap, uint16_t out[3]) {
+    uint32_t dt = ms - last_;
+    last_ = ms;
+    float stepMax = 4095.0f * dt / fadeMs_;
+    for (int i = 0; i < 3; i++) {
+      float d = target[i] - cur_[i];
+      cur_[i] = snap || fabsf(d) <= stepMax ? target[i] : cur_[i] + (d > 0 ? stepMax : -stepMax);
+      out[i] = (uint16_t)(cur_[i] + 0.5f);
+    }
+  }
+
+ private:
+  uint32_t fadeMs_, last_ = 0;
+  float cur_[3] = { 0, 0, 0 };
+};
+
 // ---------------------------------------------------------------- button
 
 // One push button to 0 V. Click, double click, hold (with ticks while held), and a long hold that started

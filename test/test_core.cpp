@@ -259,6 +259,20 @@ static void boot_hold_long() {
   CHECK(ev.size() == 1 && ev[0] == Button::BOOT_RESET, "button: held at power-up for 5 s asks for a Wi-Fi reset, once");
 }
 
+static void fader_eases_from_boot() {
+  // the first frame comes a second or two after power-up: it must start the fade, not jump to full
+  Fader f; f.begin(1500);
+  const uint16_t full[3] = { 4095, 4095, 0 };
+  uint16_t out[3];
+  f.frame(1510, full, false, out);
+  CHECK(out[0] > 0 && out[0] < 400 && out[2] == 0, "fader: 10 ms after boot the strip is only just coming up");
+  for (uint32_t ms = 1520; ms <= 1820; ms += 10) f.frame(ms, full, false, out);
+  CHECK(out[0] == 4095 && out[1] == 4095, "fader: full after the 300 ms fade");
+  const uint16_t off[3] = { 0, 0, 0 };
+  f.frame(1830, off, true, out);
+  CHECK(out[0] == 0 && out[1] == 0, "fader: snap goes at once (jumps, flashes, strobes)");
+}
+
 int main() {
   std::printf("colour\n");   gamma_ends_and_monotonic(); duty_follows_brightness();
   std::printf("state\n");    sanitize_state(); saved_state_round_trip(); saved_state_garbage();
@@ -266,6 +280,7 @@ int main() {
   std::printf("remote\n");   nec_24key_red(); nec_44key_power(); nec_repeat(); nec_extended_address(); nec_noise_then_frame(); nec_half_frame_then_frame();
   keys_change_state();
   std::printf("button\n");   button_click(); button_double(); button_hold(); boot_hold_short(); boot_hold_long();
+  std::printf("fader\n");    fader_eases_from_boot();
   std::printf("\n%d checks, %d failed\n", checks, fails);
   return fails ? 1 : 0;
 }

@@ -33,7 +33,8 @@ static bool dirty = false;               // st changed since it was last saved
 static uint32_t dirtyMs = 0;
 static uint32_t effectStart = 0;         // millis() when the current effect started
 static uint32_t sleepEnd = 0;            // millis() when the sleep timer ends, 0 = no timer
-static float duty[3] = { 0, 0, 0 };      // what the strip shows now (0..4095), eased towards the target
+static Fader fader(FADE_MS);             // what the strip shows now, eased towards what it should show
+static uint32_t lastFrame = 0;
 
 static bool apMode = false;              // the set-up network is open
 static bool staWanted = false;           // a home network is saved
@@ -137,7 +138,7 @@ static void handleButton(uint32_t now) {
 
 // ---------------------------------------------------------------- the strip
 
-static void writeStrip(uint32_t now, uint32_t dtMs) {
+static void writeStrip(uint32_t now) {
   RGB c = st.on ? effectColor(st, now - effectStart) : RGB{ 0, 0, 0 };
   uint32_t bri = st.on ? st.bri : 0;
   if (sleepEnd) {                                          // the last 30 s of the sleep timer fade out
@@ -148,13 +149,11 @@ static void writeStrip(uint32_t now, uint32_t dtMs) {
   const uint16_t target[3] = { duty12(c.r, bri), duty12(c.g, bri), duty12(c.b, bri) };
   // jumps, flashes and strobes switch at once; everything else eases over FADE_MS
   bool snap = st.on && (st.effect == JUMP3 || st.effect == JUMP7 || st.effect == FLASH || st.effect == STROBE);
-  float stepMax = 4095.0f * dtMs / FADE_MS;
-  const uint8_t pins[3] = { PIN_RED, PIN_GREEN, PIN_BLUE };
-  for (int i = 0; i < 3; i++) {
-    float d = target[i] - duty[i];
-    duty[i] = snap || fabsf(d) <= stepMax ? target[i] : duty[i] + (d > 0 ? stepMax : -stepMax);
-    ledcWrite(pins[i], (uint32_t)(duty[i] + 0.5f));
-  }
+  uint16_t duty[3];
+  fader.frame(now, target, snap, duty);
+  ledcWrite(PIN_RED, duty[0]);
+  ledcWrite(PIN_GREEN, duty[1]);
+  ledcWrite(PIN_BLUE, duty[2]);
 }
 
 static void saveIfDue(uint32_t now) {
@@ -392,10 +391,11 @@ void setup() {
   server.begin();
 
   enableLoopWDT();                                   // a hung loop restarts the board after 5 s
+  lastFrame = millis();
+  fader.begin(lastFrame);                            // so the strip fades in from dark
 }
 
 void loop() {
-  static uint32_t lastFrame = 0;
   uint32_t now = millis();
 
   while (irTail != irHead) {
@@ -404,7 +404,7 @@ void loop() {
     if (nec.hasCode()) { handleIr(now); nec.clear(); }
   }
   handleButton(now);
-  if (now - lastFrame >= 10) { writeStrip(now, now - lastFrame); lastFrame = now; }
+  if (now - lastFrame >= 10) { writeStrip(now); lastFrame = now; }
   statusLed(now);
   server.handleClient();
   wifiLoop(now);

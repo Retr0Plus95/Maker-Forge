@@ -1375,6 +1375,11 @@ None of these is started. Each is new: not in the two lists above, not in Unfini
 
 ## Unfinished (in priority order)
 
+- **The next two builds** (the owner, 2026-11-05: "Mechanisms toolkit, model doctor, 3d relief from any photo, sign maker and fix it parts library should be done over the next two builds"; ideas 2, 3, 6, 8 and 10 of Session 36's list). Planned split:
+  - **v0.31.0: parts that fit.** The mechanisms toolkit (threads, gears, hinges, snap-fits, pins, each with a fit-test coupon) and the fix-it parts library built on it (knobs, shelf pins, feet, battery covers, clips, caps from a few caliper measurements). They share the clearances and the fit tests. The keychain's surname line and credit on the back (asked for just before) ride along, being small.
+  - **v0.32.0: models and pictures.** The model doctor (repair with Manifold, thicken, hollow with drain holes, simplify, split for the bed with pins: this takes in Cutting next's split), the 3D relief from any photo (an AI depth model), and the sign maker (channel letters with LED channels, diffusers and mounts).
+  - Watch for: the depth model is bigger than jsDelivr's 20 MB per-file limit (Depth Anything V2 Small is about 50 MB in fp16, 27 MB in int8), so it needs splitting into parts, or another host, before it can join `AI_FIGURE`; its licence (Apache-2.0 for Small only) goes in `models/LICENSE.md`; the owner's website hosts its own copy of every file in `AI_FIGURE`, so the new model must keep that `name:{ urls, sha256 }` form.
+
 - **Speed next** (Session 28; the size change and the photo steps were done in Session 30): getting a big model ready for paint (`meshEditor` and `meshTopology` in `applyPaint`, about 0.75 s once on the 373 k-triangle figure) could go to the helper thread too; then the builds themselves (Session 22's plan).
 - **P4**: none outstanding beyond polish.
 - **P5**: an actual 3D view cube widget; dimension lines drawn along the model; bed resize already follows the printer; more layout modes next to Explode (e.g. lay layered parts flat).

@@ -6,3 +6,4 @@ Thumbs.db
 *.log
 .vscode/
 .idea/
+models/depth-anything-v2-small-int8.onnx

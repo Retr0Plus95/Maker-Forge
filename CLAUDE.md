@@ -83,6 +83,11 @@ Plus, depending on what changed:
 - mechanisms or fix-it parts (`buildMech`, `buildFixit`, the `fit*` helpers, `state.base.fit`), `gearOutline` / `threadSolid` in
   `src/core.js`, the keychain's second line or credit, or the print check's `surfaceBelow` → `npm run test:fit` (`CORE=1` for the
   gears and threads only) and `npm run test:print`
+- signs (`buildSign`, `signMounts`, `withHoles`) → `npm run test:sign`; a relief from a photo (`buildRelief`, `depthOf`, `depthField`,
+  `AI_FIGURE.depth`, `ortRuntime`) → `npm run test:relief` (it runs the real depth model when `models/depth-anything-v2-small-int8.onnx`
+  is there: not in the repository, 27 MB, the URL and SHA-256 are in `AI_FIGURE`) and `npm run test:photo` (the shared runtime);
+  the model doctor (`meshReport`, `repairMesh`, `simplifyMesh` in `src/core.js`, `doctor*` in `src/app.html`) → `npm run test:doctor`
+  (`CORE=1` for the core only)
 - `tools-after-squash.js` or `.github/workflows/after-squash.yml` → `npm run test:squash`
 - a change a user would notice → update `MANUAL.md` and `CHANGELOG.md`
 

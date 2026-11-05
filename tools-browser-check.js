@@ -41,6 +41,8 @@ const LIBS = [
   [/onnxruntime-web@[\d.]+\/dist\/ort\.wasm\.bundle\.min\.mjs/, "onnxruntime-web/dist/ort.wasm.bundle.min.mjs"],
   [/onnxruntime-web@[\d.]+\/dist\/ort-wasm-simd-threaded\.wasm/, "onnxruntime-web/dist/ort-wasm-simd-threaded.wasm"],
   [/gh\/Retr0Plus95\/Maker-Forge@[^/]+\/models\/u2netp\.onnx/, "../models/u2netp.onnx"],
+  // the depth model for a relief (Session 38), from Hugging Face: served from models/ when a copy is there (it is not in the repository)
+  [/huggingface\.co\/onnx-community\/depth-anything-v2-small\/resolve\/[^/]+\/onnx\/model_int8\.onnx/, "../models/depth-anything-v2-small-int8.onnx"],
   // Manifold, which cuts artwork into models and cuts them flat (Session 32), only when a cut is asked for
   [/manifold-3d@[\d.]+\/manifold\.js/, "../models/manifold.js"],
   [/manifold-3d@[\d.]+\/manifold\.wasm/, "../models/manifold.wasm"],
@@ -143,7 +145,7 @@ function pageCoverage() {
   async function openPage(viewport, label, url) {
     const ctx = await browser.newContext({ viewport, deviceScaleFactor: 1, colorScheme: env.THEME === "dark" ? "dark" : "light" });
     const page = await ctx.newPage();
-    await page.route(/cdn\.jsdelivr\.net/, r => {
+    await page.route(/cdn\.jsdelivr\.net|huggingface\.co/, r => {
       const u = r.request().url(), l = LIBS.find(([re]) => re.test(u));
       // the fonts are built into the page: a font download means one is missing from fonts/
       if (/\/@fontsource\/|\.woff2?(\?|$)/.test(u)) { errors.push(`${label}: a font was downloaded ${u}`); return r.abort(); }
@@ -414,6 +416,41 @@ function pageCoverage() {
     await page.click("#vFlip"); await settle(page);
     if (!card.front || !card.back || !card.eyes.every(Boolean) || card.open || !card.nfc || !card.pauseCheck || !card.zip) findings.push({ where: "business card", what: JSON.stringify(card) });
     notes.push(`business card: rebuilt in ${Math.round(card.ms)} ms after a change of name; both QR codes read back from the geometry with real fonts (and with rounded and round eyes); NFC pause before layer ${card.nfc && card.nfc.layer}; messages: ${card.warn.join("; ") || "none"}`);
+  }
+  // ---------- signs with real fonts, and a relief from the real depth model (Session 38) ----------
+  if (!ONLY || ONLY.includes("sign")) {
+    const sg = await page.evaluate(async () => {
+      const MF = window.MakerForge, C = MF.core, sleep = ms => new Promise(q => setTimeout(q, ms));
+      const settle = async () => { const r0 = MF.rev; for (let i = 0; i < 40 && MF.rev === r0 && !MF.busy; i++) await sleep(30); for (let i = 0; i < 1200; i++){ if (!MF.busy){ await sleep(60); if (!MF.busy) break; } await sleep(25); } };
+      const sel = document.querySelector("#objectSel"); sel.value = "sign"; sel.dispatchEvent(new Event("change")); await settle();
+      const out = {};
+      for (const [style, extra] of [["channel", {}], ["solid", { text:"42", depth:12, mount:"keyhole" }], ["neon", { text:"PLAY", letterH:50, depth:10, backing:"outline" }]]){
+        Object.assign(MF.state.base.sign, { style, text:"BAR", letterH:100, depth:25, backing:"none", mount:"keyhole" }, extra); MF.render(); MF.rebuild(false); await settle();
+        await MF.printNow(); for (let i = 0; i < 300 && !MF.print; i++) await sleep(30);
+        out[style] = { parts:MF.parts.map(p => p.name), open:MF.parts.reduce((a, p) => a + C.checkMesh(p.solid).open, 0), support:MF.print ? MF.print.overhang.area : -1, strip:MF.sign.strip };
+      }
+      return out;
+    });
+    await shot(page, "sign neon", "Sign: neon style with real fonts", await modelInfo(page, "sign"));
+    for (const [k, v] of Object.entries(sg)) if (v.open || v.support > 1 || !v.parts.length) findings.push({ where: "sign " + k, what: JSON.stringify(v) });
+    notes.push(`signs with real fonts: ${Object.entries(sg).map(([k, v]) => `${k} ${v.parts.join(" + ")}, support ${v.support.toFixed(0)} mm²${v.strip ? `, strip ${(v.strip/10).toFixed(0)} cm` : ""}`).join("; ")}`);
+  }
+  if ((!ONLY || ONLY.includes("relief")) && fs.existsSync(path.join(NM, "../models/depth-anything-v2-small-int8.onnx"))) {
+    const rl = await page.evaluate(async () => {
+      const MF = window.MakerForge, C = MF.core, sleep = ms => new Promise(q => setTimeout(q, ms));
+      const settle = async () => { const r0 = MF.rev; for (let i = 0; i < 40 && MF.rev === r0 && !MF.busy; i++) await sleep(30); for (let i = 0; i < 3000; i++){ if (!MF.busy){ await sleep(60); if (!MF.busy) break; } await sleep(25); } };
+      const sel = document.querySelector("#objectSel"); sel.value = "relief"; sel.dispatchEvent(new Event("change")); await settle();
+      MF.state.base.relief.source = "ai"; MF.render(); await sleep(200);
+      const b = [...document.querySelectorAll("#panel button")].find(x => /Work out the depth/.test(x.textContent)); if (!b) return { error:"no button" };
+      const t0 = performance.now(); b.click(); await sleep(500);
+      const pic = () => MF.state.items[MF.state.active] || MF.state.items[0];
+      for (let i = 0; i < 1500 && (MF.busy || !pic().depthMap); i++) await sleep(100);
+      await settle();
+      return { ms:performance.now() - t0, depth:!!pic().depthMap, ai:MF.relief && MF.relief.usingAI, open:MF.parts.reduce((a, p) => a + C.checkMesh(p.solid).open, 0), parts:MF.parts.length };
+    });
+    await shot(page, "relief ai", "3D relief from a photo: the real AI depth", await modelInfo(page, "relief"));
+    if (!rl.depth || !rl.ai || rl.open || !rl.parts) findings.push({ where: "relief", what: JSON.stringify(rl) });
+    notes.push(`relief from a photo: the depth model downloaded, checked and run in ${Math.round(rl.ms || 0)} ms; the relief rises with it${rl.open ? `, ${rl.open} open edges` : ", closed"}`);
   }
   // ---------- the colour painter with a real mouse, and a painted 3mf opened again (Session 13) ----------
   {

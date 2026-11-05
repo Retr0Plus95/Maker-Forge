@@ -3,6 +3,28 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.32.0
+
+Signs, a 3D relief from any photo with AI depth, and a model doctor for imported models.
+
+- **Signs** (a new object under **Personalise**, and the **Light-up letters**, **Neon sign** and **House number** quick starts):
+  - **Solid letters**, with keyholes or pin holes in their backs.
+  - **Lit letters**: hollow, for an LED strip round the inside, with faces that print flat in white and drop onto a ledge (sloped at 45°, so no supports), a hole in each for the wires and a keyhole to hang it.
+  - **Neon style**: a groove for silicone LED neon strip along each letter, on a board.
+  - Letters on their own, joined by a rail, on a board or on a board that follows the text. The panel works out how much LED strip you need.
+- **A 3D relief from a photo** (a new object under **From a picture**, and the **Photo relief** quick start).
+  - Press **Work out the depth with AI** and the app works out how near each part of the photo is: nearer parts stand higher, so a face, a pet or a landscape becomes a real relief.
+  - The depth model (27 MB) downloads the first time it is asked for and is checked before it runs. It runs in your browser: photos are not sent anywhere. The depth is saved with the project.
+  - Plaque, round, arch or heart, with a border and a hanging hole; or rising with brightness instead.
+- **The model doctor** (an imported model's Make tab):
+  - It says what is wrong with a model: holes, triangles the wrong way round, shells, flat or doubled triangles.
+  - **Repair it** closes it up.
+  - **Simplify** keeps the shape with a half, a quarter or a tenth of the triangles.
+  - Paint and the model's own colours stay, and **Back to the original** undoes it.
+
+**Fixed**
+- An engraved name on a plate that came out in separate pieces lost its engraving: the plate stayed solid over the letters.
+
 ## 0.31.0
 
 Parts that fit: gears, bolts and nuts, hinges, snap-fits and a fit test, replacement parts from your calipers, and a keychain with a surname and your credit on the back.

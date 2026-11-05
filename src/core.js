@@ -5317,6 +5317,298 @@
   // the radius at angle a of a hexagon across flats f (corners at 0°, 60°, …)
   function hexRadius(f) { return a => { const s = Math.PI / 3, t = a - Math.floor(a / s) * s - s / 2; return f / 2 / Math.cos(t); }; }
 
+  // ---------- the model doctor (Session 38): what is wrong with a mesh, repairing it, simplifying it ----------
+  // edges as numbers: the smaller vertex times the vertex count plus the larger (exact below 2^53)
+  function meshEdges(I, nv) {
+    const E = new Map(), n = I.length / 3;
+    for (let t = 0; t < n; t++) for (let j = 0; j < 3; j++) {
+      const a = I[t * 3 + j], b = I[t * 3 + (j + 1) % 3], k = a < b ? a * nv + b : b * nv + a;
+      let e = E.get(k); if (!e) E.set(k, e = []); e.push(t * 3 + j);          // the half-edge: triangle and corner
+    }
+    return E;
+  }
+  // What a model has wrong: edges used by one triangle (holes, counted as loops), by more than two (non-manifold), by
+  // two triangles going the same way (one of them flipped), triangles with no area, the same triangle twice, and how
+  // many separate shells it has.
+  function meshReport(s) {
+    const I = s.idx, P = s.pos, nv = P.length / 3, n = I.length / 3, E = meshEdges(I, nv);
+    let open = 0, nonManifold = 0, flipped = 0, degenerate = 0;
+    const parent = new Int32Array(n).map((_, i) => i), find = x => { while (parent[x] !== x) x = parent[x] = parent[parent[x]]; return x; };
+    const next = new Map();
+    for (const [, h] of E) {
+      if (h.length === 1) { open++; const t = (h[0] / 3) | 0, j = h[0] % 3; next.set(I[t * 3 + (j + 1) % 3], I[t * 3 + j]); continue; }
+      if (h.length > 2) nonManifold++;
+      for (let q = 1; q < h.length; q++) { const a = find((h[0] / 3) | 0), b = find((h[q] / 3) | 0); if (a !== b) parent[a] = b; }
+      if (h.length === 2) { const t0 = (h[0] / 3) | 0, j0 = h[0] % 3, t1 = (h[1] / 3) | 0, j1 = h[1] % 3; if (I[t0 * 3 + j0] === I[t1 * 3 + j1]) flipped++; }
+    }
+    const seen = new Set(); let dup = 0;
+    for (let t = 0; t < n; t++) {
+      const a = I[t * 3], b = I[t * 3 + 1], c = I[t * 3 + 2];
+      const ux = P[b * 3] - P[a * 3], uy = P[b * 3 + 1] - P[a * 3 + 1], uz = P[b * 3 + 2] - P[a * 3 + 2], vx = P[c * 3] - P[a * 3], vy = P[c * 3 + 1] - P[a * 3 + 1], vz = P[c * 3 + 2] - P[a * 3 + 2];
+      if (a === b || b === c || a === c || Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) < 1e-12) degenerate++;
+      const k = [a, b, c].sort((x, y) => x - y).join(","); if (seen.has(k)) dup++; else seen.add(k);
+    }
+    // holes: the open edges joined into loops
+    let holes = 0; const used = new Set();
+    for (const [a0] of next) { if (used.has(a0)) continue; holes++; let a = a0, guard = 0; while (!used.has(a) && next.has(a) && guard++ < 1e7) { used.add(a); a = next.get(a); } }
+    const shells = new Set(); for (let t = 0; t < n; t++) shells.add(find(t));
+    return { tris: n, verts: nv, open, holes, nonManifold, flipped, degenerate, duplicates: dup, shells: shells.size, volume: signedVolume(s),
+      ok: !open && !nonManifold && !flipped && !degenerate && !dup };
+  }
+  // Repairs what can be repaired: points closer than o.weld (mm) become one, triangles with no area or twice over go,
+  // every shell's triangles are turned to agree with their neighbours and then to face outwards, and each hole is
+  // filled across (flattened onto its best plane and triangulated). src[t]: the triangle of s it came from, or -1 for
+  // a triangle filling a hole.
+  function repairMesh(s, o) {
+    o = o || {};
+    const tol = o.weld ?? 0.001, P0 = s.pos, I0 = s.idx, n0 = I0.length / 3;
+    // 1. weld
+    const keyOf = new Map(), remap = new Int32Array(P0.length / 3), P = [];
+    for (let v = 0; v < remap.length; v++) {
+      const k = Math.round(P0[v * 3] / tol) + "," + Math.round(P0[v * 3 + 1] / tol) + "," + Math.round(P0[v * 3 + 2] / tol);
+      let id = keyOf.get(k); if (id === undefined) { id = P.length / 3; keyOf.set(k, id); P.push(P0[v * 3], P0[v * 3 + 1], P0[v * 3 + 2]); }
+      remap[v] = id;
+    }
+    const welded = remap.length - P.length / 3;
+    // 2. triangles with no area, and the same triangle twice
+    let I = [], src = [], degenerate = 0, duplicates = 0; const seen = new Set();
+    for (let t = 0; t < n0; t++) {
+      const a = remap[I0[t * 3]], b = remap[I0[t * 3 + 1]], c = remap[I0[t * 3 + 2]];
+      const ux = P[b * 3] - P[a * 3], uy = P[b * 3 + 1] - P[a * 3 + 1], uz = P[b * 3 + 2] - P[a * 3 + 2], vx = P[c * 3] - P[a * 3], vy = P[c * 3 + 1] - P[a * 3 + 1], vz = P[c * 3 + 2] - P[a * 3 + 2];
+      if (a === b || b === c || a === c || Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) < 1e-12) { degenerate++; continue; }
+      const k = [a, b, c].sort((x, y) => x - y).join(","); if (seen.has(k)) { duplicates++; continue; } seen.add(k);
+      I.push(a, b, c); src.push(t);
+    }
+    const nv = P.length / 3;
+    // 3. turn each shell's triangles to agree with their neighbours (across edges with exactly two triangles)
+    let n = I.length / 3, E = meshEdges(I, nv);
+    const flip = new Int8Array(n).fill(-1), shellOf = new Int32Array(n).fill(-1), adj = new Map();
+    for (const [, h] of E) if (h.length === 2) for (const [x, y] of [[h[0], h[1]], [h[1], h[0]]]) { const t = (x / 3) | 0; if (!adj.has(t)) adj.set(t, []); adj.get(t).push([x, y]); }
+    let flippedCount = 0, shells = 0;
+    for (let s0 = 0; s0 < n; s0++) {
+      if (flip[s0] >= 0) continue;
+      flip[s0] = 0; shellOf[s0] = shells; const q = [s0];
+      while (q.length) {
+        const t = q.pop();
+        for (const [x, y] of adj.get(t) || []) {
+          const u = (y / 3) | 0; if (flip[u] >= 0) continue;
+          // the same direction along the shared edge means one of the two is the wrong way round
+          const same = I[x] === I[y];
+          flip[u] = same ? 1 - flip[t] : flip[t]; shellOf[u] = shells; q.push(u);
+        }
+      }
+      shells++;
+    }
+    for (let t = 0; t < n; t++) if (flip[t] === 1) { const a = I[t * 3 + 1]; I[t * 3 + 1] = I[t * 3 + 2]; I[t * 3 + 2] = a; flippedCount++; }
+    // 4. each shell facing outwards (its volume positive), counting only shells that are closed enough to say
+    const vol = new Float64Array(shells);
+    for (let t = 0; t < n; t++) { const a = I[t * 3] * 3, b = I[t * 3 + 1] * 3, c = I[t * 3 + 2] * 3;
+      vol[shellOf[t]] += (P[a] * (P[b + 1] * P[c + 2] - P[b + 2] * P[c + 1]) - P[a + 1] * (P[b] * P[c + 2] - P[b + 2] * P[c]) + P[a + 2] * (P[b] * P[c + 1] - P[b + 1] * P[c])) / 6; }
+    let inverted = 0;
+    for (let t = 0; t < n; t++) if (vol[shellOf[t]] < 0) { const a = I[t * 3 + 1]; I[t * 3 + 1] = I[t * 3 + 2]; I[t * 3 + 2] = a; }
+    for (let k = 0; k < shells; k++) if (vol[k] < 0) inverted++;
+    // 5. holes: each loop of open edges, walked against the direction of its triangles, triangulated on its best plane
+    E = meshEdges(I, nv);
+    const next = new Map();
+    for (const [, h] of E) if (h.length === 1) { const t = (h[0] / 3) | 0, j = h[0] % 3; const a = I[t * 3 + j], b = I[t * 3 + (j + 1) % 3]; if (!next.has(b)) next.set(b, a); }
+    let filled = 0, left = 0; const done = new Set(), Pn = P.slice();
+    for (const [start] of next) {
+      if (done.has(start)) continue;
+      const loop = []; let v = start, guard = 0;
+      while (!done.has(v) && next.has(v) && guard++ < 200000) { done.add(v); loop.push(v); v = next.get(v); }
+      if (v !== start || loop.length < 3 || loop.length > (o.maxHole ?? 20000)) { left++; continue; }
+      // Newell's normal, and a plane basis
+      let nx = 0, ny = 0, nz = 0, cx = 0, cy = 0, cz = 0;
+      for (let i = 0; i < loop.length; i++) { const a = loop[i] * 3, b = loop[(i + 1) % loop.length] * 3;
+        nx += (Pn[a + 1] - Pn[b + 1]) * (Pn[a + 2] + Pn[b + 2]); ny += (Pn[a + 2] - Pn[b + 2]) * (Pn[a] + Pn[b]); nz += (Pn[a] - Pn[b]) * (Pn[a + 1] + Pn[b + 1]);
+        cx += Pn[a]; cy += Pn[a + 1]; cz += Pn[a + 2]; }
+      const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl; cx /= loop.length; cy /= loop.length; cz /= loop.length;
+      const ax = Math.abs(nx) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+      let ux = ny * ax[2] - nz * ax[1], uy = nz * ax[0] - nx * ax[2], uz = nx * ax[1] - ny * ax[0]; const ul = Math.hypot(ux, uy, uz); ux /= ul; uy /= ul; uz /= ul;
+      const vx = ny * uz - nz * uy, vy = nz * ux - nx * uz, vz = nx * uy - ny * ux;
+      const flat = []; for (const p of loop) { const x = Pn[p * 3] - cx, y = Pn[p * 3 + 1] - cy, z = Pn[p * 3 + 2] - cz; flat.push(x * ux + y * uy + z * uz, x * vx + y * vy + z * vz); }
+      let tri = global.earcut ? global.earcut(flat, null, 2) : [];
+      let area = 0; for (let i = 0; i < loop.length; i++) { const j = (i + 1) % loop.length; area += flat[i * 2] * flat[j * 2 + 1] - flat[j * 2] * flat[i * 2 + 1]; }
+      if (tri.length !== (loop.length - 2) * 3) {
+        // a hole too twisted to lay flat: a fan from its middle instead
+        const c = Pn.length / 3; Pn.push(cx, cy, cz); tri = [];
+        for (let i = 0; i < loop.length; i++) { I.push(loop[i], loop[(i + 1) % loop.length], c); src.push(-1); }
+        filled++; continue;
+      }
+      for (let k = 0; k < tri.length; k += 3) {
+        let a = tri[k], b = tri[k + 1], c = tri[k + 2];
+        const ar = (flat[b * 2] - flat[a * 2]) * (flat[c * 2 + 1] - flat[a * 2 + 1]) - (flat[c * 2] - flat[a * 2]) * (flat[b * 2 + 1] - flat[a * 2 + 1]);
+        if ((ar > 0) !== (area > 0)) { const x = b; b = c; c = x; }      // the same way round as the loop
+        I.push(loop[a], loop[b], loop[c]); src.push(-1);
+      }
+      filled++;
+    }
+    const out = { pos: Float32Array.from(Pn), idx: Uint32Array.from(I) };
+    return { solid: out, src: Int32Array.from(src), report: { welded, degenerate, duplicates, flipped: flippedCount, inverted, holesFilled: filled, holesLeft: left, shells } };
+  }
+  // Fewer triangles, keeping the shape: edges collapse in order of the error they make (quadric error metrics; the
+  // scheme of Sven Forstmann's Fast Quadric Mesh Simplification, MIT), never so that a neighbour flips over, and
+  // never on an open edge. Each triangle left is one of the originals (src[t]), so paint and colours come along.
+  function simplifyMesh(s, target, agg) {
+    agg = agg || 7;
+    const nv = s.pos.length / 3; let n = s.idx.length / 3;
+    const VP = Float64Array.from(s.pos), Q = new Float64Array(nv * 10), border = new Uint8Array(nv), tstart = new Int32Array(nv), tcount = new Int32Array(nv);
+    let TV = Int32Array.from(s.idx), TE = new Float64Array(n * 4), TD = new Uint8Array(n), TDirty = new Uint8Array(n), TN = new Float64Array(n * 3), TS = new Int32Array(n).map((_, i) => i);
+    let refT = [], refV = [];
+    const vErr = (q, o, x, y, z) => q[o] * x * x + 2 * q[o + 1] * x * y + 2 * q[o + 2] * x * z + 2 * q[o + 3] * x + q[o + 4] * y * y + 2 * q[o + 5] * y * z + 2 * q[o + 6] * y + q[o + 7] * z * z + 2 * q[o + 8] * z + q[o + 9];
+    const qs = new Float64Array(10), res = [0, 0, 0];
+    const det = (m, a11, a12, a13, a21, a22, a23, a31, a32, a33) => m[a11] * m[a22] * m[a33] + m[a13] * m[a21] * m[a32] + m[a12] * m[a23] * m[a31] - m[a13] * m[a22] * m[a31] - m[a11] * m[a23] * m[a32] - m[a12] * m[a21] * m[a33];
+    function calcError(i1, i2) {
+      for (let k = 0; k < 10; k++) qs[k] = Q[i1 * 10 + k] + Q[i2 * 10 + k];
+      const bd = border[i1] & border[i2], d = det(qs, 0, 1, 2, 1, 4, 5, 2, 5, 7);
+      if (d !== 0 && !bd) {
+        res[0] = -1 / d * det(qs, 1, 2, 3, 4, 5, 6, 5, 7, 8); res[1] = 1 / d * det(qs, 0, 2, 3, 1, 5, 6, 2, 7, 8); res[2] = -1 / d * det(qs, 0, 1, 3, 1, 4, 6, 2, 5, 8);
+        return vErr(qs, 0, res[0], res[1], res[2]);
+      }
+      const p1 = [VP[i1 * 3], VP[i1 * 3 + 1], VP[i1 * 3 + 2]], p2 = [VP[i2 * 3], VP[i2 * 3 + 1], VP[i2 * 3 + 2]], p3 = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2, (p1[2] + p2[2]) / 2];
+      const e1 = vErr(qs, 0, ...p1), e2 = vErr(qs, 0, ...p2), e3 = vErr(qs, 0, ...p3), e = Math.min(e1, e2, e3);
+      const p = e === e1 ? p1 : e === e2 ? p2 : p3; res[0] = p[0]; res[1] = p[1]; res[2] = p[2];
+      return e;
+    }
+    function setErr(t) {
+      for (let j = 0; j < 3; j++) TE[t * 4 + j] = calcError(TV[t * 3 + j], TV[t * 3 + (j + 1) % 3]);
+      TE[t * 4 + 3] = Math.min(TE[t * 4], TE[t * 4 + 1], TE[t * 4 + 2]);
+    }
+    function updateMesh(iter) {
+      if (iter > 0) {                                  // drop the deleted triangles
+        let m = 0;
+        for (let t = 0; t < n; t++) if (!TD[t]) {
+          if (m !== t) { for (let k = 0; k < 3; k++) { TV[m * 3 + k] = TV[t * 3 + k]; TN[m * 3 + k] = TN[t * 3 + k]; } for (let k = 0; k < 4; k++) TE[m * 4 + k] = TE[t * 4 + k]; TS[m] = TS[t]; TDirty[m] = TDirty[t]; }
+          TD[m] = 0; m++;
+        }
+        n = m;
+      }
+      if (iter === 0) {
+        Q.fill(0);
+        for (let t = 0; t < n; t++) {
+          const a = TV[t * 3] * 3, b = TV[t * 3 + 1] * 3, c = TV[t * 3 + 2] * 3;
+          const ux = VP[b] - VP[a], uy = VP[b + 1] - VP[a + 1], uz = VP[b + 2] - VP[a + 2], vx = VP[c] - VP[a], vy = VP[c + 1] - VP[a + 1], vz = VP[c + 2] - VP[a + 2];
+          let x = uy * vz - uz * vy, y = uz * vx - ux * vz, z = ux * vy - uy * vx; const l = Math.hypot(x, y, z) || 1; x /= l; y /= l; z /= l;
+          TN[t * 3] = x; TN[t * 3 + 1] = y; TN[t * 3 + 2] = z;
+          const dd = -(x * VP[a] + y * VP[a + 1] + z * VP[a + 2]), m = [x * x, x * y, x * z, x * dd, y * y, y * z, y * dd, z * z, z * dd, dd * dd];
+          for (let j = 0; j < 3; j++) { const v = TV[t * 3 + j]; for (let k = 0; k < 10; k++) Q[v * 10 + k] += m[k]; }
+        }
+      }
+      tcount.fill(0);
+      for (let t = 0; t < n; t++) for (let j = 0; j < 3; j++) tcount[TV[t * 3 + j]]++;
+      let acc = 0; for (let v = 0; v < nv; v++) { tstart[v] = acc; acc += tcount[v]; tcount[v] = 0; }
+      refT = new Array(acc); refV = new Array(acc);
+      for (let t = 0; t < n; t++) for (let j = 0; j < 3; j++) { const v = TV[t * 3 + j], r = tstart[v] + tcount[v]++; refT[r] = t; refV[r] = j; }
+      if (iter === 0) {
+        // a vertex on an open edge: one of its neighbours is shared by only one of its triangles
+        const cnt = new Map();
+        for (let v = 0; v < nv; v++) {
+          cnt.clear();
+          for (let k = 0; k < tcount[v]; k++) { const t = refT[tstart[v] + k]; for (let j = 0; j < 3; j++) { const u = TV[t * 3 + j]; cnt.set(u, (cnt.get(u) || 0) + 1); } }
+          for (const [u, c] of cnt) if (c === 1) border[u] = 1;
+        }
+        for (let t = 0; t < n; t++) setErr(t);
+      }
+    }
+    const del0 = [], del1 = [];
+    function flipped(px, py, pz, i0, i1, del) {
+      for (let k = 0; k < tcount[i0]; k++) {
+        const t = refT[tstart[i0] + k]; if (TD[t]) continue;
+        const sI = refV[tstart[i0] + k], id1 = TV[t * 3 + (sI + 1) % 3], id2 = TV[t * 3 + (sI + 2) % 3];
+        if (id1 === i1 || id2 === i1) { del[k] = 1; continue; }
+        let ax = VP[id1 * 3] - px, ay = VP[id1 * 3 + 1] - py, az = VP[id1 * 3 + 2] - pz, bx = VP[id2 * 3] - px, by = VP[id2 * 3 + 1] - py, bz = VP[id2 * 3 + 2] - pz;
+        const la = Math.hypot(ax, ay, az) || 1, lb = Math.hypot(bx, by, bz) || 1; ax /= la; ay /= la; az /= la; bx /= lb; by /= lb; bz /= lb;
+        if (Math.abs(ax * bx + ay * by + az * bz) > 0.999) return true;
+        let nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx; const ln = Math.hypot(nx, ny, nz) || 1; nx /= ln; ny /= ln; nz /= ln;
+        del[k] = 0;
+        if (nx * TN[t * 3] + ny * TN[t * 3 + 1] + nz * TN[t * 3 + 2] < 0.2) return true;
+      }
+      return false;
+    }
+    let deletedTris = 0, extraT = [], extraV = [];
+    function updateTris(i0, v, del) {
+      for (let k = 0; k < tcount[v]; k++) {
+        const r = tstart[v] + k, t = refT[r]; if (TD[t]) continue;
+        if (del[k]) { TD[t] = 1; deletedTris++; continue; }
+        TV[t * 3 + refV[r]] = i0; TDirty[t] = 1; setErr(t);
+        extraT.push(t); extraV.push(refV[r]);
+      }
+    }
+    const start = n;
+    for (let iter = 0; iter < 100; iter++) {
+      if (start - deletedTris <= target) break;
+      if (iter % 5 === 0) { updateMesh(iter); }
+      TDirty.fill(0, 0, n);
+      const threshold = 1e-9 * Math.pow(iter + 3, agg);
+      for (let t = 0; t < n; t++) {
+        if (TE[t * 4 + 3] > threshold || TD[t] || TDirty[t]) continue;
+        for (let j = 0; j < 3; j++) {
+          if (TE[t * 4 + j] >= threshold) continue;
+          const i0 = TV[t * 3 + j], i1 = TV[t * 3 + (j + 1) % 3];
+          if (border[i0] !== border[i1] || border[i0]) continue;
+          calcError(i0, i1); const px = res[0], py = res[1], pz = res[2];
+          del0.length = tcount[i0]; del1.length = tcount[i1];
+          if (flipped(px, py, pz, i0, i1, del0) || flipped(px, py, pz, i1, i0, del1)) continue;
+          VP[i0 * 3] = px; VP[i0 * 3 + 1] = py; VP[i0 * 3 + 2] = pz;
+          for (let k = 0; k < 10; k++) Q[i0 * 10 + k] += Q[i1 * 10 + k];
+          extraT = []; extraV = [];
+          updateTris(i0, i0, del0); updateTris(i0, i1, del1);
+          // the vertex's triangles now: appended to the reference lists
+          const tc = extraT.length, base0 = refT.length;
+          for (let k = 0; k < tc; k++) { refT.push(extraT[k]); refV.push(extraV[k]); }
+          tstart[i0] = base0; tcount[i0] = tc;
+          break;
+        }
+        if (start - deletedTris <= target) break;
+      }
+    }
+    // the triangles left, and the vertices they use
+    const keep = [], map = new Int32Array(nv).fill(-1), pos = [], src = [];
+    for (let t = 0; t < n; t++) if (!TD[t]) keep.push(t);
+    const idx = new Uint32Array(keep.length * 3);
+    keep.forEach((t, i) => { for (let j = 0; j < 3; j++) { const v = TV[t * 3 + j]; if (map[v] < 0) { map[v] = pos.length / 3; pos.push(VP[v * 3], VP[v * 3 + 1], VP[v * 3 + 2]); } idx[i * 3 + j] = map[v]; } src.push(TS[t]); });
+    return { solid: { pos: Float32Array.from(pos), idx }, src: Int32Array.from(src) };
+  }
+
+  // ---------- a bas-relief from a depth map (Session 38) ----------
+  // A depth map has big jumps where a figure stands in front of a wall: used as it is, the jump takes the whole height
+  // and the figure's own shape (a round head) is a flat plateau. As a carver does, the slopes are kept and the jumps
+  // tamed: each step between neighbours is limited softly to tau, and the surface is built again from those steps
+  // (Poisson's equation, solved coarse to fine with over-relaxation). Returns the relief spread to 0..1.
+  function basRelief(f, w, h, strength) {
+    const tau = 0.25 / (1 + 10 * Math.max(0, strength)), soft = g => tau * Math.tanh(g / tau);
+    // the divergence of the tamed gradient, at full size
+    const div = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (x < w - 1) { const g = soft(f[i + 1] - f[i]); div[i] += g; div[i + 1] -= g; }
+      if (y < h - 1) { const g = soft(f[i + w] - f[i]); div[i] += g; div[i + w] -= g; }
+    }
+    // solve sum over neighbours (u_j - u_i) = div_i on a pyramid: the coarse answer starts the finer one
+    const levels = []; let lw = w, lh = h, d = div;
+    levels.push({ w: lw, h: lh, d });
+    while (lw > 40 && lh > 40) {
+      const nw = Math.ceil(lw / 2), nh = Math.ceil(lh / 2), nd = new Float32Array(nw * nh);
+      for (let y = 0; y < lh; y++) for (let x = 0; x < lw; x++) nd[(y >> 1) * nw + (x >> 1)] += d[y * lw + x];      // a cell twice the size: four times the source
+      levels.push({ w: nw, h: nh, d: nd }); lw = nw; lh = nh; d = nd;
+    }
+    let u = null;
+    for (let L = levels.length - 1; L >= 0; L--) {
+      const { w: W, h: H, d: D } = levels[L], v = new Float32Array(W * H);
+      if (u) { const pw = levels[L + 1].w; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) v[y * W + x] = u[(y >> 1) * pw + (x >> 1)]; }
+      const iters = L === levels.length - 1 ? 400 : 120, om = 1.85;
+      for (let it = 0; it < iters; it++) for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const i = y * W + x; let s = 0, n = 0;
+        if (x > 0) { s += v[i - 1]; n++; } if (x < W - 1) { s += v[i + 1]; n++; } if (y > 0) { s += v[i - W]; n++; } if (y < H - 1) { s += v[i + W]; n++; }
+        v[i] += om * ((s - D[i]) / n - v[i]);
+      }
+      u = v;
+    }
+    const sorted = Float32Array.from(u).sort(), lo = sorted[Math.floor(sorted.length * 0.01)], hi = sorted[Math.floor(sorted.length * 0.995)];
+    const out = new Float32Array(w * h); for (let i = 0; i < w * h; i++) out[i] = Math.min(1, Math.max(0, (u[i] - lo) / Math.max(1e-6, hi - lo)));
+    return out;
+  }
+
   // ---------- QR codes (Session 33) ----------
   // A QR code (ISO/IEC 18004) for a business card: the whole text in the densest mode it fits (digits, the 45
   // upper-case characters, or bytes of UTF-8), the smallest of the 40 versions that holds it at the chosen error
@@ -5664,6 +5956,6 @@
     photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure, cutoutWithMap, edgeOpacity, pictureBackground, cutoutByColour, plateColour, cutoutCombine, photoFixMap, photoFixMask,
     parseGLB, parseGLTF, parseMTL, parseOBJColours, modelTriColours, modelPalette, modelColourLabels,
     cutBase, cutFree, cutSolid, cutFlat, cutSources, cutCorners, qrEncode, qrPayload, qrLink,
-    gearOutline, threadForm, threadSolid, hexRadius
+    gearOutline, threadForm, threadSolid, hexRadius, meshReport, repairMesh, simplifyMesh, basRelief
   };
 })(typeof window !== "undefined" ? window : globalThis);

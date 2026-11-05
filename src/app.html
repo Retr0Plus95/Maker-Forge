@@ -434,7 +434,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.32.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.33.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -926,6 +926,7 @@ const DEFAULTS = () => ({
     stl:{ name:"", scale:100, flat:0 },
     enclosure:{ w:100, d:64, h:36, wall:2, floor:2, radius:4, lid:"screw", lidThick:2.4, lipH:3, lipW:1.2, fit:0.2,
       fasten:"insert", screw:"M3", head:"sink", teardrop:false, grow:true, lensSlot:0, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
+      mount:"none", earN:2, tabN:2, earHole:4.5, earT:3, strapW:12, strapT:2.5, strapDir:"across",
       labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
       board:"none", boardX:0, boardY:0, boardRot:false, standH:5, bw:60, bd:40, bsx:52, bsy:32, bscrew:"M3", boxSlot:1, lidSlot:1,
       // every key newOpening gives, so a saved box opens exactly as it was
@@ -1659,49 +1660,90 @@ const BOARDS = {
   custom:{ label:"My own board" }
 };
 // openings: typical part sizes; the clearance setting is added to every one of them
+// g: the group each part is listed under in "Add an opening". Sizes are typical parts; the clearance is added on top.
+const CUT_GROUPS = [["port","Ports and power"],["button","Buttons, switches and knobs"],["light","Lights"],["screen","Screens and meters"],
+  ["sensor","Sensors and cameras"],["sound","Sound"],["air","Fans and vents"],["mount","Mounting, cables and my own sizes"]];
 const CUTOUTS = {
-  usbc:{ label:"USB-C port", kind:"rect", w:9.2, h:3.4, r:1.6 },
-  usba:{ label:"USB-A port", kind:"rect", w:13.2, h:5.8, r:0.4 },
-  micro:{ label:"Micro-USB port", kind:"rect", w:8.2, h:3.2, r:1 },
-  hdmi:{ label:"HDMI port", kind:"rect", w:15.4, h:6.2, r:0.5 },
-  rj45:{ label:"Ethernet (RJ45)", kind:"rect", w:16.2, h:13.8, r:0.5 },
-  sd:{ label:"microSD card slot", kind:"rect", w:12.5, h:2.4, r:0.6 },
-  barrel:{ label:"DC barrel jack, panel mount", kind:"round", dia:8 },
-  btn:{ label:"Push button, 12 mm", kind:"round", dia:12.2 },
-  btn16:{ label:"Push button, 16 mm", kind:"round", dia:16.2 },
-  btn22:{ label:"Arcade / e-stop button, 22 mm", kind:"round", dia:22.3 },
+  usbc:{ g:"port", label:"USB-C port", kind:"rect", w:9.2, h:3.4, r:1.6 },
+  usbcboard:{ g:"port", label:"USB-C charging board (TP4056 / IP5306 type): its port", kind:"rect", w:9.4, h:3.6, r:1.6 },
+  usba:{ g:"port", label:"USB-A port", kind:"rect", w:13.2, h:5.8, r:0.4 },
+  micro:{ g:"port", label:"Micro-USB port", kind:"rect", w:8.2, h:3.2, r:1 },
+  hdmi:{ g:"port", label:"HDMI port", kind:"rect", w:15.4, h:6.2, r:0.5 },
+  rj45:{ g:"port", label:"Ethernet (RJ45)", kind:"rect", w:16.2, h:13.8, r:0.5 },
+  sd:{ g:"port", label:"microSD card slot", kind:"rect", w:12.5, h:2.4, r:0.6 },
+  barrel:{ g:"port", label:"DC barrel jack, panel mount", kind:"round", dia:8 },
+  dcpcb:{ g:"port", label:"DC barrel jack on a board (DC-005)", kind:"rect", w:9.2, h:11.2, r:0.5 },
+  xt60:{ g:"port", label:"XT60 battery plug, panel mount", kind:"rect", w:16.2, h:8.6, r:1.5 },
+  jack35:{ g:"port", label:"Audio jack 3.5 mm, panel mount", kind:"round", dia:6.2 },
+  sma:{ g:"port", label:"SMA antenna socket (an ESP32-CAM or LoRa antenna)", kind:"round", dia:6.5 },
+  iec:{ g:"port", label:"IEC C14 power inlet, snap-in", kind:"iec", w:27.4, h:19.6 },
+  banana:{ g:"port", label:"Banana socket / binding post", kind:"round", dia:8.2 },
+  btn:{ g:"button", label:"Push button, 12 mm", kind:"round", dia:12.2 },
+  btn16:{ g:"button", label:"Push button, 16 mm", kind:"round", dia:16.2 },
+  btn22:{ g:"button", label:"Arcade / e-stop button, 22 mm", kind:"round", dia:22.3 },
+  btn30:{ g:"button", label:"Arcade button, 30 mm", kind:"round", dia:28.2 },
+  tact:{ g:"button", label:"Tactile button cap, 6 mm (a hole to press it through)", kind:"round", dia:4 },
+  toggle:{ g:"button", label:"Mini toggle switch (M6)", kind:"round", dia:6.3 },
+  toggle12:{ g:"button", label:"Toggle switch, large (M12)", kind:"round", dia:12.2 },
+  slide:{ g:"button", label:"Slide switch SS12D00 (the small on/off)", kind:"rect", w:8.8, h:3.8, r:0.4 },
+  rocker:{ g:"button", label:"Rocker switch KCD1 (19 × 13)", kind:"rect", w:19.2, h:13, r:0.5 },
+  rockerL:{ g:"button", label:"Rocker switch, large (30 × 22)", kind:"rect", w:30.2, h:22.2, r:0.5 },
+  pot:{ g:"button", label:"Potentiometer / knob shaft (M7)", kind:"round", dia:7.3 },
+  encoder:{ g:"button", label:"Rotary encoder EC11 / KY-040 (M7 nut)", kind:"round", dia:7.3 },
+  keysw:{ g:"button", label:"Keyboard key switch (Cherry MX type), 14 mm square", kind:"rect", w:14, h:14, r:0 },
+  joystick:{ g:"button", label:"Thumb joystick KY-023 (stick and its travel)", kind:"round", dia:24 },
   // pilot lights: a printed jewel lens (in a clear filament) for a plain LED, or a bought panel-mount one
-  pilotp5:{ label:"Pilot light, printed jewel lens, 5 mm LED", kind:"round", dia:8, lensFor:5 },
-  pilotp3:{ label:"Pilot light, printed jewel lens, 3 mm LED", kind:"round", dia:6, lensFor:3 },
-  ledbezel5:{ label:"Pilot light, 5 mm LED in a chrome bezel (hole 8 mm)", kind:"round", dia:7.9 },
-  ledbezel3:{ label:"Pilot light, 3 mm LED in a chrome bezel (hole 6 mm)", kind:"round", dia:6.0 },
-  pilot8:{ label:"Metal pilot light, 8 mm", kind:"round", dia:8 },
-  pilot10:{ label:"Metal pilot light, 10 mm", kind:"round", dia:10 },
-  pilot12:{ label:"Metal pilot light, 12 mm", kind:"round", dia:12 },
-  pilot16:{ label:"Metal pilot light, 16 mm", kind:"round", dia:16 },
-  pilot19:{ label:"Metal pilot light, 19 mm", kind:"round", dia:19 },
-  pilot22:{ label:"Panel indicator lamp, 22 mm (AD16-22 dashboard style)", kind:"round", dia:22 },
-  led3:{ label:"LED, 3 mm, bare hole", kind:"round", dia:3.1 },
-  led5:{ label:"LED, 5 mm, bare hole", kind:"round", dia:5.1 },
-  toggle:{ label:"Mini toggle switch (M6)", kind:"round", dia:6.3 },
-  pot:{ label:"Potentiometer / knob shaft (M7)", kind:"round", dia:7.3 },
-  gland:{ label:"Cable gland PG7", kind:"round", dia:12.6 },
-  banana:{ label:"Banana socket / binding post", kind:"round", dia:8.2 },
-  rocker:{ label:"Rocker switch KCD1 (19 × 13)", kind:"rect", w:19.2, h:13, r:0.5 },
-  rockerL:{ label:"Rocker switch, large (30 × 22)", kind:"rect", w:30.2, h:22.2, r:0.5 },
-  iec:{ label:"IEC C14 power inlet, snap-in", kind:"iec", w:27.4, h:19.6 },
-  volt:{ label:"Panel voltmeter 0.28-inch (about 23 × 10)", kind:"rect", w:22.8, h:10.2, r:0.3 },
-  oled:{ label:"OLED 0.96-inch: window + 4 screws", kind:"display", w:25, h:14, hw:23.5, hh:23.8, hd:2.2 },
-  lcd1602:{ label:"LCD 16×2 (1602): bezel + 4 screws", kind:"display", w:71.5, h:24.5, hw:75, hh:31, hd:3.2 },
-  lcd2004:{ label:"LCD 20×4 (2004): bezel + 4 screws", kind:"display", w:97.5, h:40.5, hw:93, hh:55, hd:3.2 },
-  display:{ label:"Display window (my size) + 4 screws", kind:"display", w:40, h:30, hw:48, hh:38, hd:3 },
-  fan:{ label:"Fan: grille + 4 screws", kind:"fan", size:40, style:"rings" },
-  vent:{ label:"Vent: slots, honeycomb or holes", kind:"vent", w:50, h:20, style:"slots" },
-  keyhole:{ label:"Wall-mount keyhole", kind:"keyhole", dia:8 },
-  rect:{ label:"Rectangle (my size)", kind:"rect", w:20, h:10, r:1 },
-  round:{ label:"Round hole (my size)", kind:"round", dia:10 },
-  hole:{ label:"Screw hole", kind:"round", dia:3.4 }
+  pilotp5:{ g:"light", label:"Pilot light, printed jewel lens, 5 mm LED", kind:"round", dia:8, lensFor:5 },
+  pilotp3:{ g:"light", label:"Pilot light, printed jewel lens, 3 mm LED", kind:"round", dia:6, lensFor:3 },
+  ledbezel5:{ g:"light", label:"Pilot light, 5 mm LED in a chrome bezel (hole 8 mm)", kind:"round", dia:7.9 },
+  ledbezel3:{ g:"light", label:"Pilot light, 3 mm LED in a chrome bezel (hole 6 mm)", kind:"round", dia:6.0 },
+  pilot8:{ g:"light", label:"Metal pilot light, 8 mm", kind:"round", dia:8 },
+  pilot10:{ g:"light", label:"Metal pilot light, 10 mm", kind:"round", dia:10 },
+  pilot12:{ g:"light", label:"Metal pilot light, 12 mm", kind:"round", dia:12 },
+  pilot16:{ g:"light", label:"Metal pilot light, 16 mm", kind:"round", dia:16 },
+  pilot19:{ g:"light", label:"Metal pilot light, 19 mm", kind:"round", dia:19 },
+  pilot22:{ g:"light", label:"Panel indicator lamp, 22 mm (AD16-22 dashboard style)", kind:"round", dia:22 },
+  led3:{ g:"light", label:"LED, 3 mm, bare hole", kind:"round", dia:3.1 },
+  led5:{ g:"light", label:"LED, 5 mm, bare hole", kind:"round", dia:5.1 },
+  led8:{ g:"light", label:"LED, 8 mm, bare hole", kind:"round", dia:8.1 },
+  led10:{ g:"light", label:"LED, 10 mm, bare hole", kind:"round", dia:10.1 },
+  oled:{ g:"screen", label:"OLED 0.96-inch: window + 4 screws", kind:"display", w:25, h:14, hw:23.5, hh:23.8, hd:2.2 },
+  oled091:{ g:"screen", label:"OLED 0.91-inch (128 × 32 strip): window", kind:"rect", w:23, h:6.4, r:0.3 },
+  oled13:{ g:"screen", label:"OLED 1.3-inch: window + 4 screws (check yours: they vary)", kind:"display", w:30, h:16, hw:30.5, hh:28.5, hd:2.2 },
+  lcd1602:{ g:"screen", label:"LCD 16×2 (1602): bezel + 4 screws", kind:"display", w:71.5, h:24.5, hw:75, hh:31, hd:3.2 },
+  lcd2004:{ g:"screen", label:"LCD 20×4 (2004): bezel + 4 screws", kind:"display", w:97.5, h:40.5, hw:93, hh:55, hd:3.2 },
+  tft18:{ g:"screen", label:"TFT 1.8-inch (ST7735): window + 4 screws (check yours: they vary)", kind:"display", w:28.5, h:35.5, hw:29, hh:51, hd:2.6 },
+  tft28:{ g:"screen", label:"TFT 2.8-inch SPI touch screen (ILI9341): window + 4 screws (check yours)", kind:"display", w:44, h:58.5, hw:44, hh:80, hd:3.2 },
+  matrix:{ g:"screen", label:"LED matrix 8×8 (MAX7219 module): window", kind:"rect", w:32.6, h:32.6, r:0.3 },
+  seg036:{ g:"screen", label:"4-digit display 0.36-inch (TM1637 module): window", kind:"rect", w:30.5, h:14.5, r:0.3 },
+  seg056:{ g:"screen", label:"4-digit display 0.56-inch: window", kind:"rect", w:50.6, h:19.2, r:0.3 },
+  volt:{ g:"screen", label:"Panel voltmeter 0.28-inch (about 23 × 10)", kind:"rect", w:22.8, h:10.2, r:0.3 },
+  voltamp:{ g:"screen", label:"Volt and amp meter 0.28-inch, two rows (about 46 × 26)", kind:"rect", w:45.6, h:26.2, r:0.3 },
+  display:{ g:"screen", label:"Display window (my size) + 4 screws", kind:"display", w:40, h:30, hw:48, hh:38, hd:3 },
+  esp32cam:{ g:"sensor", label:"ESP32-CAM / XIAO ESP32-S3 Sense camera lens (OV2640)", kind:"round", dia:8.5 },
+  picam:{ g:"sensor", label:"Raspberry Pi camera module: lens + 4 screws", kind:"camera", dia:9, hw:21, hh:12.5, hd:2.2, holeShift:1.2 },
+  pir501:{ g:"sensor", label:"Motion sensor HC-SR501: dome + 2 screws", kind:"pir", dia:23.2, hw:28, hd:2.2 },
+  pirmini:{ g:"sensor", label:"Mini motion sensor (AM312 / HC-SR505): its dome", kind:"round", dia:10.4 },
+  hcsr04:{ g:"sensor", label:"Distance sensor HC-SR04: its two eyes", kind:"twin", dia:16.4, hw:26 },
+  ldr:{ g:"sensor", label:"Light sensor (LDR, 5 mm)", kind:"round", dia:5.3 },
+  irrx:{ g:"sensor", label:"IR remote receiver (VS1838B)", kind:"round", dia:6.2 },
+  dht11:{ g:"sensor", label:"Temperature sensor DHT11: its grille", kind:"rect", w:12.6, h:16, r:0.5 },
+  dht22:{ g:"sensor", label:"Temperature sensor DHT22 / AM2302: its grille", kind:"rect", w:15.6, h:20.6, r:0.5 },
+  mic:{ g:"sensor", label:"Microphone (electret, 10 mm) or a sound sensor's mic", kind:"round", dia:10 },
+  speaker:{ g:"sound", label:"Speaker grille (holes over the cone)", kind:"grille", dia:28, hd:2 },
+  buzzer:{ g:"sound", label:"Buzzer: a few small holes", kind:"grille", dia:10, hd:1.6 },
+  fan:{ g:"air", label:"Fan: grille + 4 screws", kind:"fan", size:40, style:"rings" },
+  vent:{ g:"air", label:"Vent: slots, honeycomb or holes", kind:"vent", w:50, h:20, style:"slots" },
+  gland:{ g:"mount", label:"Cable gland PG7", kind:"round", dia:12.6 },
+  gland9:{ g:"mount", label:"Cable gland PG9", kind:"round", dia:15.4 },
+  cable:{ g:"mount", label:"Cable pass-through (a plain wire hole)", kind:"round", dia:5.5 },
+  keyhole:{ g:"mount", label:"Wall-mount keyhole", kind:"keyhole", dia:8 },
+  rect:{ g:"mount", label:"Rectangle (my size)", kind:"rect", w:20, h:10, r:1 },
+  round:{ g:"mount", label:"Round hole (my size)", kind:"round", dia:10 },
+  hole:{ g:"mount", label:"Screw hole", kind:"round", dia:3.4 }
 };
+// "Add an opening", grouped
+const cutoutMenu = () => CUT_GROUPS.map(([g, name]) => ({ group:name, items:Object.entries(CUTOUTS).filter(([, v]) => v.g === g).map(([k, v]) => [k, v.label]) }));
 const ENC_FACES = [["front","Front"],["back","Back"],["left","Left side"],["right","Right side"],["top","Lid (top)"],["bottom","Floor (bottom)"]];
 const ENC_FACE_NAME = Object.fromEntries(ENC_FACES.map(([k,v]) => [k, v.toLowerCase()]));
 const ENC_WALLS = new Set(["front","back","left","right"]);
@@ -1817,6 +1859,30 @@ function openingRings(c, wall, E){
       }
       break;
     }
+    case "pir": case "twin": case "camera": {         // a dome or lens, and its screws (or a second eye) round it
+      const D = pos(c.dia) + cl, hd = pos(c.hd) + cl, hw = Math.max(0, +c.hw || 0), hh = Math.max(0, +c.hh || 0), up = +k.holeShift || 0;
+      if (k.kind === "twin"){
+        const gap = Math.max(hw, D + 1.2);            // the eyes never run into each other
+        for (const sx of [-1,1]) out.push(encRound(D, wall, tear).map(p => [p[0] + sx*gap/2, p[1]]));
+        break;
+      }
+      out.push(encRound(D, wall, tear));
+      const at = k.kind === "pir" ? [[-hw/2, 0], [hw/2, 0]] : hw > 0 && hh > 0 ? [[-hw/2, up - hh/2], [hw/2, up - hh/2], [-hw/2, up + hh/2], [hw/2, up + hh/2]] : [];
+      // a screw hole that would break into the dome is left out rather than torn into it
+      for (const [x, y] of at) if (Math.hypot(x, y) >= (D + hd)/2 + 0.8) out.push(encRound(hd, wall, tear).map(p => [p[0] + x, p[1] + y]));
+      break;
+    }
+    case "grille": {                                 // small round holes packed in a circle, over a speaker's cone or a buzzer
+      const R = Math.min(80, pos(c.dia)/2), d = Math.max(1, pos(c.hd)) + cl;
+      // never more than about 1500 holes (a huge grille of tiny holes would take minutes): the bars widen instead
+      const pitch = Math.max(d + 1.2, Math.sqrt(Math.PI*R*R/(1500*Math.sqrt(3)/2))), dy = pitch*Math.sqrt(3)/2;
+      for (let j=-Math.ceil(R/dy); j<=Math.ceil(R/dy); j++) for (let i=-Math.ceil(R/pitch)-1; i<=Math.ceil(R/pitch)+1; i++){
+        const x = i*pitch + (j & 1 ? pitch/2 : 0), y = j*dy;
+        if (Math.hypot(x, y) + d/2 <= R + 1e-6) out.push(C.ringCircle(d/2, 16).map(p => [p[0] + x, p[1] + y]));
+      }
+      if (!out.length) out.push(C.ringCircle(d/2, 16));
+      break;
+    }
     case "keyhole": {                                // a head hole with a slot running up from it
       const D = pos(c.dia) + cl, R = D/2, a = D/4, top = D*0.9, yc = Math.sqrt(R*R - a*a), L = [[a, yc], [a, top]];
       for (let i=1;i<12;i++){ const t = i/12*Math.PI; L.push([Math.cos(t)*a, top + Math.sin(t)*a]); }
@@ -1831,7 +1897,7 @@ function openingRings(c, wall, E){
 }
 // openings whose top edge may be turned into a 45° point (ports and plain rectangles; parts that
 // snap into their cut-out, like rocker switches and IEC inlets, need the flat top edge to clip onto)
-const ENC_POINTABLE = new Set(["usbc","usba","micro","hdmi","rj45","sd","rect"]);
+const ENC_POINTABLE = new Set(["usbc","usbcboard","usba","micro","hdmi","rj45","sd","dcpcb","xt60","slide","dht11","dht22","rect"]);
 function placedRings(c, E){
   let rings = openingRings(c, ENC_WALLS.has(c.face), E);
   if (c.rot) rings = rings.map(L => L.map(([x, y]) => [-y, x]));
@@ -1939,7 +2005,7 @@ const encLogoCache = new WeakMap();                   // a picture's canvas -> i
 function encTestSettings(E){
   const T = JSON.parse(JSON.stringify(E)), seen = new Set(), wallCuts = [], flatCuts = { top:[], bottom:[] };
   (E.cut || []).forEach(c => {
-    const key = [c.kind, c.w, c.h, c.dia, c.r, c.size, c.style, !!c.rot, c.hw, c.hh, c.notch === true, c.top === "pointed", encLabelText(c.label), ENC_WALLS.has(c.face) ? "wall" : c.face].join("|");
+    const key = [c.kind, c.w, c.h, c.dia, c.r, c.size, c.style, !!c.rot, c.hw, c.hh, c.hd, c.notch === true, c.top === "pointed", encLabelText(c.label), ENC_WALLS.has(c.face) ? "wall" : c.face].join("|");
     if (seen.has(key)) return; seen.add(key);
     (ENC_WALLS.has(c.face) ? wallCuts : flatCuts[c.face]).push(JSON.parse(JSON.stringify(c)));
   });
@@ -1972,8 +2038,148 @@ function encTestSettings(E){
     let x = -flatCuts[face].reduce((a, c) => a + spanOf(c)[0] + 4, 0)/2;
     flatCuts[face].forEach(c => { const w = spanOf(c)[0] + 4; T.cut.push(Object.assign(c, { u:Math.round((x + w/2)*2)/2, v:0 })); x += w; });
   }
-  T.board = "none"; T.test = false; if (T.logo) T.logo.on = false;
+  T.board = "none"; T.test = false; T.mount = "none"; if (T.logo) T.logo.on = false;   // the openings only: no board, logo or mounts
   return T;
+}
+// Mounting a box (Session 39). Plan coordinates are (x, -z): the back wall's outside is at +D/2.
+//   ears:   flat tabs on the left and right at floor level, a screw hole in each, and a 45° fin each side of it
+//   din:    a clip for 35 mm top-hat rail, printed flat beside the box and screwed to the floor from inside
+//   straps: loops on the back for a strap or zip tie, running across (round a post) or up (round a bar)
+//   tabs:   tapered tabs on the back rising above the lid, each with an upright slot for a screw or a nail
+//   skadis / pegboard: hooks at the top of the back for IKEA SKÅDIS (5 × 15 mm slots, 40 mm apart) or pegboard
+//           (1/4-inch holes on a 1-inch grid); each turns up behind the board, so nothing starts in mid-air
+// Returns the solids to add to the box, holes for the floor, what each face must keep clear, how far it
+// reaches out to the sides (so the lid is placed clear of it), and a line or two for the panel.
+const DIN = { rail:35, flange:1, play:0.25, lift:0.15, plate:5, wall:2.5, lip:1.6, reach:1.5, len:30, screws:18 };
+function encMount(E, B, warn){
+  const out = { solids:[], floorHoles:[], taken:[], out:0, lines:[], kind: E.mount };
+  const { W, D, H, R, t } = B, ext = (L, y0, y1) => C.extrudePolysAt([{ outer: encOrient(L, true), holes:[] }], y0, y1);
+  // a profile in a vertical plane: (along x, height) extruded across z0..z1, or (out from the back, height) along x0..x1
+  const sideways = (L, z0, z1) => C.affineSolid(C.extrudePolysAt([{ outer: encOrient(L, true), holes:[] }], z0, z1), [1,0,0, 0,0,-1, 0,1,0], [0,0,0]);
+  // a shape in the back's own plane, (x, height), extruded out from the back face (out0..out1 mm)
+  const outways = (polys, o0, o1) => C.affineSolid(C.extrudePolysAt(polys.map(q => ({ outer: encOrient(q.outer.map(([x, y]) => [-x, y]), true),
+    holes: (q.holes || []).map(h => encOrient(h.map(([x, y]) => [-x, y]), false)) })), o0, o1), [-1,0,0, 0,0,-1, 0,-1,0], [0, 0, -D/2]);
+  // hooks sit as far apart as the board's grid and the back's flat part allow, centred
+  const spread = (pitch, half) => { const n = Math.floor((2*(W/2 - R) - 2*half - 4)/pitch); return n >= 1 ? [-n*pitch/2, n*pitch/2] : [0]; };
+  const backways = (L, x0, x1) => C.affineSolid(C.extrudePolysAt([{ outer: encOrient(L, true), holes:[] }], x0, x1), [0,1,0, 0,0,-1, -1,0,0], [0,0,0]);
+  if (E.mount === "ears"){
+    const hole = clamp(+E.earHole || 4.5, 2, 8), T = clamp(+E.earT || 3, 2, 8), w = 2*hole + 6, c = hole + 1.5, L = c + w/2, fin = Math.max(0, Math.min(c, H - T - 1));   // fins stop where the ear starts to round off
+    const flat = D - 2*R;                                  // the straight part of each side wall
+    let zs = [0];
+    if (E.earN === 4){
+      const zc = D/2 - R - w/2 - 0.5;
+      if (zc >= w/2 + 2) zs = [-zc, zc];
+      else warn.push({ t:"Room for two ears, not four", s:`The sides are too short for two ears each: the box needs to be at least ${Math.ceil(2*R + 2*w + 5)} mm deep. It has one ear on each side.` });
+    }
+    if (flat < w){
+      warn.push({ t:"No room for the ears", s:`Each ear is ${w.toFixed(0)} mm wide and the flat part of the sides is ${Math.max(0, flat).toFixed(0)} mm. Make the box deeper or its corners less round.` });
+      return out;
+    }
+    for (const sx of [-1,1]) for (const zc of zs){
+      const x0 = sx*(W/2 - 0.5), xc = sx*(W/2 + c), py = -zc, Lp = [[x0, py - w/2], [xc, py - w/2]];
+      for (let i=1;i<24;i++){ const a = -Math.PI/2 + i/24*Math.PI; Lp.push([xc + sx*Math.cos(a)*w/2, py + Math.sin(a)*w/2]); }
+      Lp.push([xc, py + w/2], [x0, py + w/2]);
+      out.solids.push(C.extrudePolysAt([{ outer: encOrient(Lp, true), holes:[encOrient(C.ringCircle(hole/2, 32).map(([x, y]) => [x + xc, y + py]), false)] }], 0, T));
+      if (fin > 1) for (const e of [-1,1]){                   // the fins stand at the ear's edges, clear of the screw head
+        const prof = [[x0, T - 0.5], [sx*(W/2 + fin), T - 0.5], [sx*(W/2 + fin), T], [x0, T + fin + 0.5]];
+        const z1 = zc + e*w/2, z0 = z1 - e*2;
+        out.solids.push(sideways(prof, Math.min(z0, z1), Math.max(z0, z1)));
+      }
+      out.taken.push([sx > 0 ? "right" : "left", "a mounting ear", [-zc - w/2, 0, -zc + w/2, T + fin + 0.5]]);
+    }
+    out.out = L;
+    out.lines.push(`${zs.length*2} ears with ${hole.toFixed(1)} mm holes, ${T.toFixed(1)} mm thick: screw the box to a wall, a shelf or a board.`);
+  } else if (E.mount === "din"){
+    const need = DIN.rail + 2*(DIN.play + DIN.wall);
+    if (D < need + 2 || W < DIN.len + 4){ warn.push({ t:"Too small for a DIN rail clip", s:`The clip is ${DIN.len} × ${need.toFixed(0)} mm under the floor: make the box at least ${DIN.len + 4} × ${Math.ceil(need + 2)} mm.` }); return out; }
+    for (const sx of [-1,1]){
+      out.floorHoles.push(C.ringCircle(SCREWS.M3.clear/2, 28).map(([x, y]) => [x + sx*DIN.screws/2, y]));
+      out.taken.push(["bottom", "a DIN clip screw", [sx*DIN.screws/2 - 3.5, -3.5, sx*DIN.screws/2 + 3.5, 3.5]]);
+    }
+    out.din = true;
+    out.lines.push("A DIN rail clip prints flat beside the box. Screw it under the floor from inside with two M3 × 8 mm screws, then slide it onto the end of a 35 mm rail.");
+  } else if (E.mount === "straps"){
+    const sw = clamp(+E.strapW || 12, 3, 30), st = clamp(+E.strapT || 2.5, 1, 6), b0 = D/2 - 0.5, b2 = D/2 + st + 2, flatX = W/2 - R;
+    const across = E.strapDir !== "up", half = across ? 6 : sw/2 + 2;
+    const xs = flatX - half - 2 >= half + 6 ? [-Math.min(W/4, flatX - half - 2), Math.min(W/4, flatX - half - 2)] : [0];
+    if (flatX < half + 1){ warn.push({ t:"No room for strap loops", s:"The back is too narrow for a loop. Make the box wider or its corners less round." }); return out; }
+    if (across){
+      const h0 = (H - sw - 4)/2 + (st + 2.5)/2, hA = h0 - (b2 - b0);
+      if (hA < 0 || h0 + sw + 4 > H){ warn.push({ t:"Too short for strap loops", s:`A ${sw} mm strap across the back needs a box at least ${Math.ceil(sw + 4 + st + 2.5 + 1)} mm tall. Make it taller, use a narrower strap, or run it up the back.` }); return out; }
+      const prof = [[b0, hA], [b2, h0], [b2, h0 + sw + 4], [b0, h0 + sw + 4], [b0, h0 + sw + 2], [D/2 + st, h0 + sw + 2], [D/2 + st, h0 + 2], [b0, h0 + 2]];
+      xs.forEach(x => { out.solids.push(backways(prof, x - half, x + half)); out.taken.push(["back", "a strap loop", [-x - half, hA, -x + half, h0 + sw + 4]]); });
+    } else {
+      const top = clamp(H*0.5, 8, Math.max(8, H - 1));
+      xs.forEach(x => {
+        const xL = x - half, xl = x - sw/2, xr = x + sw/2, xR = x + half, b1 = D/2 + st;
+        out.solids.push(ext([[xL, b0], [xl, b0], [xl, b1], [xr, b1], [xr, b0], [xR, b0], [xR, b2], [xL, b2]], 0, top));
+        out.taken.push(["back", "a strap loop", [-xR, 0, -xL, top]]);
+      });
+    }
+    out.lines.push(`${xs.length === 1 ? "A loop" : "Two loops"} on the back for a ${sw} mm strap or zip tie, running ${across ? "across: round a post, a pipe or a bike frame" : "up: round a bar or a handlebar"}.`);
+  } else if (E.mount === "tabs"){
+    // like a picture-hanging plate: wide at the bed, narrowing to a round top above the lid, with the slot up there
+    // so the screw's head can be reached. The slot's top is pointed (45°), so it prints standing up.
+    const sw = clamp(+E.earHole || 4.5, 2, 8), T = clamp(+E.earT || 3, 2, 8), rt = sw/2 + 4, sl = 8;
+    const hc = B.top + 3 + sw/2 + sl, n = E.tabN === 1 ? 1 : 2, flatX = W/2 - R;
+    let xs = n === 1 ? [0] : [-Math.min(W/4, flatX - rt - 1), Math.min(W/4, flatX - rt - 1)];
+    if (xs.length === 2 && xs[1] < rt + 2) xs = [0];
+    const bw = Math.min(2*rt + 0.6*hc, xs.length === 2 ? 2*xs[1] - 3 : 2*flatX - 2, 2*(flatX - Math.abs(xs[0])) - 1);
+    if (bw < 2*rt){ warn.push({ t:"No room for hanging tabs", s:"The back is too narrow for a tab. Make the box wider or its corners less round." }); return out; }
+    xs.forEach(x => {
+      const L = [[x - bw/2, 0], [x + bw/2, 0], [x + rt, hc]];
+      for (let i=1;i<32;i++){ const a = i/32*Math.PI; L.push([x + rt*Math.cos(a), hc + rt*Math.sin(a)]); }
+      L.push([x - rt, hc]);
+      const r = sw/2, slot = [];                    // round at the bottom, pointed at the top
+      for (let i=0;i<=16;i++){ const a = Math.PI + i/16*Math.PI; slot.push([x + r*Math.cos(a), hc - sl + r*Math.sin(a)]); }
+      slot.push([x + r, hc], [x, hc + r*Math.SQRT2], [x - r, hc]);
+      out.solids.push(outways([{ outer: L, holes: [slot] }], 0, T));
+      // fused into the wall over its lower part (where the lid isn't)
+      const hf = Math.max(1, H - 1), wf = bw/2 - (bw/2 - rt)*hf/hc;
+      out.solids.push(outways([{ outer: [[x - bw/2, 0], [x + bw/2, 0], [x + wf, hf], [x - wf, hf]] }], -0.5, 0.5));
+      out.taken.push(["back", "a hanging tab", [-x - bw/2, 0, -x + bw/2, H]]);
+    });
+    out.lines.push(`${xs.length === 1 ? "A tab" : "Two tabs"} on the back rising ${(hc + rt - B.top).toFixed(0)} mm above the lid, with a ${sw.toFixed(1)} mm slot for a screw or nail.`);
+  } else if (E.mount === "skadis" || E.mount === "pegboard"){
+    const sk = E.mount === "skadis", top = H - 1, o = D/2;
+    if (H < (sk ? 22 : 18)){ warn.push({ t:"Too short for hooks", s:`Hooks for ${sk ? "SKÅDIS" : "pegboard"} need a box at least ${sk ? 22 : 18} mm tall.` }); return out; }
+    const xs = spread(sk ? 40 : 25.4, sk ? 2.1 : 2.8);
+    xs.forEach(x => {
+      if (sk){
+        // a flat hook 4.2 mm thick: out through the 5 mm board, then up 13 mm behind it
+        const hs = top - 5 - 13, p = [[o - 0.5, hs - 6.5], [o + 10, hs + 4], [o + 10, hs + 18], [o + 6, hs + 18], [o + 6, hs + 5], [o - 0.5, hs + 5]];
+        out.solids.push(backways(p, x - 2.1, x + 2.1));
+        out.taken.push(["back", "a hook", [-x - 2.1, hs - 6.5, -x + 2.1, hs + 5]]);
+      } else {
+        // a round peg 5.6 mm across (its underside pointed at 45°) out through a 1/4-inch board, then a post up behind it
+        const r = 2.8, hc = top - 8 - r, L = 7 + 2*r, drop = [];
+        for (let i=0;i<=24;i++){ const a = -Math.PI/4 + i/24*1.5*Math.PI; drop.push([x + r*Math.cos(a), hc + r*Math.sin(a)]); }
+        drop.push([x, hc - r*Math.SQRT2]);
+        out.solids.push(outways([{ outer: drop }], -0.5, L));
+        out.solids.push(C.extrudePolysAt([{ outer: encOrient(C.ringCircle(r, 24).map(([u, v]) => [u + x, v + o + L - r]), true), holes:[] }], hc, hc + r + 8));
+        out.taken.push(["back", "a peg", [-x - r, hc - r*1.5, -x + r, hc + r]]);
+      }
+    });
+    out.lines.push(sk ? `${xs.length === 1 ? "A hook" : "Two hooks 40 mm apart (or a multiple)"} for an IKEA SKÅDIS board: tip the box, put the hooks through the slots, and let it down.`
+      : `${xs.length === 1 ? "A peg" : `Two pegs ${Math.abs(xs[1] - xs[0]).toFixed(1)} mm apart`} for pegboard with 1/4-inch holes on a 1-inch grid: tip the box, put the pegs through, and let it down.`);
+    if (xs.length === 1) warn.push({ t:"Only one hook", s:`The back is too narrow for two ${sk ? "hooks 40 mm" : "pegs 25.4 mm"} apart, so the box hangs from one and can turn. Make it wider for two.` });
+  }
+  return out;
+}
+// The DIN rail clip: a plate with a hook along each edge. The rail's flanges slide in from the end, between
+// the plate and the hooks' lips; the lips' undersides step in at 45°, so it prints flat without support, and
+// they wedge on the flanges' edges so the box can't be pulled straight off. Printed hooks up.
+function encDinClip(){
+  const g = DIN.play, e = DIN.rail/2 + g, o = e + DIN.wall, pt = DIN.plate, zl = pt + DIN.flange + DIN.lift, len = DIN.len, parts = [];
+  const rect = (x0, y0, x1, y1) => encOrient([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], true);
+  parts.push(C.extrudePolysAt([{ outer: rect(-len/2, -o, len/2, o), holes: [-1, 1].map(sx => encOrient(C.ringCircle(SCREWS.M3.pilot/2, 24).map(([x, y]) => [x + sx*DIN.screws/2, y]), false)) }], 0, pt));
+  for (const sy of [-1, 1]) parts.push(C.extrudePolysAt([{ outer: rect(-len/2, Math.min(sy*e, sy*o), len/2, Math.max(sy*e, sy*o)), holes:[] }], pt - 0.5, zl));
+  const n = Math.round(DIN.lip/0.2);
+  for (let k=0;k<n;k++){
+    const r = Math.min(DIN.reach, 0.2*(k + 1)), z0 = zl + k*0.2 - (k ? 0 : 0.01), z1 = zl + (k + 1)*0.2;
+    for (const sy of [-1, 1]) parts.push(C.extrudePolysAt([{ outer: rect(-len/2, Math.min(sy*(e - r), sy*o), len/2, Math.max(sy*(e - r), sy*o)), holes:[] }], z0, z1));
+  }
+  return C.mergeSolids(parts);
 }
 function buildEnclosure(){
   if (!state.base.enclosure) state.base.enclosure = DEFAULTS().base.enclosure;
@@ -2025,6 +2231,11 @@ function buildEnclosure(){
       feet.push([sx*inX, sy*inY]); taken.bottom.push({ n:0, what:"a foot recess", bb:[sx*inX - footR, sy*inY - footR, sx*inX + footR, sy*inY + footR] });
     }
   }
+  // Mounting (Session 39): screw ears on the floor's sides, a DIN rail clip screwed under the floor, or loops for a
+  // strap on the back. Worked out before the openings, so an opening never lands under one.
+  const mount = encMount(E, { W, D, H: Hs, R, t, fl, top: H + (lidOn && !slide ? lidT : 0) }, warn);
+  mount.taken.forEach(([face, what, bb]) => taken[face].push({ n:0, what, bb }));
+  holesOn.bottom.push(...mount.floorHoles);
   // board standoffs, worked out before the openings so a floor opening cannot land under one
   const standoffs = [];
   let boardB = null;
@@ -2169,6 +2380,7 @@ function buildEnclosure(){
       if (board.top + 1 > H - lipH) warn.push({ t:"Not enough headroom", s:`The top of the board is ${board.top.toFixed(1)} mm up, too close to the lid. Make the box taller or the standoffs shorter.` });
     }
   }
+  solids.push(...mount.solids);
   const parts = [{ name:"Box", slot:clamp(+E.boxSlot || 0, 0, state.slots.length - 1), solid:C.mergeSolids(solids.filter(Boolean)) }];
   if (slide){
     // printed as it sits, top face up: a stack of thin slabs whose edges step in at 45° like the
@@ -2189,7 +2401,7 @@ function buildEnclosure(){
       lid.push(C.extrudePolysAt([{ outer: encOrient(encRect(-a, -D/2, a, back), true), holes: [...holesOn.top.map(L => encOrient(L, false)), ...on.flatMap(c => c.holes)] },
         ...on.flatMap(c => c.islands)], h0, h1));
     }
-    const bed = state.printer.bed || [256,256,256], beside = W*2 + 10 > bed[0] && D*2 + 10 <= bed[1] ? [0, 0, -(D + 10)] : [W + 10, 0, 0];
+    const bed = state.printer.bed || [256,256,256], beside = W*2 + 10 + 2*mount.out > bed[0] && D*2 + 10 <= bed[1] ? [0, 0, -(D + 10)] : [W + 10 + mount.out, 0, 0];
     parts.push({ name:"Lid", slot:clamp(+E.lidSlot || 0, 0, state.slots.length - 1), solid:C.affineSolid(C.mergeSolids(lid.filter(Boolean)), [1,0,0, 0,1,0, 0,0,1], beside) });
     if (logo){
       logo.colours.forEach(c => parts.push({ name:`Lid logo (${state.slots[c.slot].name})`, slot:c.slot,
@@ -2262,8 +2474,8 @@ function buildEnclosure(){
       } else lid.push(C.extrudePolysAt([{ outer: encOrient(C.ringRect(2*a, 2*b, Math.max(0, ri - fit), seg), true),
         holes:[encOrient(C.ringRect(2*a - 2*lipW, 2*b - 2*lipW, Math.max(0, ri - fit - lipW), seg), false)] }], lidT, lidT + lipH));
     }
-    const bed = state.printer.bed || [256,256,256], behind = W*2 + 10 > bed[0] && D*2 + 10 <= bed[1];
-    const beside = behind ? [0, 0, -(D + 10)] : [W + 10, 0, 0];
+    const bed = state.printer.bed || [256,256,256], behind = W*2 + 10 + 2*mount.out > bed[0] && D*2 + 10 <= bed[1];
+    const beside = behind ? [0, 0, -(D + 10)] : [W + 10 + mount.out, 0, 0];
     parts.push({ name:"Lid", slot:clamp(+E.lidSlot || 0, 0, state.slots.length - 1),
       solid:C.affineSolid(C.mergeSolids(lid.filter(Boolean)), [1,0,0, 0,1,0, 0,0,1], beside) });
     if (logo) logo.colours.forEach(c => parts.push({ name:`Lid logo (${state.slots[c.slot].name})`, slot:c.slot,
@@ -2297,7 +2509,11 @@ function buildEnclosure(){
     lenses = C.mergeSolids(list);
     parts.push({ name:`Pilot light lenses (${lensOpen.length})`, slot:clamp(+E.lensSlot || 0, 0, state.slots.length - 1), solid:lenses });
   }
-  enclosureInfo = { test: !!state.base.enclosure.test, lenses: lensOpen.length, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boardNeed, fastenText, count:(E.cut || []).length - left.length };
+  if (mount.din && !state.base.enclosure.test){
+    // beside the box on the left (the lid goes on the right or behind, the lenses in front)
+    parts.push({ name:"DIN rail clip", slot:clamp(+E.boxSlot || 0, 0, state.slots.length - 1), solid:C.affineSolid(encDinClip(), [1,0,0, 0,1,0, 0,0,1], [-(W/2 + 10 + DIN.len/2), 0, 0]) });
+  }
+  enclosureInfo = { test: !!state.base.enclosure.test, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boardNeed, fastenText, count:(E.cut || []).length - left.length };
   return parts;
 }
 /* An opening bigger than the face it is on used to be left out with a message that was easy to miss.
@@ -8905,6 +9121,37 @@ function enclosureFields(p){
       if (fd > lim) note(g, `The roof of each recess is a ${fd.toFixed(1)} mm bridge, over your bridge limit (${lim} mm), so the check asks for support. Printers bridge this easily: raise the limit in Printer settings if yours does.`);
     } else note(g, "Four shallow round pockets under the floor keep stick-on feet from sliding off, and the box off the desk.");
   }, E.feet === "recess");
+  group(p, "Mounting", g => {
+    selField(g, "How it hangs", [["none","Not mounted"],["ears","Screw ears on the sides"],["tabs","Hanging tabs above the back"],["din","DIN rail clip"],
+      ["straps","Strap or zip-tie loops"],["skadis","Hooks for IKEA SKÅDIS"],["pegboard","Pegs for pegboard (1/4-inch holes, 1-inch grid)"]], ()=>E.mount || "none", v=>{ E.mount = v; renderTab(); baseChanged(); });
+    if (E.mount === "ears"){
+      segField(g, [["2","Two ears"],["4","Four ears"]], ()=>String(E.earN === 4 ? 4 : 2), v=>{ E.earN = +v; baseChanged(); }, "two");
+      numField(g,{ label:"Screw hole (mm)", min:2,max:8,step:0.1, get:()=>E.earHole ?? 4.5, set:v=>E.earHole=v, onChange:baseChanged,
+        sub:()=>"4.5 mm suits 4 mm wood screws or M4 bolts; 3.5 mm suits M3." });
+      numField(g,{ label:"Ear thickness (mm)", min:2,max:8,step:0.1, get:()=>E.earT ?? 3, set:v=>E.earT=v, onChange:baseChanged });
+      note(g, "Flat tabs on the sides at floor level, printed with the box. A fin each side of the screw holds each ear at 45°, so nothing needs support.");
+    } else if (E.mount === "tabs"){
+      segField(g, [["1","One tab"],["2","Two tabs"]], ()=>String(E.tabN === 1 ? 1 : 2), v=>{ E.tabN = +v; baseChanged(); }, "two");
+      numField(g,{ label:"Slot width (mm)", min:2,max:8,step:0.1, get:()=>E.earHole ?? 4.5, set:v=>E.earHole=v, onChange:baseChanged,
+        sub:()=>"The screw or nail's shank goes through; its head holds the tab. 4.5 mm suits 4 mm screws." });
+      numField(g,{ label:"Tab thickness (mm)", min:2,max:8,step:0.1, get:()=>E.earT ?? 3, set:v=>E.earT=v, onChange:baseChanged });
+      note(g, "Tapered tabs on the back that rise above the lid, like a picture-hanging plate. The slot is above the lid so you can reach the screw. Its top is pointed, so it prints standing up.");
+    } else if (E.mount === "skadis"){
+      note(g, "Flat hooks on the back for an IKEA SKÅDIS pegboard (5 mm board, slots 40 mm apart). Tip the box, push the hooks through two slots in a row, and let it down: the tips turn up behind the board.");
+    } else if (E.mount === "pegboard"){
+      note(g, "Round pegs on the back for pegboard with 1/4-inch (6 mm) holes on a 1-inch grid, up to 6 mm thick. Tip the box, push the pegs through, and let it down: the tips turn up behind the board.");
+    } else if (E.mount === "din"){
+      note(g, "A clip for standard 35 mm DIN rail (top-hat rail), as in a fuse box or a control cabinet. It prints flat beside the box, hooks up, without support. Screw it under the floor from inside with two M3 × 8 mm screws, then slide it onto the rail from one end. An end stop on the rail keeps it in place.");
+    } else if (E.mount === "straps"){
+      segField(g, [["across","Strap across"],["up","Strap up"]], ()=>E.strapDir === "up" ? "up" : "across", v=>{ E.strapDir = v; renderTab(); baseChanged(); }, "two");
+      numField(g,{ label:"Strap width (mm)", min:3,max:30,step:0.5, get:()=>E.strapW ?? 12, set:v=>E.strapW=v, onChange:baseChanged,
+        sub:()=>"Zip ties are 3 to 5 mm, hook-and-loop straps 12 to 25 mm." });
+      numField(g,{ label:"Strap thickness (mm)", min:1,max:6,step:0.1, get:()=>E.strapT ?? 2.5, set:v=>E.strapT=v, onChange:baseChanged });
+      note(g, E.strapDir === "up" ? "Two loops on the back for straps running up and down: round a handlebar, a rail or a tripod leg." : "Loops on the back for one strap running across: round a post, a pipe, a tree or a bike frame.");
+    } else note(g, "Hang the box on a wall, a cabinet rail or a pole. For hanging on screws through the back wall, add a Wall-mount keyhole opening on the back instead.");
+    const I = enclosureInfo;
+    if (I && I.mount) I.mount.forEach(line => note(g, line));
+  }, E.mount && E.mount !== "none");
   group(p, "Board mounts", g => {
     selField(g, "Board", Object.entries(BOARDS).map(([k, v]) => [k, v.label]), ()=>E.board, v=>{ E.board = v; renderTab(); encBoardChanged(); });
     if (E.board === "custom"){
@@ -8947,6 +9194,16 @@ function enclosureFields(p){
         get:()=>c.v, set:v=>c.v=v, onChange:baseChanged });
       const sized = () => encOpeningChanged(i);
       if (k.kind === "round" || k.kind === "keyhole") numField(box,{ label:"Diameter (mm)", min: k.lensFor ? lensMinHole(k.lensFor) : 1, max:80, step:0.1, get:()=>c.dia, set:v=>c.dia=v, onChange:sized });
+      if (["pir","twin","camera","grille"].includes(k.kind)) numField(box,{ label: { pir:"Dome diameter (mm)", twin:"Each eye's diameter (mm)", camera:"Lens hole diameter (mm)", grille:"Grille diameter (mm)" }[k.kind],
+        min:2, max:80, step:0.1, get:()=>c.dia, set:v=>c.dia=v, onChange:sized });
+      if (k.kind === "twin") numField(box,{ label:"Centres apart (mm)", min:2, max:120, step:0.1, get:()=>c.hw, set:v=>c.hw=v, onChange:sized });
+      if (k.kind === "pir" || k.kind === "camera"){
+        numField(box,{ label: k.kind === "pir" ? "Screw holes apart (mm)" : "Screw holes apart, across (mm)", min:0, max:120, step:0.1, get:()=>c.hw, set:v=>c.hw=v, onChange:sized });
+        if (k.kind === "camera") numField(box,{ label:"Screw holes apart, up (mm)", min:0, max:120, step:0.1, get:()=>c.hh, set:v=>c.hh=v, onChange:sized });
+        numField(box,{ label:"Screw hole diameter (mm)", min:1, max:6, step:0.1, get:()=>c.hd, set:v=>c.hd=v, onChange:baseChanged });
+      }
+      if (k.kind === "grille") numField(box,{ label:"Size of each hole (mm)", min:1, max:6, step:0.1, get:()=>c.hd, set:v=>c.hd=v, onChange:baseChanged,
+        sub:()=>"Holes 1.5 to 2.5 mm let the sound out and keep fingers and dust out." });
       if (["rect","display","vent","iec"].includes(k.kind)){
         numField(box,{ label: k.kind === "display" ? "Window width (mm)" : "Width (mm)", min:1,max:200,step:0.1, get:()=>c.w, set:v=>c.w=v, onChange:sized });
         numField(box,{ label: k.kind === "display" ? "Window height (mm)" : "Height (mm)", min:1,max:200,step:0.1, get:()=>c.h, set:v=>c.h=v, onChange:sized });
@@ -8962,7 +9219,7 @@ function enclosureFields(p){
         segField(box, [["rings","Rings"],["honeycomb","Honeycomb"],["open","Open"]], ()=>c.style, v=>{ c.style = v; baseChanged(); });
       }
       if (k.kind === "vent") segField(box, [["slots","Slots"],["honeycomb","Honeycomb"],["holes","Round holes"]], ()=>c.style, v=>{ c.style = v; baseChanged(); });
-      if (k.kind !== "round") checkField(box, "Turn it 90°", ()=>c.rot, v=>{ c.rot = v; renderTab(); encOpeningChanged(i); });
+      if (k.kind !== "round" && k.kind !== "grille") checkField(box, "Turn it 90°", ()=>c.rot, v=>{ c.rot = v; renderTab(); encOpeningChanged(i); });
       if (wall && ENC_POINTABLE.has(c.kind)){
         const b = ringsBounds(placedRings({ ...c, top:"flat" }, E)), span = b[2] - b[0], lim = state.printer.bridge ?? 10;
         if (span > lim && c.top !== "pointed" && !c.notch) note(box, `Its top edge is a ${span.toFixed(1)} mm bridge, longer than your bridge limit (${lim} mm). Most printers bridge 15 to 20 mm; if yours sags, give it a pointed top.`);
@@ -8979,7 +9236,7 @@ function enclosureFields(p){
       ]);
     });
     const add = document.createElement("div"); add.style.cssText = "margin-top:14px"; g.appendChild(add);
-    selField(add, "Add an opening", Object.entries(CUTOUTS).map(([k, v]) => [k, v.label]), ()=>encAdd.kind, v=>{ encAdd.kind = v; });
+    selField(add, "Add an opening", cutoutMenu(), ()=>encAdd.kind, v=>{ encAdd.kind = v; });
     selField(add, "On", ENC_FACES, ()=>encAdd.face, v=>{ encAdd.face = v; });
     buttonRow(add, [["Add opening", ()=>{
       const c = newOpening(encAdd.kind, encAdd.face);
@@ -11575,7 +11832,7 @@ const LIMITS = {
   maxCells:[200,900], zoom:[0.25,4], brushSize:[0.1,30], tol:[1,120], smooth:[0,5], boreDepth:[1,60],
   brim:[0,15], overhang:[20,80], bridge:[0,60], pieces:[4,500], seed:[1,99999],
   cell:[0.1,2], minT:[0.2,10], maxT:[0.4,20], curve:[10,300], holeDia:[1,20],
-  stripFrom:[0.2,3], stripTo:[0.6,8], stripStep:[0.05,1], labelH:[2,15], labelLine:[0.3,2], labelDepth:[0.2,5], footDepth:[0.4,3], minLine:[0,3]
+  stripFrom:[0.2,3], stripTo:[0.6,8], stripStep:[0.05,1], labelH:[2,15], labelLine:[0.3,2], labelDepth:[0.2,5], footDepth:[0.4,3], minLine:[0,3], earHole:[2,8], earT:[2,8], strapW:[3,30], strapT:[1,6]
 };
 // the same name means something else in these places (parent key . key): checked first
 const LIMITS_AT = { "sym.size":[0.4,3], "pic.size":[0.4,3], "outline.width":[0.2,6],
@@ -11869,7 +12126,8 @@ function sanitizeProject(data){
   if (st.base && st.base.enclosure && typeof st.base.enclosure === "object"){
     const E = st.base.enclosure, one = (v, list) => list.includes(v) ? v : list[0];
     E.lid = one(E.lid, ["screw","press","magnet","slide","none"]); E.fasten = one(E.fasten, ["insert","screw","none"]); E.head = one(E.head, ["sink","bore","plain"]);
-    E.magnet = encHas(MAGNETS, E.magnet) ? E.magnet : "6x2"; E.feet = one(E.feet, ["none","recess"]); E.footSize = encHas(FEET, E.footSize) ? String(E.footSize) : "8";
+    E.magnet = encHas(MAGNETS, E.magnet) ? E.magnet : "6x2"; E.feet = one(E.feet, ["none","recess"]); E.mount = one(E.mount, ["none","ears","tabs","din","straps","skadis","pegboard"], "none"); E.tabN = E.tabN === 1 ? 1 : 2;
+    E.earN = E.earN === 4 ? 4 : 2; E.strapDir = one(E.strapDir, ["across","up"], "across"); E.footSize = encHas(FEET, E.footSize) ? String(E.footSize) : "8";
     const L0 = E.logo && typeof E.logo === "object" ? E.logo : {};
     E.logo = { on: L0.on === true, mode: one(L0.mode, ["inlay","engrave"]), width: Math.min(300, Math.max(5, cleanNum(L0.width, 40))),
       x: Math.min(200, Math.max(-200, cleanNum(L0.x, 0))), y: Math.min(200, Math.max(-200, cleanNum(L0.y, 0))), depth: Math.min(1.6, Math.max(0.2, cleanNum(L0.depth, 0.6))) };

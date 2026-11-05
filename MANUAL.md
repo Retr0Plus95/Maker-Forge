@@ -135,6 +135,23 @@ Some objects in brief:
 - **Lithophane.** Flat, curved or a cylinder, with a rectangle, arch, oval or heart outline. The **test strip** prints steps from 0.6 to 3.2 mm, so you can choose thicknesses for your filament.
 - **Jigsaw puzzle.** Choose the number of pieces, the style of the knobs and the gap. **Shuffle** draws a new cut. A frame or a tray can print with it. A strip of a picture's colour thinner than the nozzle takes the colour beside it, so it doesn't print as a sliver.
 - **Project box.** Openings for USB, buttons, switches, fans, displays and pilot lights, each with an optional engraved label. Screwed, magnet or sliding lids. **Fit test** prints a small box with one of each opening, to try before the real thing.
+  - **Add an opening** lists about 75 parts in groups: ports and power, buttons and switches, lights, screens and meters, sensors and cameras, sound, fans and vents, and mounting and your own sizes. Among them:
+    - an ESP32-CAM or XIAO ESP32-S3 Sense camera lens, and a Raspberry Pi camera with its four screws;
+    - motion sensors: the HC-SR501 dome with its two screws, and the small AM312 / HC-SR505;
+    - the HC-SR04 distance sensor's two eyes;
+    - a USB-C charging board's port (TP4056 and IP5306 type), a DC jack on a board, XT60, a 3.5 mm audio jack and an SMA antenna socket;
+    - slide switches, rotary encoders, key switches, a thumb joystick, big arcade buttons and M12 toggles;
+    - small OLEDs, TFT screens, an 8×8 LED matrix, 4-digit displays and a volt and amp meter;
+    - light, IR, temperature and microphone holes, and a speaker or buzzer grille of small round holes.
+  - Sizes are for typical parts, and the clearance on the Print and colours page is added on top. Modules differ between makers, so measure yours with calipers; the screens marked "check yours" vary most. A microwave radar sensor (RCWL-0516) needs no hole: it sees through plastic.
+  - **Mounting** hangs the box up:
+    - **Screw ears:** two or four tabs at floor level, each with a screw hole and a 45° fin each side.
+    - **DIN rail:** a clip for 35 mm rail, as in a fuse box. It prints flat beside the box; screw it under the floor from inside with two M3 × 8 mm screws, and slide it onto the rail from one end.
+    - **Strap loops:** loops on the back for a zip tie or a hook-and-loop strap, running across (round a post or a bike frame) or up (round a handlebar).
+    - **Hanging tabs:** one or two tapered tabs on the back rising above the lid, like a picture-hanging plate, each with an upright slot for a screw or nail. The slot is above the lid, so you can reach the screw.
+    - **Hooks for IKEA SKÅDIS:** flat hooks 40 mm apart (or 80, 120…). Tip the box, push the hooks through two slots in a row, and let it down.
+    - **Pegs for pegboard:** for boards with 1/4-inch holes on a 1-inch grid, up to 6 mm thick. They go in the same way.
+    - None of them need supports. To hang the box on screws through its back wall, add a **Wall-mount keyhole** opening on the back instead.
 - **Phone case.** Pick your phone; the sizes come from the makers' spec sheets. Print the **fit test rim** first. Print the case in TPU.
   - **A picture in the back** (Make tab, **Picture on the back**) is set flush into the back's first layers, in your loaded filaments. It works best with a logo, a drawing or text in a few flat colours. A photo is reduced to flat areas of your filaments and can look rough; the app says so. **Colours → Match to artwork** (or the button under the message on the Art tab) sets your other filaments to the picture's colours, keeping the case's own, and **Art → Cut out the subject with AI** takes a photo's background away.
   - The Art tab shows the picture in the colours it prints in. Click a colour there to leave it out.

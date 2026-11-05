@@ -53,6 +53,115 @@ async function settle() {
   }
   check(!bad.length, `${kinds.length} kinds × 4 faces cut closed holes with no warnings`, bad.slice(0, 6).join(" | "));
 
+  console.log("\nSession 39: the new shapes (motion sensor, distance sensor, camera, grilles) and the grouped list");
+  const E0 = { clear: 0.2, teardrop: false }, ctr = L => { let x = 0, y = 0; L.forEach(p => { x += p[0]; y += p[1]; }); return [x / L.length, y / L.length]; };
+  const span = L => { const xs = L.map(p => p[0]); return Math.max(...xs) - Math.min(...xs); };
+  let R = MF.openingRings(MF.newOpening("pir501", "front"), true, E0);
+  check(R.length === 3 && Math.abs(span(R[0]) - 23.4) < 0.05 && Math.abs(ctr(R[1])[0] + 14) < 0.01 && Math.abs(ctr(R[2])[0] - 14) < 0.01 && Math.abs(span(R[1]) - 2.4) < 0.05,
+    "HC-SR501: a 23.2 mm dome and two 2.2 mm screw holes 28 mm apart (plus the clearance)", `${R.length} holes, dome ${span(R[0]).toFixed(2)} mm, screws at ${R.slice(1).map(L => ctr(L)[0].toFixed(1)).join(", ")}`);
+  R = MF.openingRings(Object.assign(MF.newOpening("pir501", "front"), { hw: 20 }), true, E0);
+  check(R.length === 1, "screw holes set so close they would break into the dome are left out", `${R.length} hole`);
+  R = MF.openingRings(MF.newOpening("hcsr04", "front"), true, E0);
+  check(R.length === 2 && Math.abs(ctr(R[1])[0] - ctr(R[0])[0] - 26) < 0.01 && Math.abs(span(R[0]) - 16.6) < 0.05, "HC-SR04: two 16.4 mm eyes, centres 26 mm apart", `${(ctr(R[1])[0] - ctr(R[0])[0]).toFixed(2)} mm`);
+  R = MF.openingRings(Object.assign(MF.newOpening("hcsr04", "front"), { hw: 3 }), true, E0);
+  check(ctr(R[1])[0] - ctr(R[0])[0] >= 16.6 + 1.2 - 0.01, "eyes set closer than their size stay apart", (ctr(R[1])[0] - ctr(R[0])[0]).toFixed(2));
+  R = MF.openingRings(MF.newOpening("picam", "front"), true, E0);
+  const scr = R.slice(1).map(ctr);
+  check(R.length === 5 && Math.abs(Math.max(...scr.map(q => q[0])) - Math.min(...scr.map(q => q[0])) - 21) < 0.01 && Math.abs(Math.max(...scr.map(q => q[1])) - Math.min(...scr.map(q => q[1])) - 12.5) < 0.01
+    && Math.abs(scr.reduce((a, q) => a + q[1], 0) / 4 - 1.2) < 0.01, "Pi camera: the lens, and four screws 21 × 12.5 mm apart, their middle 1.2 mm above the lens", scr.map(q => q.map(v => v.toFixed(1)).join("/")).join(" "));
+  const holes = k => MF.openingRings(MF.newOpening(k, "top"), false, E0);
+  const sp = holes("speaker"), bz = holes("buzzer");
+  check(sp.length >= 50 && bz.length === 7 && sp.every(L => Math.hypot(...ctr(L)) + span(L) / 2 <= 14.01), "the speaker grille's holes stay inside its 28 mm circle; a buzzer gets seven", `${sp.length} and ${bz.length} holes`);
+  const big = MF.openingRings(Object.assign(MF.newOpening("buzzer", "top"), { hd: 30 }), false, E0);
+  check(big.length === 1, "a grille hole bigger than the grille is one hole, not none", big.length);
+  [...win.document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "make").click(); MF.render(); await sleep(50);
+  const sel = [...win.document.querySelectorAll("select")].find(s => [...s.options].some(o => o.value === "pir501"));
+  const groups = sel ? [...sel.querySelectorAll("optgroup")].map(g => g.label) : [];
+  check(Object.values(MF.cutouts).every(v => v.g) && sel && sel.options.length === kinds.length && groups.length === 8,
+    "every opening is in one of eight groups in the Add an opening list", groups.join(" / "));
+
+  console.log("\nSession 39: mounting the box (screw ears, DIN rail clip, strap loops)");
+  const insideMesh = (s, p) => {                     // a ray along +x with a slight tilt; odd crossings = inside
+    const P = s.pos, I = s.idx, d = [1, 1e-3, 2e-3]; let n = 0;
+    for (let t = 0; t < I.length; t += 3) {
+      const a = I[t] * 3, b = I[t + 1] * 3, c = I[t + 2] * 3;
+      const e1 = [P[b] - P[a], P[b + 1] - P[a + 1], P[b + 2] - P[a + 2]], e2 = [P[c] - P[a], P[c + 1] - P[a + 1], P[c + 2] - P[a + 2]];
+      const h = [d[1] * e2[2] - d[2] * e2[1], d[2] * e2[0] - d[0] * e2[2], d[0] * e2[1] - d[1] * e2[0]], det = e1[0] * h[0] + e1[1] * h[1] + e1[2] * h[2];
+      if (Math.abs(det) < 1e-12) continue;
+      const f = 1 / det, sv = [p[0] - P[a], p[1] - P[a + 1], p[2] - P[a + 2]], u = f * (sv[0] * h[0] + sv[1] * h[1] + sv[2] * h[2]);
+      if (u < 0 || u > 1) continue;
+      const q = [sv[1] * e1[2] - sv[2] * e1[1], sv[2] * e1[0] - sv[0] * e1[2], sv[0] * e1[1] - sv[1] * e1[0]], v = f * (d[0] * q[0] + d[1] * q[1] + d[2] * q[2]);
+      if (v < 0 || u + v > 1) continue;
+      if (f * (e2[0] * q[0] + e2[1] * q[1] + e2[2] * q[2]) > 1e-9) n++;
+    }
+    return n % 2 === 1;
+  };
+  // inside the region of all the shells together (overlapping shells: inside any one of them)
+  const solidAt = (part, p) => insideMesh(part.solid, p);
+  const supportOf = async over => { await build(over); await MF.printNow(); for (let i = 0; i < 200 && !MF.print; i++) await sleep(30); return MF.print ? MF.print.overhang.area : -1; };
+  let M = direct({ cut: [], mount: "ears" });
+  const eb = bnd(M[0]), lb2 = bnd(M[1]);
+  check(closed(M) && Math.abs(eb.mx[0] - (50 + 13.5)) < 0.01 && Math.abs(eb.mn[0] + 63.5) < 0.01 && Math.abs(eb.mn[1]) < 1e-6 && !MF.enclosure.warn.length,
+    "screw ears: 13.5 mm out on each side for a 4.5 mm hole, on the bed, closed", `x ${eb.mn[0].toFixed(1)} to ${eb.mx[0].toFixed(1)}`);
+  check(lb2.mn[0] > eb.mx[0] + 5, "the lid moves over so it clears the ears", `lid from x ${lb2.mn[0].toFixed(1)}`);
+  check(!solidAt(M[0], [56, 1.5, 0]) && solidAt(M[0], [56, 1.5, 6.5]) && solidAt(M[0], [51, 4, 6.5]) && !solidAt(M[0], [51, 4, 0]),
+    "the ear's hole is open, the fins stand at its edges and the screw head has room between them");
+  const v2 = vol(M[0]), v4 = vol(direct({ cut: [], mount: "ears", earN: 4 })[0]);
+  check(v4 > v2 + 600 && !MF.enclosure.warn.length && /4 ears/.test(MF.enclosure.mount.join()), "four ears when asked for", `${(v4 - v2).toFixed(0)} mm³ more`);
+  direct({ cut: [], mount: "ears", earN: 4, d: 40 });
+  check(/two ears, not four/.test(MF.enclosure.warn.map(w => w.t).join()), "a box too short for four says so and keeps two", MF.enclosure.warn.map(w => w.t).join(" / "));
+  const earSup = await supportOf({ cut: [], mount: "ears", lid: "none", fasten: "none" });
+  check(earSup >= 0 && earSup < 3, "the ears need no support", earSup.toFixed(1) + " mm²");
+
+  M = direct({ cut: [], mount: "din" });
+  const clip = M.find(q => q.name === "DIN rail clip"), cb = clip && bnd(clip), cx0 = cb && (cb.mn[0] + cb.mx[0]) / 2;
+  check(clip && closed([clip]) && Math.abs(cb.mn[1]) < 1e-6 && Math.abs(cb.mx[2] - cb.mn[2] - (35 + 2 * (0.25 + 2.5))) < 0.01 && cb.mx[0] < -50 - 5,
+    "the DIN clip: closed, flat on the bed beside the box, 40.5 mm across the rail", cb && `${(cb.mx[0] - cb.mn[0]).toFixed(1)} × ${(cb.mx[2] - cb.mn[2]).toFixed(1)} × ${cb.mx[1].toFixed(2)} mm`);
+  // across the rail at the clip's middle: the flange slot is empty, the lip over it solid, the plate under it solid
+  check(clip && !solidAt(clip, [cx0, 5.5, 16.5]) && solidAt(clip, [cx0, 7.5, 17.0]) && solidAt(clip, [cx0, 2.5, 16.5]) && !solidAt(clip, [cx0, 7.5, 15.5]) && !solidAt(clip, [cx0, 7, 0]),
+    "a 1 mm flange fits between the plate and the lip, 1.5 mm of lip holds it, and the rail's middle is clear");
+  check(!solidAt(M[0], [9, 1, 0]) && !solidAt(M[0], [-9, 1, 0]) && solidAt(M[0], [0, 1, 0]), "two screw holes through the floor, 18 mm apart, to match the clip");
+  const dinSup = await supportOf({ cut: [], mount: "din", lid: "none", fasten: "none" });
+  check(dinSup >= 0 && dinSup < 3, "the clip's lips step in at 45°: no support", dinSup.toFixed(1) + " mm²");
+  const dinSmall = direct({ cut: [], mount: "din", w: 30, d: 30 });
+  check(/Too small for a DIN/.test(MF.enclosure.warn.map(w => w.t).join()) && dinSmall.every(q => q.name !== "DIN rail clip"), "a box too small for the clip says how big it must be", MF.enclosure.warn.map(w => w.t).join(" / "));
+  await build({ mount: "din", cut: [{ ...MF.newOpening("round", "bottom"), u: 9, v: 0 }] });
+  check(MF.enclosure.left.length === 1 && /DIN clip screw/.test(MF.enclosure.warn[0].s), "a floor opening on a clip screw is left out and says why", MF.enclosure.warn.map(w => w.s).join(" | "));
+
+  M = direct({ cut: [], mount: "straps", strapW: 12, strapT: 2.5 });
+  // the box is 36 mm tall: the loop's channel is centred, 12 mm high and 2.5 mm deep just behind the back wall
+  check(closed(M) && !MF.enclosure.warn.length && !solidAt(M[0], [-25, 18.5, -33.2]) && solidAt(M[0], [-25, 18.5, -35.5]) && !solidAt(M[0], [0, 18.5, -33.2]),
+    "strap across: a 12 × 2.5 mm channel behind the back wall in each loop, open between them", bnd(M[0]).mn[2].toFixed(2));
+  const strapSup = await supportOf({ cut: [], mount: "straps", lid: "none", fasten: "none" });
+  check(strapSup >= 0 && strapSup < 3, "the loops' undersides slope at 45° and their tops bridge only the strap's thickness: no support", strapSup.toFixed(1) + " mm²");
+  M = direct({ cut: [], mount: "straps", strapDir: "up" });
+  check(closed(M) && !MF.enclosure.warn.length && !solidAt(M[0], [-25, 5, -33.2]) && solidAt(M[0], [-25 + 7, 5, -33.2]), "strap up: a slot 12 mm wide in each loop");
+  direct({ cut: [], mount: "straps", h: 15, strapW: 20 });
+  check(/Too short for strap loops/.test(MF.enclosure.warn.map(w => w.t).join()), "a strap too wide for a short box says so");
+  M = direct({ cut: [], mount: "tabs" });
+  const tb = bnd(M[0]);
+  // the lid is 2.4 mm on a 36 mm box: the slot (4.5 mm, 8 mm between its ends) sits above it, the tab's round top 20 mm up
+  check(closed(M) && !MF.enclosure.warn.length && Math.abs(tb.mx[1] - (38.4 + 3 + 2.25 + 8 + 6.25)) < 0.05 && !solidAt(M[0], [25, 47.65, -33.5]) && solidAt(M[0], [29.5, 47.65, -33.5]) && !solidAt(M[0], [0, 47.65, -33.5]),
+    "hanging tabs: two, rising above the lid, each with its slot clear of the lid", `top at ${tb.mx[1].toFixed(2)} mm`);
+  check(direct({ cut: [], mount: "tabs", tabN: 1 }).length && !solidAt(MF.buildEnclosure()[0], [25, 47.65, -33.5]) && !solidAt(MF.buildEnclosure()[0], [0, 47.65, -33.5]) && solidAt(MF.buildEnclosure()[0], [0, 40, -33.5]), "or one in the middle");
+  M = direct({ cut: [], mount: "skadis" });
+  check(closed(M) && !MF.enclosure.warn.length && [-40, 40].every(x => solidAt(M[0], [x, 32, -40]) && !solidAt(M[0], [x, 27, -35])) && !solidAt(M[0], [0, 32, -40]),
+    "SKÅDIS: two hooks 80 mm apart (two slots of the 40 mm grid), the board's 5 mm between the box and each tip");
+  M = direct({ cut: [], mount: "pegboard" });
+  check(closed(M) && !MF.enclosure.warn.length && [-38.1, 38.1].every(x => solidAt(M[0], [x, 31, -41.8])) && !solidAt(M[0], [0, 31, -41.8]) && !solidAt(M[0], [38.1, 31, -36]),
+    "pegboard: two pegs 76.2 mm apart (3 inches), each turning up behind a 1/4-inch board");
+  direct({ cut: [], mount: "skadis", w: 40 });
+  check(/Only one hook/.test(MF.enclosure.warn.map(w => w.t).join()), "a box too narrow for two hooks says it hangs from one");
+  const ft = direct({ mount: "ears", test: true });
+  const ftw = bnd(ft[0]).mx[0] - bnd(ft[0]).mn[0], ft0 = direct({ test: true }), ftw0 = bnd(ft0[0]).mx[0] - bnd(ft0[0]).mn[0];
+  check(ft.length && Math.abs(ftw - ftw0) < 1e-6, "the fit test leaves the mounts off (it tries the openings)", `${ftw.toFixed(1)} mm wide with ears asked for, ${ftw0.toFixed(1)} without`);
+  for (const m of ["tabs", "skadis", "pegboard"]) {
+    const a = await supportOf({ cut: [], mount: m, lid: "none", fasten: "none" });
+    check(a >= 0 && a < 3, `${m}: no support (each slopes at 45° or rises from below)`, a.toFixed(1) + " mm²");
+  }
+  await build({ mount: "straps", cut: [{ ...MF.newOpening("round", "back"), u: 25, v: 18 }] });
+  check(MF.enclosure.left.length === 1 && /strap loop/.test(MF.enclosure.warn[0].s), "an opening on the back behind a loop is left out and says why", MF.enclosure.warn.map(w => w.s).join(" | "));
+
   console.log("\nplacement problems are reported, not silently cut");
   await build({ cut: [{ face: "front", kind: "btn", u: 0, v: 18, dia: 12.2 }, { face: "front", kind: "btn", u: 5, v: 18, dia: 12.2 }] });
   check(MF.enclosure.left.join() === "1" && /overlaps opening 1/.test(MF.enclosure.warn[0].s), "an overlapping opening is left out and named", MF.enclosure.warn.map(w => w.s).join(" | "));
@@ -210,6 +319,20 @@ async function settle() {
   check(E3.lensSlot === 7 && E3.grow === true, "the pilot-light lens filament is clamped, and a bad grow switch stays on", `${E3.lensSlot}, ${E3.grow}`);
   check(/^[A-Z0-9\-+\/.:% ]*$/.test(c3.label) && c3.labelPos === "below" && c3.top === "flat" && c3.notch === false, "an opening's label keeps only letters it can engrave", JSON.stringify(c3.label));
   check(!document.body.innerHTML.includes("onerror=alert") && !document.body.innerHTML.includes("onload=alert"), "still nothing injected");
+  // Session 39: mounting and the new openings in a hostile file
+  const bad4 = { app: "maker-forge", state: JSON.parse(JSON.stringify(MF.state)) };
+  bad4.state.base.enclosure = Object.assign(JSON.parse(JSON.stringify(MF.defaults.enclosure)), { lid: "press", mount: "<img src=x onerror=alert(4)>", earN: 9, tabN: "x", earHole: -5, earT: 1e9,
+    strapW: 1e9, strapT: "x", strapDir: "sideways", cut: [{ face: "front", kind: "pir501", u: 0, v: 18, dia: -9, hw: 1e9, hd: "big" }, { face: "top", kind: "speaker", u: 0, v: 0, dia: 1e9, hd: 0 }] });
+  const f4 = new win.File([JSON.stringify(bad4)], "evil3.json", { type: "application/json" });
+  Object.defineProperty(inp, "files", { value: [f4], configurable: true }); inp.dispatchEvent(new win.Event("change"));
+  for (let i = 0; i < 100 && MF.state.base.enclosure.lid !== "press"; i++) await sleep(30);
+  await settle();
+  const E39 = MF.state.base.enclosure;
+  check(E39.mount === "none" && E39.earN === 2 && E39.tabN === 2 && E39.earHole === 2 && E39.earT === 8 && E39.strapW === 30 && E39.strapT === 2.5 && E39.strapDir === "across",
+    "bad mounting values fall back or are clamped", `${E39.mount}, ${E39.earN}, ${E39.earHole}, ${E39.earT}, ${E39.strapW}, ${E39.strapT}, ${E39.strapDir}`);
+  check(E39.cut.length === 2 && E39.cut[0].kind === "pir501" && E39.cut[0].hw === 400 && E39.cut[1].dia === 400 && MF.parts.length > 0 && MF.parts.every(q => C.checkMesh(q.solid).open === 0),
+    "a motion sensor and a speaker grille with silly sizes still build closed (each is clamped)", JSON.stringify([E39.cut[0].dia, E39.cut[0].hw, E39.cut[1].dia]));
+  check(!document.body.innerHTML.includes("alert(4)"), "nothing injected by the mounting settings");
 
   console.log("\nSession 13: round holes, the box grows to fit, boards that do not fit");
   const $$ = q => [...document.querySelectorAll(q)];

@@ -3,6 +3,27 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.33.0
+
+Many more openings for project boxes, and ways to mount them.
+
+- **About 30 new openings**, and **Add an opening** now lists all of them in groups (ports and power, buttons and switches, lights, screens and meters, sensors and cameras, sound, fans and vents, mounting and your own sizes). Among them:
+  - an **ESP32-CAM** (or XIAO ESP32-S3 Sense) camera lens, and a Raspberry Pi camera with its screws;
+  - **motion sensors**: the HC-SR501 dome with its two screws, and the mini AM312 / HC-SR505;
+  - the HC-SR04 distance sensor's two eyes;
+  - a **USB-C charging board's** port (TP4056 and IP5306 type), a DC jack on a board, XT60, a 3.5 mm audio jack and an SMA antenna socket;
+  - slide switches, rotary encoders, key switches, a joystick, 30 mm arcade buttons and big toggles;
+  - 0.91 and 1.3-inch OLEDs, TFT screens, an LED matrix, 4-digit displays and a volt and amp meter;
+  - light, IR, temperature and microphone holes, and **speaker and buzzer grilles**.
+- **Mounting** for project boxes (none of them need supports):
+  - **Screw ears**, two or four.
+  - **Hanging tabs** rising above the back, with a slot for a screw or nail.
+  - **A DIN rail clip** that screws under the floor.
+  - **Strap loops** on the back for a zip tie or a strap.
+  - **Hooks for an IKEA SKÅDIS board**, and **pegs for pegboard**.
+
+![Six ways to mount a project box: screw ears, hanging tabs, a DIN rail clip, strap loops, SKÅDIS hooks and pegboard pegs](docs/images/box-mounts.jpg)
+
 ## 0.32.0
 
 Signs, a 3D relief from any photo with AI depth, and a model doctor for imported models.

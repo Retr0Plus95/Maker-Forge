@@ -1482,6 +1482,90 @@ Seen in Chromium: lit letters and their backs (keyholes, wire holes), solid hous
 - a relief from a real photo of a face (the tests use a drawn scene);
 - a repaired and a simplified model from Thingiverse in a slicer.
 
+## Session 39: many more project-box openings, and mounting (v0.33.0)
+
+Asked for (the owner, after v0.32.0): "Can you add a bunch more components openings to project boxes, the the small esp32 cam,
+the movement sensor from the esp32 bird cam project and many others like the type c charging board and other small components I
+have used in projects and others", then, while it was being built: "should we add mounting attachments and hanging from wall and
+such for project boxes ?" And for after this release: "After 0.32 and all current features I think we need to work on expanding
+and fixing all the other current features and parts of the app, more accurate painting art placement and everything else" (the plan
+is under Unfinished, "The next builds: expand and fix").
+
+**Openings** (`CUTOUTS`, `CUT_GROUPS`, `cutoutMenu` in `src/app.html`)
+- 76 kinds now (were 43), each with a group `g`. **Add an opening** is a grouped `<select>` (`selField` already took `{ group, items }`).
+  The old keys are unchanged, so saved projects open as they were.
+- The ESP32 bird cam project is not in any of the owner's repositories or on the website, so both common PIR sensors went in:
+  the HC-SR501 (`pir501`: the 23 mm Fresnel dome and its two M2 holes 28 mm apart) and the mini AM312 / HC-SR505 (`pirmini`, a
+  10.4 mm hole for its dome). "The small esp32 cam" is taken as the ESP32-CAM's OV2640 lens (`esp32cam`, 8.5 mm; the XIAO ESP32-S3
+  Sense uses the same module). The type-C charging board is `usbcboard` (9.4 × 3.6 mm, a little bigger than a bare USB-C port, for the
+  TP4056 and IP5306 boards' sockets).
+- Four new shapes in `openingRings`:
+  - `pir`: a dome and two screws across.
+  - `camera`: a lens and four screws; `holeShift` puts the screws' middle 1.2 mm above the lens, as on the Pi camera.
+  - `twin`: two eyes (HC-SR04), never closer than their size plus 1.2 mm.
+  - `grille`: small round holes packed in a circle (speaker 28 mm with 2 mm holes, buzzer 10 mm with 1.6 mm holes). A grille is
+    capped at 160 mm and about 1500 holes (the bars widen), because a hostile file's 400 mm grille of 1 mm holes would have made
+    40 000. A screw hole that would break into its dome or lens is left out rather than torn into it.
+- The new port-like rectangles (`usbcboard`, `dcpcb`, `xt60`, `slide`, the DHT grilles) can take a pointed top or a notch (`ENC_POINTABLE`).
+- Sizes are typical datasheet values, as before. The TFT and 1.3-inch OLED screens vary most between makers and say "check yours".
+  The window of a TFT is centred on its screws here; on a real module it sits nearer one end.
+
+**Mounting** (`encMount`, `encDinClip`, `DIN`; settings `mount`, `earN`, `tabN`, `earHole`, `earT`, `strapW`, `strapT`, `strapDir`)
+- Seven choices in a "How it hangs" list: not mounted, screw ears, hanging tabs, DIN rail clip, strap loops, SKÅDIS hooks, pegboard pegs.
+  The tabs and the hooks came from the owner's second message ("maybe this kind of hook too and other hooks", with a picture of a
+  tapered tab with an upright slot).
+- Planned before the openings, so the faces it uses are "taken" (an opening there is left out and says why).
+- **Screw ears:** two (the middle of each side) or four (near the corners, if the sides are long enough, else two and a warning).
+  - Each ear is `earT` thick, `2·hole + 6` wide, with its hole `hole + 1.5` out from the wall.
+  - A 45° fin stands at each edge, clear of the screw head; the fins stop where the ear starts to round off (first tried longer:
+    their tips overhung the round end, 7.7 mm² of support).
+  - The lid moves over by the ears' reach (`mount.out`), and the bed check counts it.
+- **DIN rail clip:** a separate part printed flat to the left of the box, screwed under the floor with two M3 × 8 mm screws through
+  clearance holes 18 mm apart.
+  - It slides onto 35 mm top-hat rail from the end: a 5 mm plate, and a hook along each edge with 0.25 mm of play beside the flange
+    and 0.15 mm above its 1 mm thickness.
+  - The lips reach 1.5 mm over the flanges, their undersides stepped at 45°. So it prints without support, and pulling it straight
+    off would have to spread the hooks.
+  - No spring: a snap-on clip needs a flexure that prints well in the plane it bends in. That was more than this session could test,
+    so it is in Not done.
+- **Strap loops** on the back wall:
+  - **Across:** an extruded profile with a 45° underside; its top bridges only the strap's thickness.
+  - **Up:** a U from the bed up, with no overhang at all.
+  - The loops sit at a quarter of the width from each side, or a single one in the middle on a narrow box.
+
+- **Hanging tabs:** a plate on the back, from the bed up to above the lid, tapering to a round top.
+  - The slot is `earHole` wide with 8 mm between its ends, round at the bottom and pointed at the top. It starts 3 mm above the lid's top
+    (`B.top`), so the screw's head can be reached.
+  - The plate is fused 0.5 mm into the wall below the lid only, so it never runs into the lid.
+- **SKÅDIS hooks and pegboard pegs:** at the top of the back, as far apart as the grid allows (40 mm for SKÅDIS, 25.4 mm for
+  pegboard), centred.
+  - Each turns **up** behind the board, so nothing starts in mid-air when the box prints standing.
+  - A SKÅDIS hook is a 4.2 mm profile with a 45° underside, 11 mm tall where it passes the 15 mm slot.
+  - A peg is a 5.6 mm teardrop (its underside pointed at 45°) for 1/4-inch holes, with a round post standing on it behind the board.
+  - A box too narrow for two hangs from one and says so.
+
+**Tests** (all headless)
+- `npm run test:enclosure`:
+  - every kind on four faces (now 76 × 4);
+  - each new shape measured: the dome and screws, the eyes' spacing and its minimum, the camera's screw rectangle and its shift,
+    the grilles inside their circle;
+  - the grouped list;
+  - each mount, by points inside or outside the mesh: the ear's hole and fins, the clip's flange slot, lip and plate, the floor's
+    screw holes, the strap channel, the tab's slot above the lid, the hooks' and pegs' spacing and the board's room behind them;
+  - support area under 3 mm² for each mount;
+  - the warnings: too short for four ears, too small for a clip, too short for a strap across;
+  - openings left out on a clip screw or behind a loop;
+  - a hostile project for the mounting settings and silly opening sizes.
+- Also: the smoke test, `tools-audit.js index.html enclosure`, `test:project`, `test:print` and the print survey (see below).
+
+**Not done**
+- A snap-on DIN clip with a spring (see above). The slide-on clip needs a free rail end or an end stop.
+- The board ghost with one-click port openings (idea 6), battery bays, and boards for the ESP32 dev kits and the ESP32-CAM: the
+  common ones have no mounting holes, so they need a cradle rather than standoffs.
+- Still to check on a real print: every new opening's size with real parts, the HC-SR501's screws, the ears' strength, the DIN clip
+  on a real rail (fit and hold), the strap loops, the tabs on a screw, and the hooks on a real SKÅDIS board and pegboard (how they
+  go in, and whether a full box tips forward).
+
 ## Unfinished (in priority order)
 
 - **The next two builds** (the owner, 2026-11-05: "Mechanisms toolkit, model doctor, 3d relief from any photo, sign maker and fix it parts library should be done over the next two builds"; ideas 2, 3, 6, 8 and 10 of Session 36's list). Planned split:
@@ -1489,6 +1573,21 @@ Seen in Chromium: lit letters and their backs (keyholes, wire holes), solid hous
   - **v0.32.0: models and pictures.** (Done in Session 38, but for the model doctor's split, hollowing and thickening: see Session 38's Not done.) The model doctor (repair with Manifold, thicken, hollow with drain holes, simplify, split for the bed with pins: this takes in Cutting next's split), the 3D relief from any photo (an AI depth model), and the sign maker (channel letters with LED channels, diffusers and mounts).
   - Watch for: the depth model is bigger than jsDelivr's 20 MB per-file limit (Depth Anything V2 Small is about 50 MB in fp16, 27 MB in int8), so it needs splitting into parts, or another host, before it can join `AI_FIGURE`; its licence (Apache-2.0 for Small only) goes in `models/LICENSE.md`; the owner's website hosts its own copy of every file in `AI_FIGURE`, so the new model must keep that `name:{ urls, sha256 }` form.
 
+- **The next builds: expand and fix** (the owner, Session 39: "After 0.32 and all current features I think we need to work on
+  expanding and fixing all the other current features and parts of the app, more accurate painting art placement and everything
+  else"). Planned order, each a release:
+  1. **Painting and art placement accuracy.**
+     - The painter: brush edges follow triangle edges, so a stroke on a coarse model is jagged. Split the triangles under a stroke's
+       edge (sub-triangle paint, which needs a slicer check of the export).
+     - Pictures on objects: placement by the picture's real size on curved faces (`makeWrapProjector`), snapping to the face's middle,
+       numeric placement in mm.
+     - The keychain's "picture beside the name" still uses the flood-fill `cutoutCanvas` (Known bugs): move it to the colour key.
+  2. **Every object, one by one** (P7 in this list): each generator's audit, print-survey warnings and its own Known bugs.
+     - The PSU box's 600 mm² of support.
+     - Honeycomb grilles' 30° roofs.
+     - Lithophane and jigsaw defaults waiting on a print.
+     - Fix what the audit and a real-browser pass find. The project box's own next steps (below) belong here too.
+  3. **Speed** (below), then Cutting next and the model doctor's split for the bed.
 - **Speed next** (Session 28; the size change and the photo steps were done in Session 30): getting a big model ready for paint (`meshEditor` and `meshTopology` in `applyPaint`, about 0.75 s once on the 373 k-triangle figure) could go to the helper thread too; then the builds themselves (Session 22's plan).
 - **P4**: none outstanding beyond polish.
 - **P5**: an actual 3D view cube widget; dimension lines drawn along the model; bed resize already follows the printer; more layout modes next to Explode (e.g. lay layered parts flat).
@@ -1511,7 +1610,7 @@ Seen in Chromium: lit letters and their backs (keyholes, wire holes), solid hous
 - Printability follow-ups: fillets were in the original idea next to the brim and were not done. Optimize keeps the yaw the rotation gives; it does not yet turn the model on the bed to fit or to line up with the bed axes. (Session 12 fixed the vase profile and added the "Turned for printing" note.) A flat ceiling whose ends meet small rounded corners was not seen as anchored; fixed in Session 31 (corners up to about 4 mm radius now hold it).
 - **P9**: retro emojis, pixel art, themes, more retro fonts, animations, printing instructions, performance work.
 - Tracer next steps: credit-card and coin references for parts bigger than a sheet; fillets and chamfers; a second extrusion level (bosses, counterbores); lens-distortion correction for wide phone cameras; reading SVG paths as vectors instead of drawing them. (Back plates were done in Session 11; holes, loops, screws, colours and line thickening in Session 12.)
-- Project box next steps: snap-fit and hinged lids (ideas 3 and 5), an end stop for the sliding lid, the board ghost with one-click port openings (idea 6), battery bays, wall mounts, a raised logo on a lid printed face up.
+- Project box next steps: snap-fit and hinged lids (ideas 3 and 5), an end stop for the sliding lid, the board ghost with one-click port openings (idea 6), battery bays, a snap-on DIN clip with a spring (wall mounts, a slide-on DIN clip and strap loops were done in Session 39), cradles for boards without mounting holes (ESP32 dev kits, ESP32-CAM), a raised logo on a lid printed face up.
 - Name plates from a list: every name is a part of one object; a slicer cannot move them one by one. Packing is simple rows; a bed-full list is flagged, not split onto several plates.
 
 ## Known bugs and issues

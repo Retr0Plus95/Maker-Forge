@@ -1373,10 +1373,51 @@ None of these is started. Each is new: not in the two lists above, not in Unfini
 99. Drawer handles and knobs in matching sets, from the hole spacing.
 100. Ring sizers and rings with an engraved or inlaid name, from a ring size.
 
+## Session 37: parts that fit, and the keychain's surname and credit (v0.31.0)
+
+Asked: "Mechanisms toolkit, model doctor, 3d relief from any photo, sign maker and fix it parts library should be done over the next two builds" (planned split in Unfinished: this is the first of the two), and before that "i want to be able to add a second line for the surname, and a small engraving option on the back for the site name or whatever i want to get some credit when i give these out for free".
+
+**1. The keychain** (`buildNamePlate`, `buildNameBatch`, `nameplateFields` in `src/app.html`).
+- `nameplate.line2` (≤ 60 letters), `line2Size` (0.3–1 of the name's letter height, 0.5), `line2Gap` (mm, 2.5): a second line centred under the name in the same font, drawn after the i/j dots are swapped (so its letters are never taken for dots). Its size and gap appear once it has text; typing its first letter re-renders the panel and puts the caret back. In a list, `Emma | Svensson` (split on `|`; the batch cache key leaves `line2` out).
+- `nameplate.credit` `{ on, text ≤ 40, size 1.5–8, depth 0.2–1.2, inlay, slot, font }` (font: Nunito by default): drawn mirrored about the name's centre, at its size, then made 12% smaller until every pixel is 0.8 mm inside the plate's edge (a distance field of the plate's outside, so also clear of the ring hole); `plateInfo.credit` says the size used. The plate's bottom `credD` mm are cut with the letters (`cutOut`: holes, with the letters' own holes put back as islands), and with `inlay` the letters are a part of their own in `slot`, flush in the first layers. Not with `doubleSided` (the back is the name's).
+- **Fixed on the way**: an engraved name was cut with each letter's outline only, so the middle of o, B, e… was cut away too (an engraved "Bob" printed as "Dob"). `cutOut` keeps them.
+
+**2. Gears and threads in the core** (`gearOutline`, `threadForm`, `threadSolid`, `hexRadius` in `src/core.js`).
+- `gearOutline(z, m, pa, bl)`: involute flanks from the base circle (straight down to the root below it), root and tip circles as the standard (rf = r − 1.25m), a tip cut back if the flanks would cross; `bl` comes off each tooth at the pitch circle. No undercut is modelled: under about 13 teeth the panel says they mesh less smoothly.
+- `threadSolid`: a grid of 16 rows per pitch × 72 (or more) points round, its radius from the ISO form (flats p/4 and p/8, 60°, depth 0.6134p); a screw is chamfered 45° at both ends and closed with fans; `inside` makes a nut's hole in a prism (`outside(a)`, a hexagon with `hexRadius`), its radius the screw's plus the gap at every point, countersunk to the screw's size at both faces. Right-handed (anticlockwise seen from above climbs).
+
+**3. Mechanisms and fix-it parts** (new objects `mech` and `fixit` under Functional; `buildMech`, `buildFixit`, `mechFields`, `fixitFields` and helpers `fit*`, `alongX`, `alongZ` in section 4c of `src/app.html`). One fit gap for both, `state.base.fit.gap` (0.25 mm), on a **Fit** page of each. Everything is built where it prints.
+- Mechanisms: gears (a pair, laid apart or meshed to check, centre distance in the panel), bolt and nut (`METRIC` table M3–M30 with pitch, hex size and nut height, or your own), print-in-place hinge (knuckles alternate between the leaves, the pin belongs to one leaf, the other's knuckles are tubes with a teardrop hole `fitTear`, gaps of the fit gap between knuckles, axis at 0.8 R so the knuckles stand on a flat), snap-fit clip (two arms with outward hooks and a slit between them to squeeze into, and a plate with the slot), fit test (holes from `from` in `step`s, labels in the stroke font, a peg; a dot beside the hole for the gap now set; optionally an M8 test bolt and nut).
+- Fix-it parts: knob (fluted, knurled, star or smooth outline; D, round or hex hole; printed on its top with a pointer line cut in the first 0.6 mm), leg cap (over the end) or tube plug (ribbed, 0.3 mm proud), shelf support (an L on its side, the pin lying with a flat underneath), battery cover (rim, tabs, latch), cable clip (1–8 cables, arch drawn in at 45° to a short flat, screw holes or a tape pad), spacer or washer; **How many** up to 24 (`fitCopies`).
+- Quick starts **Gear pair**, **Bolt and nut**, **Replacement knob** (with Start pictures). The objects have no example picture, so the sidebar shows their emoji. Pictures are not laid on them (`NO_DECALS`, and skipped in the build).
+- Saved projects: `sanitizeProject` gives every choice one of its own values (`ENUMS`), every switch true or false, drops unknown keys, fills missing groups; every number has a `LIMITS_AT` range. The quick-start code merges `mech`/`fixit` one level deeper.
+
+**4. The print check on overlapping shells** (`surfaceBelow` in `src/core.js`). A part merged from shells that overlap by 0.01 mm (the app's usual way of stacking layers) had faces buried inside it that the check took for surfaces in the open: the nearest face below a point decided "inside", and that was a buried face pointing up. It now counts the faces below (down +1, up −1, the two triangles of one face meeting under the point once). A knob read 698 mm² of support and a keychain with a credit about 650 mm²; both read 0 now, and three overlapping boxes read exactly their real 400 mm² shelf.
+
+**Tests**: new `tools-fit-test.js` (`npm run test:fit`, `CORE=1` for gears and threads only):
+- gears: four pairs turned through a whole tooth without touching, at the right centre distance, teeth reaching in; the standard's radii; a tooth half the circular pitch at the pitch circle, the backlash off it;
+- threads: closed solids; the nut's thread the screw's plus the gap at every point (5544 points, within 3e-7 mm); the ISO depth; right-handed;
+- every kind closed and on the bed, ten other choices too; an M10 nut 0.25 mm bigger all round; the hinge's leaves never inside each other and the pin's clearance; meshed gears at the panel's distance; a knob's hole with the fit gap and after changing it; four spacers' volume;
+- the print check: the knob, the clip, three overlapping boxes;
+- the keychain: a surname makes the plate deeper, the gap deeper still; the credit flush in its filament in the first 0.4 mm, inside the outline, the plate cut away under it; engraved, left empty with plate above; shrunk when too big; none on a double-sided tag; `Emma | Svensson` in a list.
+`tools-project-test.js` gained hostile project files for a bolt, gears, an unknown mechanism, a cable clip, a knob and the keychain's new settings. Every slider of every mechanism and fix-it kind was checked to change the model (only the whole-model scale, which every object has, does not).
+Also run and passed:
+- the full smoke test (26 quick starts, 23 objects, 499 clicks);
+- `test:print`, `test:art`, `test:project`;
+- the control audit on mech, fixit and nameplate (no findings);
+- `check:browser` (189 screenshots, no findings; the helper thread's print check matches the page's).
+
+The print survey against v0.30.0's build: every earlier quick start and object reads the same (support, bridges, ledges, thin walls, bed contact), so the change to the print check touches only the new shells. The new ones read 0 mm² of support (the M10 bolt and nut 52 436 triangles).
+Seen in Chromium: the surname under the name, the credit read from below, the gears meshing, the bolt, the hinge, the clip, the knob, the fit test, and an engraved "Bob" before and after.
+
+**Not done, next**: the plan's other half of this build, pins on their own (the fit test covers the fit); rack and pinion, bevel and worm gears; a knob's set-screw hole; nuts on their own and threaded holes in other objects (a box's lid); countersunk screw holes (needs Manifold). v0.32.0 as planned: model doctor, AI depth relief, sign maker.
+
+**Still to check by hand**: real prints of the fit test (which gap the default should be), a gear pair on shafts, an M10 bolt and nut at 0.25 mm, the hinge breaking free, the snap-fit clip's hook depth, a credit flush on a textured plate.
+
 ## Unfinished (in priority order)
 
 - **The next two builds** (the owner, 2026-11-05: "Mechanisms toolkit, model doctor, 3d relief from any photo, sign maker and fix it parts library should be done over the next two builds"; ideas 2, 3, 6, 8 and 10 of Session 36's list). Planned split:
-  - **v0.31.0: parts that fit.** The mechanisms toolkit (threads, gears, hinges, snap-fits, pins, each with a fit-test coupon) and the fix-it parts library built on it (knobs, shelf pins, feet, battery covers, clips, caps from a few caliper measurements). They share the clearances and the fit tests. The keychain's surname line and credit on the back (asked for just before) ride along, being small.
+  - **v0.31.0: parts that fit.** (Done in Session 37, but for pins on their own.) The mechanisms toolkit (threads, gears, hinges, snap-fits, pins, each with a fit-test coupon) and the fix-it parts library built on it (knobs, shelf pins, feet, battery covers, clips, caps from a few caliper measurements). They share the clearances and the fit tests. The keychain's surname line and credit on the back (asked for just before) ride along, being small.
   - **v0.32.0: models and pictures.** The model doctor (repair with Manifold, thicken, hollow with drain holes, simplify, split for the bed with pins: this takes in Cutting next's split), the 3D relief from any photo (an AI depth model), and the sign maker (channel letters with LED channels, diffusers and mounts).
   - Watch for: the depth model is bigger than jsDelivr's 20 MB per-file limit (Depth Anything V2 Small is about 50 MB in fp16, 27 MB in int8), so it needs splitting into parts, or another host, before it can join `AI_FIGURE`; its licence (Apache-2.0 for Small only) goes in `models/LICENSE.md`; the owner's website hosts its own copy of every file in `AI_FIGURE`, so the new model must keep that `name:{ urls, sha256 }` form.
 

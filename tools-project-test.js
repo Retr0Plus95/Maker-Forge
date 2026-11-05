@@ -59,6 +59,37 @@ async function settle() {
     check(done && ms < 8000 && tris < 400000 && !errs.length && Math.abs(kept) < 1000, `${type} ${key} = ${val}: kept as ${kept}, builds normally`, `${ms} ms, ${tris} triangles${errs.length ? ", " + errs[0].split("\n")[0] : ""}`);
   }
 
+  console.log("\nmechanisms, fix-it parts and the keychain's new settings in a hostile project file (Session 37)");
+  {
+    const host = async (type, edit, test, what) => {
+      const s = document.querySelector("#objectSel"); s.value = type; s.dispatchEvent(new win.Event("change")); await settle();
+      const st = JSON.parse(MF.projectPayload()).state; edit(st.base);
+      const t0 = Date.now(), e0 = env.errors.length, done = await open(JSON.stringify({ app: "Maker Forge", v: 5, state: st })), ms = Date.now() - t0;
+      const tris = MF.parts.reduce((n, p) => n + C.checkMesh(p.solid).tris, 0), errs = env.errors.slice(e0).filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
+      const out = test(MF.state.base);
+      check(done && ms < 15000 && tris > 0 && tris < 1500000 && !errs.length && out === true, what, `${ms} ms, ${tris} triangles${errs.length ? ", " + errs[0].split("\n")[0] : ""}${out !== true ? ", " + out : ""}`);
+    };
+    await host("mech", b => { b.mech.kind = "bolt"; b.mech.bolt.size = "<img src=x onerror=alert(1)>"; b.mech.bolt.length = 1e9; b.mech.bolt.nut = "yes"; b.fit = { gap: 99 }; },
+      b => b.mech.bolt.size === "M10" && b.mech.bolt.length === 200 && b.mech.bolt.nut === false && b.fit.gap === 1 || JSON.stringify([b.mech.bolt.size, b.mech.bolt.length, b.mech.bolt.nut, b.fit.gap]),
+      "a bolt with markup for its size, a huge length, a nut that is not true/false and a fit gap of 99: M10, 200 mm, no nut, 1 mm");
+    await host("mech", b => { b.mech.kind = "gears"; b.mech.gears = { teeth1: 1e9, teeth2: -5, module: "big", layout: "sideways", extra: { evil: 1 } }; },
+      b => b.mech.gears.teeth1 === 150 && b.mech.gears.teeth2 === 8 && b.mech.gears.module === 1.5 && b.mech.gears.layout === "apart" && !("extra" in b.mech.gears) || JSON.stringify(b.mech.gears),
+      "gears with a billion teeth, negative teeth, a module that is text and an unknown layout: clamped, the defaults, the stranger dropped");
+    await host("mech", b => { b.mech = { kind: "rocket" }; }, b => b.mech.kind === "gears" && b.mech.hinge.knuckles === 5 || b.mech.kind,
+      "an unknown mechanism: gears, with every other group at its defaults");
+    await host("fixit", b => { b.fixit.kind = "clip"; b.fixit.clip.count = 1e6; b.fixit.count = 1e6; b.fixit.clip.cable = -3; },
+      b => b.fixit.clip.count === 8 && b.fixit.count === 24 && b.fixit.clip.cable === 1 || JSON.stringify([b.fixit.clip.count, b.fixit.count, b.fixit.clip.cable]),
+      "a cable clip for a million cables, a million copies, a cable -3 mm thick: 8 cables, 24 copies, 1 mm");
+    await host("fixit", b => { b.fixit.kind = "knob"; b.fixit.knob.grip = "__proto__"; b.fixit.knob.flutes = 1e9; b.fixit.knob.shaft = 1e9; },
+      b => b.fixit.knob.grip === "fluted" && b.fixit.knob.flutes === 40 && b.fixit.knob.shaft === 40 || JSON.stringify(b.fixit.knob),
+      "a knob with a grip named __proto__, a billion flutes and a huge shaft: fluted, 40 flutes, the hole kept inside the knob");
+    await host("nameplate", b => { b.nameplate.line2 = "Ab" + " ".repeat(4998); b.nameplate.line2Size = -50; b.nameplate.letterHeight = 8; b.nameplate.credit = { on: "true", text: "<b>hi</b>".repeat(20), size: 1e9, depth: -1, slot: 99, font: -4 }; },
+      b => b.nameplate.line2.length === 60 && b.nameplate.line2Size === 0.3 && b.nameplate.credit.on === false && b.nameplate.credit.text.length === 40 && b.nameplate.credit.size === 8
+        && b.nameplate.credit.depth === 0.2 && b.nameplate.credit.slot === 7 && b.nameplate.credit.font === 0 || JSON.stringify([b.nameplate.line2.length, b.nameplate.line2Size, b.nameplate.credit]),
+      "a keychain's second line 5000 letters long and a credit that is not quite right: 60 letters, its size clamped to 0.3, the credit off until turned on");
+    check(!document.querySelector("#panel b, #panel img[src=x]") || ![...document.querySelectorAll("#panel b")].some(b => b.textContent === "hi"), "no markup from the file reached the page");
+  }
+
   console.log("\na picture's settings that are not numbers");
   {
     const s = document.querySelector("#objectSel"); s.value = "cutter"; s.dispatchEvent(new win.Event("change")); await settle();

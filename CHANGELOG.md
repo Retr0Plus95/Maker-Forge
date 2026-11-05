@@ -3,6 +3,34 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.31.0
+
+Parts that fit: gears, bolts and nuts, hinges, snap-fits and a fit test, replacement parts from your calipers, and a keychain with a surname and your credit on the back.
+
+![Two gears meshed, 24 and 12 teeth, with the panel saying how far apart to put their shafts](docs/images/fit-gears.jpg)
+
+- **Mechanisms** (a new object under **Functional**, and the **Gear pair** and **Bolt and nut** quick starts):
+  - **Gears**: a pair of spur gears with true involute teeth, any number of teeth and any tooth size. The panel says how far apart to put the shafts. Shaft holes can be round, D-shaped or hexagonal, with a hub. **Meshed, to check** shows them turning together.
+  - **Bolt and nut**: ISO metric threads from M3 to M30, or your own diameter and pitch, with a hex head, a knob head or none. Both print standing, with no supports.
+  - **Print-in-place hinge**: two leaves and their pin, printed already joined. Its knuckle holes have pointed tops, so they print without supports.
+  - **Snap-fit clip**: two arms that squeeze through a slot and spring back behind it, printed flat so they bend without snapping.
+  - **Fit test**: a peg and a plate of holes from tight to loose, each with its gap printed beside it. The first hole the peg slides through is your printer's **fit gap**. Set it once and every mechanism and fix-it part leaves that much play.
+- **Fix-it parts** (a new object, and the **Replacement knob** quick start). Measure with calipers and type the sizes:
+  - a knob (fluted, knurled, star or smooth) for a D or round shaft, or to grip a nut;
+  - a leg cap or tube plug;
+  - a shelf support (the pin prints lying down so it doesn't snap off);
+  - a battery cover with tabs and a latch;
+  - a cable clip for up to eight cables, with screw holes or a tape pad;
+  - spacers and washers.
+
+  Up to 24 at a time.
+- **Keychains**:
+  - **A second line** under the name, smaller: a surname. In a list of names, `Emma | Svensson` puts the surname on a second line.
+  - **A credit on the back**: a short line such as your website, mirrored so it reads with the tag turned over, for keychains you give away. It is printed flush in a second colour in the first layers, or engraved. It shrinks to fit inside the edge and clear of the ring hole.
+
+**Fixed**
+- Engraved names lost the middles of closed letters: an engraved "Bob" came out as "Dob" with solid o and b.
+
 ## 0.30.0
 
 Colour from a photo, far more accurate: the colours follow the model's own shape, and a photo whose figure stands a little differently is bent to fit.

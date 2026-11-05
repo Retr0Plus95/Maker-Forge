@@ -1731,11 +1731,15 @@
   // sunk into raised letters), so each part is looked at on its own: if a part's nearest face below
   // points down, the point is inside that part and held up by it. Otherwise the highest face that
   // points up, in any part, is what the point would rest on.
-  const nearY = [], nearUp = [];
+  // Inside a part is counted, not read off its nearest face (Session 37): faces pointing down below the point
+  // count +1, faces pointing up -1, so a part made of shells that overlap (layers stacked 0.01 mm into each other)
+  // is inside wherever any of its shells is. Two triangles of one face meeting under the point count once.
+  const nearY = [], nearUp = [], crossY = [], crossUp = [], crossP = [];
   function surfaceBelow(F, G, x, z, yTop, skip) {
     const i = Math.floor((x - G.x0) / G.cell), j = Math.floor((z - G.z0) / G.cell);
     if (i < 0 || j < 0 || i >= G.gw || j >= G.gh) return { inside: false, up: -Infinity };
     const V = F.V, c = j * G.gw + i;
+    let nc = 0;
     for (let p = 0; p < F.nParts; p++) { nearY[p] = -Infinity; nearUp[p] = true; }
     let up = -Infinity;
     for (let k = G.cnt[c]; k < G.cnt[c + 1]; k++) {
@@ -1750,10 +1754,16 @@
       // same flat face, or another part's bottom at the same height, is not
       if (y > yTop + (isUp ? 1e-3 : -1e-3)) continue;
       if (isUp && y > up) up = y;
-      if (y > nearY[p] + 1e-6 || (y > nearY[p] - 1e-6 && isUp)) { nearY[p] = y; nearUp[p] = isUp; }
+      let dup = false;
+      for (let q = 0; q < nc; q++) if (crossP[q] === p && crossUp[q] === isUp && Math.abs(crossY[q] - y) < 1e-5) { dup = true; break; }
+      if (!dup) { crossY[nc] = y; crossUp[nc] = isUp; crossP[nc] = p; nc++; nearY[p] = 0; }
     }
     let inside = false;
-    for (let p = 0; p < F.nParts; p++) if (nearY[p] > -Infinity && !nearUp[p]) { inside = true; break; }
+    for (let p = 0; p < F.nParts && !inside; p++) {
+      if (nearY[p] === -Infinity) continue;
+      let w = 0; for (let q = 0; q < nc; q++) if (crossP[q] === p) w += crossUp[q] ? -1 : 1;
+      if (w > 0) inside = true;
+    }
     return { inside, up };
   }
   // is the point held up by the bed, a surface just below, or the inside of another part?
@@ -5232,6 +5242,81 @@
     return { tris: new Float32Array(out), paint: paint.some(v => v > 0) ? Uint8Array.from(paint) : null };
   }
 
+  // ---------- parts that fit (Session 37): gears and screw threads ----------
+  // An involute spur gear's outline, centred on 0, anticlockwise: z teeth of module m (pitch diameter m z), pressure
+  // angle pa (degrees), backlash bl (mm taken off each tooth's thickness at the pitch circle). Below the base circle
+  // the flank runs straight down to the root; a tip that would come to a point is cut back.
+  function gearOutline(z, m, pa, bl, segs) {
+    z = Math.max(6, Math.round(z)); pa = (pa || 20) * Math.PI / 180; segs = segs || 8;
+    const r = m * z / 2, rb = r * Math.cos(pa), ra = r + m, rf = Math.max(0.4 * r, r - 1.25 * m);
+    const inv = a => Math.tan(a) - a, invAt = R => R <= rb ? 0 : inv(Math.acos(rb / R));
+    const half = Math.max(0.05 / z, (Math.PI * m / 2 - (bl || 0)) / (2 * r)) + inv(pa);
+    const theta = R => half - invAt(R);
+    let rTip = ra; while (theta(rTip) < 0.03 / z && rTip > r) rTip -= m * 0.01;
+    const r0 = Math.max(rf, Math.min(rb, rTip)), L = [], P = (R, a) => L.push([R * Math.cos(a), R * Math.sin(a)]);
+    for (let k = 0; k < z; k++) {
+      const c = 2 * Math.PI * k / z, fl = [];
+      for (let i = 0; i <= segs; i++) fl.push(r0 + (rTip - r0) * (1 - Math.cos(Math.PI / 2 * i / segs)));
+      if (rf < r0 - 1e-6) P(rf, c - theta(r0));
+      fl.forEach(R => P(R, c - theta(R)));
+      for (let i = 1; i < 3; i++) P(rTip, c - theta(rTip) + 2 * theta(rTip) * i / 3);
+      for (let i = segs; i >= 0; i--) P(fl[i], c + theta(fl[i]));
+      if (rf < r0 - 1e-6) P(rf, c + theta(r0));
+      const b1 = c + theta(r0), b2 = c + 2 * Math.PI / z - theta(r0);
+      for (let i = 1; i < 4; i++) P(rf, b1 + (b2 - b1) * i / 4);
+    }
+    return { outline: L, pitchR: r, tipR: rTip, rootR: rf, baseR: rb };
+  }
+  // the ISO metric thread form along one pitch: 0 at the root, 1 at the crest (flats of p/4 and p/8, 60° flanks)
+  function threadForm(u) {
+    u -= Math.floor(u);
+    if (u < 0.125 || u >= 0.875) return 0;
+    if (u < 0.4375) return (u - 0.125) / 0.3125;
+    if (u < 0.5625) return 1;
+    return (0.875 - u) / 0.3125;
+  }
+  // A screw thread as a closed solid, Y up from y0 to y1, right-handed. o.rMajor is the crest radius of the screw, o.pitch
+  // its pitch, o.depth the thread's depth (ISO: 0.6134 x pitch), o.starts the number of starts.
+  //   a screw: a solid rod; its ends are chamfered at 45° so the thread starts cleanly
+  //   o.inside: the hole of a nut fitting that screw with o.gap of play all round, in a prism whose outside radius at
+  //   each angle is o.outside(a) (a hexagon: hexRadius); the hole is countersunk to the screw's size at both faces
+  function threadSolid(o) {
+    const p = o.pitch, depth = o.depth || 0.6134 * p, y0 = o.y0 || 0, y1 = o.y1, starts = o.starts || 1;
+    const n = Math.max(12, Math.round((o.segs || 72) / 6) * 6), gap = o.inside ? (o.gap || 0) : 0;
+    const rows = Math.max(2, Math.ceil((y1 - y0) / (p / 16))), rMaj = o.rMajor, rMin = rMaj - depth;
+    const pos = [], ind = [], A = i => 2 * Math.PI * i / n;
+    const radius = (a, y) => {
+      const r = rMin + depth * threadForm((y - y0) / p - starts * a / (2 * Math.PI)) + gap;
+      const e = Math.min(y - y0, y1 - y);
+      return o.inside ? Math.max(r, rMaj + gap - e) : Math.min(r, rMin - 0.05 + Math.max(0, e));
+    };
+    for (let j = 0; j <= rows; j++) {
+      const y = y0 + (y1 - y0) * j / rows;
+      for (let i = 0; i < n; i++) { const a = A(i), r = radius(a, y); pos.push(r * Math.cos(a), y, -r * Math.sin(a)); }
+    }
+    const v = (j, i) => j * n + (i % n), quad = (a, b, c, d) => ind.push(a, b, c, a, c, d);
+    for (let j = 0; j < rows; j++) for (let i = 0; i < n; i++) {
+      if (o.inside) quad(v(j, i), v(j + 1, i), v(j + 1, i + 1), v(j, i + 1));
+      else quad(v(j, i), v(j, i + 1), v(j + 1, i + 1), v(j + 1, i));
+    }
+    if (!o.inside) {
+      const c0 = pos.length / 3; pos.push(0, y0, 0); const c1 = c0 + 1; pos.push(0, y1, 0);
+      for (let i = 0; i < n; i++) { ind.push(c0, v(0, i + 1), v(0, i)); ind.push(c1, v(rows, i), v(rows, i + 1)); }
+    } else {
+      const ob = pos.length / 3;
+      for (const y of [y0, y1]) for (let i = 0; i < n; i++) { const a = A(i), R = o.outside(a); pos.push(R * Math.cos(a), y, -R * Math.sin(a)); }
+      const O = (k, i) => ob + k * n + (i % n);
+      for (let i = 0; i < n; i++) {
+        quad(O(0, i), O(0, i + 1), O(1, i + 1), O(1, i));
+        quad(O(1, i), O(1, i + 1), v(rows, i + 1), v(rows, i));
+        quad(O(0, i), v(0, i), v(0, i + 1), O(0, i + 1));
+      }
+    }
+    return { pos: new Float32Array(pos), idx: new Uint32Array(ind) };
+  }
+  // the radius at angle a of a hexagon across flats f (corners at 0°, 60°, …)
+  function hexRadius(f) { return a => { const s = Math.PI / 3, t = a - Math.floor(a / s) * s - s / 2; return f / 2 / Math.cos(t); }; }
+
   // ---------- QR codes (Session 33) ----------
   // A QR code (ISO/IEC 18004) for a business card: the whole text in the densest mode it fits (digits, the 45
   // upper-case characters, or bytes of UTF-8), the smallest of the 40 versions that holds it at the chosen error
@@ -5578,6 +5663,7 @@
     PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, photoRef, photoUV, PHOTO_K_MAX, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, photoFitCloseness, photoFitFull, photoFitClosenessSteps, photoFitFullSteps, paintFromPhotos, photoBend, photoBendApply, graphCut, cheapestLabels, photoLight, photoUnshade, photoLitBy, photoTriNormals, meshBVH, bvhRaycast,
     photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure, cutoutWithMap, edgeOpacity, pictureBackground, cutoutByColour, plateColour, cutoutCombine, photoFixMap, photoFixMask,
     parseGLB, parseGLTF, parseMTL, parseOBJColours, modelTriColours, modelPalette, modelColourLabels,
-    cutBase, cutFree, cutSolid, cutFlat, cutSources, cutCorners, qrEncode, qrPayload, qrLink
+    cutBase, cutFree, cutSolid, cutFlat, cutSources, cutCorners, qrEncode, qrPayload, qrLink,
+    gearOutline, threadForm, threadSolid, hexRadius
   };
 })(typeof window !== "undefined" ? window : globalThis);

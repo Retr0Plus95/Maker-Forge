@@ -104,6 +104,9 @@ All the example pictures were drawn for Maker Forge and are free to use, like th
 | PSU box | A box for a mains power supply module | Nothing |
 | Raspberry Pi case | A case with standoffs for a Pi | Nothing |
 | Phone case | A TPU case for one of 75 phones | Optionally a picture for the back |
+| Gear pair | Two spur gears that mesh, with shaft holes | The number of teeth and the tooth size |
+| Bolt and nut | A threaded bolt and a nut that screws onto it | A metric size, or your own |
+| Replacement knob | A knob for a D-shaped or round shaft | The shaft's size, from calipers |
 
 ## 3. Make: the object itself
 
@@ -122,6 +125,8 @@ An imported model has its own **Scale (%)** on the Make tab. Changing it is inst
 Some objects in brief:
 
 - **Name plate and keychain.** 34 lettering fonts, charms (♥ ★ and any emoji) on either side, a picture beside the name, raised or engraved letters, a top layer in a second colour, and a mirrored back for double-sided tags. **A keychain for every name** on the Export tab makes one per name from a list.
+  - **Second line**: a surname (or anything) under the name, smaller. Set its size as a share of the name's, and the gap between the lines. In **A list of names**, write `Emma | Svensson` to give that name a second line.
+  - **Credit on the back**: a short line of text on the back, such as your website or shop, for keychains you give away. It is mirrored, so it reads when the tag is turned over. **In a colour, flush** prints it in the first layers in a second filament, face down on the bed; **Engraved** cuts it into the bottom. It shrinks to fit inside the plate's edge and clear of the ring hole; the slider says when it was made smaller. A double-sided tag has its name on the back, so it takes no credit.
 - **Photo to 3D tracer.** Photograph a flat part on plain paper, shot from straight above. Give one real measurement, or let the sheet of paper be the ruler. Round holes become true circles. The outline also downloads as SVG and DXF.
 - **Lithophane.** Flat, curved or a cylinder, with a rectangle, arch, oval or heart outline. The **test strip** prints steps from 0.6 to 3.2 mm, so you can choose thicknesses for your filament.
 - **Jigsaw puzzle.** Choose the number of pieces, the style of the knobs and the gap. **Shuffle** draws a new cut. A frame or a tray can print with it. A strip of a picture's colour thinner than the nozzle takes the colour beside it, so it doesn't print as a sliver.
@@ -146,6 +151,31 @@ A card the size of a bank card (85.6 × 54 mm), or a European, US, Japanese, Aus
 - **How it prints** (**Printing the card**). Face down, the front prints flush in the card's first layers, as smooth as your bed (a textured plate gives it its texture). The face on top can be flush, raised or engraved: flush keeps the card flat both sides, so it slides into a wallet. Light colours over a dark card need 0.6 mm or more to look solid. With a one-filament printer, **Everything raised in one colour** needs a single swap.
 - **NFC tag.** A pocket inside the card for an NFC sticker (20, 25, 30 or 38 mm), a coin tag, or a tag of your own size: in the middle, behind the logo or the code, or where you put it, with a small mark on the card to tap. Write the tag first with a free app such as NFC Tools. The card is made thicker if the tag needs room. The printer must pause once: **Before you print**, the Export tab and **nfc-tag.txt** in the download say before which layer. Add a pause there in your slicer, press the tag in when it stops (a sticker without its backing paper), and carry on: the next layer seals it in.
 - **A keyring or lanyard hole**, up to 12 **copies** on the bed, and **a card for each name** in a list (one a line, `Name | Title`).
+
+### Mechanisms and fix-it parts
+
+Parts that move or fit something you already have. Both are under **Functional** in the Start from sidebar. Measure with calipers and type the sizes; everything prints in the way that needs no supports.
+
+**The fit gap** (the **Fit** page of both) is the play left between parts that move, slide or screw together: a nut on a bolt, a pin in its knuckle, a knob on its shaft. Printers differ, so print the **fit test** once: a plate of holes from tight to loose, each with its gap printed beside it, and a peg. The first hole the peg slides through without forcing is your fit gap. Set it, and every mechanism and fix-it part uses it. A raised dot on the plate marks the hole for the gap now set.
+
+**Mechanisms**
+
+- **Gears (a pair).** Spur gears with true involute teeth. Set the teeth on each and the tooth size (the module: both gears must have the same one to mesh), the thickness, a shaft hole (round, D-shaped or a hexagon, with the fit gap added) and a hub. The panel says how far apart to put the shafts and the ratio. **Meshed, to check** shows them turning together; print them **Apart**. Gears under 13 teeth turn less smoothly.
+- **Bolt and nut.** ISO metric threads from M3 to M30, or your own diameter and pitch, with a hex head, a knob head or none (a threaded rod), and a hex nut with the fit gap of play. Both print standing. Threads under 6 mm come out rough with a 0.4 mm nozzle.
+- **Print-in-place hinge.** Two leaves joined by knuckles round a pin, printed already assembled: break it free with a gentle twist. Set the length, the leaves, the number of knuckles, the knuckle and pin sizes and screw holes. The holes in the knuckles have pointed tops so they print without supports. The print check marks the pin's underside: it prints over a gap as narrow as the fit gap, which a print-in-place hinge needs. Below 0.25 mm the knuckles may fuse.
+- **Snap-fit clip.** A clip with two arms that squeeze through a slot in a plate and spring back behind it. It prints flat, so the arms bend along their layers and don't snap. Set the width, the arm thickness, how far the hooks catch, extra arm length (longer bends more easily) and the plate's thickness.
+- **Fit test.** See above. The peg's size, how many holes, the smallest gap and the step can be set, and an M8 test bolt and nut can come with it.
+
+**Fix-it parts**
+
+- **Knob.** Fluted, knurled, star or smooth, for a D shaft (set the flat), a round shaft, or a nut or bolt head held in a hexagon. It prints upside down, on its top, with an optional pointer line cut into the top.
+- **Leg cap or tube plug.** A cap that goes over the end of a round or square leg, or a ribbed plug that pushes into a tube, with a sole to stand on.
+- **Shelf support.** A pin for the hole in the cabinet's side (usually 5 mm) with a pad the shelf rests on and an optional lip. It prints lying down, so its layers run along the pin and it doesn't snap off. Make four (**How many**).
+- **Battery cover.** Type the opening's size: a plate with a rim that sits just inside the opening, tabs that slide under the case at one end and a latch at the other.
+- **Cable clip.** For one to eight cables side by side, with screw holes or a pad for double-sided tape. The arch prints over the cable with a short flat bridge.
+- **Spacer or washer.** Round or hexagonal, with a hole for the screw (the fit gap is added).
+
+**How many** makes up to 24 copies, laid out on the bed.
 
 ## 4. Art: pictures and text
 

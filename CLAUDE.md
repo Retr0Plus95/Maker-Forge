@@ -80,6 +80,9 @@ Plus, depending on what changed:
 - business cards (`buildCard`, `cardFace`, `cardOne` and the other `card*` functions in `src/app.html`) or the QR code encoder (`qrEncode`,
   `qrPayload` in `src/core.js`) → `npm run test:card` (`CORE=1` for the encoder only; every code is read back with the `jsqr` dev
   dependency, from the printed card's geometry) and `ONLY=card npm run check:browser` (the same with real fonts)
+- mechanisms or fix-it parts (`buildMech`, `buildFixit`, the `fit*` helpers, `state.base.fit`), `gearOutline` / `threadSolid` in
+  `src/core.js`, the keychain's second line or credit, or the print check's `surfaceBelow` → `npm run test:fit` (`CORE=1` for the
+  gears and threads only) and `npm run test:print`
 - `tools-after-squash.js` or `.github/workflows/after-squash.yml` → `npm run test:squash`
 - a change a user would notice → update `MANUAL.md` and `CHANGELOG.md`
 

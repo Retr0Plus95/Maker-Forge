@@ -434,7 +434,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.30.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.31.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -678,7 +678,7 @@ const CONSUMES_ART = { cutter:1, pcb:1, lightbox:1, tracer:1, jigsaw:1, lithopha
 // which of the picture's own settings each of those objects reads; the Art tab shows only these
 const ART_USED_BY = { cutter:["width","mirror","colours","smooth"], lightbox:["mirror","colours","smooth"], enclosure:["mirror","colours","smooth"], phonecase:["mirror","colours","smooth"], card:["mirror","colours","smooth"],
   jigsaw:["mirror","colours","smooth"], pcb:["mirror"], tracer:[], lithophane:["mirror"], canvas:["mirror","colours","smooth"] };
-const SHAPES = [["tracer","Photo to 3D tracer"],["lithophane","Lithophane"],["board","Flat shape"],["nameplate","Name plate & keychain"],["card","Business card"],["canvas","Plastic canvas / mosaic"],["jigsaw","Jigsaw puzzle"],
+const SHAPES = [["tracer","Photo to 3D tracer"],["lithophane","Lithophane"],["board","Flat shape"],["nameplate","Name plate & keychain"],["card","Business card"],["mech","Mechanisms"],["fixit","Fix-it parts"],["canvas","Plastic canvas / mosaic"],["jigsaw","Jigsaw puzzle"],
   ["bobble","Bobble head"],["cutter","Cookie cutter from artwork"],["turned","Turned shape (vase, egg, cone)"],
   ["pcb","Circuit board from a schematic"],["lightbox","Lightbox / shadow box"],["frame","Photo frame"],["shell","Tea light / lantern"],["box","Plaque / box"],["cylinder","Cylinder"],
   ["hex","Hex prism"],["sphere","Sphere"],["enclosure","Project box / enclosure"],["phonecase","Phone case"],["stl","Import a model"],["none","No object"]];
@@ -735,7 +735,13 @@ const PRESETS = {
   "Business card":{ base:{ type:"card" },
     tip:"Type your name and details on the Make tab. The front prints face down, flush and smooth; a QR code, a logo, a pattern and an NFC tag are all options." },
   "Phone case":{ base:{ type:"phonecase" }, slots:[{ hex:"#2b2d42", name:"Black TPU" }],
-    tip:"Pick your phone, print the fit test rim first, then the case. Print it in TPU so it snaps on." }
+    tip:"Pick your phone, print the fit test rim first, then the case. Print it in TPU so it snaps on." },
+  "Gear pair":{ base:{ type:"mech", mech:{ kind:"gears" } },
+    tip:"Set the teeth and the tooth size: the panel says how far apart to put the shafts. Print the fit test first to find your fit gap." },
+  "Bolt and nut":{ base:{ type:"mech", mech:{ kind:"bolt" } },
+    tip:"Pick a metric size or type your own. Both print standing, with no supports; the nut has the fit gap of play." },
+  "Replacement knob":{ base:{ type:"fixit", fixit:{ kind:"knob" } },
+    tip:"Measure the shaft with calipers: its diameter, and the flat if it has one. The knob prints on its top." }
 };
 /*EXAMPLES*/
 
@@ -860,7 +866,23 @@ const DEFAULTS = () => ({
       sym:{ glyph:"♥", glyph2:"★", side:"both", size:1 },
       pic:{ on:false, item:0, side:"left", size:1.1, colour:true, gap:2 },
       engrave:false, nameH:1.2, nameSlot:1, accent:true, accentInset:0.9, accentH:0.6, accentSlot:3,
-      doubleSided:false, backH:0.8, backSlot:1 },
+      doubleSided:false, backH:0.8, backSlot:1,
+      line2:"", line2Size:0.5, line2Gap:2.5,
+      credit:{ on:false, text:"", size:3.5, depth:0.4, inlay:true, slot:1, font:Math.max(0, FONTS.findIndex(f => f.n === "Nunito")) } },
+    fit:{ gap:0.25 },
+    mech:{ kind:"gears",
+      gears:{ teeth1:24, teeth2:12, module:1.5, thick:6, bore:5, boreShape:"d", hub:true, hubDia:12, hubH:4, layout:"apart", angle:20 },
+      bolt:{ size:"M10", dia:10, pitch:1.5, af:16, length:25, head:"hex", headH:6.5, nut:true, nutH:8.4 },
+      hinge:{ length:50, width:16, thick:2.4, knuckles:5, knuckleDia:7, pinDia:3.2, holes:true, holeDia:3.5 },
+      snap:{ width:8, armThick:1.6, hook:1.2, armLen:8, wall:3 },
+      coupon:{ dia:8, steps:6, from:0.05, step:0.1, thread:false } },
+    fixit:{ kind:"knob", count:1,
+      knob:{ dia:32, h:18, grip:"fluted", flutes:10, shaft:6, shaftShape:"d", flat:1.5, depth:13, top:3, pointer:true },
+      foot:{ style:"cap", shape:"round", size:22, depth:12, wall:2, floor:3 },
+      shelfpin:{ pinDia:5, pinLen:8, padW:12, padD:16, padT:3, lip:true },
+      cover:{ w:48, h:30, thick:1.6, lip:1.5, tabs:2, latch:true },
+      clip:{ cable:6, count:1, width:10, style:"screw", screw:3.5 },
+      spacer:{ od:12, id:5, h:6, hex:false } },
     canvas:{ cells:34, pitch:4.5, gap:0.7, thick:1.6, tileH:1, margin:4, radius:3, holes:true, holeSize:1.4,
       open:false, hang:true, hangDia:4 },
     bobble:{ headDia:44, headShape:"round", flatBottom:2, hat:false, hatH:9, hatBrim:3,
@@ -3285,9 +3307,9 @@ function batchNames(text){
 // each name's plate is kept while the settings stay the same, so editing the list only builds new names
 const batchCache = { key:"", plates:new Map() };
 async function buildNameBatch(){
-  const np = state.base.nameplate, names = batchNames(np.names), keep = np.text, plates = [];
+  const np = state.base.nameplate, names = batchNames(np.names), keep = np.text, keep2 = np.line2, plates = [];
   if (!names.length){ notify("Type the names, one per line."); return []; }
-  const key = JSON.stringify({ ...np, text:"", names:"", batch:false, slots:state.slots.map(sl => sl.hex),
+  const key = JSON.stringify({ ...np, text:"", line2:"", names:"", batch:false, slots:state.slots.map(sl => sl.hex),
     items: np.pic && np.pic.on ? state.items.map(d => `${d.id}:${d._srcSig || ""}:${d.skip}`) : [] });
   if (batchCache.key !== key){ batchCache.key = key; batchCache.plates.clear(); }
   let worst = { pieces:0, holes:0, name:"" };
@@ -3296,7 +3318,8 @@ async function buildNameBatch(){
       const line = $("#statusLine"); if (line) line.textContent = `Building name plates… ${i+1} of ${names.length}`;
       let hit = batchCache.plates.get(names[i]);
       if (!hit){
-        np.text = names[i];
+        const [first, second] = names[i].split("|");                  // "Emma | Svensson": the surname on a second line
+        np.text = first.trim() || " "; np.line2 = (second || "").trim();
         hit = { parts: await buildNamePlate(), info: { ...plateInfo } };
         batchCache.plates.set(names[i], hit);
         await new Promise(r => setTimeout(r, 0));
@@ -3307,7 +3330,7 @@ async function buildNameBatch(){
       parts.forEach(q => { const b = C.solidBounds(q.solid); mn[0] = Math.min(mn[0], b.mn[0]); mn[1] = Math.min(mn[1], b.mn[2]); mx[0] = Math.max(mx[0], b.mx[0]); mx[1] = Math.max(mx[1], b.mx[2]); });
       if (parts.length) plates.push({ parts, mn, mx });
     }
-  } finally { np.text = keep; }
+  } finally { np.text = keep; np.line2 = keep2; }
   // rows as wide as the bed allows, 4 mm apart, the whole layout centred
   const bedW = (state.printer.bed || [256,256,256])[0] - 10, gap = 4, place = [];
   let x = 0, z = 0, rowD = 0;
@@ -3353,10 +3376,25 @@ async function buildNamePlate(){
       actualBoundingBoxAscent: m2.actualBoundingBoxAscent, actualBoundingBoxDescent: m2.actualBoundingBoxDescent };
   });
   const lineH = fontPx*np.lineGap;
-  const inkW = Math.max(4, ...metrics.map(m=>Math.max(m.width, m.actualBoundingBoxRight+m.actualBoundingBoxLeft)));
-  const inkH = Math.max(4, lines.length === 1
+  // a second, smaller line under the name (a surname), centred under it (Session 37)
+  const line2 = String(np.line2 || "").replace(/\s+/g, " ").trim().slice(0, 60);
+  const font2Px = fontPx*clamp(np.line2Size || 0.5, 0.3, 1), space2 = spacePx*clamp(np.line2Size || 0.5, 0.3, 1);
+  const font2 = `${f.w} ${font2Px}px "${f.n}", sans-serif`;
+  let m2 = null;
+  if (line2){
+    probe.font = font2; if ("letterSpacing" in probe) probe.letterSpacing = "0px";
+    const mm = probe.measureText(line2), w2 = manual ? [...line2].reduce((a,ch)=>a+probe.measureText(ch).width, 0) + space2*Math.max(0, [...line2].length-1) : mm.width;
+    if (!manual && "letterSpacing" in probe){ probe.letterSpacing = space2.toFixed(2)+"px"; }
+    m2 = { width: manual ? w2 : probe.measureText(line2).width, left: mm.actualBoundingBoxLeft || 0,
+      asc: mm.actualBoundingBoxAscent || font2Px*0.7, desc: mm.actualBoundingBoxDescent || 0 };
+    probe.font = `${f.w} ${fontPx}px "${f.n}", sans-serif`;
+  }
+  const gap2 = m2 ? clamp(np.line2Gap == null ? 2.5 : np.line2Gap, 0, 15)*PLATE_PX : 0;
+  const inkW = Math.max(4, ...metrics.map(m=>Math.max(m.width, m.actualBoundingBoxRight+m.actualBoundingBoxLeft)), m2 ? m2.width + Math.abs(m2.left) : 0);
+  const inkH = Math.max(4, (lines.length === 1
     ? metrics[0].actualBoundingBoxAscent + metrics[0].actualBoundingBoxDescent
-    : lineH*(lines.length-1) + metrics[0].actualBoundingBoxAscent + metrics[metrics.length-1].actualBoundingBoxDescent);
+    : lineH*(lines.length-1) + metrics[0].actualBoundingBoxAscent + metrics[metrics.length-1].actualBoundingBoxDescent)
+    + (m2 ? gap2 + m2.asc + m2.desc : 0));
   const tabR = (np.holeDia/2+np.rim)*PLATE_PX;
   const endR = np.end !== "none" ? (inkH/lines.length)*0.34*np.endScale : 0;
   const arcPad = np.arc ? Math.abs(np.arc)/90*inkW*0.3 : 0;
@@ -3449,6 +3487,16 @@ async function buildNamePlate(){
         refresh();
       }
     }
+  }
+  if (m2){                                          // the second line, drawn after the dots so its letters are not taken for dots
+    const last = metrics[metrics.length-1], y2 = baseY + (lines.length-1)*lineH + last.actualBoundingBoxDescent + (np.arc && lines.length === 1 ? arcPad : 0) + gap2 + m2.asc;
+    ctx.save(); ctx.font = font2; ctx.fillStyle = "#000"; ctx.textAlign = "left";
+    if ("letterSpacing" in ctx) ctx.letterSpacing = manual ? "0px" : space2.toFixed(2)+"px";
+    let x2 = W/2 - m2.width/2 + m2.left;
+    if (manual) for (const ch of line2){ ctx.fillText(ch, x2, y2); x2 += ctx.measureText(ch).width + space2; }
+    else ctx.fillText(line2, x2, y2);
+    ctx.restore();
+    refresh();
   }
   const sym = np.sym || { side:"none" };
   if (sym.side && sym.side !== "none" && (sym.glyph || sym.glyph2)){
@@ -3566,14 +3614,54 @@ async function buildNamePlate(){
   const parts = [], plateSlot = clamp(state.base.slot,0,state.slots.length-1);
   plateInfo = { pieces:platePolys.length, holes:platePolys.reduce((a,p)=>a+p.holes.length,0) };
 
+  // a small line of text on the back (a credit: your website, shop or name), mirrored so it reads with the tag turned
+  // over, cut into the bottom face, and filled flush in a second colour or left engraved (Session 37). It shrinks
+  // until it sits 0.8 mm inside the plate's edge and clear of the keyring hole
+  const cr = np.credit || {}, crText = cr.on && !np.doubleSided ? String(cr.text || "").replace(/\s+/g, " ").trim().slice(0, 40) : "";
+  let creditPolys = [];
+  if (crText){
+    const cf = FONTS[clamp(cr.font|0, 0, FONTS.length-1)];
+    await document.fonts.load(`${cf.w} 120px "${cf.n}"`);
+    const outside = new Uint8Array(W*H);
+    for (let i=0;i<outside.length;i++) outside[i] = plateField[i] > 0 ? 0 : 1;
+    const dEdge = C.edt(outside, W, H), nb = maskBounds(coverage, W, H), margin = 0.8*PLATE_PX;
+    const cxp = (nb.minX + nb.maxX)/2, cyp = (nb.minY + nb.maxY)/2;
+    const cc = document.createElement("canvas"); cc.width = W; cc.height = H;
+    const cctx = cc.getContext("2d", { willReadFrequently:true });
+    let h = clamp(cr.size || 3.5, 1.5, 8), done = null;
+    for (let tries = 0; tries < 12 && h >= 1.5 && !done; tries++, h *= 0.88){
+      cctx.clearRect(0, 0, W, H);
+      cctx.font = `${cf.w} 200px "${cf.n}", sans-serif`;
+      const m0 = cctx.measureText(crText), ink = (m0.actualBoundingBoxAscent + m0.actualBoundingBoxDescent) || 140;
+      const px = 200*h*PLATE_PX/ink;
+      cctx.font = `${cf.w} ${px}px "${cf.n}", sans-serif`;
+      const m1 = cctx.measureText(crText), asc = m1.actualBoundingBoxAscent || px*0.7, desc = m1.actualBoundingBoxDescent || 0;
+      cctx.save(); cctx.translate(cxp, cyp); cctx.scale(-1, 1); cctx.fillStyle = "#000"; cctx.textBaseline = "alphabetic";
+      cctx.fillText(crText, -m1.width/2, (asc - desc)/2);
+      cctx.restore();
+      const d = cctx.getImageData(0, 0, W, H).data; let ok = true, any = false;
+      for (let i=0;i<W*H && ok;i++) if (d[i*4+3] >= 128){ any = true; if (dEdge[i] < margin) ok = false; }
+      if (ok && any) done = { field:C.coverageField(d, W, H), h };
+    }
+    if (done){
+      creditPolys = traceIn(done.field, maskBounds(done.field, W, H), 2, fopt);
+      plateInfo.credit = { size:done.h, smaller: done.h < clamp(cr.size || 3.5, 1.5, 8) - 0.01 };
+    } else plateInfo.credit = { size:0, smaller:true };
+  }
+  // the plate with letters cut out of a layer of it; a letter's own holes (the middle of an o) stay as islands
+  const cutOut = (polys, cut) => polys.map(p => ({ outer:p.outer, holes:[...p.holes, ...cut.map(n => n.outer)] }))
+    .concat(...cut.map(n => n.holes.map(hl => ({ outer:hl, holes:[] }))));
+  const credD = creditPolys.length ? clamp(cr.depth || 0.4, 0.2, Math.min(1.2, np.thick*0.4)) : 0;
+  const plateLayers = [];
+  if (credD) plateLayers.push(C.extrudePolysAt(cutOut(platePolys, creditPolys), 0, credD + 0.01));
+
   if (np.engrave){
-    const depth = clamp(np.nameH, 0.2, np.thick-0.4);
-    const cutPolys = platePolys.map(p => ({ outer:p.outer, holes:[...p.holes, ...namePolys.map(n=>n.outer)] }));
-    parts.push({ name:"Plate", slot:plateSlot, solid:C.mergeSolids([
-      C.extrudePolysAt(platePolys, 0, np.thick-depth),
-      C.extrudePolysAt(cutPolys, np.thick-depth-0.01, np.thick)]) });
+    const depth = clamp(np.nameH, 0.2, np.thick - 0.4 - credD);
+    plateLayers.push(C.extrudePolysAt(platePolys, credD, np.thick-depth), C.extrudePolysAt(cutOut(platePolys, namePolys), np.thick-depth-0.01, np.thick));
+    parts.push({ name:"Plate", slot:plateSlot, solid:C.mergeSolids(plateLayers) });
   } else {
-    parts.push({ name:"Plate", slot:plateSlot, solid:C.extrudePolysAt(platePolys, 0, np.thick) });
+    plateLayers.push(C.extrudePolysAt(platePolys, credD, np.thick));
+    parts.push({ name:"Plate", slot:plateSlot, solid:plateLayers.length > 1 ? C.mergeSolids(plateLayers) : plateLayers[0] });
     parts.push({ name:"Name", slot:clamp(np.nameSlot,0,state.slots.length-1),
       solid:C.extrudePolysAt(namePolys, Math.max(0,np.thick-0.3), np.thick+np.nameH) });
     if (np.accent){
@@ -3607,7 +3695,421 @@ async function buildNamePlate(){
     if (backPolys.length) parts.push({ name:"Name (back)", slot:clamp(np.backSlot,0,state.slots.length-1),
       solid:C.extrudePolysAt(backPolys, -np.backH, 0.3) });
   }
+  if (credD && cr.inlay !== false) parts.push({ name:"Credit (back)", slot:clamp(cr.slot|0, 0, state.slots.length-1),
+    solid:C.extrudePolysAt(creditPolys, 0, credD) });
   return parts.filter(p=>p.solid);
+}
+
+/* ---------- 4c. parts that fit (Session 37): mechanisms and fix-it parts ----------
+   Everything is built where it prints: on the bed (y = 0), in the orientation that needs no supports. One fit gap,
+   shared by both (state.base.fit.gap), is the play left between parts that move or slide; the fit test finds it. */
+let fitInfo = null;                                   // what the last build says: notes for the panel
+const fitEx = (polys, y0, y1) => C.extrudePolysAt(polys.map(q => ({ outer:q.outer, holes:q.holes || [] })), y0, y1);
+const fitGap = () => clamp(+((state.base.fit || {}).gap), 0, 1);
+const fitCircle = (r, n) => C.ringCircle(Math.max(0.05, r), n || Math.max(24, Math.min(160, Math.round(r*8))));
+const fitHex = af => { const R = af/Math.sqrt(3); return [0,1,2,3,4,5].map(k => [R*Math.cos(k*Math.PI/3), R*Math.sin(k*Math.PI/3)]); };
+const fitRect = (x0, y0, x1, y1) => [[x0,y0],[x1,y0],[x1,y1],[x0,y1]];
+const fitRound = (w, h, r) => C.ringRect(w, h, Math.max(0, Math.min(r, Math.min(w, h)/2 - 0.01)), 6);
+// a circle with a flat (a D shaft's hole): diameter d, the flat `flat` in from the edge on the +x side
+function fitD(d, flat, n){
+  const r = d/2, xf = r - clamp(flat, 0, r*0.9), a0 = Math.acos(xf/r), L = [];
+  n = n || 48;
+  for (let i=0;i<=n;i++){ const a = a0 + (2*Math.PI - 2*a0)*i/n; L.push([r*Math.cos(a), r*Math.sin(a)]); }
+  return L;
+}
+// a hole that prints with nothing under its roof: round below, its top drawn in at 45° to a point (or to a flat
+// at vmax, if the point would go higher), centred on (0, 0) with v up
+function fitTear(r, vmax, n){
+  n = n || 40; const L = [], top = Math.min(r*Math.SQRT2, vmax == null ? Infinity : vmax);
+  for (let i=0;i<=n;i++){ const a = Math.PI*0.75 + Math.PI*1.5*i/n; L.push([r*Math.cos(a), r*Math.sin(a)]); }   // 135° round the bottom to 45°
+  const x = r*Math.SQRT1_2 - (top - r*Math.SQRT1_2);               // where the 45° sides reach the top
+  if (x > 1e-3) L.push([x, top], [-x, top]); else L.push([0, top]);
+  return L;
+}
+// an outline given by its radius at each angle (knurls, flutes, lobes)
+function fitPolar(f, n){ const L = []; for (let i=0;i<n;i++){ const a = 2*Math.PI*i/n; const r = f(a); L.push([r*Math.cos(a), r*Math.sin(a)]); } return L; }
+// a shape drawn in a vertical plane and extruded sideways: 2D (u, v) becomes (x, y) = (u, v), from z0 to z1
+const alongZ = (polys, z0, z1) => C.affineSolid(fitEx(polys, z0, z1), [1,0,0, 0,0,-1, 0,1,0], [0,0,0]);
+// … or extruded along x, from x0 to x1: 2D (u, v) becomes (z, y) = (u + cz, v + cy)
+const alongX = (polys, x0, x1, cy, cz) => C.affineSolid(fitEx(polys, x0, x1), [0,1,0, 0,0,-1, 1,0,0], [0, cy || 0, cz || 0]);
+const moved = (s, dx, dz) => C.transformSolid(s, 1, dx, 0, dz);
+// lay groups of solids out in a row, `gap` apart, the whole row centred on the bed; each group: { parts:[{name, slot, solid}] }
+function fitRow(groups, gap){
+  const boxes = groups.map(g => { const mn = [Infinity, Infinity], mx = [-Infinity, -Infinity];
+    g.parts.forEach(p => { const b = C.solidBounds(p.solid); mn[0] = Math.min(mn[0], b.mn[0]); mn[1] = Math.min(mn[1], b.mn[2]); mx[0] = Math.max(mx[0], b.mx[0]); mx[1] = Math.max(mx[1], b.mx[2]); });
+    return { mn, mx }; });
+  const total = boxes.reduce((a, b) => a + b.mx[0] - b.mn[0], 0) + gap*(groups.length - 1);
+  let x = -total/2; const out = [];
+  groups.forEach((g, i) => { const b = boxes[i], dx = x - b.mn[0], dz = -(b.mn[1] + b.mx[1])/2;
+    g.parts.forEach(p => out.push({ name:p.name, slot:p.slot, solid:moved(p.solid, dx, dz) })); x += b.mx[0] - b.mn[0] + gap; });
+  return out;
+}
+// n copies of the same parts in a grid, 4 mm apart
+function fitCopies(parts, n){
+  n = clamp(Math.round(n || 1), 1, 24); if (n === 1) return fitRow([{ parts }], 0);
+  const b = parts.map(p => C.solidBounds(p.solid)), w = Math.max(...b.map(q => q.mx[0])) - Math.min(...b.map(q => q.mn[0])), d = Math.max(...b.map(q => q.mx[2])) - Math.min(...b.map(q => q.mn[2]));
+  const cols = Math.ceil(Math.sqrt(n*d/Math.max(1, w))), rows = Math.ceil(n/cols), out = new Map();
+  for (let k=0;k<n;k++){ const c = k % cols, r = Math.floor(k/cols), dx = (c - (cols-1)/2)*(w + 4), dz = (r - (rows-1)/2)*(d + 4);
+    parts.forEach(p => { const key = p.name + "|" + p.slot; if (!out.has(key)) out.set(key, { name:p.name, slot:p.slot, list:[] }); out.get(key).list.push(moved(p.solid, dx, dz)); }); }
+  const merged = [...out.values()].map(g => ({ name:g.name, slot:g.slot, solid:C.mergeSolids(g.list) }));
+  return fitRow([{ parts:merged }], 0);
+}
+// ISO metric coarse threads: diameter, pitch, hex across flats (bolt head and nut), nut height
+const METRIC = { M3:[3,0.5,5.5,2.4], M4:[4,0.7,7,3.2], M5:[5,0.8,8,4.7], M6:[6,1,10,5.2], M8:[8,1.25,13,6.8], M10:[10,1.5,16,8.4],
+  M12:[12,1.75,18,10.8], M16:[16,2,24,14.8], M20:[20,2.5,30,18], M24:[24,3,36,21.5], M30:[30,3.5,46,25.6] };
+function boltSpec(B){
+  if (B.size !== "custom" && METRIC[B.size]){ const [d, p, af, nh] = METRIC[B.size]; return { d, p, af, nh }; }
+  const d = clamp(B.dia, 3, 60); return { d, p:clamp(B.pitch, 0.4, 6), af:Math.max(d*1.3, clamp(B.af, 4, 90)), nh:d*0.8 };
+}
+
+function buildMech(){
+  const M = state.base.mech, g = fitGap(), slot = clamp(state.base.slot, 0, state.slots.length-1), info = fitInfo = { lines:[] };
+  const say = t => info.lines.push(t);
+  if (M.kind === "gears"){
+    const G = M.gears, m = clamp(G.module, 0.5, 5), th = clamp(G.thick, 1, 40), zs = [clamp(Math.round(G.teeth1), 8, 150), clamp(Math.round(G.teeth2), 8, 150)];
+    const made = zs.map((z, i) => {
+      const o = C.gearOutline(z, m, G.angle, g/2, 8);
+      const boreD = clamp(G.bore, 0, o.rootR*2 - 2), hole = boreD <= 0 ? [] : [G.boreShape === "d" ? fitD(boreD + g, boreD*0.2) : G.boreShape === "hex" ? fitHex(boreD + g) : fitCircle((boreD + g)/2)];
+      const list = [fitEx([{ outer:o.outline, holes:hole }], 0, th)];
+      if (G.hub && G.hubH > 0){
+        const hr = clamp(G.hubDia/2, boreD/2 + 1.2, o.rootR - 0.5);
+        list.push(fitEx([{ outer:fitCircle(hr), holes:hole }], th - 0.01, th + G.hubH));
+      }
+      return { o, z, parts:[{ name:`Gear ${i+1} (${z} teeth)`, slot, solid:C.mergeSolids(list) }] };
+    });
+    const a = m*(zs[0] + zs[1])/2;
+    if (G.layout === "meshed"){
+      const turn = Math.PI - Math.PI/zs[1], c = Math.cos(turn), s = Math.sin(turn);
+      const g2 = C.affineSolid(made[1].parts[0].solid, [c,0,s, 0,1,0, -s,0,c], [a, 0, 0]);
+      info.parts = fitRow([{ parts:[made[0].parts[0], { ...made[1].parts[0], solid:g2 }] }], 0);
+      say("Shown meshed, to check them. Print them apart: they would print as one piece.");
+    } else info.parts = fitRow(made, 4);
+    say(`Put the shafts ${a.toFixed(2)} mm apart, centre to centre. Gear 2 turns ${+(zs[0]/zs[1]).toFixed(2)} times for each turn of gear 1.`);
+    say(`Gear 1 is ${(made[0].o.tipR*2).toFixed(1)} mm across, gear 2 ${(made[1].o.tipR*2).toFixed(1)} mm. Each tooth is ${(g/2).toFixed(2)} mm thinner for play.`);
+    if (Math.min(...zs) < 13) say("Gears with fewer than 13 teeth mesh less smoothly: more teeth, or a smaller module, turn better.");
+    if (m < 1) say("Teeth this small need a fine nozzle: a module of 1 or more prints well with 0.4 mm.");
+  }
+  else if (M.kind === "bolt"){
+    const B = M.bolt, sp = boltSpec(B), len = clamp(B.length, 4, 200), segs = clamp(Math.round(sp.d*7), 48, 160);
+    const headH = B.head === "none" ? 0 : clamp(B.headH || sp.d*0.65, 2, 40), groups = [];
+    const list = [C.threadSolid({ rMajor:sp.d/2, pitch:sp.p, y0:headH ? headH - 0.3 : 0, y1:headH + len, segs })];
+    if (B.head === "hex") list.push(fitEx([{ outer:fitHex(sp.af) }], 0, headH));
+    if (B.head === "knob") list.push(fitEx([{ outer:fitPolar(a => sp.af*0.62*(0.86 + 0.14*Math.cos(6*a)), 96) }], 0, headH));
+    groups.push({ parts:[{ name: B.head === "none" ? "Threaded rod" : "Bolt", slot, solid:C.mergeSolids(list) }] });
+    if (B.nut){
+      const nh = clamp(B.nutH || sp.nh, 2, 60);
+      groups.push({ parts:[{ name:"Nut", slot, solid:C.threadSolid({ rMajor:sp.d/2, pitch:sp.p, y0:0, y1:nh, inside:true, gap:g, outside:C.hexRadius(sp.af), segs }) }] });
+    }
+    info.parts = fitRow(groups, 5);
+    say(`${B.size === "custom" ? `${sp.d} mm` : B.size} × ${sp.p} mm pitch. The nut has ${g.toFixed(2)} mm of play all round.`);
+    say("Printed standing, the thread needs no supports. A hex head takes a spanner of " + sp.af + " mm.");
+    if (sp.d < 6) say("Threads under 6 mm come out rough with a 0.4 mm nozzle: print slowly with fine layers (0.12 mm), or use a metal screw.");
+  }
+  else if (M.kind === "hinge"){
+    const Hn = M.hinge, L = clamp(Hn.length, 10, 250), W = clamp(Hn.width, 5, 100), n = clamp(Math.round(Hn.knuckles) | 1, 3, 15);
+    let R = Math.max(clamp(Hn.knuckleDia, 4, 30)/2, 2.5), t = clamp(Hn.thick, 1, 2*R*0.8);
+    const cy = 0.8*R, rp = clamp(Hn.pinDia/2, 0.8, cy - g - 0.6), off = R + g;
+    const seg = L/n, prof = (r, hole) => [{ outer:fitPolar(a => r, 48).map(([u, v]) => [u, Math.max(v, -cy)]), holes:hole ? [fitTear(hole, r - 0.6)] : [] }];
+    const A = [], B = [];
+    for (let i=0;i<n;i++){
+      const x0 = i*seg + (i ? g/2 : 0), x1 = (i + 1)*seg - (i < n-1 ? g/2 : 0), mine = i % 2 === 0;
+      if (mine){
+        A.push(alongX(prof(R), x0, x1, cy, 0));
+        A.push(fitEx([{ outer:fitRect(x0, 0, x1, off + 0.01) }], 0, t));      // joins the knuckle to its leaf
+      } else {
+        B.push(alongX(prof(R, rp + g), x0, x1, cy, 0));
+        const zA = Math.sqrt(Math.max(0, (rp + g + 0.5)**2 - Math.max(0, cy - t)**2));
+        if (zA < R - 0.2) B.push(fitEx([{ outer:fitRect(x0, -off - 0.01, x1, -zA) }], 0, t));
+      }
+    }
+    A.push(alongX([{ outer:fitCircle(rp, 32), holes:[] }], 0.01, L - 0.01, cy, 0));          // the pin, through every knuckle
+    const holes = side => !Hn.holes ? [] : [0.2, 0.8].map(f => fitCircle(clamp(Hn.holeDia, 1, W*0.6)/2, 32).map(([x, y]) => [x + L*f, y + side*(off + W/2)]));
+    A.push(fitEx([{ outer:fitRect(0, off, L, off + W), holes:holes(1) }], 0, t));
+    B.push(fitEx([{ outer:fitRect(0, -off - W, L, -off), holes:holes(-1) }], 0, t));
+    info.parts = fitRow([{ parts:[{ name:"Leaf with the pin", slot, solid:C.mergeSolids(A) }, { name:"Leaf", slot, solid:C.mergeSolids(B) }] }], 0);
+    say(`Prints in one piece, already joined: break it free with a gentle twist. ${g.toFixed(2)} mm of play round the pin and between the knuckles.`);
+    say("The print check marks the underside of the pin: it prints over a gap as narrow as the fit gap, which a print-in-place hinge needs. The holes' pointed tops print without supports.");
+    if (g < 0.25) say("Below 0.25 mm the knuckles may fuse: print the fit test first.");
+  }
+  else if (M.kind === "snap"){
+    const S = M.snap, w = clamp(S.width, 3, 40), ta = clamp(S.armThick, 0.8, 5), h = clamp(S.hook, 0.4, 4), s = clamp(S.wall, 1, 15);
+    const slit = 2*h + 0.4, Y = ta + slit/2, bl = h*2.5, Lr = s + g + bl, slitIn = clamp(S.armLen, 0, 40), bx = slitIn + 4, Yb = Y + 3;
+    const plug = [[-bx,-Yb],[0,-Yb],[0,-Y],[Lr-bl,-Y],[Lr-bl,-Y-h],[Lr-bl*0.35,-Y-h],[Lr,-Y+0.3],[Lr,-slit/2],[-slitIn,-slit/2],
+      [-slitIn,slit/2],[Lr,slit/2],[Lr,Y-0.3],[Lr-bl*0.35,Y+h],[Lr-bl,Y+h],[Lr-bl,Y],[0,Y],[0,Yb],[-bx,Yb]];
+    const Hy = 2*Y + g, Hz = w + g, mg = 4;
+    info.parts = fitRow([
+      { parts:[{ name:"Clip", slot, solid:fitEx([{ outer:plug, holes:[] }], 0, w) }] },
+      { parts:[{ name:"Plate with the slot", slot, solid:fitEx([{ outer:fitRound(Hy + 2*mg + 6, Hz + 2*mg, 2), holes:[fitRect(-Hy/2, -Hz/2, Hy/2, Hz/2)] }], 0, s) }] }], 6);
+    say(`Push the clip's two arms through the slot: they squeeze ${h.toFixed(1)} mm in and spring back behind the ${s} mm plate.`);
+    say("The arms print flat, so they bend along their layers and don't snap. Longer arms bend more easily.");
+  }
+  else {                                              // the fit test: one peg, holes from tight to loose
+    const T = M.coupon, d = clamp(T.dia, 3, 30), n = clamp(Math.round(T.steps), 3, 10), from = clamp(T.from, 0, 1), step = clamp(T.step, 0.02, 0.3);
+    const pitch = d + 2 + 3.2, th = 4, holes = [], labels = [];
+    for (let i=0;i<n;i++){
+      const x = (i - (n-1)/2)*pitch, gp = from + i*step;
+      holes.push(fitCircle((d + gp)/2, 64).map(([u, v]) => [u + x, v + 2]));
+      const segs = C.strokeText(gp.toFixed(2).replace(/^0/, ""), x, -d/2 - 3, 3, false).segs;
+      labels.push(...C.strokePolys(segs, 0.3));
+    }
+    const plateW = n*pitch + 2, plateD = d + 13;
+    // a raised dot beside the hole for the fit gap now set, so a printed test shows where you are
+    let mark = -1; for (let i=0;i<n;i++) if (Math.abs(from + i*step - g) <= step/2 + 1e-9 && (mark < 0 || Math.abs(from + i*step - g) < Math.abs(from + mark*step - g))) mark = i;
+    const dot = mark < 0 ? null : fitEx([{ outer:fitCircle(0.75, 24).map(([u, v]) => [u + (mark - (n-1)/2)*pitch, v + d/2 + 3.6 + (from + mark*step)/4]) }], th - 0.01, th + 0.6);
+    const plate = C.mergeSolids([fitEx([{ outer:fitRound(plateW, plateD, 2).map(([u, v]) => [u, v - 1.5]), holes }], 0, th),
+      labels.length ? fitEx(labels, th - 0.01, th + 0.6) : null, dot]);
+    const peg = C.mergeSolids([fitEx([{ outer:fitCircle(d/2 + 3), holes:[] }], 0, 2), fitEx([{ outer:fitCircle(d/2, 64), holes:[] }], 1.99, 2 + th + 6)]);
+    const groups = [{ parts:[{ name:"Fit test plate", slot, solid:plate }] }, { parts:[{ name:"Peg", slot, solid:peg }] }];
+    if (T.thread){
+      const sp = METRIC.M8;
+      groups.push({ parts:[{ name:"Test bolt (M8)", slot, solid:C.threadSolid({ rMajor:4, pitch:sp[1], y0:0, y1:12, segs:64 }) }] });
+      groups.push({ parts:[{ name:"Test nut (M8)", slot, solid:C.threadSolid({ rMajor:4, pitch:sp[1], y0:0, y1:6.5, inside:true, gap:g, outside:C.hexRadius(13), segs:64 }) }] });
+    }
+    info.parts = fitRow(groups, 5);
+    say(`The peg is ${d} mm. Each hole is bigger by the number beside it, ${from.toFixed(2)} to ${(from + step*(n-1)).toFixed(2)} mm.`);
+    say("The first hole the peg slides through without forcing is your fit gap: set it below, and every mechanism and fix-it part uses it.");
+    say(mark < 0 ? `The fit gap now set (${g.toFixed(2)} mm) is outside these holes, so no hole has a dot.` : `The dot marks the hole for the fit gap now set (${g.toFixed(2)} mm).`);
+    if (T.thread) say(`The test nut has the fit gap now set (${g.toFixed(2)} mm): if it binds, raise the gap.`);
+  }
+  return info.parts;
+}
+
+function buildFixit(){
+  const F = state.base.fixit, g = fitGap(), slot = clamp(state.base.slot, 0, state.slots.length-1), info = fitInfo = { lines:[] };
+  const say = t => info.lines.push(t);
+  let parts = [];
+  if (F.kind === "knob"){
+    const K = F.knob, R = clamp(K.dia, 8, 120)/2, H = clamp(K.h, 4, 80), top = clamp(K.top, 1, H - 1), N = clamp(Math.round(K.flutes), 3, 40);
+    const outline = K.grip === "smooth" ? fitCircle(R, 96)
+      : K.grip === "knurled" ? fitPolar(a => { const n2 = Math.max(24, Math.round(2*Math.PI*R/1.4)), u = (a*n2/(2*Math.PI)) % 1; return R - 0.55*Math.abs(2*u - 1); }, Math.max(24, Math.round(2*Math.PI*R/1.4))*4)
+      : K.grip === "lobed" ? fitPolar(a => R*(0.7 + 0.3*Math.pow(0.5 + 0.5*Math.cos(N*a), 1.4)), 240)
+      : fitPolar(a => R - Math.min(R*0.18, 2.4)*Math.pow(0.5 + 0.5*Math.cos(N*a), 3), 240);
+    const sd = clamp(K.shaft, 0, R*2 - 4), depth = clamp(K.depth, 1, H - top);
+    const hole = sd <= 0 ? [] : [K.shaftShape === "d" ? fitD(sd + g, clamp(K.flat, 0.2, sd*0.4)) : K.shaftShape === "hex" ? fitHex(sd + g) : fitCircle((sd + g)/2)];
+    const list = [], pointer = K.pointer ? [fitRect(R*0.25, -0.6, R*0.8, 0.6)] : [];
+    if (pointer.length) list.push(fitEx([{ outer:outline, holes:pointer }], 0, 0.61));
+    list.push(fitEx([{ outer:outline, holes:[] }], pointer.length ? 0.6 : 0, H - depth + 0.01));
+    list.push(fitEx([{ outer:outline, holes:hole }], H - depth, H));
+    parts = [{ name:"Knob", slot, solid:C.mergeSolids(list) }];
+    say(`Prints upside down, on its top, so it needs no supports. The hole is ${sd ? (sd + g).toFixed(2) + " mm" : "left out"}${K.shaftShape === "d" ? ", with a flat for a D shaft" : K.shaftShape === "hex" ? " across flats, to grip a nut or a bolt head" : ""}.`);
+    if (K.pointer) say("The pointer line is cut into the top, in the first layers.");
+  }
+  else if (F.kind === "foot"){
+    const P = F.foot, sz = clamp(P.size, 5, 120), dep = clamp(P.depth, 2, 60), wall = clamp(P.wall, 0.8, 8), floor = clamp(P.floor, 0.8, 15);
+    const shape = (size, r) => P.shape === "square" ? fitRound(size, size, r) : fitCircle(size/2, 96);
+    if (P.style === "cap"){
+      const inner = sz + 2*g, outer = inner + 2*wall;
+      parts = [{ name:"Leg cap", slot, solid:C.mergeSolids([fitEx([{ outer:shape(outer, wall + 1.5), holes:[] }], 0, floor + 0.01),
+        fitEx([{ outer:shape(outer, wall + 1.5), holes:[shape(inner, 1.5)] }], floor, floor + dep)]) }];
+      say(`Fits over a ${P.shape === "square" ? "square" : "round"} leg ${sz} mm across, with ${g.toFixed(2)} mm of play. Prints sole down.`);
+    } else {
+      const body = sz - g, flange = sz + 2*wall + 2, list = [fitEx([{ outer:shape(flange, 2), holes:[] }], 0, floor + 0.01)];
+      const ribs = Math.max(1, Math.floor(dep/4)), wallIn = Math.min(1.6, body/2 - 1);
+      for (let i=0;i<ribs*2;i++){
+        const y0 = floor + dep*i/(ribs*2), y1 = floor + dep*(i + 1)/(ribs*2), s = i % 2 === 0 ? body : body + 0.6;
+        list.push(fitEx([{ outer:shape(s, 1), holes:[shape(s - 2*wallIn, 0.5)] }], y0 - 0.01, y1));
+      }
+      parts = [{ name:"Tube plug", slot, solid:C.mergeSolids(list) }];
+      say(`Pushes into a tube ${sz} mm across inside. Its ribs stand 0.3 mm proud to grip; the flange covers the tube's end.`);
+    }
+  }
+  else if (F.kind === "shelfpin"){
+    const S = F.shelfpin, d = clamp(S.pinDia, 2, 15), pl = clamp(S.pinLen, 2, 40), w = clamp(S.padW, 4, 60), dp = clamp(S.padD, 4, 80), t = clamp(S.padT, 1.5, 15);
+    const pd = d - g, hb = Math.max(pd + 3, t + 4);
+    // the support printed on its side: an L of pad and back plate, w wide; the pin lies along the bed with a flat underneath
+    const L = alongZ([{ outer:[[0,0],[dp + 3,0],[dp + 3,t],[3,t],[3,hb],[0,hb]], holes:[] }], -w/2, w/2);
+    const r = pd/2, flat = Math.min(0.4, r*0.3);
+    const pin = alongX([{ outer:fitPolar(() => r, 40).map(([u, v]) => [u, Math.max(v, -r + flat)]), holes:[] }], -pl, 0.01, r - flat, 0);
+    const lip = S.lip ? alongZ([{ outer:[[dp + 1.5,t - 0.01],[dp + 3,t - 0.01],[dp + 3,t + 2],[dp + 1.5,t + 2]], holes:[] }], -w/2, w/2) : null;
+    parts = [{ name:"Shelf support", slot, solid:C.mergeSolids([L, pin, lip]) }];
+    say(`The pin is ${pd.toFixed(2)} mm, for a ${d} mm hole. It prints lying down, so its layers run along it and it doesn't snap off.`);
+    say("Make four. The shelf rests on the pad; the back plate goes against the cabinet's side.");
+  }
+  else if (F.kind === "cover"){
+    const V = F.cover, w = clamp(V.w, 10, 200), h = clamp(V.h, 10, 200), t = clamp(V.thick, 0.8, 5), list = [];
+    list.push(fitEx([{ outer:fitRound(w, h, 2), holes:[] }], 0, t));
+    const lip = clamp(V.lip, 0, 6);
+    if (lip > 0) list.push(fitEx([{ outer:fitRound(w - 2*g - 1.6, h - 2*g - 1.6, 1.2), holes:[fitRound(w - 2*g - 4.4, h - 2*g - 4.4, 0.5)] }], t - 0.01, t + lip));
+    const tabs = clamp(Math.round(V.tabs), 0, 3), tw = Math.min(8, w/(tabs*2 + 1));
+    for (let i=0;i<tabs;i++){ const x = (i - (tabs - 1)/2)*w/(tabs + 0.5); list.push(fitEx([{ outer:fitRect(x - tw/2, -h/2 - 3, x + tw/2, -h/2 + 1) }], 0, Math.max(0.8, t*0.6))); }
+    if (V.latch){
+      list.push(fitEx([{ outer:fitRect(-5, h/2 - 1, 5, h/2 + 2.5) }], 0, t));
+      list.push(fitEx([{ outer:fitRect(-5, h/2 + 1.3, 5, h/2 + 2.5) }], t - 0.01, t + 1.4));
+    }
+    parts = [{ name:"Battery cover", slot, solid:C.mergeSolids(list) }];
+    say(`Measure the opening and type its size: the cover is ${w} × ${h} mm. The rim inside sits ${g.toFixed(2)} mm in from the edge so it locates the cover.`);
+    say("The tabs slide under the case at one end; the latch hooks at the other. It prints outer face down.");
+  }
+  else if (F.kind === "clip"){
+    const K = F.clip, c = clamp(K.cable, 1, 40), n = clamp(Math.round(K.count), 1, 8), w = clamp(K.width, 4, 40), wt = 1.6;
+    const Ri = c/2 + g, Ro = Ri + wt, pitch = 2*Ri + wt, base = K.style === "adhesive" ? 1.6 : 0, cy = base + c/2;
+    const cu = i => (i - (n-1)/2)*pitch, L = [];
+    const arc = (u0, r, a0, a1, k) => { for (let i=0;i<=k;i++){ const a = a0 + (a1 - a0)*i/k; L.push([u0 + r*Math.cos(a), cy + r*Math.sin(a)]); } };
+    L.push([cu(0) - Ro, base], [cu(0) - Ri, base]);
+    // the arch's inside comes to a flat at the cable's top along 45° lines, so it prints without supports
+    for (let i=0;i<n;i++){ arc(cu(i), Ri, Math.PI, Math.PI*0.75, 8); const q = Ri*(Math.SQRT2 - 1); L.push([cu(i) - q, cy + Ri], [cu(i) + q, cy + Ri]); arc(cu(i), Ri, Math.PI*0.25, 0, 8);
+      L.push([cu(i) + Ri, base]); L.push([i < n-1 ? cu(i+1) - Ri : cu(i) + Ro, base]); }
+    const hx = pitch/2, aL = Math.atan2(Math.sqrt(Math.max(0, Ro*Ro - hx*hx)), -hx);
+    for (let i=n-1;i>=0;i--) arc(cu(i), Ro, i === n-1 ? 0 : Math.PI - aL, i === 0 ? Math.PI : aL, 24);
+    const list = [alongZ([{ outer:L, holes:[] }], -w/2, w/2)], span = n*pitch + wt;
+    if (K.style === "adhesive") list.push(fitEx([{ outer:fitRect(-span/2 - 3, -w/2, span/2 + 3, w/2) }], 0, base + 0.01));
+    else {
+      const sd = clamp(K.screw, 1.5, 8), fl = sd + 6;
+      [-1, 1].forEach(sg => { const x0 = sg*(span/2 - 0.2), x1 = sg*(span/2 + fl);
+        list.push(fitEx([{ outer:fitRect(Math.min(x0, x1), -w/2, Math.max(x0, x1), w/2), holes:[fitCircle((sd + g)/2, 32).map(([u, v]) => [u + sg*(span/2 + fl/2), v])] }], 0, 2)); });
+    }
+    parts = [{ name:"Cable clip", slot, solid:C.mergeSolids(list) }];
+    say(`Holds ${n === 1 ? "a cable" : n + " cables"} ${c} mm thick${K.style === "adhesive" ? ", on a pad for double-sided tape" : `, with holes for ${K.screw} mm screws`}. The arch prints over the gap with a short bridge.`);
+  }
+  else {                                              // spacers and washers
+    const S = F.spacer, od = clamp(S.od, 3, 120), id = clamp(S.id, 0, od - 1.2), h = clamp(S.h, 0.4, 100);
+    const outer = S.hex ? fitHex(od) : fitCircle(od/2, 96);
+    parts = [{ name: h < 3 ? "Washer" : "Spacer", slot, solid:fitEx([{ outer, holes: id > 0 ? [fitCircle((id + g)/2, 64)] : [] }], 0, h) }];
+    say(`${S.hex ? `${od} mm across flats` : `${od} mm round`}, the hole ${id ? (id + g).toFixed(2) + " mm" : "left out"}, ${h} mm tall.`);
+  }
+  const n = clamp(Math.round(F.count), 1, 24);
+  if (n > 1) say(`${n} copies, laid out on the bed.`);
+  return info.parts = fitCopies(parts, n);
+}
+
+// a card under the settings that says what the last build said
+function fitInfoField(p){
+  const w = document.createElement("div"); w.className = "field full";
+  const fill = () => { w.innerHTML = fitInfo && fitInfo.lines.length ? `<div class="card">${fitInfo.lines.map(t => `<p class="hint" style="margin:4px 0">${esc(t)}</p>`).join("")}</div>` : ""; };
+  w._refreshSub = fill; fill(); p.appendChild(w);
+}
+function fitGapField(p){
+  group(p, "Fit", g2 => {
+    numField(g2,{ label:"Fit gap (mm)", min:0, max:1, step:0.05, get:()=>state.base.fit.gap, set:v=>state.base.fit.gap=v, onChange:baseChanged,
+      sub:()=>"The play left between parts that move, slide or screw together. Print the fit test (Mechanisms) to find your printer's." });
+  }, true);
+}
+function mechFields(p){
+  const M = state.base.mech;
+  selField(p, "What to make", [["gears","Gears (a pair)"],["bolt","Bolt and nut"],["hinge","Print-in-place hinge"],["snap","Snap-fit clip"],["coupon","Fit test"]],
+    ()=>M.kind, v=>{ M.kind = v; renderTab(); baseChanged(); });
+  if (M.kind === "gears"){
+    const G = M.gears;
+    numField(p,{ label:"Teeth on gear 1", min:8,max:150,step:1, get:()=>G.teeth1, set:v=>G.teeth1=v, onChange:baseChanged });
+    numField(p,{ label:"Teeth on gear 2", min:8,max:150,step:1, get:()=>G.teeth2, set:v=>G.teeth2=v, onChange:baseChanged });
+    numField(p,{ label:"Tooth size (module)", min:0.5,max:5,step:0.1, get:()=>G.module, set:v=>G.module=v, onChange:baseChanged,
+      sub:()=>"Both gears must have the same module to mesh. 1 to 2 prints well." });
+    numField(p,{ label:"Thickness (mm)", min:1,max:40,step:0.5, get:()=>G.thick, set:v=>G.thick=v, onChange:baseChanged });
+    group(p, "Shaft hole and hub", g2 => {
+      numField(g2,{ label:"Shaft (mm)", min:0,max:40,step:0.1, get:()=>G.bore, set:v=>G.bore=v, onChange:baseChanged, sub:()=>G.bore > 0 ? "The fit gap is added to the hole." : "No hole." });
+      segField(g2, [["round","Round"],["d","D shaft"],["hex","Hexagon"]], ()=>G.boreShape, v=>{ G.boreShape = v; renderTab(); baseChanged(); }, "two");
+      checkField(g2, "A hub round the hole", ()=>G.hub, v=>{ G.hub = v; renderTab(); baseChanged(); });
+      if (G.hub){
+        numField(g2,{ label:"Hub diameter (mm)", min:4,max:80,step:0.5, get:()=>G.hubDia, set:v=>G.hubDia=v, onChange:baseChanged });
+        numField(g2,{ label:"Hub height (mm)", min:0.5,max:30,step:0.5, get:()=>G.hubH, set:v=>G.hubH=v, onChange:baseChanged });
+      }
+    }, true);
+    group(p, "Layout and teeth", g2 => {
+      segField(g2, [["apart","Apart, to print"],["meshed","Meshed, to check"]], ()=>G.layout, v=>{ G.layout = v; renderTab(); baseChanged(); }, "two");
+      numField(g2,{ label:"Pressure angle (°)", min:14.5,max:25,step:0.5, get:()=>G.angle, set:v=>G.angle=v, onChange:baseChanged, sub:()=>"20° is the usual. Both gears need the same." });
+    });
+  } else if (M.kind === "bolt"){
+    const B = M.bolt;
+    selField(p, "Size", [...Object.keys(METRIC).map(k => [k, `${k} × ${METRIC[k][1]}`]), ["custom","Your own"]], ()=>B.size, v=>{ B.size = v; renderTab(); baseChanged(); });
+    if (B.size === "custom"){
+      numField(p,{ label:"Diameter (mm)", min:3,max:60,step:0.5, get:()=>B.dia, set:v=>B.dia=v, onChange:baseChanged });
+      numField(p,{ label:"Pitch (mm)", min:0.4,max:6,step:0.05, get:()=>B.pitch, set:v=>B.pitch=v, onChange:baseChanged, sub:()=>"How far it moves in one turn." });
+      numField(p,{ label:"Across flats (mm)", min:4,max:90,step:0.5, get:()=>B.af, set:v=>B.af=v, onChange:baseChanged, sub:()=>"The hexagon's size, for the head and the nut." });
+    }
+    numField(p,{ label:"Length (mm)", min:4,max:200,step:1, get:()=>B.length, set:v=>B.length=v, onChange:baseChanged, sub:()=>"The threaded part, under the head." });
+    segField(p, [["hex","Hex head"],["knob","Knob head"],["none","Threaded rod"]], ()=>B.head, v=>{ B.head = v; renderTab(); baseChanged(); }, "two");
+    if (B.head !== "none") numField(p,{ label:"Head height (mm)", min:2,max:40,step:0.5, get:()=>B.headH, set:v=>B.headH=v, onChange:baseChanged });
+    checkField(p, "A nut too", ()=>B.nut, v=>{ B.nut = v; renderTab(); baseChanged(); });
+    if (B.nut) numField(p,{ label:"Nut height (mm)", min:2,max:60,step:0.5, get:()=>B.nutH, set:v=>B.nutH=v, onChange:baseChanged });
+  } else if (M.kind === "hinge"){
+    const Hn = M.hinge;
+    numField(p,{ label:"Length (mm)", min:10,max:250,step:1, get:()=>Hn.length, set:v=>Hn.length=v, onChange:baseChanged });
+    numField(p,{ label:"Leaf width (mm)", min:5,max:100,step:1, get:()=>Hn.width, set:v=>Hn.width=v, onChange:baseChanged });
+    numField(p,{ label:"Leaf thickness (mm)", min:1,max:10,step:0.1, get:()=>Hn.thick, set:v=>Hn.thick=v, onChange:baseChanged });
+    numField(p,{ label:"Knuckles", min:3,max:15,step:2, get:()=>Hn.knuckles, set:v=>Hn.knuckles=v, onChange:baseChanged });
+    numField(p,{ label:"Knuckle diameter (mm)", min:4,max:30,step:0.5, get:()=>Hn.knuckleDia, set:v=>Hn.knuckleDia=v, onChange:baseChanged });
+    numField(p,{ label:"Pin diameter (mm)", min:1.6,max:20,step:0.1, get:()=>Hn.pinDia, set:v=>Hn.pinDia=v, onChange:baseChanged });
+    checkField(p, "Screw holes in the leaves", ()=>Hn.holes, v=>{ Hn.holes = v; renderTab(); baseChanged(); });
+    if (Hn.holes) numField(p,{ label:"Screw hole (mm)", min:1,max:10,step:0.1, get:()=>Hn.holeDia, set:v=>Hn.holeDia=v, onChange:baseChanged });
+  } else if (M.kind === "snap"){
+    const S = M.snap;
+    numField(p,{ label:"Clip width (mm)", min:3,max:40,step:0.5, get:()=>S.width, set:v=>S.width=v, onChange:baseChanged });
+    numField(p,{ label:"Arm thickness (mm)", min:0.8,max:5,step:0.1, get:()=>S.armThick, set:v=>S.armThick=v, onChange:baseChanged });
+    numField(p,{ label:"Hook depth (mm)", min:0.4,max:4,step:0.1, get:()=>S.hook, set:v=>S.hook=v, onChange:baseChanged, sub:()=>"How far it catches: more holds tighter but is harder to push in." });
+    numField(p,{ label:"Extra arm length (mm)", min:0,max:40,step:0.5, get:()=>S.armLen, set:v=>S.armLen=v, onChange:baseChanged, sub:()=>"Into the clip's base: longer arms bend more easily." });
+    numField(p,{ label:"Plate thickness (mm)", min:1,max:15,step:0.5, get:()=>S.wall, set:v=>S.wall=v, onChange:baseChanged, sub:()=>"The wall the clip goes through." });
+  } else {
+    const T = M.coupon;
+    numField(p,{ label:"Peg diameter (mm)", min:3,max:30,step:0.5, get:()=>T.dia, set:v=>T.dia=v, onChange:baseChanged });
+    numField(p,{ label:"Holes", min:3,max:10,step:1, get:()=>T.steps, set:v=>T.steps=v, onChange:baseChanged });
+    numField(p,{ label:"Smallest gap (mm)", min:0,max:1,step:0.01, get:()=>T.from, set:v=>T.from=v, onChange:baseChanged });
+    numField(p,{ label:"Step (mm)", min:0.02,max:0.3,step:0.01, get:()=>T.step, set:v=>T.step=v, onChange:baseChanged });
+    checkField(p, "A test bolt and nut too (M8)", ()=>T.thread, v=>{ T.thread = v; renderTab(); baseChanged(); });
+  }
+  fitInfoField(p);
+  fitGapField(p);
+}
+function fixitFields(p){
+  const F = state.base.fixit;
+  selField(p, "What to make", [["knob","Knob"],["foot","Leg cap or tube plug"],["shelfpin","Shelf support"],["cover","Battery cover"],["clip","Cable clip"],["spacer","Spacer or washer"]],
+    ()=>F.kind, v=>{ F.kind = v; renderTab(); baseChanged(); });
+  note(p, "Measure the broken part, or the hole it goes in, with calipers and type the sizes.");
+  if (F.kind === "knob"){
+    const K = F.knob;
+    numField(p,{ label:"Diameter (mm)", min:8,max:120,step:0.5, get:()=>K.dia, set:v=>K.dia=v, onChange:baseChanged });
+    numField(p,{ label:"Height (mm)", min:4,max:80,step:0.5, get:()=>K.h, set:v=>K.h=v, onChange:baseChanged });
+    segField(p, [["fluted","Fluted"],["knurled","Knurled"],["lobed","Star"],["smooth","Smooth"]], ()=>K.grip, v=>{ K.grip = v; renderTab(); baseChanged(); }, "four");
+    if (K.grip === "fluted" || K.grip === "lobed") numField(p,{ label: K.grip === "lobed" ? "Points" : "Flutes", min:3,max:40,step:1, get:()=>K.flutes, set:v=>K.flutes=v, onChange:baseChanged });
+    group(p, "Shaft hole", g2 => {
+      numField(g2,{ label:"Shaft (mm)", min:0,max:40,step:0.1, get:()=>K.shaft, set:v=>K.shaft=v, onChange:baseChanged });
+      segField(g2, [["d","D shaft"],["round","Round"],["hex","Nut or bolt head"]], ()=>K.shaftShape, v=>{ K.shaftShape = v; renderTab(); baseChanged(); }, "two");
+      if (K.shaftShape === "d") numField(g2,{ label:"Flat depth (mm)", min:0.2,max:6,step:0.1, get:()=>K.flat, set:v=>K.flat=v, onChange:baseChanged, sub:()=>"How much the flat takes off the round shaft." });
+      if (K.shaftShape === "hex") note(g2, "Shaft is then the nut's or head's size across flats.");
+      numField(g2,{ label:"Hole depth (mm)", min:1,max:80,step:0.5, get:()=>K.depth, set:v=>K.depth=v, onChange:baseChanged });
+      numField(g2,{ label:"Top thickness (mm)", min:1,max:20,step:0.5, get:()=>K.top, set:v=>K.top=v, onChange:baseChanged });
+      checkField(g2, "Pointer line on top", ()=>K.pointer, v=>{ K.pointer = v; baseChanged(); });
+    }, true);
+  } else if (F.kind === "foot"){
+    const P = F.foot;
+    segField(p, [["cap","Over the end"],["plug","Into a tube"]], ()=>P.style, v=>{ P.style = v; renderTab(); baseChanged(); }, "two");
+    segField(p, [["round","Round"],["square","Square"]], ()=>P.shape, v=>{ P.shape = v; renderTab(); baseChanged(); }, "two");
+    numField(p,{ label: P.style === "cap" ? "Leg size, outside (mm)" : "Tube size, inside (mm)", min:5,max:120,step:0.1, get:()=>P.size, set:v=>P.size=v, onChange:baseChanged });
+    numField(p,{ label:"Depth (mm)", min:2,max:60,step:0.5, get:()=>P.depth, set:v=>P.depth=v, onChange:baseChanged });
+    numField(p,{ label: P.style === "cap" ? "Wall (mm)" : "Flange overhang (mm)", min:0.8,max:8,step:0.1, get:()=>P.wall, set:v=>P.wall=v, onChange:baseChanged });
+    numField(p,{ label:"Sole thickness (mm)", min:0.8,max:15,step:0.1, get:()=>P.floor, set:v=>P.floor=v, onChange:baseChanged });
+  } else if (F.kind === "shelfpin"){
+    const S = F.shelfpin;
+    numField(p,{ label:"Hole in the cabinet (mm)", min:2,max:15,step:0.1, get:()=>S.pinDia, set:v=>S.pinDia=v, onChange:baseChanged, sub:()=>"Usually 5 mm; some are 1/4 inch (6.35 mm)." });
+    numField(p,{ label:"Pin length (mm)", min:2,max:40,step:0.5, get:()=>S.pinLen, set:v=>S.pinLen=v, onChange:baseChanged });
+    numField(p,{ label:"Width (mm)", min:4,max:60,step:0.5, get:()=>S.padW, set:v=>S.padW=v, onChange:baseChanged });
+    numField(p,{ label:"Pad depth (mm)", min:4,max:80,step:0.5, get:()=>S.padD, set:v=>S.padD=v, onChange:baseChanged, sub:()=>"How far the shelf rests on it." });
+    numField(p,{ label:"Pad thickness (mm)", min:1.5,max:15,step:0.1, get:()=>S.padT, set:v=>S.padT=v, onChange:baseChanged });
+    checkField(p, "A lip that stops the shelf sliding off", ()=>S.lip, v=>{ S.lip = v; baseChanged(); });
+  } else if (F.kind === "cover"){
+    const V = F.cover;
+    numField(p,{ label:"Opening width (mm)", min:10,max:200,step:0.5, get:()=>V.w, set:v=>V.w=v, onChange:baseChanged });
+    numField(p,{ label:"Opening length (mm)", min:10,max:200,step:0.5, get:()=>V.h, set:v=>V.h=v, onChange:baseChanged });
+    numField(p,{ label:"Thickness (mm)", min:0.8,max:5,step:0.1, get:()=>V.thick, set:v=>V.thick=v, onChange:baseChanged });
+    numField(p,{ label:"Rim inside (mm)", min:0,max:6,step:0.1, get:()=>V.lip, set:v=>V.lip=v, onChange:baseChanged, sub:()=>V.lip > 0 ? "A low wall that sits just inside the opening." : "No rim." });
+    numField(p,{ label:"Tabs at one end", min:0,max:3,step:1, get:()=>V.tabs, set:v=>V.tabs=v, onChange:baseChanged });
+    checkField(p, "A latch at the other end", ()=>V.latch, v=>{ V.latch = v; baseChanged(); });
+  } else if (F.kind === "clip"){
+    const K = F.clip;
+    numField(p,{ label:"Cable thickness (mm)", min:1,max:40,step:0.1, get:()=>K.cable, set:v=>K.cable=v, onChange:baseChanged });
+    numField(p,{ label:"Cables side by side", min:1,max:8,step:1, get:()=>K.count, set:v=>K.count=v, onChange:baseChanged });
+    numField(p,{ label:"Clip width (mm)", min:4,max:40,step:0.5, get:()=>K.width, set:v=>K.width=v, onChange:baseChanged });
+    segField(p, [["screw","Screw holes"],["adhesive","Tape pad"]], ()=>K.style, v=>{ K.style = v; renderTab(); baseChanged(); }, "two");
+    if (K.style === "screw") numField(p,{ label:"Screw (mm)", min:1.5,max:8,step:0.1, get:()=>K.screw, set:v=>K.screw=v, onChange:baseChanged });
+  } else {
+    const S = F.spacer;
+    numField(p,{ label: S.hex ? "Across flats (mm)" : "Outside diameter (mm)", min:3,max:120,step:0.1, get:()=>S.od, set:v=>S.od=v, onChange:baseChanged });
+    numField(p,{ label:"Hole (mm)", min:0,max:110,step:0.1, get:()=>S.id, set:v=>S.id=v, onChange:baseChanged, sub:()=>"The screw's size: the fit gap is added." });
+    numField(p,{ label:"Height (mm)", min:0.4,max:100,step:0.1, get:()=>S.h, set:v=>S.h=v, onChange:baseChanged });
+    checkField(p, "Hexagonal outside", ()=>S.hex, v=>{ S.hex = v; renderTab(); baseChanged(); });
+  }
+  numField(p,{ label:"How many", min:1,max:24,step:1, get:()=>F.count, set:v=>F.count=v, onChange:baseChanged });
+  fitInfoField(p);
+  fitGapField(p);
 }
 
 /* ---------- 5. artwork ---------- */
@@ -3657,7 +4159,7 @@ function heightOf(d, slot){
 // artwork cut into the object (Session 32): "engrave" cuts it in, "inlay" cuts it in and fills the cut with the
 // artwork's colours, flush with the surface. Its solids are then the cutters: from CUT_OUT above the surface (so the
 // whole surface is cut, also between the points it was laid on) to its depth below it
-const CUT_OUT = 0.6, NO_DECALS = { jigsaw:1, lithophane:1, enclosure:1, phonecase:1, card:1 };
+const CUT_OUT = 0.6, NO_DECALS = { jigsaw:1, lithophane:1, enclosure:1, phonecase:1, card:1, mech:1, fixit:1 };
 let cutBlocked = "";                                 // why artwork cannot be cut into this model ("open", "load"), or ""
 const cutWanted = d => d.enabled !== false && d.mode !== "relief" && (d.cut === "engrave" || d.cut === "inlay") && !NO_DECALS[state.base.type];
 const cutMode = d => baseSoup && !cutBlocked && cutWanted(d) ? d.cut : null;
@@ -5451,6 +5953,8 @@ async function rebuildAll(resetItems){
     else if (t === "enclosure") parts = buildEnclosure();
     else if (t === "phonecase") parts = buildPhoneCase();
     else if (t === "card") parts = await buildCard();
+    else if (t === "mech") parts = buildMech();
+    else if (t === "fixit") parts = buildFixit();
     else parts = buildSimpleObject();
     cutDrop = 0; flatInfo = null;                    // only an imported model is cut flat: nothing else is lowered
     if (t === "stl") parts = await cutModelFlat(parts);
@@ -5489,6 +5993,7 @@ async function rebuildAll(resetItems){
       if (d.enabled === false){ d.solids = null; continue; }
       if (t === "jigsaw"){ d.solids = null; continue; }      // a decal across the pieces would glue them together
       if (t === "lithophane"){ d.solids = null; continue; }  // other artwork would only cast a shadow on it
+      if (t === "mech" || t === "fixit"){ d.solids = null; continue; }   // parts that fit: a picture on them would spoil the fit
       if (t === "enclosure"){ d.solids = null; continue; }   // not stamped on boxes yet
       if (t === "phonecase"){ d.solids = null; continue; }   // a case takes its picture as an inlay in the back
       if (t === "card"){ d.solids = null; continue; }        // a card takes its picture as its logo
@@ -6384,7 +6889,7 @@ const OBJECT_GROUPS = [
   ["Personalise", [["nameplate","🔑"],["card","💳"],["board","🏷️"],["frame","🖼️"],["box","🪧"]]],
   ["From a picture", [["tracer","📐"],["lithophane","🌅"],["jigsaw","🧩"],["cutter","🍪"],["pcb","🔌"],["lightbox","💡"],["canvas","🧶"]]],
   ["Figures and décor", [["bobble","🙂"],["shell","🕯️"],["turned","🏺"]]],
-  ["Functional", [["enclosure","🧰"],["phonecase","📱"]]],
+  ["Functional", [["enclosure","🧰"],["phonecase","📱"],["mech","⚙️"],["fixit","🔧"]]],
   ["Basic shapes", [["cylinder","🥫"],["hex","⬢"],["sphere","⚪"]]],
   ["Bring your own", [["stl","📦"],["none","✦"]]]
 ];
@@ -6449,7 +6954,7 @@ function tabMake(p){
   ({ nameplate:nameplateFields, canvas:canvasFields, bobble:bobbleFields, cutter:cutterFields, turned:turnedFields,
      pcb:pcbFields, lightbox:lightboxFields, tracer:tracerFields, jigsaw:jigsawFields, lithophane:lithophaneFields,
      board:boardFields, frame:frameFields, shell:shellFields, box:boxFields, cylinder:cylFields, hex:hexFields,
-     sphere:sphereFields, enclosure:enclosureFields, phonecase:phonecaseFields, card:cardFields, stl:stlFields, none:noneFields })[b.type](p);
+     sphere:sphereFields, enclosure:enclosureFields, phonecase:phonecaseFields, card:cardFields, mech:mechFields, fixit:fixitFields, stl:stlFields, none:noneFields })[b.type](p);
   if (!["none","bobble","lightbox","jigsaw","enclosure"].includes(b.type))
     slotField(p, "Object filament", ()=>String(b.slot), v=>{ b.slot = +v; baseChanged(); });
   buttonRow(p, [["Change the object →", ()=>{ setSide("right", true); const el = $("#objectSel"); if (el) el.focus(); }]]);
@@ -8250,7 +8755,7 @@ function nameplateFields(p){
   if (np.batch){
     w.innerHTML = `<label for="npNames">Names, one per line</label><textarea class="ta" id="npNames" rows="6" placeholder="Emma&#10;Noah&#10;Olivia">${esc(np.names || "")}</textarea><div class="sub"></div>`;
     p.appendChild(w);
-    const sub = w.querySelector(".sub"), count = () => { const n = batchNames(np.names).length; sub.textContent = `${n} name${n === 1 ? "" : "s"} (up to 60). Each becomes its own plate, laid out on the bed. Pasted spreadsheet rows keep their first column.`; };
+    const sub = w.querySelector(".sub"), count = () => { const n = batchNames(np.names).length; sub.textContent = `${n} name${n === 1 ? "" : "s"} (up to 60). Each becomes its own plate, laid out on the bed. Pasted spreadsheet rows keep their first column. Write Emma | Svensson to put a surname on a second line.`; };
     count();
     let t0 = 0;
     w.querySelector("textarea").oninput = e => { np.names = e.target.value.slice(0, 4000); count(); clearTimeout(t0); t0 = setTimeout(()=>{ schedule(); pushHistory(); }, 500); };
@@ -8258,6 +8763,17 @@ function nameplateFields(p){
     w.innerHTML = `<label for="npText">Name</label><textarea class="ta" id="npText" rows="1" placeholder="Emma">${esc(np.text)}</textarea>`;
     p.appendChild(w);
     w.querySelector("textarea").oninput = e => { np.text = e.target.value; schedule(); pushHistory(); };
+    // a second line under the name, smaller (a surname); its size and gap show once it has something in it
+    let had2 = !!String(np.line2 || "").trim();
+    const in2 = textField(p, "Second line (a surname, smaller, under the name)", ()=>np.line2 || "", v=>{ np.line2 = v; }, { max:60, placeholder:"Svensson",
+      onChange:()=>{ baseChanged(); const has = !!String(np.line2 || "").trim();
+        if (has !== had2){ had2 = has; renderTab(); const el = document.querySelector('[data-k="line2"]'); if (el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); } } } });
+    in2.dataset.k = "line2";
+  }
+  if (np.batch || String(np.line2 || "").trim()){
+    numField(p,{ label:"Second line size (of the name's)", min:0.3,max:1,step:0.05, get:()=>np.line2Size, set:v=>np.line2Size=v, onChange:baseChanged,
+      sub:()=>`Its letters are ${(np.letterHeight*np.line2Size).toFixed(1)} mm tall.` });
+    numField(p,{ label:"Gap between the lines (mm)", min:0,max:15,step:0.5, get:()=>np.line2Gap, set:v=>np.line2Gap=v, onChange:baseChanged });
   }
   fontField(p, ()=>np.font, v=>{ np.font = v; renderTab(); baseChanged(); });
   numField(p,{ label:"Letter height (mm)", min:8,max:60,step:0.5, get:()=>np.letterHeight, set:v=>np.letterHeight=v, onChange:baseChanged });
@@ -8329,6 +8845,22 @@ function nameplateFields(p){
       note(g2, "The plate grows around the picture, so name and picture come out as one piece.");
     }
   }, state.base.nameplate.pic.on);
+  group(p,"Credit on the back", g2 => {
+    const cr = np.credit;
+    if (np.doubleSided){ note(g2, "The back already carries the mirrored name. Turn that off (under Both sides) for a credit on the back."); return; }
+    checkField(g2,"Put a line of text on the back",()=>cr.on, v=>{ cr.on = v; renderTab(); baseChanged(); });
+    if (!cr.on) { note(g2, "For your website, shop or name, small on the back: handy when you give keychains away."); return; }
+    textField(g2, "Text on the back", ()=>cr.text || "", v=>{ cr.text = v; }, { max:40, placeholder:"your-site.com", onChange:baseChanged });
+    segField(g2,[["inlay","In a colour, flush"],["engrave","Engraved"]],()=>cr.inlay !== false ? "inlay" : "engrave", v=>{ cr.inlay = v === "inlay"; renderTab(); baseChanged(); }, "two");
+    if (cr.inlay !== false) slotField(g2, "Credit filament", ()=>String(cr.slot), v=>{ cr.slot = +v; baseChanged(); });
+    numField(g2,{ label:"Letter height (mm)", min:1.5,max:8,step:0.1, get:()=>cr.size, set:v=>cr.size=v, onChange:baseChanged,
+      sub:()=>{ const ci = plateInfo && plateInfo.credit; return !String(cr.text || "").trim() ? "Type the text above." : ci && !ci.size ? "It doesn't fit on the back: make it shorter, or the plate bigger."
+        : ci && ci.smaller ? `Made ${ci.size.toFixed(1)} mm tall to fit on the plate.` : ""; } });
+    numField(g2,{ label:"Depth (mm)", min:0.2,max:1.2,step:0.05, get:()=>cr.depth, set:v=>cr.depth=v, onChange:baseChanged });
+    fontField(g2, ()=>cr.font, v=>{ cr.font = v; renderTab(); baseChanged(); }, String(cr.text || "").trim() || "your-site.com", "Credit font");
+    note(g2, cr.inlay !== false ? "It prints in the first layers, face down on the bed, flush with the back: no swap after the first few layers. It is mirrored here so it reads when the tag is turned over."
+      : "It is cut into the bottom face (the bed side), mirrored here so it reads when the tag is turned over. Bold fonts read best at this size.");
+  }, np.credit && np.credit.on);
   group(p,"Both sides", g2 => {
     checkField(g2,"Mirrored name on the back",()=>np.doubleSided, v=>{ np.doubleSided = v; renderTab(); baseChanged(); });
     if (np.doubleSided){
@@ -10529,7 +11061,19 @@ const LIMITS_AT = { "sym.size":[0.4,3], "pic.size":[0.4,3], "outline.width":[0.2
   "bobble.plinthH":[1,15], "bobble.weightDia":[5,50], "bobble.weightDepth":[2,40], "bobble.magnetDia":[4,30], "bobble.magnetDepth":[1,10],
   "canvas.pitch":[2,12], "canvas.tileH":[0.3,4], "canvas.thick":[0.8,6], "canvas.margin":[0,20], "canvas.radius":[0,20], "canvas.gap":[0.2,3],
   "canvas.holeSize":[0.6,4], "canvas.hangDia":[2,8],
-  "nameplate.spacing":[-1,6], "nameplate.arc":[-120,120], "nameplate.rim":[1.2,8], "nameplate.border":[0,12] };
+  "nameplate.spacing":[-1,6], "nameplate.arc":[-120,120], "nameplate.rim":[1.2,8], "nameplate.border":[0,12],
+  "nameplate.line2Size":[0.3,1], "nameplate.line2Gap":[0,15], "credit.size":[1.5,8], "credit.depth":[0.2,1.2],
+  // Session 37: the parts that fit, each at its slider's range (they are clamped again where they are built)
+  "gears.teeth1":[8,150], "gears.teeth2":[8,150], "gears.module":[0.5,5], "gears.thick":[1,40], "gears.bore":[0,40], "gears.hubDia":[4,80], "gears.hubH":[0.5,30], "gears.angle":[14.5,25],
+  "bolt.dia":[3,60], "bolt.pitch":[0.4,6], "bolt.af":[4,90], "bolt.length":[4,200], "bolt.headH":[2,40], "bolt.nutH":[2,60],
+  "hinge.length":[10,250], "hinge.width":[5,100], "hinge.thick":[1,10], "hinge.knuckles":[3,15], "hinge.knuckleDia":[4,30], "hinge.pinDia":[1.6,20], "hinge.holeDia":[1,10],
+  "snap.width":[3,40], "snap.armThick":[0.8,5], "snap.hook":[0.4,4], "snap.armLen":[0,40], "snap.wall":[1,15],
+  "coupon.dia":[3,30], "coupon.steps":[3,10], "coupon.from":[0,1], "coupon.step":[0.02,0.3],
+  "fixit.count":[1,24], "knob.dia":[8,120], "knob.h":[4,80], "knob.flutes":[3,40], "knob.shaft":[0,40], "knob.flat":[0.2,6], "knob.depth":[1,80], "knob.top":[1,20],
+  "foot.size":[5,120], "foot.depth":[2,60], "foot.wall":[0.8,8], "foot.floor":[0.8,15],
+  "shelfpin.pinDia":[2,15], "shelfpin.pinLen":[2,40], "shelfpin.padW":[4,60], "shelfpin.padD":[4,80], "shelfpin.padT":[1.5,15],
+  "cover.w":[10,200], "cover.h":[10,200], "cover.thick":[0.8,5], "cover.lip":[0,6], "cover.tabs":[0,3],
+  "clip.cable":[1,40], "clip.count":[1,8], "clip.width":[4,40], "clip.screw":[1.5,8], "spacer.od":[3,120], "spacer.id":[0,110], "spacer.h":[0.4,100], "fit.gap":[0,1] };
 // a print orientation must be a real rotation: nine numbers, orthonormal, no mirror
 function cleanRotation(m){
   if (!Array.isArray(m) || m.length !== 9 || !m.every(v => typeof v === "number" && isFinite(v))) return null;
@@ -10813,10 +11357,45 @@ function sanitizeProject(data){
       return o;
     });
   }
+  // mechanisms and fix-it parts (Session 37): each choice one of its own, each switch true or false, a missing group
+  // its defaults; the numbers were clamped above and are clamped again where they are built
+  if (st.base){
+    const D0 = DEFAULTS().base;
+    if (st.base.fit && typeof st.base.fit === "object") st.base.fit.gap = Math.max(0, Math.min(1, +st.base.fit.gap || 0)); else if ("fit" in st.base) delete st.base.fit;
+    const pick = (v, list, d) => list.includes(v) ? v : d;
+    const ENUMS = { mech:{ kind:["gears","bolt","hinge","snap","coupon"], "gears.boreShape":["round","d","hex"], "gears.layout":["apart","meshed"],
+        "bolt.size":[...Object.keys(METRIC), "custom"], "bolt.head":["hex","knob","none"] },
+      fixit:{ kind:["knob","foot","shelfpin","cover","clip","spacer"], "knob.grip":["fluted","knurled","lobed","smooth"], "knob.shaftShape":["d","round","hex"],
+        "foot.style":["cap","plug"], "foot.shape":["round","square"], "clip.style":["screw","adhesive"] } };
+    for (const k of ["mech","fixit"]){
+      const o = st.base[k];
+      if (!o || typeof o !== "object" || Array.isArray(o)){ if (k in st.base) delete st.base[k]; continue; }
+      const d0 = D0[k];
+      for (const [kk, dv] of Object.entries(d0)){
+        if (dv && typeof dv === "object"){
+          const sub = o[kk] = Object.assign({}, dv, o[kk] && typeof o[kk] === "object" && !Array.isArray(o[kk]) ? o[kk] : {});
+          for (const [f, fv] of Object.entries(dv)){
+            if (typeof fv === "boolean") sub[f] = sub[f] === true;
+            else if (typeof fv === "number") sub[f] = isFinite(+sub[f]) ? +sub[f] : fv;
+            else if (typeof fv === "string") sub[f] = pick(sub[f], ENUMS[k][kk + "." + f] || [fv], fv);
+          }
+          for (const f of Object.keys(sub)) if (!(f in dv)) delete sub[f];
+        } else if (typeof dv === "string") o[kk] = pick(o[kk], ENUMS[k][kk] || [dv], dv);
+        else if (typeof dv === "number") o[kk] = isFinite(+o[kk]) ? +o[kk] : dv;
+      }
+      for (const kk of Object.keys(o)) if (!(kk in d0)) delete o[kk];
+    }
+  }
   if (st.base && st.base.nameplate){
     const np = st.base.nameplate;
     np.text = cleanStr(np.text, 200, "Name"); np.batch = np.batch === true; np.names = cleanStr(np.names, 4000, "");
     if (np.sym){ np.sym.glyph = cleanStr(np.sym.glyph, 8, ""); np.sym.glyph2 = cleanStr(np.sym.glyph2, 8, ""); }
+    np.line2 = cleanStr(np.line2, 60, "");
+    if (np.credit && typeof np.credit === "object" && !Array.isArray(np.credit)){
+      const c = np.credit = Object.assign(DEFAULTS().base.nameplate.credit, np.credit); c.on = c.on === true; c.inlay = c.inlay !== false; c.text = cleanStr(c.text, 40, "");
+      c.slot = Math.max(0, Math.min(7, Math.round(+c.slot || 0))); c.font = Math.max(0, Math.min(FONTS.length-1, Math.round(+c.font || 0)));
+      c.size = Math.max(1.5, Math.min(8, +c.size || 3.5)); c.depth = Math.max(0.2, Math.min(1.2, +c.depth || 0.4));
+    } else if ("credit" in np) delete np.credit;
   }
   const assetsIn = {};
   for (const [id, url] of Object.entries(data.assets || {})){
@@ -11127,7 +11706,8 @@ function applyPreset(key){
   const pr = PRESETS[key], b = state.base;
   clearPaintForNewModel();
   b.type = pr.base.type;
-  for (const k of ["board","frame","shell","nameplate","canvas","bobble","cutter","turned","jigsaw","lithophane"]) if (pr.base[k]) Object.assign(b[k], pr.base[k]);
+  for (const k of ["board","frame","shell","nameplate","canvas","bobble","cutter","turned","jigsaw","lithophane","fit"]) if (pr.base[k]) Object.assign(b[k], pr.base[k]);
+  for (const k of ["mech","fixit"]) if (pr.base[k]){ const d0 = DEFAULTS().base[k]; for (const [kk, v] of Object.entries(pr.base[k])) if (v && typeof v === "object" && d0[kk]) Object.assign(b[k][kk], v); else b[k][kk] = v; }
   if (pr.base.type === "jigsaw") Object.assign(b.jigsaw, DEFAULTS().base.jigsaw, pr.base.jigsaw || {});
   if (pr.base.type === "lithophane") Object.assign(b.lithophane, DEFAULTS().base.lithophane, pr.base.lithophane || {});
   if (pr.base.type === "phonecase" && !b.phonecase) b.phonecase = DEFAULTS().base.phonecase;
@@ -11313,6 +11893,8 @@ window.MakerForge = {
       forget: () => { photoLightCache.clear(); photoShadeCache.clear(); modelParts.forEach(p => { if (p.pc){ p.pc.photo = null; p.pc.photoLast = null; p.pc.photoOnPage = false; } }); }, setFilaments: photoSetFilaments, nearest: photoNearestFilaments, get op(){ return photoOpOf(); }, info: o => photoInfo.get(o), labels: photoLabels, colourWord } },
   phone: { spec: phoneSpec, get info(){ return phoneInfo; }, list: PHONES },
   // business cards (Session 33): what was built, and what each QR code says
+  // parts that fit (Session 37): what the last mechanism or fix-it part said, and the name plate's last build
+  get fit(){ return fitInfo; }, get plate(){ return plateInfo; },
   card: { get info(){ return cardInfo; }, contact: cardContact, qrText: cardQRText, lineKind: cardLineKind, clean: cleanCard, sizes: CARD_SIZES, tags: CARD_TAGS, nfcText: cardNfcText },
   get overlay(){ return overlay.children.length; },
   rebuild: rebuildAll,

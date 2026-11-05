@@ -1,7 +1,7 @@
 # The files in this folder
 
-The AI figure finder's model, and Manifold, which cuts artwork into models. Both are under the Apache License 2.0
-(below). The app downloads each file only when it is needed, from this folder next to `index.html` if it is there,
+The AI figure finder's model, Manifold, which cuts artwork into models, and the depth model for a relief from a
+photo. All three are under the Apache License 2.0 (below). The app downloads each file only when it is needed, from this folder next to `index.html` if it is there,
 else through jsDelivr, and checks it against the SHA-256 in `AI_FIGURE` (`src/app.html`) before it uses it.
 
 ## The AI figure finder's model
@@ -35,6 +35,22 @@ others with it.
   the Apache License 2.0 (below).
 - **SHA-256:** `manifold.js` `ca3c8a88df63bb3083013d1eb7f700bf23216594f6e98a2566e34f55d7341ce8`,
   `manifold.wasm` `73e3b419ad31294f6b1cc478173944e50efc4a34bfdeeff0107bdfc12975f11c`.
+
+## The depth model (a relief from a photo)
+
+`depth-anything-v2-small-int8.onnx` is Depth Anything V2 Small, a network that works out how near each part of a photo
+is. Maker Forge uses it, only when asked, to make a 3D relief from a photo (the 3D relief object's "Work out the depth
+with AI", Session 38). It runs in the browser; photos are not sent anywhere. At 27 MB it is over jsDelivr's 20 MB a
+file, so it is **not kept in this repository**: the app loads it from this folder next to `index.html` if it is there
+(a website can keep its own copy), else from the ONNX community's copy on Hugging Face at a fixed revision.
+
+- **Model and weights:** Depth Anything V2 Small by Lihe Yang, Bingyi Kang, Zilong Huang, Zhen Zhao, Xiaogang Xu,
+  Jiashi Feng and Hengshuang Zhao, <https://github.com/DepthAnything/Depth-Anything-V2>. The Small model is released
+  under the Apache License 2.0 (below); the larger ones are not, and are not used. Paper: *Depth Anything V2* (2024).
+- **This file:** the int8 ONNX conversion by the ONNX community, <https://huggingface.co/onnx-community/depth-anything-v2-small>,
+  revision `4472b7362082ad9968fee890ca0f1e5aca36b93d`, file `onnx/model_int8.onnx`, unchanged.
+- **SHA-256:** `01aa7a23de3f4a0ee1a2bb9997e6918104c85a9f95dea46d27b9b3fb0c6b9001`. The app checks the file against this
+  before it uses it, wherever it comes from. The tests use a copy in this folder when there is one (`git` ignores it).
 
 ## Apache License 2.0
 

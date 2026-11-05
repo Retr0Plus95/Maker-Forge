@@ -1414,11 +1414,79 @@ Seen in Chromium: the surname under the name, the credit read from below, the ge
 
 **Still to check by hand**: real prints of the fit test (which gap the default should be), a gear pair on shafts, an M10 bolt and nut at 0.25 mm, the hinge breaking free, the snap-fit clip's hook depth, a credit flush on a textured plate.
 
+## Session 38: signs, a 3D relief from a photo, and the model doctor (v0.32.0)
+
+The second of the two builds planned in Session 36 ("Mechanisms toolkit, model doctor, 3d relief from any photo, sign maker and fix it parts library should be done over the next two builds"); the owner said "Keep going" after v0.31.0. Built on Session 37's branch (pull request #22 still open).
+
+**1. Signs** (new object `sign` under Personalise; `buildSign`, `signMounts`, `signMountOptions`, `withHoles`, `signFields`, section 4d of `src/app.html`).
+- Solid and lit letters are drawn on a canvas in a lettering font (as a name plate) and traced from a signed distance field: the letters at 0.5 px, walls `0 < d < wall`, the face `d > wall + fit gap`, the ledge in four bands (`wall .. wall + 1.6·k/4`) stacked so it slopes at 45°. Lit letters are drawn at 5 px/mm or finer (24 MP at most) so the 0.4 mm steps survive tracing; a step that still comes out filled (traced too coarsely to keep its inside) is left out.
+- Neon style follows the stroke font (`strokeText`): a field of the distance to the strokes, the walls `sw/2 < d < sw/2 + wall`, the board either a rounded rectangle or `d < sw/2 + wall + margin`. Holes at stroke ends that touch no other stroke; the strip's length is the strokes' total.
+- Mounts: lit letters hang from a keyhole inside each letter (the head goes into the hollow), with the wire hole at the letter's thickest point at least 16 mm from it; solid letters on their own get a blind keyhole pocket (2.5 mm of keyhole, 3.5 mm of slot for the head, a roof in four 45° steps, 12 mm thick or more) or a pin hole (8 mm or more); boards get screw holes at their top corners.
+- `withHoles` gives each extra hole only to the outline it lies in. Adding every hole to every outline (as first written) put the "2"'s keyhole into the "4" too, and earcut filled the gap between them with stray triangles.
+- Too big (over 40 MP of canvas, or 3 m of text) says so and builds nothing.
+
+**2. A relief from a photo** (new object `relief` under From a picture, consumes the picture; `buildRelief`, `depthLoad`, `depthOf`, `depthField`, `reliefRunDepth`, `reliefFields`, section 4e).
+- The depth model: Depth Anything V2 Small, int8, 27 MB (`AI_FIGURE.depth`): over jsDelivr's 20 MB a file, so it is loaded from `models/` next to the page or from the ONNX community's copy on Hugging Face at revision `4472b73…` (pinned), checked by SHA-256. The 4-bit version (19 MB, under jsDelivr's limit) was tried: it runs, but on a test scene it correlated 0.70 with the true depth against int8's 0.91, and put a box behind the wall. The model is not in the repository (`.gitignore`); `models/LICENSE.md` describes it.
+- The ONNX runtime is now shared: `ortRuntime()` downloads and starts it once for both the figure finder and the depth model. The runtime's address line (`split("import.meta.url")…`) is unchanged, moved into `ortRuntime`: the website's importer finds it by pattern (worth checking on the next import).
+- The picture goes in with its longer side 518 px, both sides multiples of 14 (the model takes any such size and answers at the same size); the answer is spread between its 1st and 99th percentiles and kept as an 8-bit PNG asset (`item.depthMap`, in `usedAssets`, cleaned like `uncut`). Before the button is pressed (and when the source is Brightness) the relief rises with brightness.
+- The depth is shaped before it becomes height:
+  - `subject`: Otsu's split of the depth histogram. When a far background is between 15% and 90% of the picture, everything below the split is the base and the rest is spread over 0..1.
+  - `boost`: `basRelief` in `src/core.js`, as a carver does. Each step between neighbours is limited softly (`tau·tanh(g/tau)`, `tau = 0.25/(1 + 10·boost)`), and the surface is rebuilt from those steps by a Poisson solve on a pyramid (over-relaxed, 400 sweeps at the coarsest level and 120 at each finer one; about 0.1 s for 200 × 200 and 0.9 s in the app at 518 px).
+  - Without it, the rendered bobble head tried in Chromium came out as flat-topped steps: a head in front of a wall is a jump far bigger than the head's own roundness. A first try that added each pixel's difference from its blurred surroundings only sharpened the edges.
+  - Then smoothing, `flatten` and a power curve (`contrast`).
+- The surface: `heightSheet` on a flat back, as a flat lithophane (outline from `lithoOutline`, hole, border at `rim` × the relief), thickness `base + height·f`.
+
+**3. The model doctor** (an imported model's Make tab; `meshReport`, `repairMesh`, `simplifyMesh` in `src/core.js`; `doctorCheck`, `doctorRun`, `doctorApply`, `doctorBack`, `doctorFields` in `src/app.html`).
+- `meshReport`: open edges and the loops they make (holes), edges with more than two triangles, edges two triangles cross the same way (flipped), triangles with no area, doubled triangles, shells (union-find), volume.
+- `repairMesh`: weld at 0.001 mm, drop flat and doubled triangles, a flood across two-triangle edges turning each shell's triangles to agree, each shell turned outward by its volume, then each hole loop (walked against its triangles) triangulated on its Newell plane with earcut, or fanned from its middle if that fails. `src` says which triangle each came from (−1 for fills).
+- `simplifyMesh`: Forstmann's fast quadric scheme (MIT) in typed arrays: thresholds rising each pass, a collapse refused if it would flip a neighbour (normal dot < 0.2) or touch an open edge; every triangle left is an original (`src`).
+- The app makes a new model from the welded one (`stlCache`, which now keeps the weld's `src`), maps the file's paint and own colours through both source maps, opens it under a new name (`… (repaired, N triangles)`), and keeps the old one in `openedModels`, so Undo and Back to the original work. Speed on 303 200 triangles in Node: check 0.7 s, repair 1.5 s, simplify to a tenth 0.6 s.
+
+**Fixed**: a keychain's plate in several pieces had every letter's hole added to every piece (`cutOut`, since the engraved name was written), so an engraved name on such a plate kept a solid top: the engraving was lost. `cutOut` uses `withHoles` now.
+
+**Tests**:
+- `tools-sign-test.js` (`npm run test:sign`):
+  - every style on every backing closed, without torn or flipped edges;
+  - lit letters: heights, the faces the wall and fit gap smaller, the strip, keyholes and wire holes, the ledge with no support;
+  - solid letters: the keyhole pocket with no support, too thin says so, the gap between separate numbers empty;
+  - neon: the L's 100 mm of strip, the groove's width, missing letters said.
+- `tools-relief-test.js` (`npm run test:relief`):
+  - the real model when `models/` has it: its SHA-256, correlation 0.91 with a scene's true depth, the ball, box and wall in order, a 364 × 518 picture;
+  - with a stand-in dome: brightness first, the input size, the depth kept, the heights (7 mm in the middle, the 1st–99th percentile spread halfway out), the flat background, round with a border and hole, brightness, and the depth coming back from a saved project without the model.
+- `tools-doctor-test.js` (`npm run test:doctor`):
+  - the report on a good and a broken ball;
+  - repair: holes, flips, the doubled triangle, volume within 2%, the source map, inside out, points 0.0002 mm apart;
+  - simplify to 50/10/2%: closed, volume kept, the bumpy surface within 0.6 mm, originals only, an open edge kept;
+  - in the app: a broken STL found, repaired, simplified and put back.
+- `tools-project-test.js` gained hostile signs and reliefs. Writing them found that the cleaning merged the file's sign and relief into the defaults object itself, so an unknown key survived; and that a 200-letter sign at 400 mm took 70 s to refuse. Both fixed.
+- `tools-browser-check.js` gained a sign step (real fonts, all three styles, no support) and a relief step (the real model served from `models/`, its button, 9 s).
+Also run and passed:
+- the full smoke test (30 quick starts, 25 objects, 524 clicks);
+- `test:fit`, `test:print`, `test:photo` (the shared runtime), `test:art`, `test:project`;
+- the control audit on sign and relief (no findings);
+- `check:browser` (202 screenshots, no findings; the figure finder still downloads and finds its figure through `ortRuntime`).
+
+The print survey against v0.31.0's build: every earlier quick start and object reads the same; the new ones read 0 mm² of support.
+Seen in Chromium: lit letters and their backs (keyholes, wire holes), solid house numbers, the neon sign, a relief of the drawn lighthouse, and a relief of a picture of the bobble head (`MakerForge.thumb`), before and after the carving.
+
+**Not done, next**:
+- The model doctor's split for the bed with pins: it needs each piece laid on its own cut face for printing, and the app has no print placement per part yet (the painter and the layout assume one model in place).
+- Hollowing with drain holes, and thickening thin walls (both need an offset surface: a distance field on a grid and marching cubes, or Manifold's level sets).
+- Signs: wire paths along the back, letters spaced for a raceway, script fonts for neon.
+- Relief: colour on the relief (the photo's colours as paint), a relief on a box lid or a medallion with a rim.
+
+**Still to check by hand**:
+- a printed lit letter with a real LED strip and face;
+- a neon strip in the groove (6 mm silicone neon varies: 6.0–6.5 mm);
+- the keyhole pockets on a real screw;
+- a relief from a real photo of a face (the tests use a drawn scene);
+- a repaired and a simplified model from Thingiverse in a slicer.
+
 ## Unfinished (in priority order)
 
 - **The next two builds** (the owner, 2026-11-05: "Mechanisms toolkit, model doctor, 3d relief from any photo, sign maker and fix it parts library should be done over the next two builds"; ideas 2, 3, 6, 8 and 10 of Session 36's list). Planned split:
   - **v0.31.0: parts that fit.** (Done in Session 37, but for pins on their own.) The mechanisms toolkit (threads, gears, hinges, snap-fits, pins, each with a fit-test coupon) and the fix-it parts library built on it (knobs, shelf pins, feet, battery covers, clips, caps from a few caliper measurements). They share the clearances and the fit tests. The keychain's surname line and credit on the back (asked for just before) ride along, being small.
-  - **v0.32.0: models and pictures.** The model doctor (repair with Manifold, thicken, hollow with drain holes, simplify, split for the bed with pins: this takes in Cutting next's split), the 3D relief from any photo (an AI depth model), and the sign maker (channel letters with LED channels, diffusers and mounts).
+  - **v0.32.0: models and pictures.** (Done in Session 38, but for the model doctor's split, hollowing and thickening: see Session 38's Not done.) The model doctor (repair with Manifold, thicken, hollow with drain holes, simplify, split for the bed with pins: this takes in Cutting next's split), the 3D relief from any photo (an AI depth model), and the sign maker (channel letters with LED channels, diffusers and mounts).
   - Watch for: the depth model is bigger than jsDelivr's 20 MB per-file limit (Depth Anything V2 Small is about 50 MB in fp16, 27 MB in int8), so it needs splitting into parts, or another host, before it can join `AI_FIGURE`; its licence (Apache-2.0 for Small only) goes in `models/LICENSE.md`; the owner's website hosts its own copy of every file in `AI_FIGURE`, so the new model must keep that `name:{ urls, sha256 }` form.
 
 - **Speed next** (Session 28; the size change and the photo steps were done in Session 30): getting a big model ready for paint (`meshEditor` and `meshTopology` in `applyPaint`, about 0.75 s once on the 373 k-triangle figure) could go to the helper thread too; then the builds themselves (Session 22's plan).

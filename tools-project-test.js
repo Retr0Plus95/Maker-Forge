@@ -61,13 +61,13 @@ async function settle() {
 
   console.log("\nmechanisms, fix-it parts and the keychain's new settings in a hostile project file (Session 37)");
   {
-    const host = async (type, edit, test, what) => {
+    const host = async (type, edit, test, what, empty) => {
       const s = document.querySelector("#objectSel"); s.value = type; s.dispatchEvent(new win.Event("change")); await settle();
       const st = JSON.parse(MF.projectPayload()).state; edit(st.base);
       const t0 = Date.now(), e0 = env.errors.length, done = await open(JSON.stringify({ app: "Maker Forge", v: 5, state: st })), ms = Date.now() - t0;
       const tris = MF.parts.reduce((n, p) => n + C.checkMesh(p.solid).tris, 0), errs = env.errors.slice(e0).filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
       const out = test(MF.state.base);
-      check(done && ms < 15000 && tris > 0 && tris < 1500000 && !errs.length && out === true, what, `${ms} ms, ${tris} triangles${errs.length ? ", " + errs[0].split("\n")[0] : ""}${out !== true ? ", " + out : ""}`);
+      check(done && ms < 15000 && (tris > 0 || empty) && tris < 1500000 && !errs.length && out === true, what, `${ms} ms, ${tris} triangles${errs.length ? ", " + errs[0].split("\n")[0] : ""}${out !== true ? ", " + out : ""}`);
     };
     await host("mech", b => { b.mech.kind = "bolt"; b.mech.bolt.size = "<img src=x onerror=alert(1)>"; b.mech.bolt.length = 1e9; b.mech.bolt.nut = "yes"; b.fit = { gap: 99 }; },
       b => b.mech.bolt.size === "M10" && b.mech.bolt.length === 200 && b.mech.bolt.nut === false && b.fit.gap === 1 || JSON.stringify([b.mech.bolt.size, b.mech.bolt.length, b.mech.bolt.nut, b.fit.gap]),
@@ -87,6 +87,13 @@ async function settle() {
       b => b.nameplate.line2.length === 60 && b.nameplate.line2Size === 0.3 && b.nameplate.credit.on === false && b.nameplate.credit.text.length === 40 && b.nameplate.credit.size === 8
         && b.nameplate.credit.depth === 0.2 && b.nameplate.credit.slot === 7 && b.nameplate.credit.font === 0 || JSON.stringify([b.nameplate.line2.length, b.nameplate.line2Size, b.nameplate.credit]),
       "a keychain's second line 5000 letters long and a credit that is not quite right: 60 letters, its size clamped to 0.3, the credit off until turned on");
+    // Session 38: signs and reliefs
+    await host("sign", b => { b.sign = { style: "<script>", text: "<img src=x onerror=alert(1)>".repeat(30), letterH: 1e9, depth: -5, wall: "thick", backing: "everywhere", mount: "nails", holes: "yes", diffuserSlot: 99, font: -3, evil: 1 }; },
+      b => b.sign.style === "channel" && b.sign.text.length === 200 && b.sign.letterH === 400 && b.sign.depth === 2 && b.sign.wall === 1.6 && b.sign.backing === "none" && b.sign.mount === "keyhole" && b.sign.holes === false && b.sign.diffuserSlot === 7 && b.sign.font === 0 && !("evil" in b.sign)
+        || JSON.stringify(b.sign).slice(0, 200), "a sign with markup in its text, a style and backing that don't exist, a 1000 km letter height and numbers that are words: tamed (too big to build, it says so at once)", true);
+    await host("relief", b => { b.relief = { source: "magic", shape: "star", width: 1e9, height: -1, cell: 0, contrast: "lots", hole: 1, extra: [] }; },
+      b => b.relief.source === "ai" && b.relief.shape === "rect" && b.relief.width === 300 && b.relief.height === 0.3 && b.relief.cell === 0.15 && b.relief.contrast === 1 && b.relief.hole === false && !("extra" in b.relief)
+        || JSON.stringify(b.relief), "a relief 1000 km wide with a negative height, a zero detail and a shape that doesn't exist: tamed", true);
     check(!document.querySelector("#panel b, #panel img[src=x]") || ![...document.querySelectorAll("#panel b")].some(b => b.textContent === "hi"), "no markup from the file reached the page");
   }
 

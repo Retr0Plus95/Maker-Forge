@@ -671,6 +671,7 @@ const EXAMPLES = {
   "Jigsaw puzzle":   { art:"balloons", slots:[["#8ecae6","Sky blue"],["#fdf0d5","Cream"],["#e63946","Red"],["#2a9d8f","Green"]] },
   "Kids' puzzle":    { art:"whale", slots:[["#bde0fe","Pale blue"],["#219ebc","Sea blue"],["#023047","Navy"],["#ffb703","Sunflower"]] },
   "Lithophane":      { art:"lighthouse", slots:[["#f7f5ef","White"]] },
+  "Photo relief":    { art:"lighthouse", slots:[["#2f3e46","Slate"]] },
   "Lithophane lamp": { art:"nightLake", slots:[["#f7f5ef","White"]] },
   "Project box":     { art:"gearBolt", view:"flip", base:{ enclosure:{ logo:{ on:true, mode:"inlay", width:30, x:0, y:0, depth:0.6 } } },
     slots:[["#f4f1ea","Cream"],["#22303c","Charcoal"],["#d1495b","Red"],["#edae49","Gold"]] },
@@ -697,4 +698,4 @@ const EXAMPLES = {
 // the example each object opens with (the quick starts use their own name)
 const EXAMPLE_FOR_TYPE = { nameplate:"Name keychain", board:"Flat shape", frame:"Photo frame", box:"Plaque", tracer:"Trace a part", lithophane:"Lithophane",
   jigsaw:"Jigsaw puzzle", cutter:"Cookie cutter", pcb:"Circuit board", lightbox:"Lightbox", canvas:"Plastic canvas", bobble:"Bobble head", shell:"Tea light",
-  turned:"Vase", enclosure:"Project box", phonecase:"Phone case", card:"Business card", cylinder:"Cactus pot", hex:"Coaster", sphere:"Planet" };
+  turned:"Vase", enclosure:"Project box", phonecase:"Phone case", card:"Business card", cylinder:"Cactus pot", hex:"Coaster", sphere:"Planet", relief:"Photo relief" };

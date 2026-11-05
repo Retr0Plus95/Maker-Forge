@@ -107,6 +107,10 @@ All the example pictures were drawn for Maker Forge and are free to use, like th
 | Gear pair | Two spur gears that mesh, with shaft holes | The number of teeth and the tooth size |
 | Bolt and nut | A threaded bolt and a nut that screws onto it | A metric size, or your own |
 | Replacement knob | A knob for a D-shaped or round shaft | The shaft's size, from calipers |
+| Light-up letters | Hollow letters for an LED strip, with faces that drop in | Your text |
+| Neon sign | A channel for LED neon strip along each letter, on a board | Your text (capitals and digits) |
+| House number | Solid numbers with keyholes in their backs | Your number |
+| Photo relief | A plaque whose surface rises with a photo, from AI depth | A photo of a face, a pet or a place |
 
 ## 3. Make: the object itself
 
@@ -151,6 +155,35 @@ A card the size of a bank card (85.6 × 54 mm), or a European, US, Japanese, Aus
 - **How it prints** (**Printing the card**). Face down, the front prints flush in the card's first layers, as smooth as your bed (a textured plate gives it its texture). The face on top can be flush, raised or engraved: flush keeps the card flat both sides, so it slides into a wallet. Light colours over a dark card need 0.6 mm or more to look solid. With a one-filament printer, **Everything raised in one colour** needs a single swap.
 - **NFC tag.** A pocket inside the card for an NFC sticker (20, 25, 30 or 38 mm), a coin tag, or a tag of your own size: in the middle, behind the logo or the code, or where you put it, with a small mark on the card to tap. Write the tag first with a free app such as NFC Tools. The card is made thicker if the tag needs room. The printer must pause once: **Before you print**, the Export tab and **nfc-tag.txt** in the download say before which layer. Add a pause there in your slicer, press the tag in when it stops (a sticker without its backing paper), and carry on: the next layer seals it in.
 - **A keyring or lanyard hole**, up to 12 **copies** on the bed, and **a card for each name** in a list (one a line, `Name | Title`).
+
+### Signs
+
+Under **Personalise**: house numbers, shop signs and room names, lit or not. Type up to four lines of text, pick a font and the letter height. It prints lying on its back.
+
+- **Solid letters.** Thick letters to screw or hang on a wall. On their own, each has a **keyhole** in its back (a screw in the wall, its head 5 mm out, and the letter hangs on it; letters 12 mm thick or more), or **holes for pins** (8 mm or more).
+- **Lit letters.** Hollow letters for an LED strip stuck round the inside of the walls. Each has a hole in its back for the wires and a keyhole to hang it from (the screw's head goes into the hollow and slides up). The **faces** print flat beside them, 1 mm thick in white or natural (the **Face filament**), and drop onto a ledge just inside the top. The ledge slopes at 45°, so nothing needs supports. The panel says how much LED strip you need.
+- **Neon style.** A groove for silicone LED neon strip (6 or 8 mm wide) along each letter, between two walls, on a board. It uses a single-line font, so capitals, digits and - + / . only. Holes at the ends of each stroke let the strip pass to the back; the panel works out the strip's length.
+- **Backing.** Separate letters, letters **joined by a rail**, **on a board**, or on a **board round the text** that follows the letters. A board gets screw holes at its top corners (lit letters on a board still hang from inside each letter).
+
+A sign wider than your bed says so: make the letters smaller, or print separate letters.
+
+### A 3D relief from a photo
+
+Under **From a picture**: a plaque, medallion, arch or heart whose surface rises with a photo. It prints face up, with no supports; fine layers (0.12 mm) show the detail best.
+
+- **AI depth** (the default). Press **Work out the depth with AI**: the app downloads a depth model the first time (27 MB, checked before it runs) and works out how near each part of the photo is, in about ten seconds. Nearer parts stand higher, so a face, a pet or a landscape becomes a real relief, not one where a dark jumper is a hole. The depth is kept with the picture, so a saved project opens without running it again. Until you press the button, the relief rises with brightness.
+- **Brightness** instead: light parts stand higher (**Invert** for dark).
+- **Carve it (tame the jumps)** works as a carver does: each part keeps its own shape (a head stays round) and the big jumps between near and far, such as a figure in front of a wall, are made small. At 0 the depth is used as it is, and a figure stands on a flat-topped step. **Use the whole height for the subject** finds where the background ends, keeps it at the base and spreads the subject's depth over the whole relief.
+- **Relief height** is how far the nearest part stands above the **Base**. **Keep the background flat** leaves the farthest share at the base, **Contrast** shapes the curve, **Smoothing** softens it and **Detail** sets how fine the surface is.
+- A **border** (at a share of the relief's height) and a **hole to hang it**.
+
+### The model doctor
+
+An imported model's Make tab has a **Model doctor** page. It says how many triangles the model has, how many separate shells, and whether it has holes, triangles the wrong way round, edges shared by more than two triangles, or flat and doubled triangles: the usual faults of a model from a download, a scanner or an AI maker.
+
+- **Repair it** joins points that should meet, removes flat and doubled triangles, turns every triangle to face outwards and fills the holes. A model that comes back a closed solid prints, cuts and paints properly.
+- **Simplify** (half, a quarter or a tenth of the triangles) keeps the shape with fewer triangles. A model straight from a scanner or an AI maker is often far finer than a print can show, and a smaller one makes everything faster.
+- Both keep the model's paint and own colours (a triangle filling a hole takes none). **Back to the original**, or Undo, brings the old one back.
 
 ### Mechanisms and fix-it parts
 

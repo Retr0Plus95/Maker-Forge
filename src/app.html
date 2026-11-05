@@ -9149,8 +9149,6 @@ function enclosureFields(p){
       numField(g,{ label:"Strap thickness (mm)", min:1,max:6,step:0.1, get:()=>E.strapT ?? 2.5, set:v=>E.strapT=v, onChange:baseChanged });
       note(g, E.strapDir === "up" ? "Two loops on the back for straps running up and down: round a handlebar, a rail or a tripod leg." : "Loops on the back for one strap running across: round a post, a pipe, a tree or a bike frame.");
     } else note(g, "Hang the box on a wall, a cabinet rail or a pole. For hanging on screws through the back wall, add a Wall-mount keyhole opening on the back instead.");
-    const I = enclosureInfo;
-    if (I && I.mount) I.mount.forEach(line => note(g, line));
   }, E.mount && E.mount !== "none");
   group(p, "Board mounts", g => {
     selField(g, "Board", Object.entries(BOARDS).map(([k, v]) => [k, v.label]), ()=>E.board, v=>{ E.board = v; renderTab(); encBoardChanged(); });

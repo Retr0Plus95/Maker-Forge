@@ -61,7 +61,7 @@
     "test:litho": "node tools-lithophane-test.js index.html",
     "test:enclosure": "node tools-enclosure-test.js index.html && node tools-boards-test.js index.html && node tools-inside-test.js index.html && node tools-boxprint-test.js index.html && node tools-arrange-test.js index.html",
     "test:size": "node tools-size-check.js index.html",
-    "check:browser": "node tools-browser-check.js index.html",
+    "check:browser": "node tools-browser-check.js index.html && node tools-paintmove-check.js index.html",
     "test:paint": "node tools-paint-test.js index.html",
     "test:phonecase": "node tools-phonecase-test.js index.html",
     "test:art": "node tools-art-test.js index.html",

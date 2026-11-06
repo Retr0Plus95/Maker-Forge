@@ -45,7 +45,7 @@ Maker Forge works on phones and tablets too. On a narrower screen, or with bigge
 - The less-used buttons in the top bar (Redo, **Aa**, light or dark, Settings, the manual and About) move into the **⋯** menu.
 - The seven view buttons fold into one, **◱▾**.
 - On a phone held upright, the model sits at the top and the settings scroll below it. The page icons run in a row between the two. **‹** hides the settings so the model gets the whole screen; tap any page icon to bring them back. Turn the phone on its side and the settings sit beside the model instead.
-- In the 3D view, drag with one finger to turn the model and use two fingers to zoom and move it. While you paint, one finger paints and two fingers zoom; choose **Move the view** to turn the model.
+- In the 3D view, drag with one finger to turn the model and use two fingers to zoom and move it. While you paint, one finger on the model paints and one finger beside it turns the model; two fingers zoom and move it, and **✋ Move** (bottom left of the view) frees the view until you press it again.
 
 A computer is still the easiest place for detailed work, but every setting, and **Download files**, is within reach on a phone.
 
@@ -367,7 +367,9 @@ GLB files are measured in metres; the app turns them into millimetres. A model t
 | Pick colour | I | Takes a colour from the model. |
 | Recolour | R | Changes every part of one colour into another. |
 | Box or lasso | A | Paints everything inside a box or a loop you draw: the side you see, or right through. |
-| Move the view | V | Drag turns the model instead of painting. |
+| Move the view | V | Drag turns the model instead of painting. The **✋ Move** button in the view does the same and takes you back to your brush. |
+
+**Moving while you paint** (new in 0.43): you don't need to switch tools. Drag **beside the model** to turn it, **right-drag** to turn it too, **hold Space** and drag anywhere, drag with the **middle button** to slide it, and **scroll** to zoom. On a touch screen, one finger beside the model turns it and two fingers zoom and slide; a stroke you started just before putting the second finger down is taken back. The view stops gliding the moment you start painting, so a stroke made straight after turning lands where you put it.
 
 Keys **1** to **8** pick a filament, **[** and **]** make the brush smaller or bigger. **Mirror** paints both sides at once, **Repeat round the middle** copies each stroke 2 to 12 times round the model, and the **smart brush** stops at sharp edges.
 

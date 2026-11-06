@@ -123,6 +123,9 @@ button,input,select,textarea{font:inherit;color:inherit}
   background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);border-radius:999px;padding:7px 14px;
   font-size:12.5px;font-weight:600;box-shadow:var(--shadow);z-index:2}
 .explode input{accent-color:var(--accent);width:92px}
+.paintmove{position:absolute;left:14px;bottom:48px;z-index:2;border:1px solid var(--line);border-radius:999px;padding:9px 16px;
+  background:color-mix(in srgb,var(--panel) 92%,transparent);font:inherit;font-size:13px;font-weight:700;box-shadow:var(--shadow);cursor:pointer;color:inherit}
+.paintmove[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
 .explode.section{right:auto;left:14px}
 .explode.section b{font-variant-numeric:tabular-nums;min-width:58px;text-align:right}
 .notice{position:absolute;left:50%;bottom:52px;transform:translateX(-50%);max-width:min(520px,calc(100% - 80px));
@@ -349,7 +352,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
 .app.no-left{grid-template-columns:calc(60px*var(--ui)) 0 1fr calc(262px*var(--ui))}
 .app.no-right{grid-template-columns:calc(60px*var(--ui)) calc(340px*var(--ui)) 1fr 0}
 .app.no-left.no-right{grid-template-columns:calc(60px*var(--ui)) 0 1fr 0}
-.appbar,.secrail,.sheet,.starts,.modal-card,.stage .viewtools,.stage .hudpills,.stage .explode,.stage .notice,.stage .statusbar{zoom:var(--ui)}
+.appbar,.secrail,.sheet,.starts,.modal-card,.stage .viewtools,.stage .hudpills,.stage .explode,.stage .paintmove,.stage .notice,.stage .statusbar{zoom:var(--ui)}
 :root[data-contrast="high"]{--muted:#2b3642;--line:#6b7887;--accent:#0b4f68;--accent-soft:#d8ecf4}
 @media (prefers-color-scheme: dark){ :root[data-contrast="high"]:not([data-theme="light"]){--ink:#ffffff;--muted:#d4dde6;--line:#8193a5;--accent:#8fd3ea;--accent-soft:#1d3a47} }
 :root[data-contrast="high"][data-theme="dark"]{--ink:#ffffff;--muted:#d4dde6;--line:#8193a5;--accent:#8fd3ea;--accent-soft:#1d3a47}
@@ -489,6 +492,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
       <button id="vShot" title="Save a picture">◎</button>
     </div>
     <div class="explode" id="explodeBox" hidden><span>Explode</span><input type="range" id="explodeR" min="0" max="60" step="1" value="0" aria-label="Explode parts"></div>
+    <button class="paintmove" id="paintMove" hidden aria-pressed="false" title="Move the view without leaving your brush (or hold Space)">✋ Move</button>
     <div class="explode section" id="sectionBox" hidden><span>Cut at</span><input type="range" id="sectionR" min="0" max="100" step="1" value="50" aria-label="Height of the cut"><b id="sectionV"></b></div>
     <div class="notice" id="notice" role="status" aria-live="polite"></div>
     <div class="statusbar" id="statusbar">
@@ -7590,15 +7594,67 @@ function paintChanged(){ repaint(); pushHistory(); }
 const brushRing = new THREE.Mesh(new THREE.RingGeometry(0.86, 1, 40), new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.9, depthTest:false, side:THREE.DoubleSide }));
 brushRing.renderOrder = 8; brushRing.visible = false; scene.add(brushRing);
 let stroke = null;
-const painting = () => tab === "paint" && paintUI.tool !== "view" && !viewOpts.measure;
+let paintHold = false;                               // Space held: the view moves, the brush waits (Session 49)
+const painting = () => tab === "paint" && paintUI.tool !== "view" && !viewOpts.measure && !paintHold;
 function paintControls(){
-  // while painting, the left button paints and the right button turns the view
+  // while painting, the left button paints on the model and turns the view off it (set per press below), the right button
+  // turns the view, the middle button slides it and the wheel zooms; on a touch screen one finger paints on the model and
+  // turns the view off it, two fingers zoom and slide (Session 49: before, turning the view meant switching to Turn view)
   const on = painting();
-  controls.mouseButtons = on ? { LEFT:-1, MIDDLE:THREE.MOUSE.DOLLY, RIGHT:THREE.MOUSE.ROTATE } : { LEFT:THREE.MOUSE.ROTATE, MIDDLE:THREE.MOUSE.DOLLY, RIGHT:THREE.MOUSE.PAN };
+  controls.mouseButtons = on ? { LEFT:-1, MIDDLE:THREE.MOUSE.PAN, RIGHT:THREE.MOUSE.ROTATE } : { LEFT:THREE.MOUSE.ROTATE, MIDDLE:THREE.MOUSE.DOLLY, RIGHT:THREE.MOUSE.PAN };
   controls.touches = on ? { ONE:-1, TWO:THREE.TOUCH.DOLLY_PAN } : { ONE:THREE.TOUCH.ROTATE, TWO:THREE.TOUCH.DOLLY_PAN };
-  renderer.domElement.style.cursor = on ? "crosshair" : "";
+  renderer.domElement.style.cursor = on ? "crosshair" : paintHold ? "grab" : "";
   if (!on){ brushRing.visible = false; brushPreview.visible = false; }
+  const mv = $("#paintMove");
+  if (mv){ mv.hidden = tab !== "paint"; mv.setAttribute("aria-pressed", String(tab === "paint" && (paintUI.tool === "view" || paintHold))); }
 }
+// the floating Move button: the view tool and back to the brush (or whatever was in hand), without the panel
+let paintBeforeMove = "brush";
+$("#paintMove").onclick = () => {
+  if (paintUI.tool === "view") paintUI.tool = paintBeforeMove || "brush";
+  else { paintBeforeMove = paintUI.tool; paintUI.tool = "view"; }
+  paintControls(); if (tab === "paint") renderTab();
+};
+// each press, before the view's own handlers (the capture phase on its parent): on the model it paints; off the model
+// (brush, eraser, fill, pick, recolour) it turns the view. A second finger during a stroke means a pinch: the stroke
+// just begun is taken back.
+const touchesDown = new Set();
+// a turn's glide (damping) stopped where it is: a stroke started straight after a turn must not slide under the brush
+function stopGlide(){
+  const p = camera.position.clone(), t = controls.target.clone();
+  controls.enableDamping = false; controls.update();                // drops what was left of the glide...
+  camera.position.copy(p); controls.target.copy(t); controls.update(); controls.enableDamping = true;   // ...and stays put
+}
+const PAINT_ON_MODEL = new Set(["brush", "erase", "fill", "pick", "recolour"]);
+view.addEventListener("pointerdown", e => {
+  if (e.target !== renderer.domElement) return;
+  if (e.pointerType === "touch") touchesDown.add(e.pointerId);
+  if (!painting()) return;
+  if (touchesDown.size > 1){ cancelStroke(); return; }
+  if (e.button !== 0 || !PAINT_ON_MODEL.has(paintUI.tool)) { controls.mouseButtons.LEFT = -1; controls.touches.ONE = -1; return; }
+  const off = !paintHit(e);
+  controls.mouseButtons.LEFT = off ? THREE.MOUSE.ROTATE : -1;
+  controls.touches.ONE = off ? THREE.TOUCH.ROTATE : -1;
+  if (!off) stopGlide();
+}, true);
+// touch events may come before the pointer events, so a touch decides it again from where the finger is
+view.addEventListener("touchstart", e => {
+  if (e.target !== renderer.domElement || !painting() || e.touches.length !== 1) return;
+  const off = !PAINT_ON_MODEL.has(paintUI.tool) ? false : !paintHit(e.touches[0]);
+  controls.touches.ONE = off ? THREE.TOUCH.ROTATE : -1;
+  if (!off) stopGlide();
+}, { capture:true, passive:true });
+const touchGone = e => { touchesDown.delete(e.pointerId); };
+window.addEventListener("pointerup", touchGone, true); window.addEventListener("pointercancel", touchGone, true);
+// Space held: move the view with the left button or one finger, then back to the brush
+window.addEventListener("keydown", e => {
+  if (e.code !== "Space" || tab !== "paint" || e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target; if (t && (t.matches("input,textarea,select,button") || t.isContentEditable)) return;
+  e.preventDefault(); if (!paintHold && !stroke){ paintHold = true; paintControls(); }
+});
+const dropHold = () => { if (paintHold){ paintHold = false; paintControls(); } };
+window.addEventListener("keyup", e => { if (e.code === "Space") dropHold(); });
+window.addEventListener("blur", dropHold);
 function paintHit(e){
   const r = renderer.domElement.getBoundingClientRect();
   ray.setFromCamera({ x:((e.clientX-r.left)/r.width)*2-1, y:-((e.clientY-r.top)/r.height)*2+1 }, camera);
@@ -7711,7 +7767,7 @@ function strokeAt(h){
   });
 }
 renderer.domElement.addEventListener("pointerdown", e => {
-  if (!painting() || e.button !== 0) return;
+  if (!painting() || e.button !== 0 || touchesDown.size > 1) return;
   const h = paintHit(e); if (!h) return;
   e.preventDefault();
   if (paintUI.tool === "pick"){ paintPick(h); return; }
@@ -7729,12 +7785,13 @@ renderer.domElement.addEventListener("pointerdown", e => {
   state.paint.ops.push(op);
   // the first stroke on a model: split it into triangles small enough to paint, then start
   if (!modelParts.some(p => p.pc) || !isFinite(paintInfo.edge)){ applyPaint(true); refreshScene(); }
-  stroke = { op };
+  stroke = { op, t0:performance.now(), id:e.pointerId };
   try { renderer.domElement.setPointerCapture(e.pointerId); } catch(err){}
   strokeAt(paintHit(e) || h); showBrush(h);
 });
 renderer.domElement.addEventListener("pointermove", e => {
   if (!painting()) return;
+  if (stroke && stroke.id != null && e.pointerId !== stroke.id) return;           // only the finger that started it paints
   if (areaDraw){
     const [x, y] = areaPoints(e);
     if (paintUI.area === "box") areaDraw.pts = [areaDraw.pts[0], [x, areaDraw.pts[0][1]], [x, y], [areaDraw.pts[0][0], y]];
@@ -7760,6 +7817,16 @@ const endArea = e => {
 };
 renderer.domElement.addEventListener("pointerup", endArea);
 renderer.domElement.addEventListener("pointercancel", () => { areaDraw = null; areaPath(); });
+// a stroke cut short by a second finger (a pinch or a two-finger slide starting): one begun in the last half second, or
+// still only a few dabs long, is taken back as if never made; a longer one is kept as far as it got
+function cancelStroke(){
+  if (!stroke) return;
+  const op = stroke.op, young = performance.now() - stroke.t0 < 500 || op.pts.length <= 4;
+  try { renderer.domElement.releasePointerCapture(stroke.id); } catch(err){}
+  stroke = null;
+  if (young || !op.pts.length){ const i = state.paint.ops.indexOf(op); if (i >= 0) state.paint.ops.splice(i, 1); if (op.pts.length) repaint(true); return; }
+  repaint(); pushHistory();
+}
 const endStroke = () => {
   if (!stroke) return;
   const op = stroke.op; stroke = null;
@@ -8641,7 +8708,7 @@ const SECTION_HELP = [
   [/picture on the back/i, "The picture prints in the back's first layers, flat on the bed: it comes out crisp and needs no support."],
   [/^paint$/i, "Pick a colour below, then use Auto colour or the brush. Every change can be undone with ↶ at the top (Ctrl+Z)."],
   [/auto colou?r/i, "Automatic painting follows the model: change its size or shape and the paint is worked out again."],
-  [/brush and fill/i, "Left-drag paints, right-drag turns the view, the wheel zooms. On a touch screen use one finger to paint and two to move."],
+  [/brush and fill/i, "Drag on the model to paint; drag beside it, right-drag or hold Space to turn the view; the middle button slides it, the wheel zooms. On a touch screen one finger paints on the model and turns the view beside it, two fingers zoom and slide, and ✋ Move frees the view."],
   [/paint list/i, "Everything you painted, in order. Remove a step or move it up or down."],
   [/paint detail/i, "Finer detail lets the brush follow small shapes, but makes the files bigger."],
   [/^feet$/i, "Shallow pockets under the floor hold stick-on rubber feet in place. They print as small bridges, which every printer manages."],
@@ -12665,11 +12732,11 @@ function tabPaint(p){
   segField(p, [["view","✋ Turn view"],["brush","🖌 Brush"],["fill","🪣 Fill"],["erase","⌫ Eraser"],["pick","💧 Pick colour"],["recolour","🔁 Recolour"],["area","⬚ Box or lasso"]], () => paintUI.tool,
     v => { if (v === "pick" || v === "recolour"){ if (paintUI.tool === "brush" || paintUI.tool === "fill") paintUI.lastTool = paintUI.tool; } paintUI.tool = v; paintControls(); renderTab(); }, "tools");
   note(p, paintUI.tool === "view" ? "Drag to turn the view. Pick the brush, fill or eraser to paint."
-    : paintUI.tool === "fill" ? "Click the model to fill an area. Right-drag (or two fingers) turns the view."
+    : paintUI.tool === "fill" ? "Click the model to fill an area. Drag beside the model (or right-drag, or hold Space) to turn the view."
     : paintUI.tool === "pick" ? "Click the model to take its colour for the brush (key I)."
     : paintUI.tool === "recolour" ? "Click a colour on the model: all of it changes to the brush colour below (key R). Undo brings it back."
-    : paintUI.tool === "area" ? "Drag a box, or draw a loop, over the model: everything inside is painted (key A). Right-drag turns the view."
-    : "Drag on the model to paint. Right-drag turns the view, the wheel zooms. [ and ] change the brush size.");
+    : paintUI.tool === "area" ? "Drag a box, or draw a loop, over the model: everything inside is painted (key A). Right-drag or hold Space to turn the view."
+    : "Drag on the model to paint. Drag beside it, right-drag or hold Space to turn the view; the middle button slides it, the wheel zooms. [ and ] change the brush size.");
   paletteRow(p);
   if (paintUI.tool === "area"){
     segField(p, [["box","▭ Box"],["lasso","◌ Lasso"]], () => paintUI.area, v => { paintUI.area = v; renderTab(); }, "two");

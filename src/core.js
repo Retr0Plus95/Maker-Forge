@@ -4201,6 +4201,103 @@
     for (let i = 0; i < n; i++) if (mask[i] && sizes[lab[i]] < big * 0.02) mask[i] = 0;
     return mask;
   }
+  // ---- click to colour (Session 50): Segment Anything in and out ----
+  // SlimSAM-77 (Apache 2.0, a slimmed Segment Anything): an encoder turns the photo, its longer side 1024 pixels and padded
+  // to 1024 × 1024 (ImageNet means and spreads), into an embedding once; a decoder takes the clicks (points in those 1024
+  // pixels, 1 on the part, 0 not) and gives three masks of 256 × 256 (logits over the padded square) with a score each.
+  const SAM_SIZE = 1024, SAM_MEAN = [0.485, 0.456, 0.406], SAM_SD = [0.229, 0.224, 0.225];
+  function samInput(rgba, W, H) {
+    const s = SAM_SIZE / Math.max(W, H), nw = Math.max(1, Math.round(W * s)), nh = Math.max(1, Math.round(H * s)), N = SAM_SIZE * SAM_SIZE;
+    const data = new Float32Array(3 * N);
+    // (the padding stays 0, as the processor pads after normalising)
+    for (let y = 0; y < nh; y++) {
+      const fy = Math.min(H - 1, Math.max(0, (y + 0.5) / s - 0.5)), y0 = Math.floor(fy), y1 = Math.min(H - 1, y0 + 1), ty = fy - y0;
+      for (let x = 0; x < nw; x++) {
+        const fx = Math.min(W - 1, Math.max(0, (x + 0.5) / s - 0.5)), x0 = Math.floor(fx), x1 = Math.min(W - 1, x0 + 1), tx = fx - x0;
+        const a = 4 * (y0 * W + x0), b = 4 * (y0 * W + x1), c = 4 * (y1 * W + x0), d = 4 * (y1 * W + x1), o = y * SAM_SIZE + x;
+        for (let k = 0; k < 3; k++) {
+          const v = (rgba[a + k] * (1 - tx) + rgba[b + k] * tx) * (1 - ty) + (rgba[c + k] * (1 - tx) + rgba[d + k] * tx) * ty;
+          data[k * N + o] = (v / 255 - SAM_MEAN[k]) / SAM_SD[k];
+        }
+      }
+    }
+    return { data, dims: [1, 3, SAM_SIZE, SAM_SIZE], scale: s, nw, nh };
+  }
+  // clicks as [x, y, on] in parts of the photo's width and height
+  function samPrompt(points, W, H, scale) {
+    const n = points.length, coords = new Float32Array(2 * n), labels = new BigInt64Array(n);
+    points.forEach((p, i) => { coords[2 * i] = p[0] * W * scale; coords[2 * i + 1] = p[1] * H * scale; labels[i] = p[2] ? 1n : 0n; });
+    return { points: { data: coords, dims: [1, 1, n, 2] }, labels: { data: labels, dims: [1, 1, n] } };
+  }
+  // the best of the masks (by its score) at w × h over the whole photo, with only the pieces a click on the part is in
+  // (or, with none, all of it); clicks as for samPrompt
+  function samMask(masks, dims, iou, nw, nh, w, h, points) {
+    const k = dims[2], m = dims[3], area = m * m;
+    let best = 0; for (let i = 1; i < k; i++) if (iou[i] > iou[best]) best = i;
+    const off = best * area, cw = nw / SAM_SIZE * m, ch = nh / SAM_SIZE * m, out = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) {
+      const fy = Math.min(m - 1, Math.max(0, (y + 0.5) / h * ch - 0.5)), y0 = Math.floor(fy), y1 = Math.min(m - 1, y0 + 1), ty = fy - y0;
+      for (let x = 0; x < w; x++) {
+        const fx = Math.min(m - 1, Math.max(0, (x + 0.5) / w * cw - 0.5)), x0 = Math.floor(fx), x1 = Math.min(m - 1, x0 + 1), tx = fx - x0;
+        const v = (masks[off + y0 * m + x0] * (1 - tx) + masks[off + y0 * m + x1] * tx) * (1 - ty) + (masks[off + y1 * m + x0] * (1 - tx) + masks[off + y1 * m + x1] * tx) * ty;
+        if (v > 0) out[y * w + x] = 1;
+      }
+    }
+    const on = (points || []).filter(p => p[2]);
+    if (on.length) {
+      const L = labelMask(out, w, h), keep = new Set();
+      for (const p of on) { const i = Math.min(h - 1, Math.floor(p[1] * h)) * w + Math.min(w - 1, Math.floor(p[0] * w)); if (L.lab[i] >= 0) keep.add(L.lab[i]); }
+      if (keep.size) for (let i = 0; i < out.length; i++) if (out[i] && !keep.has(L.lab[i])) out[i] = 0;
+    }
+    return { mask: out, score: iou[best] };
+  }
+  // a mask kept with a project: its runs, starting with an empty one, in base 36
+  function maskRLE(mask) {
+    const runs = []; let v = 0, n = 0;
+    for (let i = 0; i < mask.length; i++) { const b = mask[i] ? 1 : 0; if (b === v) n++; else { runs.push(n); v = b; n = 1; } }
+    runs.push(n); return runs.map(r => r.toString(36)).join(".");
+  }
+  function maskFromRLE(rle, w, h) {
+    const out = new Uint8Array(w * h); let i = 0, v = 0;
+    for (const s of String(rle || "").split(".")) { const n = parseInt(s, 36); if (!(n >= 0)) break; if (v) out.fill(1, i, Math.min(out.length, i + n)); i += n; v ^= 1; if (i >= out.length) break; }
+    return out;
+  }
+  // the triangles a mask on a lined-up photo takes: each triangle's middle seen through the photo's camera, in the mask, and
+  // the nearest thing there (the side seen); with through, also the farthest thing there: the back of the same part, as a
+  // camera straight behind would see it (not what lies between, the inside of an arm behind a shirt)
+  function photoMaskTris(solid, cam, fit, mask, W, H, through) {
+    const R = photoRaster(solid, cam, fit, W, H), I = solid.idx, n = I.length / 3, out = [];
+    let z0 = Infinity, z1 = -Infinity; for (const z of R.Z) { if (z < z0) z0 = z; if (z > z1) z1 = z; }
+    const tol = 0.015 * (z1 - z0) + 0.3;
+    let far = null;
+    if (through) {
+      far = new Float32Array(W * H).fill(Infinity);
+      const X = R.X, Y = R.Y, Z = R.Z;
+      for (let t = 0; t < n; t++) {
+        const a = I[3 * t], b = I[3 * t + 1], c = I[3 * t + 2], x0 = X[a], y0 = Y[a], x1 = X[b], y1 = Y[b], x2 = X[c], y2 = Y[c];
+        const area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0); if (Math.abs(area) < 1e-12) continue;
+        const minx = Math.max(0, Math.floor(Math.min(x0, x1, x2))), maxx = Math.min(W - 1, Math.ceil(Math.max(x0, x1, x2)));
+        const miny = Math.max(0, Math.floor(Math.min(y0, y1, y2))), maxy = Math.min(H - 1, Math.ceil(Math.max(y0, y1, y2)));
+        for (let py = miny; py <= maxy; py++) for (let px = minx; px <= maxx; px++) {
+          const k = py * W + px; if (!mask[k]) continue;
+          const sx = px + 0.5, sy = py + 0.5, w0 = ((x1 - sx) * (y2 - sy) - (x2 - sx) * (y1 - sy)) / area, w1 = ((x2 - sx) * (y0 - sy) - (x0 - sx) * (y2 - sy)) / area, w2 = 1 - w0 - w1;
+          if (w0 < 0 || w1 < 0 || w2 < 0) continue;
+          const z = w0 * Z[a] + w1 * Z[b] + w2 * Z[c]; if (z < far[k]) far[k] = z;
+        }
+      }
+    }
+    for (let t = 0; t < n; t++) {
+      const a = I[3 * t], b = I[3 * t + 1], c = I[3 * t + 2];
+      const x = (R.X[a] + R.X[b] + R.X[c]) / 3, y = (R.Y[a] + R.Y[b] + R.Y[c]) / 3;
+      if (!(x >= 0 && y >= 0 && x < W && y < H)) continue;
+      const k = Math.floor(y) * W + Math.floor(x);
+      if (!mask[k]) continue;
+      // at the depth of what is seen there (a face seen edge on, nearer than that, lies on the next pixel, not this one)
+      const z = (R.Z[a] + R.Z[b] + R.Z[c]) / 3;
+      if (R.id[k] === t || Math.abs(R.depth[k] - z) <= tol || (far && Math.abs(far[k] - z) <= tol)) out.push(t);
+    }
+    return Int32Array.from(out);
+  }
   // ---- the AI figure finder (Session 17): the pictures in and out of the small U²-Net ----
   // The network ("u2netp", Apache 2.0) marks a photo's main object. It takes the photo squeezed to S x S
   // (area-averaged), divided by its brightest value and standardised per channel (the ImageNet means and
@@ -6294,6 +6391,7 @@
     meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, gradientCuts, gradientLayers, paintGradient, paintSwap, meshShells, paintShells,
     meshRegions, paintRegions, paintNoise, paintPictureWrap, paintCurvature, curvatureClasses, layerSlots, pauseColours, colourChanges, paintBrush, brushTris, strokeField, strokeTris, paintStroke, areaField, pictureUV, pictureWrapUV, pictureFields, symmetryCopies, areaTris, paintFill, paintPicture, parseOBJ, parse3MFModel,
     PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, photoRef, photoUV, PHOTO_K_MAX, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, photoFitCloseness, photoFitFull, photoFitClosenessSteps, photoFitFullSteps, paintFromPhotos, photoBend, photoBendApply, graphCut, cheapestLabels, photoLight, photoUnshade, photoLitBy, photoTriNormals, meshBVH, bvhRaycast,
+    samInput, samPrompt, samMask, maskRLE, maskFromRLE, photoMaskTris,
     photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure, cutoutWithMap, edgeOpacity, pictureBackground, cutoutByColour, plateColour, cutoutCombine, photoFixMap, photoFixMask,
     parseGLB, parseGLTF, parseMTL, parseOBJColours, modelTriColours, modelPalette, modelColourLabels,
     cutBase, cutFree, cutSolid, cutFlat, cutSources, cutCorners, qrEncode, qrPayload, qrLink,

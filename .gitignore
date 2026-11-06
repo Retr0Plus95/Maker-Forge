@@ -7,3 +7,5 @@ Thumbs.db
 .vscode/
 .idea/
 models/depth-anything-v2-small-int8.onnx
+models/slimsam-77-vision-int8.onnx
+models/slimsam-77-decoder-int8.onnx

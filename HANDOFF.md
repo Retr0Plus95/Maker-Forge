@@ -1841,8 +1841,11 @@ are missing").
 - **The field's inset:** `signedDistanceField` counts from pixel centres, so a level t lies t/2 px inside the outline below
   1 px and t − 0.4 px beyond (measured on a 15 mm disc). `tracerEdges` maps the inset it wants to the level it needs.
 - **Countersinks:** each round hole widens at 45° towards the top. A hole within 0.6 mm of a screw's clearance (SCREWS: M2 to
-  M4) takes that screw's head + 0.4 mm; any other round hole widens to twice its size. The depth is kept 0.6 mm above the
-  bottom chamfer. The panel lists each countersink.
+  M4) takes that screw's head + 0.4 mm; any other round hole widens to twice its size, at most 6 mm more. Each is trimmed to
+  leave 0.8 mm of part to the outline (less the top edge) and to stop half way to the next round hole: the first version let the
+  example bracket's 15.4 mm countersinks break out through its edge, which read 172 mm² of support in Chromium (the jsdom
+  trace's holes sat further in, so the headless test had missed it). The depth is kept 0.6 mm above the bottom chamfer. The
+  panel lists each countersink and says when one was trimmed.
 - Only for the shape on its own in one colour: a plate, a cover or the picture's colours (whose top layer is the colours) say
   so instead.
 - The slabs overlap by 0.01 mm (as the frame's do), so the volume reading counts each overlap twice: about 1% high on a 5 mm
@@ -1907,6 +1910,15 @@ are missing").
     extrude or cut; holes (plain, countersunk, for heat inserts, threaded with `threadSolid`); hollow with drain holes, shell and
     thicken; mirror, align, measure (distance, angle, wall thickness). Rounded edges on a mesh are the hard part: chamfers, or an
     honest "rounded, roughly".
+- **Asked for next** (the owner, during Session 44; ahead of the section plan where they fit):
+  - **100 more components for project boxes**, the most common first, then the rest: boards, modules, Arduino shields and add-ons
+    (with their mounting holes where the box holds them), **with a search** in the openings list ("add an opening: type its name").
+    Other parts that take components (signs' wiring, the lightbox) use the same list where it helps.
+  - **The picture beside the keychain's name needs much more work** (placement, size, outline, colours, how it joins the plate).
+  - **An icon maker for project boxes**: a small built-in icon set (and, if allowed, icons from an open SVG library such as SVG
+    Repo, fetched only when asked, with their licences kept), several icons combined into a new one, in several colours, for the
+    lid or a label.
+  - **More than the basics**: each section also gets medium-sized useful features, not only missing basics.
 - **After 0.50: 1.0 and 2.0** (the owner, Session 43: "Let's keep manifold for now and use version 2.0 as a full 3d cad software
   we will find a way to keep it small fast and easy to use"; before that: "Should the version 1.0 be a fully parametric cad addon? The
   ability to connect to a local agent and get help with modelling").

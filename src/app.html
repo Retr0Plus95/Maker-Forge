@@ -2962,13 +2962,24 @@ function tracerEdges(T, mask, w, h, mmPerPx, polys, holes){
   const th = T.thick, kind = T.edgeTop === "chamfer" || T.edgeTop === "round" ? T.edgeTop : "square";
   const eT = kind === "square" ? 0 : Math.min(clamp(+T.edgeSize || 1, 0.2, 5), th*0.45);
   const eB = Math.min(clamp(+T.edgeBottom || 0, 0, 1), th*0.3);
+  const pxPerMm = 1/mmPerPx, offPx = (+T.offset || 0)*pxPerMm, sdf = (eT || eB || T.sink) ? C.signedDistanceField(mask, w, h) : null;
+  // the outline's distance from a point (mm, the polygons' frame): to keep a countersink inside the part
+  // (to the outline, and half way to any other round hole, whose countersink grows towards this one)
+  const roomAt = (x, y) => { let best = Infinity;
+    for (const o of holes) if (o.round){ const D = Math.hypot(o.x - x, o.y - y); if (D > 0.5) best = Math.min(best, D/2 + 0.4 + eT); }
+    for (const p of polys) for (const L of [p.outer]) for (let i=0,n=L.length,j=n-1;i<n;j=i++){
+    const a = L[j], b = L[i], vx = b[0]-a[0], vy = b[1]-a[1], t = clamp(((x-a[0])*vx + (y-a[1])*vy)/((vx*vx + vy*vy) || 1), 0, 1);
+    best = Math.min(best, Math.hypot(a[0] + t*vx - x, a[1] + t*vy - y)); } return best; };
+  let cramped = 0;
   const sinks = T.sink ? holes.filter(q => q.round).map(q => {
     let best = null; for (const [k, sc] of Object.entries(SCREWS)){ const dd = Math.abs(sc.clear - q.made); if (dd <= 0.6 && (!best || dd < best.dd)) best = { k, sc, dd }; }
-    const head = best ? best.sc.head + 0.4 : q.made*2, d = Math.max(0, Math.min((head - q.made)/2, th - eB - 0.6));
+    // a screw's head, else twice the hole (at most 6 mm wider), and always 0.8 mm of wall left round it
+    const want = best ? best.sc.head + 0.4 : Math.min(q.made*2, q.made + 6), room = 2*(roomAt(q.x, q.y) - 0.8 - eT), head = Math.min(want, room);
+    if (head < want - 0.01) cramped++;
+    const d = Math.max(0, Math.min((head - q.made)/2, th - eB - 0.6));
     return { x:q.x, y:q.y, r:q.made/2, d, head:q.made + 2*d, screw:best ? best.k : null };
   }).filter(q => q.d > 0.05) : [];
   if (!eT && !eB && !sinks.length) return null;
-  const pxPerMm = 1/mmPerPx, offPx = (+T.offset || 0)*pxPerMm, sdf = (eT || eB) ? C.signedDistanceField(mask, w, h) : null;
   const opt = { mmPerPx, iso:0, eps:mmPerPx*0.3, minSeg:mmPerPx*0.4, closeEdges:true };
   const round = holes.filter(q => q.round);
   const ringAt = (x, y, r) => C.ringCircle(r, Math.max(32, Math.round(r*12)), true).map(q => [q[0] + x, q[1] + y]);
@@ -3005,7 +3016,7 @@ function tracerEdges(T, mask, w, h, mmPerPx, polys, holes){
   if (zTop > eB) layers.push(C.extrudePolysAt(polys, eB > 0 ? eB - 0.01 : 0, zTop));
   slabs(Math.max(eB, zTop), th, 0.2);
   const solid = C.mergeSolids(layers);
-  return solid ? { solid, info:{ top:kind, eT, eB, sinks:sinks.map(q => ({ dia:+(2*q.r).toFixed(2), head:+q.head.toFixed(2), depth:+q.d.toFixed(2), screw:q.screw })) } } : null;
+  return solid ? { solid, info:{ top:kind, eT, eB, cramped, sinks:sinks.map(q => ({ dia:+(2*q.r).toFixed(2), head:+q.head.toFixed(2), depth:+q.d.toFixed(2), screw:q.screw })) } } : null;
 }
 
 /* Tracer extras: a back plate under the traced shape (raised, flush inlay or engraved), or a hollow
@@ -10561,6 +10572,7 @@ function tracerFields(p){
       if (T.roundHoles) checkField(c, "Countersink the round holes (screw heads sit flush)", ()=>T.sink === true, v=>{ T.sink = v; renderTab(); baseChanged(); });
       const sk = tracerInfo && tracerInfo.edges && tracerInfo.edges.sinks;
       if (T.sink && T.roundHoles) note(c, sk && sk.length ? sk.map(q => `${q.screw ? q.screw + " " : ""}hole ${q.dia} mm: countersunk to ${q.head} mm, ${q.depth} mm deep`).join("; ") + ". Countersinks open at the top: print the part this way up."
+          + (tracerInfo.edges.cramped ? ` ${tracerInfo.edges.cramped === 1 ? "One countersink is" : "Some countersinks are"} smaller than a screw head would need, to leave 0.8 mm of part round ${tracerInfo.edges.cramped === 1 ? "it" : "them"}.` : "")
         : "No round hole to countersink, or the part is too thin for one.");
     } else note(c, T.colours === "keep" ? "Chamfered edges and countersinks are for a part in one colour." : "Chamfered edges and countersinks are for the shape on its own (no back plate or cover).");
     checkField(c, "Mirror (if you photographed the back of the part)", ()=>T.mirror, v=>{ T.mirror = v; baseChanged(); });

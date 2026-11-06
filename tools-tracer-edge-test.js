@@ -70,6 +70,10 @@ function insideMesh(s, p) {
       "the hole keeps its size below the countersink, which widens at 45° to the head at the top", `r ${rb.toFixed(2)} at 1 mm, ${rm.toFixed(2)} half way, ${rt.toFixed(2)} at 4.9 mm`);
   }
   check(good(p) && (await supportOf()) < 3, "closed, on the bed, no support");
+  // with a rounded edge as well, the countersinks are trimmed to leave 0.8 mm of part round them (the example's 7.7 mm holes
+  // sit close to the edge: a full 13.7 mm countersink would break out through it)
+  p = await build({ sink: true, edgeTop: "round", edgeSize: 1.5 });
+  { const e = MF.tracer.edges; check(good(p) && e.cramped > 0 && e.sinks.every(q => q.head < 13.7) && (await supportOf()) < 3, "with a rounded edge too: the countersinks trimmed to stay inside the part, closed, no support", e.sinks.map(q => q.head + " mm").join(", ")); }
   // a hole an M3 screw's clearance (3.4 mm) countersinks to M3's head, 6.0 + 0.4 mm
   p = await build({ sink: true, snap: 0, holeClear: 0 });
   check(good(p), "with the holes at their measured size: still closed");

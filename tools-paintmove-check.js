@@ -28,6 +28,12 @@ const LIBS = [[/three@[\d.]+\/build\/three\.min\.js/, "three/build/three.min.js"
   const st = async () => { await still(); return st0(); };
   const still = () => page.evaluate(async () => { const MF = window.MakerForge, sleep = ms => new Promise(q => setTimeout(q, ms)); let last = "";
     for (let i = 0; i < 100; i++){ const c = MF.camera.position, k = [c.x, c.y, c.z].map(v => v.toFixed(3)).join(); if (k === last) return; last = k; await sleep(80); } });
+  // where the model is on the screen now: the middle of its painted part, projected (a press there lands on it whatever
+  // the view; under load a turn can end anywhere)
+  const onModel = () => page.evaluate(() => { const MF = window.MakerForge, r = document.querySelector("#view canvas").getBoundingClientRect(), box = new THREE.Box3();
+    MF.scene.traverse(o => { if (o.isMesh && o.visible && o.userData && o.userData.part != null) box.expandByObject(o); });
+    const c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3()); c.y -= sz.y * 0.15; c.project(MF.camera);
+    return [r.left + (c.x + 1) / 2 * r.width, r.top + (1 - c.y) / 2 * r.height]; });
   const moved = (a, b2, k = "cam") => Math.hypot(...a[k].map((v, i) => v - b2[k][i]));
   const drag = async (x0, y0, dx, dy, button = "left") => { await page.mouse.move(x0, y0); await page.mouse.down({ button }); for (let i = 1; i <= 10; i++) await page.mouse.move(x0 + dx*i/10, y0 + dy*i/10); await page.mouse.up({ button }); await page.waitForTimeout(400); };
   const out = []; const check = (ok, what, got) => out.push(`${ok ? "  ok  " : "  FAIL"} ${what}  (${got})`);
@@ -40,7 +46,8 @@ const LIBS = [[/three@[\d.]+\/build\/three\.min\.js/, "three/build/three.min.js"
     const rec = t => () => { const c = MF.camera.position; window.__cam[t] = [c.x, c.y, c.z]; };
     v.addEventListener("pointerdown", rec("down"), true); v.addEventListener("pointerup", rec("up"), true); });
   const pressMoved = () => page.evaluate(() => Math.hypot(...window.__cam.down.map((v, i) => v - window.__cam.up[i])));
-  a = b2; await drag(s.x - 30, s.y, 60, 8); b2 = await st(); let pm = await pressMoved();
+  let [mx, my] = await onModel();
+  a = b2; await drag(mx - 20, my, 40, 6); b2 = await st(); let pm = await pressMoved();
   check(pm < 0.5 && b2.ops === a.ops + 1, "a drag on the model paints and the view stays", `camera moved ${pm.toFixed(2)}, ops ${a.ops} → ${b2.ops}`);
   // 3. Space held: a drag on the model turns the view
   a = b2; await page.mouse.move(s.x, s.y); await page.keyboard.down("Space"); const held = (await st()).move; await drag(s.x - 30, s.y, 80, 20); await page.keyboard.up("Space"); b2 = await st();
@@ -65,7 +72,8 @@ const LIBS = [[/three@[\d.]+\/build\/three\.min\.js/, "three/build/three.min.js"
   // 8. touch: one finger beside the model turns the view; one on the model paints
   a = b2; await T("touchStart", [[s.l + 40, s.t + s.h - 120]]); for (let i = 1; i <= 8; i++){ await T("touchMove", [[s.l + 40 + i*12, s.t + s.h - 120]]); await page.waitForTimeout(20); } await T("touchEnd", []); await page.waitForTimeout(400); b2 = await st();
   check(moved(a, b2) > 5 && b2.ops === a.ops, "touch: one finger beside the model turns the view", `camera moved ${moved(a, b2).toFixed(1)}, ops ${a.ops} → ${b2.ops}`);
-  a = b2; await T("touchStart", [[s.x - 20, s.y]]); for (let i = 1; i <= 8; i++){ await T("touchMove", [[s.x - 20 + i*6, s.y + 1]]); await page.waitForTimeout(20); } await T("touchEnd", []); await page.waitForTimeout(400); b2 = await st(); pm = await pressMoved();
+  [mx, my] = await onModel();
+  a = b2; await T("touchStart", [[mx - 15, my]]); for (let i = 1; i <= 8; i++){ await T("touchMove", [[mx - 15 + i*4, my + 1]]); await page.waitForTimeout(20); } await T("touchEnd", []); await page.waitForTimeout(400); b2 = await st(); pm = await pressMoved();
   check(pm < 0.5 && b2.ops === a.ops + 1, "touch: one finger on the model paints", `camera moved ${pm.toFixed(2)}, ops ${a.ops} → ${b2.ops}`);
   // 9. the Make tab: the button hides, the left button turns the view again
   await page.evaluate(() => [...document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "make").click()); await page.waitForTimeout(200); a = await st();

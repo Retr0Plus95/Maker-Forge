@@ -52,6 +52,24 @@ file, so it is **not kept in this repository**: the app loads it from this folde
 - **SHA-256:** `01aa7a23de3f4a0ee1a2bb9997e6918104c85a9f95dea46d27b9b3fb0c6b9001`. The app checks the file against this
   before it uses it, wherever it comes from. The tests use a copy in this folder when there is one (`git` ignores it).
 
+## The click-to-colour model (Segment Anything on a photo)
+
+`slimsam-77-vision-int8.onnx` and `slimsam-77-decoder-int8.onnx` are SlimSAM-77, a slimmed Segment Anything: a click on a part
+of a photo outlines it. Maker Forge uses them, only when asked, for **Click to colour** on the Paint tab's photo card
+(Session 50). They run in the browser; photos are not sent anywhere. They are **not kept in this repository**: the app loads
+them from this folder next to `index.html` if they are there (a website can keep its own copy), else from Xenova's copy on
+Hugging Face at a fixed revision.
+
+- **Model and weights:** SlimSAM by Zigeng Chen, Gongfan Fang, Xinyin Ma and Xinchao Wang, <https://github.com/czg1225/SlimSAM>,
+  pruned from Meta's Segment Anything (ViT-B), both under the Apache License 2.0 (below). Paper: *0.1% Data Makes Segment Anything
+  Slim* (2023).
+- **These files:** the int8 ONNX conversion by Xenova, <https://huggingface.co/Xenova/slimsam-77-uniform>, revision
+  `5850ab45f587c112167512ffef949107115e26a0`, files `onnx/vision_encoder_quantized.onnx` (8.9 MB) and
+  `onnx/prompt_encoder_mask_decoder_quantized.onnx` (4.9 MB), unchanged, renamed here.
+- **SHA-256:** `cce23c7b2e5d4f330932738fb67ba518e04b0d99ccdd1cccd22a7da4e01f2971` (the encoder) and
+  `cb90b279f549d2cab7fd6e20c38522438c65d84bdcca3d2a764cff7d857fdce2` (the decoder). The app checks each file against these
+  before it uses it, wherever it comes from. The tests use copies in this folder when there are some (`git` ignores them).
+
 ## Apache License 2.0
 
 ```

@@ -131,6 +131,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .iconideas{flex-wrap:wrap}
 .subh{font-size:13px;font-weight:700;margin:14px 0 6px}
 .encPlanOut{margin-top:8px}
+.photoPrev.clicking{cursor:crosshair}
 .paintmove{position:absolute;left:14px;bottom:48px;z-index:2;border:1px solid var(--line);border-radius:999px;padding:9px 16px;
   background:color-mix(in srgb,var(--panel) 92%,transparent);font:inherit;font-size:13px;font-weight:700;box-shadow:var(--shadow);cursor:pointer;color:inherit}
 .paintmove[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -445,7 +446,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.43.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.44.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -7045,7 +7046,7 @@ function paintCuts(ops){
   }
   return [...cuts].filter(isFinite).sort((a,b)=>a-b).slice(0, 600);
 }
-const paintNeedsFine = ops => ops.some(o => ["brush","picture","noise","fill","photo","area","curve","model"].includes(o.k));
+const paintNeedsFine = ops => ops.some(o => ["brush","picture","noise","fill","photo","area","curve","model","photoarea"].includes(o.k));
 // the brush wants small triangles before it paints (to show what it will paint): set while a brush-type
 // tool is used on the Paint tab, dropped when leaving it or opening another model with nothing painted
 let paintPrepared = false;
@@ -7169,7 +7170,11 @@ const AI_FIGURE = {
   // not the figure finder either: Depth Anything V2 Small (Apache 2.0) for a relief from a photo (Session 38), int8, 27 MB, at
   // a fixed revision of the ONNX community's copy (over jsDelivr's 20 MB a file); only downloaded when asked for
   depth:{ urls:["models/depth-anything-v2-small-int8.onnx", "https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/4472b7362082ad9968fee890ca0f1e5aca36b93d/onnx/model_int8.onnx"], sha256:"01aa7a23de3f4a0ee1a2bb9997e6918104c85a9f95dea46d27b9b3fb0c6b9001" },
-  depthMB:27, mb:19, size:320
+  // not the figure finder either: SlimSAM-77 (Apache 2.0), a slimmed Segment Anything, for click to colour on a photo (Session
+  // 50): its encoder (8.9 MB) and its prompt decoder (4.9 MB), int8, at a fixed revision of Xenova's copy; only downloaded when asked for
+  sam:{ urls:["models/slimsam-77-vision-int8.onnx", "https://huggingface.co/Xenova/slimsam-77-uniform/resolve/5850ab45f587c112167512ffef949107115e26a0/onnx/vision_encoder_quantized.onnx"], sha256:"cce23c7b2e5d4f330932738fb67ba518e04b0d99ccdd1cccd22a7da4e01f2971" },
+  samDecoder:{ urls:["models/slimsam-77-decoder-int8.onnx", "https://huggingface.co/Xenova/slimsam-77-uniform/resolve/5850ab45f587c112167512ffef949107115e26a0/onnx/prompt_encoder_mask_decoder_quantized.onnx"], sha256:"cb90b279f549d2cab7fd6e20c38522438c65d84bdcca3d2a764cff7d857fdce2" },
+  depthMB:27, samMB:14, mb:19, size:320
 };
 const aiState = { ort:null, session:null, loading:null };
 const aiHooks = { run:null, load:null };              // tests: run(input, size) -> the network's first output; load() in place of the download
@@ -7220,6 +7225,69 @@ function aiLoad(){
     aiState.session = await ort.InferenceSession.create(model, { executionProviders:["wasm"] });
   })().catch(err => { aiState.loading = null; throw err; });
   return aiState.loading;
+}
+/* ---- click to colour (Session 50) ----
+   On a lined-up photo, a click on a part (the shirt, the hair) outlines it with Segment Anything (SlimSAM-77), and the outline
+   is painted onto the model in a filament: a "photoarea" step, keeping the outline (a mask of the photo, its longer side
+   SAM_MASK pixels, as runs) and which photo it is on, so it follows the photo when it is lined up again and opens offline.
+   The encoder reads a photo once (a few seconds); each click after that takes a fraction of a second. */
+const samState = { enc:null, dec:null, loading:null, emb:new Map(), error:"" };
+const samHooks = { encode:null, decode:null };       // tests: encode(input) -> the embeddings; decode(prompt, embeddings) -> { masks, dims, iou }
+const SAM_MASK = 360;
+function samLoad(){
+  if ((samState.enc && samState.dec) || (samHooks.encode && samHooks.decode)) return Promise.resolve();
+  if (!samState.loading) samState.loading = (async () => {
+    if (!(window.crypto && crypto.subtle)) throw new Error("the page has to be opened over https (or as a file) so the download can be checked");
+    let got = 0; const step = n => { got += n; setBusy(true, `Downloading the click-to-colour AI… ${Math.min(AI_FIGURE.samMB, Math.round(got/1e6))} of ${AI_FIGURE.samMB} MB (once)`); };
+    const [ort, enc, dec] = await Promise.all([ortRuntime(step), aiGet(AI_FIGURE.sam, step), aiGet(AI_FIGURE.samDecoder, step)]);
+    setBusy(true, "Starting the click-to-colour AI…");
+    samState.enc = await ort.InferenceSession.create(enc, { executionProviders:["wasm"] });
+    samState.dec = await ort.InferenceSession.create(dec, { executionProviders:["wasm"] });
+  })().catch(err => { samState.loading = null; samState.error = err.message || String(err); throw err; });
+  return samState.loading;
+}
+// a photo read by the encoder, kept for the last few photos
+async function samEmbed(asset){
+  if (samState.emb.has(asset)) return samState.emb.get(asset);
+  await samLoad();
+  const px = photoPixels(asset, 1024); if (!px) throw new Error("the photo is not in this project");
+  const inp = C.samInput(px.rgba, px.w, px.h);
+  setBusy(true, "The AI is reading the photo… (a few seconds, once per photo)");
+  let e;
+  try {
+    if (samHooks.encode) e = await samHooks.encode(inp);
+    else { const ort = aiState.ort, r = await samState.enc.run({ pixel_values:new ort.Tensor("float32", inp.data, inp.dims) }); e = { emb:r.image_embeddings, pos:r.image_positional_embeddings }; }
+  } finally { setBusy(false); }
+  const E = Object.assign({ scale:inp.scale, nw:inp.nw, nh:inp.nh, w:px.w, h:px.h }, e);
+  samState.emb.set(asset, E); if (samState.emb.size > 3) samState.emb.delete(samState.emb.keys().next().value);
+  return E;
+}
+// the outline for these clicks ([x, y, on] in parts of the photo): { mask, w, h, score }
+async function samSelect(asset, points){
+  const E = await samEmbed(asset), pr = C.samPrompt(points, E.w, E.h, E.scale);
+  let out;
+  if (samHooks.decode) out = await samHooks.decode(pr, E);
+  else { const ort = aiState.ort, r = await samState.dec.run({ input_points:new ort.Tensor("float32", pr.points.data, pr.points.dims), input_labels:new ort.Tensor("int64", pr.labels.data, pr.labels.dims),
+    image_embeddings:E.emb, image_positional_embeddings:E.pos });
+    out = { masks:r.pred_masks.data, dims:r.pred_masks.dims, iou:r.iou_scores.data }; }
+  const a = E.w / E.h, w = a >= 1 ? SAM_MASK : Math.max(8, Math.round(SAM_MASK*a)), h = a >= 1 ? Math.max(8, Math.round(SAM_MASK/a)) : SAM_MASK;
+  return Object.assign(C.samMask(out.masks, out.dims, out.iou, E.nw, E.nh, w, h, points), { w, h });
+}
+// the photo a photoarea step is on, and the triangles of a paint part it takes
+const photoViewOf = asset => { for (const q of state.paint.ops) if (q.k === "photo" && Array.isArray(q.views)){ const v = q.views.find(w => w.asset === asset); if (v) return v; } return null; };
+function photoAreaTris(pc, o){
+  const v = photoViewOf(o.asset), f = v && v.fit && photoModel() && photoFitNowFor(v); if (!f) return null;
+  const b = photoBends(v) ? photoBendOf(v) : null, cam = photoCamOf(v);
+  const key = JSON.stringify([o.asset, o.w, o.h, o.rle.length, o.rle.slice(0, 80), o.rle.slice(-40), cam, f, !!o.through, b ? b.after : 0]);
+  if (!pc.parea) pc.parea = new Map();
+  let tris = pc.parea.get(key);
+  if (!tris){
+    let m = C.maskFromRLE(o.rle, o.w, o.h);
+    if (b) m = C.photoBendApply(null, m, o.w, o.h, b).fig;                // the photo is bent onto the model: its outlines too
+    tris = C.photoMaskTris(pc.solid, cam, f, m, o.w, o.h, o.through);
+    pc.parea.set(key, tris); if (pc.parea.size > 40) pc.parea.delete(pc.parea.keys().next().value);
+  }
+  return tris;
 }
 /* ---- cutting (Session 32) ----
    Engraving or inlaying artwork into a model, and cutting a model flat, are done by Manifold (manifold-3d 3.5.4,
@@ -8004,6 +8072,11 @@ function runPaintOps(p, pc, ops, B){
       let tris = pc.area.get(key); if (!tris){ tris = C.areaTris(pc.solid, o.m, o.poly, o.through); pc.area.set(key, tris); if (pc.area.size > 40) pc.area.delete(pc.area.keys().next().value); }
       const sl = o.slot === PAINT_LEAVE ? PAINT_LEAVE : S(o.slot);
       for (const t of tris) paint[t] = sl;
+    }
+    else if (o.k === "photoarea"){
+      // clicked on a photo (Session 50): what its outline takes through the photo's camera
+      const tris = photoAreaTris(pc, o), sl = o.slot === PAINT_LEAVE ? PAINT_LEAVE : S(o.slot);
+      if (tris) for (const t of tris) paint[t] = sl;
     }
     else if (o.k === "fill"){
       for (const c of C.symmetryCopies([o.p], null, false, o.radial)){ const t0 = nearestTri(pc, c.pts[0]); if (t0 >= 0) C.paintFill(topo, paint, t0, o.slot === PAINT_LEAVE ? PAINT_LEAVE : S(o.slot), o.same ? -1 : (o.angle ?? 30), p.slot); }
@@ -12867,7 +12940,7 @@ const PAINT_METHODS = [
   ["swap","Swap a colour","Every part of the model in one colour changes to another. Quick recolouring after painting."]
 ];
 const PAINT_OP_NAME = { height:"Height bands", gradient:"Colour fade", swap:"Swap a colour", stripes:"Stripes", dir:"Tops and sides", shells:"Separate pieces", regions:"Smooth areas",
-  picture:"Picture", noise:"Random blobs", brush:"Brush stroke", fill:"Fill", photo:"From a photo", area:"Box or lasso", curve:"Edges and hollows", model:"The model's own colours" };
+  picture:"Picture", noise:"Random blobs", brush:"Brush stroke", fill:"Fill", photo:"From a photo", area:"Box or lasso", curve:"Edges and hollows", model:"The model's own colours", photoarea:"Clicked on a photo" };
 function slotChoices(withKeep){ return [...(withKeep ? [["255","Keep as it is"]] : []), ...state.slots.map((s,i)=>[String(i), `${i+1}. ${s.name}`])]; }
 function paintModelHeight(){ const B = modelBoundsOf(modelParts); return isFinite(B.mx[1]) ? Math.max(1, B.mx[1] - Math.min(0, B.mn[1])) : 50; }
 function newPaintOp(k){
@@ -12895,6 +12968,7 @@ function paintOpText(o){
   if (o.k === "brush") return `${o.slot === PAINT_LEAVE ? "eraser" : nm(o.slot)}, ${o.r} mm, ${o.pts.length} points${o.mirror ? ", mirrored" : ""}${o.radial > 1 ? `, ${o.radial} times round` : ""}${o.edge ? ", stops at sharp edges" : ""}`;
   if (o.k === "fill") return `${o.slot === PAINT_LEAVE ? "eraser" : nm(o.slot)}, ${o.same ? "same colour" : "smooth area"}${o.radial > 1 ? `, ${o.radial} times round` : ""}`;
   if (o.k === "area") return `${o.slot === PAINT_LEAVE ? "rubbed out" : nm(o.slot)}, ${o.poly.length === 4 ? "a box" : "a lasso"}${o.through ? ", right through" : ", the side seen"}`;
+  if (o.k === "photoarea"){ const v = photoViewOf(o.asset); return `${o.slot === PAINT_LEAVE ? "rubbed out" : nm(o.slot)}, ${o.name ? o.name + ", " : ""}${o.through ? "right through" : "the side seen"}${v ? ", on " + v.name : ", its photo is gone"}`; }
   if (o.k === "picture") return `${(state.items[o.item]||{}).name || "missing artwork"}, ${o.wrap === "around" ? `round the model (${o.turn || 360}°)` : o.wrap === "ball" ? `over a ball (${o.turn || 360}°)` : `from the ${o.dir}`}`;
   if (o.k === "curve") return `edges ${nm(o.edges)}, hollows ${nm(o.hollows)}, the rest ${nm(o.flat)}`;
   if (o.k === "photo") return `${o.views.length} photo${o.views.length === 1 ? "" : "s"}, ${o.pal.length} colours: ${[...new Set(o.slots.filter(s => s !== PAINT_LEAVE))].map(nm).join(", ")}`;
@@ -13045,6 +13119,53 @@ function photoSideOf(v){
 // shown in the filament it prints in. The outline and the figure as found are kept between drawings, so a
 // hand fix redraws quickly while the brush moves.
 const photoPrevCache = new WeakMap();
+// click to colour on the photo card (Session 50): the clicks so far and their outline, for one photo at a time
+let photoClick = { asset:null, points:[], res:null, busy:false };
+async function photoClickAdd(v, pt, done){
+  if (photoClick.asset !== v.asset) photoClick = { asset:v.asset, points:[], res:null, busy:false };
+  if (photoClick.busy) return;
+  if (photoClick.points.length >= 12){ notify("That's as many clicks as one outline takes. Paint it, or start again."); return; }
+  photoClick.points.push(pt); photoClick.busy = true;
+  try { photoClick.res = await samSelect(v.asset, photoClick.points); }
+  catch (err){ photoClick.points.pop(); notify(`The click-to-colour AI could not run: ${err.message}.`); }
+  finally { photoClick.busy = false; setBusy(false); }
+  done();
+}
+function drawPhotoClicks(cv, v){
+  const pc = photoPrevCache.get(cv); if (!pc || !pc.img || photoClick.asset !== v.asset) return;
+  const x = cv.getContext("2d"), W = cv.width, H = cv.height, r = photoClick.res;
+  if (r){
+    const img = x.createImageData(W, H), d = img.data; d.set(pc.img.data);              // the preview as drawn, no read back
+    for (let y = 0; y < H; y++) for (let i0 = 0; i0 < W; i0++){
+      const m = r.mask[Math.min(r.h - 1, Math.floor(y / H * r.h)) * r.w + Math.min(r.w - 1, Math.floor(i0 / W * r.w))], i = 4*(y*W + i0);
+      if (m){ d[i] = d[i]*0.45 + 255*0.55; d[i+1] = d[i+1]*0.45 + 60*0.55; d[i+2] = d[i+2]*0.45 + 200*0.55; }
+      else { d[i] *= 0.7; d[i+1] *= 0.7; d[i+2] *= 0.7; }
+    }
+    x.putImageData(img, 0, 0);
+  }
+  if (x.arc) for (const [fx, fy, on] of photoClick.points){
+    x.beginPath(); x.arc(fx*W, fy*H, 6, 0, 2*Math.PI); x.fillStyle = on ? "#3ddc84" : "#ff5a5a"; x.fill(); x.lineWidth = 2; x.strokeStyle = "#101010"; x.stroke();
+  }
+}
+function photoClickPanel(c, o, v){
+  if (!v.fit){ note(c, "Line the photo up first (the yellow outline over the figure): the outline you click is painted through it."); return; }
+  const mine = photoClick.asset === v.asset, n = mine ? photoClick.points.length : 0, r = mine && photoClick.res;
+  segField(c, [["on","Click adds"],["off","Click leaves out"]], () => paintUI.photoClickOn === false ? "off" : "on", k => { paintUI.photoClickOn = k === "on"; renderKeepFocus(); }, "two");
+  note(c, !n ? `Click on a part of the photo, the shirt, the hair, a boot, and the AI outlines it. Click more of it to add, or choose <b>Click leaves out</b> (or Alt-click) to take a bit away. The first click downloads the AI (${AI_FIGURE.samMB} MB, once) and reads the photo (a few seconds).`
+    : r ? `${n} click${n === 1 ? "" : "s"}: the outline covers ${Math.round(r.mask.reduce((a, b) => a + b, 0) / r.mask.length * 100)}% of the photo (the AI is ${Math.round(r.score*100)}% sure). Paint it in a filament, or click more.` : "Working…");
+  if (!r) return;
+  slotField(c, "Paint it in", () => paintUI.slot, k => { paintUI.slot = +k; renderKeepFocus(); });
+  checkField(c, "Right through: the hidden side of that part too (good for clothes from a front photo)", () => paintUI.clickThrough === true, x => { paintUI.clickThrough = x; });
+  buttonRow(c, [["Paint it", () => {
+    if (state.paint.on === false) state.paint.on = true;
+    state.paint.ops.push({ k:"photoarea", asset:v.asset, w:r.w, h:r.h, rle:C.maskRLE(r.mask), slot:paintUI.slot, through:paintUI.clickThrough === true });
+    photoClick = { asset:v.asset, points:[], res:null, busy:false };
+    if (!modelParts.some(p => p.pc) || !isFinite(paintInfo.edge)){ applyPaint(true); refreshScene(); }
+    repaint(true); pushHistory(); renderKeepFocus();
+    notify(`Painted in ${(state.slots[paintUI.slot] || {}).name || "that filament"}. Click the next part, or Undo (Ctrl+Z) to take it back.`);
+  }], ["Undo the last click", async () => { photoClick.points.pop(); photoClick.res = photoClick.points.length ? await samSelect(v.asset, photoClick.points).catch(() => null) : null; renderKeepFocus(); }],
+     ["Start again", () => { photoClick = { asset:v.asset, points:[], res:null, busy:false }; renderKeepFocus(); }]]);
+}
 function drawPhotoPreview(cv, o, v){
   const px = photoPixels(v.asset, 420); if (!px) return;
   const W = px.w, H = px.h; if (cv.width !== W) cv.width = W; if (cv.height !== H) cv.height = H;
@@ -13148,7 +13269,9 @@ function photoCard(c){
     : "Drag it, or use the arrow keys to move it, plus and minus to resize and comma and full stop to turn."));
   if (fixTool()) cv.classList.add("fixing");
   c.appendChild(cv);
-  const redraw = () => { try { drawPhotoPreview(cv, o, v); } catch (err){ console.error(err); } };
+  const clicking = () => paintUI.photoTool === "click";
+  const redraw = () => { try { drawPhotoPreview(cv, o, v); if (clicking()) drawPhotoClicks(cv, v); } catch (err){ console.error(err); } };
+  if (clicking()) cv.classList.add("clicking");
   redraw();
   const showSeg = k => { paintUI.photoShow = k; redraw(); c.querySelectorAll(".seg.show button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.k === k))); };
   segField(c, [["photo","Photo and outline"],["figure","Figure it found"],["colours","Colours it reads"]], () => paintUI.photoShow, showSeg, "show");
@@ -13179,7 +13302,14 @@ function photoCard(c){
   const fixNumbers = () => (v.fix || []).reduce((n, q) => n + q.p.length, 0);
   // after a fix: the colours are read again and the model painted again, once the brush rests
   const fixed = () => photoLater(async () => { await photoColoursNow(o); renderKeepFocus(); photoRepaint(); }, 600);
+  cv.addEventListener("contextmenu", e => { if (clicking()) e.preventDefault(); });
   cv.addEventListener("pointerdown", e => {
+    if (clicking()){
+      // click to colour (Session 50): a click on the part adds it, Alt, the right button or "Leave out" takes it away
+      e.preventDefault(); const [fx, fy] = photoAt(e), on = !(e.altKey || e.button === 2 || paintUI.photoClickOn === false);
+      photoClickAdd(v, [+fx.toFixed(4), +fy.toFixed(4), on ? 1 : 0], () => { redraw(); renderKeepFocus(); });
+      return;
+    }
     if (fixTool()){
       e.preventDefault(); clearTimeout(photoTimer);
       if ((v.fix || []).length >= PHOTO_FIX_MAX.strokes || fixNumbers() >= PHOTO_FIX_MAX.numbers - 2){ notify("This photo has as many fixes as it can keep. Clear them, or undo some, to fix more."); return; }
@@ -13208,8 +13338,9 @@ function photoCard(c){
   c.appendChild(nb);
   // fixing the figure by hand, where the app (or the AI) took in some background or missed a part
   c.insertAdjacentHTML("beforeend", `<p class="hint">What dragging on the photo does:</p>`);
-  segField(c, [["move","Move the photo"],["add","Add to the figure"],["cut","Take away"]], () => paintUI.photoTool || "move", k => {
-    paintUI.photoTool = k; if (k !== "move" && paintUI.photoShow === "photo") paintUI.photoShow = "figure"; renderKeepFocus(); }, "tool");
+  segField(c, [["move","Move the photo"],["add","Add to the figure"],["cut","Take away"],["click","✨ Click to colour"]], () => paintUI.photoTool || "move", k => {
+    paintUI.photoTool = k; if ((k === "add" || k === "cut") && paintUI.photoShow === "photo") paintUI.photoShow = "figure"; if (k === "click") paintUI.photoShow = "photo"; renderKeepFocus(); }, "tool");
+  if (clicking()) photoClickPanel(c, o, v);
   if (fixTool()){
     numField(c, { label:"Brush size (% of the photo's height)", min:0.5, max:20, step:0.5, def:4, get:()=>paintUI.photoFixR || 4, set:x=>paintUI.photoFixR = Math.round(x * 2) / 2, noReset:true });
     note(c, paintUI.photoTool === "add"
@@ -14080,6 +14211,10 @@ function cleanPaint(P0){
         const m = Array.isArray(o.m) && o.m.length === 16 && o.m.every(x => typeof x === "number" && isFinite(x)) ? o.m.map(x => Math.min(1e6, Math.max(-1e6, x))) : null;
         const poly = (Array.isArray(o.poly) ? o.poly : []).slice(0, 2000).filter(q => Array.isArray(q) && q.length === 2 && q.every(x => typeof x === "number" && isFinite(x))).map(q => q.map(x => Math.min(10, Math.max(-10, x))));
         return m && poly.length >= 3 ? { k:"area", m, poly, slot:slotOrKeep(o.slot), through:o.through === true } : null; }
+      case "photoarea": {
+        const w = Math.round(num(o.w, 8, 1024, 0)), h = Math.round(num(o.h, 8, 1024, 0)), rle = typeof o.rle === "string" && o.rle.length <= 300000 && /^[0-9a-z.]*$/.test(o.rle) ? o.rle : "";
+        const asset = typeof o.asset === "string" && /^[\w-]{1,40}$/.test(o.asset) ? o.asset : "";
+        return w && h && rle && asset ? { k:"photoarea", asset, w, h, rle, slot:slotOrKeep(o.slot), through:o.through === true } : null; }
       case "fill": { const pt = v3(o.p), radial = Math.round(num(o.radial, 1, 12, 1));
         return pt ? Object.assign({ k:"fill", p:pt, slot:slotOrKeep(o.slot), same:o.same === true, angle:num(o.angle, 1, 89, 30) }, radial > 1 ? { radial } : {}) : null; }
       case "model": {
@@ -14884,8 +15019,9 @@ window.MakerForge = {
   // cutting (Session 32): tests hand in the library through hooks.module
   cut: { hooks: cutHooks, state: cutState, load: cutLoad, info: () => ({ blocked:cutBlocked, flat:flatInfo, drop:cutDrop, preps:cutPreps.length }) },
   paint: { ui: paintUI, repaint: () => repaint(true), changed: paintChanged, get info(){ return paintInfo; }, flushSharpen, get sharpPending(){ return !!sharpTimer; }, importModel: importModelFile, buildZip, swapText: colourChangesText,
-    hit: paintHit, pick: paintPick, recolour: paintRecolour, colourAt, area: paintArea, previewTris, prepare: preparePaint, get previewCount(){ return previewCount; }, cleanPrinter, showLayerCut, get prefs(){ return prefs; }, applyPrefs, findDefault, cleanPaint,
+    hit: paintHit, pick: paintPick, recolour: paintRecolour, colourAt, area: paintArea, previewTris, prepare: preparePaint, get previewCount(){ return previewCount; }, cleanPrinter, showLayerCut, get prefs(){ return prefs; }, applyPrefs, findDefault, cleanPaint, opText: paintOpText,
     photo: { ai: { hooks: aiHooks, find: aiFindFigures, config: AI_FIGURE, state: aiState, sha256: sha256Hex, get: aiGet, mapOf: aiMapOf },
+      sam: { hooks: samHooks, select: samSelect, state: samState, get click(){ return photoClick; }, add: photoClickAdd, tris: photoAreaTris },
       figure: (v, w, h) => { const px = photoPixels(v.asset, Math.max(w, h)); return px && photoFigure(v, px); },
       add: addPaintPhotos, fit: photoFitView, colours: photoPickColours, lightOf: photoLightOf, bendOf: photoBendOf, read: photoReadPixels, pixels: photoPixels,
       // the helper thread's share (Session 30): from how many triangles it colours, and forgetting every result

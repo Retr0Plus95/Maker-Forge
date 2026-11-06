@@ -93,6 +93,10 @@ Plus, depending on what changed:
 - the icon maker (`ICONS`, `iconCanvas`, `cleanIcon`, `iconPanel`), AI help (`AI`, `aiAsk`, `aiFromWords`, `aiCleanPlan`) or "Describe your project" (`encApplyPlan`,
   `encPlaceOpening`, `encLogoSpot`) → `npm run test:iconai` (no key needed: the AI and `fetch` are stand-ins) and `npm run test:enclosure`;
   moving the view while painting (`paintControls`, `stopGlide`, `cancelStroke`) → `node tools-paintmove-check.js index.html` (Chromium; part of `check:browser`)
+- click to colour (`samInput`, `samPrompt`, `samMask`, `maskRLE`, `photoMaskTris` in `src/core.js`; `samLoad`, `samSelect`, `photoAreaTris`, the `photoarea`
+  step, `photoClickPanel` in `src/app.html`) → `npm run test:clickcolour` (`CORE=1` for the engine; `STANDIN=1` for a quick stand-in network) and
+  `node tools-clickcolour-check.js index.html` (Chromium, part of `check:browser`). Both use the real SlimSAM from `models/` when its two files are there
+  (not in the repository: URLs and SHA-256 in `AI_FIGURE.sam` / `.samDecoder` and `models/LICENSE.md`), else skip or stand in
 - a change a user would notice → update `MANUAL.md` and `CHANGELOG.md`
 
 Smoke test options: `QUICK=1`, `ONLY=tracer,board`, `PAGES=0-3`, `VERBOSE=1`. Lithophane and jigsaw

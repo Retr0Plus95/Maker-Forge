@@ -3,6 +3,21 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.46.0
+
+Project boxes: screw mounts you can move, so the bottom floor is free, and neater holders for boards and batteries.
+
+- **Levels held your way:** posts in the corners, **screw brackets on the side walls** (nothing on the floor under them), **posts where you put them** (two to six, in the gaps between your boards), or ledges.
+- **Short lid posts:** only the top of each corner screw post, over a 45° cone, so boards can go right into the corners.
+- **Neater holders:** a board's cradle and a battery's strap tray are one low rim with rounded corners now, with finger gaps (and gaps for the strap), instead of four separate L-shaped corners.
+- A board under a post or a bracket is named, and **Arrange it for me** keeps boards clear of them.
+
+![A box with a Raspberry Pi in a cradle, a LiPo and two 18650 cells in strap trays, short lid posts and the screw brackets for a level on the side walls](docs/images/mounts.jpg)
+
+**Fixed**
+- With two levels on posts, the upper level's posts ran through the lower level, so it couldn't go in. They now stand on the lower level.
+- A board on the floor could sit where a level's post stands without a warning, and **Arrange it for me** could put one there.
+
 ## 0.45.0
 
 Project boxes: every floor for mounting, batteries of all sizes, rooms, and cables between the floors.

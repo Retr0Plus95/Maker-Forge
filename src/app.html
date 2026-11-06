@@ -446,7 +446,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.45.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.46.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -942,7 +942,7 @@ const DEFAULTS = () => ({
     box:{ w:90, d:70, h:4 }, cyl:{ dia:70, h:90 }, hex:{ dia:80, h:6 }, sphere:{ dia:70 },
     stl:{ name:"", scale:100, flat:0 },
     enclosure:{ w:100, d:64, h:36, wall:2, floor:2, radius:4, lid:"screw", lidThick:2.4, lipH:3, lipW:1.2, fit:0.2,
-      fasten:"insert", screw:"M3", head:"sink", teardrop:false, grow:true, lensSlot:0, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
+      fasten:"insert", screw:"M3", head:"sink", postStyle:"full", teardrop:false, grow:true, lensSlot:0, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
       mount:"none", earN:2, tabN:2, earHole:4.5, earT:3, strapW:12, strapT:2.5, strapDir:"across",
       labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
       split:"bed", splitParts:2, splitScrew:"M3",
@@ -2587,6 +2587,12 @@ function encAddBoardPorts(quiet){
     : "Its ports are already there.");
   renderTab(); encBoardChanged(); pushHistory();
 }
+// full-height or short lid posts (Session 52), on the Lid page
+function encPostStyleField(g){
+  const E = state.base.enclosure, I = enclosureInfo;
+  segField(g, [["full","Posts down to the floor"],["hang","Short posts (floor free)"]], ()=>E.postStyle === "hang" ? "hang" : "full", v=>{ E.postStyle = v; renderTab(); baseChanged(); }, "two");
+  if (E.postStyle === "hang") note(g, I && I.lidPosts && I.lidPosts.hang ? `The posts hang from the corners, ${(I.size[2] - I.lidPosts.free).toFixed(0)} mm down from the top, each over a 45° cone into the corner: the floor under them is free up to ${I.lidPosts.free.toFixed(0)} mm. Arrange it for me uses the corners too.` : "The box is too shallow for short posts: they go down to the floor.");
+}
 /* Arrange it for me (Session 48): every board and module packed on its floor (or level) in the smallest box that holds
    them and fits the bed, or inside the box as it is. The main board goes first, against the walls its ports face (1 mm in)
    and clear of the corner posts; the rest are packed bottom-left (a skyline), 3 mm apart, each turned whichever way packs
@@ -2598,13 +2604,21 @@ function encArrange(keepSize){
   const t = +E.wall || 2, fl = +E.floor || 2, bed = state.printer.bed || [256, 256, 256], gap = 3;
   buildEnclosure();
   // corner posts: the same rule as the box's own (bossesOn): a magnet lid, or screws unless the lid presses or slides in
-  const corner = E.lid === "magnet" || (E.fasten !== "none" && E.lid !== "press" && E.lid !== "slide") ? 9 : 1;
+  // short lid posts (Session 52) leave the corners free; the posts a level stands on (in the corners) widen the band along the
+  // side walls that must keep clear of the front and back: cX across from a side wall, cY from the front or back wall
+  const lidPosts = E.lid === "magnet" || (E.fasten !== "none" && E.lid !== "press" && E.lid !== "slide");
+  const I0 = enclosureInfo || {}, corner0 = lidPosts && !(I0.lidPosts && I0.lidPosts.hang) ? 9 : 1;
+  const bands = k => { const lv = (I0.levels || [])[k], inn = I0.inner || [0, 0]; let cX = corner0, cY = corner0;
+    // the posts a level stands on in the corners, or its wall brackets, over this floor
+    if (lv && (lv.hold === "brackets" || (lv.onPosts && lv.hold === "posts"))) lv.posts.forEach(([x, y]) => { cX = Math.max(cX, inn[0]/2 - Math.abs(x) + ENC_LEVEL.post + 1.5); cY = Math.max(cY, inn[1]/2 - Math.abs(y) + ENC_LEVEL.post + 1.5); });
+    return { cX, cY }; };
   const nLv = Array.isArray(E.levels) ? E.levels.length : 0, main = list.find(b => b.main);
   const portFaces = main && encHas(BOARD_PORTS, main.key) ? new Set(BOARD_PORTS[main.key].map(pt => boardPortPlace(Object.assign({}, main, { x:0, y:0 }), pt).face)) : new Set();
   const dims = (b, rot) => { const w = b.B.w, d = b.B.d; return rot ? [d, w] : [w, d]; };
   const pad = 2.2;                                            // from a wall: a cradle's fence (1.6) and its gap, with room to spare
   // one floor at inner width iw: positions from the front-left inner corner, and the depth it needs
-  const packFloor = (items, iw, withMain) => {
+  const packFloor = (items, iw, withMain, cX, cY) => {
+    const corner = cX;
     const placed = [], sky = [{ x:0, w:iw, y:0 }];
     let need = 0;
     if (withMain){
@@ -2613,21 +2627,21 @@ function encArrange(keepSize){
       // against the walls its ports face (1 mm in); along a wall, clear of the corner posts; in a corner (ports on two walls),
       // off the post along the wall with fewer ports
       const nOn = f => main && encHas(BOARD_PORTS, main.key) ? BOARD_PORTS[main.key].filter(pt => boardPortPlace(Object.assign({}, main, { x:0, y:0 }), pt).face === f).length : 0;
-      let x = Rr ? iw - 1 - bw : L ? 1 : corner, y = F ? 1 : corner;
+      let x = Rr ? iw - 1 - bw : L ? 1 : cX, y = F ? 1 : cY;
       if ((L || Rr) && (F || Bk) && corner > 1){
         const sideN = nOn(L ? "left" : "right"), frontN = nOn(F ? "front" : "back");
-        if (sideN <= frontN) x = Rr ? iw - corner - bw : corner; else y = corner;
+        if (sideN <= frontN) x = Rr ? iw - cX - bw : cX; else y = cY;
       }
-      if (!L && !Rr && !F && !Bk){ x = corner; y = corner; }
+      if (!L && !Rr && !F && !Bk){ x = cX; y = cY; }
       // clear of the front corner posts: along the front wall when its ports are there, else further back
-      if (corner > 1 && y < corner){
-        if (x < corner) { if (F) x = corner; else y = corner; }
-        if (y < corner && x + bw > iw - corner){ if (F) x = Math.min(x, iw - corner - bw); else y = corner; }
-        if (y < corner && (x < corner - 1e-6 || x + bw > iw - corner + 1e-6)) return null;
+      if (cY > 1 && y < cY){
+        if (x < cX) { if (F) x = cX; else y = cY; }
+        if (y < cY && x + bw > iw - cX){ if (F) x = Math.min(x, iw - cX - bw); else y = cY; }
+        if (y < cY && (x < cX - 1e-6 || x + bw > iw - cX + 1e-6)) return null;
       }
       if (x < (L ? 1 : Math.min(pad, corner)) - 1e-6 || x + bw > iw - (Rr ? 1 : Math.min(pad, corner)) + 1e-6) return null;      // too narrow for it where it must go
       placed.push({ b:main, x, y, rot:main.rot, w:bw, d:bd, back:Bk });
-      need = Math.max(need, y + bd + (x < corner || x + bw > iw - corner ? corner : pad));
+      need = Math.max(need, y + bd + (x < cX || x + bw > iw - cX ? cY : pad));
       // the skyline steps up over the main board (and its gap)
       const x0 = Math.max(0, x - gap), x1 = Math.min(iw, x + bw + gap), top = y + bd + gap;
       sky.splice(0, sky.length, ...[{ x:0, w:x0, y:0 }, { x:x0, w:x1 - x0, y:top }, { x:x1, w:iw - x1, y:0 }].filter(sg => sg.w > 0));
@@ -2641,12 +2655,12 @@ function encArrange(keepSize){
           let x = Math.max(sky[i].x, pad), wsum = 0, y = 0, j = i;
           while (wsum < w && j < sky.length){ y = Math.max(y, sky[j].y); wsum += sky[j].w - (j === i ? x - sky[i].x : 0); j++; }
           if (wsum < w - 1e-6 || x + w > iw - pad) continue;
-          const yy = Math.max(y, pad, (x < corner || x + w > iw - corner) ? corner : 0);
+          const yy = Math.max(y, pad, (x < cX || x + w > iw - cX) ? cY : 0);
           if (!best || yy + d < best.y + best.d - 1e-6 || (Math.abs(yy + d - best.y - best.d) < 1e-6 && x < best.x)) best = { b, x, y:yy, rot, w, d };
         }
       }
       if (!best) return null;
-      placed.push(best); need = Math.max(need, best.y + best.d + (best.x < corner || best.x + best.w > iw - corner ? corner : pad));
+      placed.push(best); need = Math.max(need, best.y + best.d + (best.x < cX || best.x + best.w > iw - cX ? cY : pad));
       // raise the skyline over it
       const x0 = best.x, x1 = best.x + best.w + gap, top = best.y + best.d + gap, ns = [];
       sky.forEach(sg => { const a = sg.x, z = sg.x + sg.w;
@@ -2663,9 +2677,9 @@ function encArrange(keepSize){
   const mainLvl = main ? Math.min(nLv, main.lvl || 0) : -1;           // the main board may be on a level (Session 51)
   // a wall with a cable channel on it is that much thicker for packing (Session 51)
   const duct = f => encDucts(E).some(u => u.face === f) ? ENC_DUCT.depth + 1 : 0, mL = duct("left"), mR = duct("right"), mF = duct("front"), mB = duct("back");
-  const packShifted = (items, iw, withMain) => { const r = packFloor(items, iw - mL - mR, withMain); if (!r) return null;
+  const packShifted = (items, iw, withMain, k) => { const bb = bands(k), r = packFloor(items, iw - mL - mR, withMain, bb.cX, bb.cY); if (!r) return null;
     r.placed.forEach(p => { p.x += mL; p.y += mF; }); r.need += mF + mB; return r; };
-  const tryWidth = iw => { const res = floors.map((items, k) => items.length ? packShifted(items, iw, k === mainLvl) : { placed:[], need:0 }); if (res.some(r => !r)) return null;
+  const tryWidth = iw => { const res = floors.map((items, k) => items.length ? packShifted(items, iw, k === mainLvl, k) : { placed:[], need:0 }); if (res.some(r => !r)) return null;
     return { iw, id: Math.max(20, ...res.map(r => r.need)), res }; };
   let pick = null;
   if (keepSize) pick = tryWidth((+E.w || 100) - 2*t);
@@ -2715,53 +2729,82 @@ function encFreeBoardSpot(E, n){
   }
   return 0;
 }
-// a cradle that holds a board by its edges: a seat under each corner (the board rests on them at its standoff height)
-// and an L-shaped fence round each corner, 0.3 mm clear of the board and rising 1.2 mm above it. All of it upright, so
-// it prints without support; the board drops in (a dab of hot glue, or the lid, keeps it there)
-const ENC_CRADLE = { seat:4, arm:8, gap:0.3, fence:1.6, over:1.2 };
+// a solid joining two convex plan outlines with the same number of points (bottom at z0, top at z1), point i to point i:
+// the 45° support under a hanging post or a wall bracket (Session 52). Plan (x, y) is world (x, z, -y).
+function encLoft(bot, z0, top, z1){
+  const n = top.length, pos = [], idx = [];
+  bot.forEach(([x, y]) => pos.push(x, z0, -y)); top.forEach(([x, y]) => pos.push(x, z1, -y));
+  for (let i = 0; i < n; i++){ const j = (i + 1) % n; idx.push(i, j, n + j, i, n + j, n + i); }
+  for (let i = 1; i < n - 1; i++){ idx.push(0, i + 1, i); idx.push(n, n + i, n + i + 1); }
+  const sol = { pos:new Float32Array(pos), idx:new Uint32Array(idx) };
+  if (C.signedVolume(sol) < 0) for (let i = 0; i < sol.idx.length; i += 3){ const t = sol.idx[i + 1]; sol.idx[i + 1] = sol.idx[i + 2]; sol.idx[i + 2] = t; }
+  return sol;
+}
+// a holder's rim (Session 52): one low wall round a board or battery, 0.3–0.6 mm clear of it, instead of an L at each corner.
+// Its outer corners are rounded; at each inside corner a small pocket (r) keeps the part's sharp corner from binding on the
+// rounded corner a nozzle prints; gaps (intervals along a side, from its middle) leave room for a strap or fingers. Every
+// piece is convex (a bar or a quarter disc), so trimming one to a level's plate (bounds) keeps it a simple shape.
+const ENC_RIM = { relief:0.8 };
+function encRim(x, y, w, d, g, f, z0, z1, gapsX, gapsY, bounds){
+  const out = [], r = Math.min(ENC_RIM.relief, f*0.5), add = pts => { const q = encClip(pts, bounds); if (q) out.push(C.extrudePolysAt([{ outer:encOrient(q, true), holes:[] }], z0, z1)); };
+  // the parts of [a, b] outside the gaps
+  const minus = (a, b, gaps) => { let segs = [[a, b]]; (gaps || []).forEach(([c0, c1]) => { segs = segs.flatMap(([p, q]) => q <= c0 || p >= c1 ? [[p, q]] : [[p, Math.min(q, c0)], [Math.max(p, c1), q]]); }); return segs.filter(([p, q]) => q - p > 0.6); };
+  for (const [half, other, gaps, alongX] of [[w/2, d/2, gapsX, true], [d/2, w/2, gapsY, false]]) for (const s2 of [-1, 1]){
+    const bar = (a0, a1, o0, o1) => add(alongX ? [[x + a0, y + s2*o0], [x + a1, y + s2*o0], [x + a1, y + s2*o1], [x + a0, y + s2*o1]]
+      : [[x + s2*o0, y + a0], [x + s2*o1, y + a0], [x + s2*o1, y + a1], [x + s2*o0, y + a1]]);
+    minus(-(half + g + r), half + g + r, gaps).forEach(([a0, a1]) => bar(a0, a1, other + g + r, other + g + f));          // the outer strip, to the corners
+    minus(-(half - r), half - r, gaps).forEach(([a0, a1]) => bar(a0, a1, other + g - 0.01, other + g + r + 0.01));        // the inner strip, short of them
+  }
+  // the rounded outer corners: a quarter disc each
+  const rc = f - r;
+  if (rc > 0.05) for (const sx of [-1, 1]) for (const sy of [-1, 1]){
+    const cx = x + sx*(w/2 + g + r), cy = y + sy*(d/2 + g + r), pts = [[cx - sx*0.01, cy - sy*0.01]];
+    for (let i = 0; i <= 6; i++){ const t = i/6*Math.PI/2; pts.push([cx + sx*rc*Math.cos(t), cy + sy*rc*Math.sin(t)]); }
+    add(pts);
+  }
+  return out;
+}
+// a cradle that holds a board by its edges (Session 52: a rim): an L-shaped seat under each corner (the board rests on them
+// at its standoff height), and the rim round it, rising 1.2 mm above the board, with a finger gap in the middle of each long
+// side. All of it upright, so it prints without support; the board drops in (a dab of hot glue, or the lid, keeps it there)
+const ENC_CRADLE = { seat:2.5, arm:8, gap:0.3, fence:1.6, over:1.2 };
 // bounds (a level's plate, Session 51): every piece trimmed to it, so nothing hangs over the plate's edge (the wall holds
 // the board there); a piece trimmed to nothing is left out
 const encClip = (pts, bounds) => { if (!bounds) return pts; const q = pts.map(([x, y]) => [Math.min(bounds[2], Math.max(bounds[0], x)), Math.min(bounds[3], Math.max(bounds[1], y))]);
   return Math.abs(C.area2(q)) / 2 > 0.6 ? q : null; };
+const encFingerGap = len => len >= 24 ? [[-Math.min(20, Math.max(8, len*0.3))/2, Math.min(20, Math.max(8, len*0.3))/2]] : [];
 function encCradle(x, y, w, d, fl, sh, fence, bounds){
-  const out = [], C2 = ENC_CRADLE, top = fl + sh + 1.6 + C2.over;
-  for (const sx of [-1, 1]) for (const sy of [-1, 1]){
+  const out = [], C2 = ENC_CRADLE, top = fl + sh + 1.6 + C2.over, a = Math.min(C2.arm, w/3, d/3), g = C2.gap;
+  // the seats: along both sides at each corner, under the board's edge, out to the rim
+  if (sh > 0.05) for (const sx of [-1, 1]) for (const sy of [-1, 1]){
     const cx = x + sx*w/2, cy = y + sy*d/2, at = (px, py) => [cx + sx*px, cy + sy*py];
-    const seat = encClip([[0, 0], [-C2.seat, 0], [-C2.seat, -C2.seat], [0, -C2.seat]].map(q => at(q[0], q[1])), bounds);
-    if (seat) out.push(C.extrudePolysAt([{ outer:encOrient(seat, true), holes:[] }], fl - 0.01, fl + sh));
-    const a = Math.min(C2.arm, w/3, d/3), g = C2.gap, f = fence;
-    // the L in two bars (so a trimmed one stays a simple shape): along x and along y
-    for (const bar of [[[-a, g], [g + f, g], [g + f, g + f], [-a, g + f]], [[g, -a], [g + f, -a], [g + f, g], [g, g]]]){
+    for (const bar of [[[-a, -C2.seat], [g + 0.3, -C2.seat], [g + 0.3, g + 0.3], [-a, g + 0.3]], [[-C2.seat, -a], [g + 0.3, -a], [g + 0.3, g + 0.3], [-C2.seat, g + 0.3]]]){
       const L = encClip(bar.map(q => at(q[0], q[1])), bounds);
-      if (L) out.push(C.extrudePolysAt([{ outer:encOrient(L, true), holes:[] }], fl - 0.01, top));
+      if (L) out.push(C.extrudePolysAt([{ outer:encOrient(L, true), holes:[] }], fl - 0.01, fl + sh));
     }
   }
+  const long = w >= d;
+  out.push(...encRim(x, y, w, d, g, fence, fl - 0.01, top, long ? encFingerGap(w) : [], long ? [] : encFingerGap(d), bounds));
   return out;
 }
-// a strap tray (Session 51), for a battery: a low L-shaped fence at each corner, the battery lying on the floor between them,
-// and slots through the floor (or the level) either side of it for a hook-and-loop strap (22 mm) round it, or for zip ties on
-// a small one. Returns the fences (solids) and the slots (plan rectangles [x0, y0, x1, y1]).
+// a strap tray (Session 51; a rim since Session 52), for a battery: the battery lies on the floor inside a low rim, and slots
+// through the floor (or the level) either side of it take a hook-and-loop strap (22 mm) round it, or zip ties on a small
+// one; the rim has a gap where each strap passes. Returns the rim (solids) and the slots (plan rectangles [x0, y0, x1, y1]).
 const ENC_TRAY = { gap:0.6, fence:1.6, arm:10, strap:22, slot:2.6, off:1.4 };
 function encStrapTray(x, y, w, d, fl, tall, bounds){
-  const T = ENC_TRAY, out = [], slots = [], fh = Math.min(12, Math.max(4, tall*0.4));
-  for (const sx of [-1, 1]) for (const sy of [-1, 1]){
-    const cx = x + sx*w/2, cy = y + sy*d/2, at = (px, py) => [cx + sx*px, cy + sy*py];
-    const a = Math.min(T.arm, w/3, d/3), g = T.gap, f = T.fence;
-    for (const bar of [[[-a, g], [g + f, g], [g + f, g + f], [-a, g + f]], [[g, -a], [g + f, -a], [g + f, g], [g, g]]]){
-      const L = encClip(bar.map(q => at(q[0], q[1])), bounds);
-      if (L) out.push(C.extrudePolysAt([{ outer:encOrient(L, true), holes:[] }], fl - 0.01, fl + fh));
-    }
-  }
+  const T = ENC_TRAY, slots = [], fh = Math.min(12, Math.max(4, tall*0.4));
   // the strap goes across the short side: one strap, or two on a long battery; a short battery gets zip-tie slots
   const alongX = w >= d, long = alongX ? w : d, room = long - 2*Math.min(T.arm, w/3, d/3) - 4, n = long > 90 ? 2 : 1;
-  const sl = Math.max(4, Math.min(T.strap, n === 2 ? room/2 - 4 : room));
+  const sl = Math.max(4, Math.min(T.strap, n === 2 ? room/2 - 4 : room)), gaps = [];
   for (let i = 0; i < n; i++){
     const c = n === 1 ? 0 : (i ? 1 : -1)*long/4, gap = T.gap + T.off;
+    gaps.push([c - sl/2 - 1.5, c + sl/2 + 1.5]);
     for (const s2 of [-1, 1]){
       const across = (alongX ? d : w)/2 + gap, a0 = (alongX ? x : y) + c - sl/2, a1 = a0 + sl, b0 = (alongX ? y : x) + s2*across, b1 = b0 + s2*T.slot;
       slots.push(alongX ? [a0, Math.min(b0, b1), a1, Math.max(b0, b1)] : [Math.min(b0, b1), a0, Math.max(b0, b1), a1]);
     }
   }
+  const out = encRim(x, y, w, d, T.gap, T.fence, fl - 0.01, fl + fh, alongX ? gaps : [], alongX ? [] : gaps, bounds);
   return { solids:out, slots, fence:fh, strap:sl >= 18 ? "strap" : "zip ties" };
 }
 // The inside of the box (Session 46). Levels: shelves at a height above the floor (z, to their top), printed flat as their
@@ -3140,7 +3183,8 @@ function aiSettings(b){
 
 function encLevels(E, room){
   const L = (Array.isArray(E.levels) ? E.levels : []).slice(0, ENC_LEVEL.max).map(l => ({ z:clamp(+l.z || 30, 6, Math.max(6, room - 4)), t:clamp(+l.t || 2, 1.2, 5),
-    hold:l.hold === "ledges" ? "ledges" : "posts", vent:l.vent === true,
+    hold:["posts","brackets","ledges","custom"].includes(l.hold) ? l.hold : "posts", vent:l.vent === true,
+    at:(Array.isArray(l.at) ? l.at : []).slice(0, 6).filter(q => q && typeof q === "object").map(q => [clamp(+q.x || 0, -200, 200), clamp(+q.y || 0, -200, 200)]),
     // Session 51: where cables pass (a slot at the back before), how big, a grid of mounting holes, zip-tie anchors on it
     pass:ENC_PASS.includes(l.pass) ? l.pass : l.cable === false ? "none" : "back", passBig:l.passSize === "large", grid:[0, 10, 15, 20].includes(+l.grid) ? +l.grid : 0,
     anchors:Math.round(clamp(+l.anchors || 0, 0, 8)) })).sort((a, b) => a.z - b.z);
@@ -3686,6 +3730,12 @@ function buildEnclosure(){
       else bosses.push([sx*(iw/2 - bossR + ov), sz*(id/2 - bossR + ov)]);
     }
   }
+  // short lid posts (Session 52): only the top of each post, over a 45° cone into the corner, so the floor under it is free
+  // for boards; postFree is the height the floor is clear to (the floor itself for full-height posts)
+  const postLen = Math.max(10, magnet ? pocketH + 5 : screw.insertDepth + 5), postCone = bossR - 0.4;
+  const postHang = bosses.length > 0 && E.postStyle === "hang" && H - postLen - postCone > fl + 3;
+  if (bosses.length && E.postStyle === "hang" && !postHang) warn.push({ t:"Short lid posts left full height", s:"The box is too shallow for short posts with room under them: they go down to the floor." });
+  const postBot = postHang ? H - postLen : fl, postFree = postHang ? postBot - postCone : fl;
   // walls: local x runs along the face (to the right seen from outside), local -z is up, local y is the thickness
   const faceInfo = {
     front:{ L: R ? W - 2*R : W,     M:[1,0,0, 0,0,-1, 0,1,0],  T:[0,0,D/2 - t] },
@@ -3697,7 +3747,7 @@ function buildEnclosure(){
   const labelsOn = { front:[], back:[], left:[], right:[], top:[], bottom:[] }, labelQueue = [];
   const notchesOn = { front:[], back:[], left:[], right:[] };     // [left, right, bottom] in the face's own coordinates
   // things on the floor that an opening in the floor must keep clear of
-  bosses.forEach(([x, z]) => taken.bottom.push({ n:0, what:"a corner post", bb:[x - bossR, -z - bossR, x + bossR, -z + bossR] }));
+  if (!postHang) bosses.forEach(([x, z]) => taken.bottom.push({ n:0, what:"a corner post", bb:[x - bossR, -z - bossR, x + bossR, -z + bossR] }));
   const feet = [], footR = (FEET[encHas(FEET, E.footSize) ? E.footSize : "8"].d + 0.3)/2;
   if (E.feet === "recess"){
     const inX = iw/2 - footR - 2 - ri*0.3, inY = id/2 - footR - 2 - ri*0.3;
@@ -3848,8 +3898,9 @@ function buildEnclosure(){
   if (magnet){
     const ph = Math.min(pocketH, Math.max(0, H - fl - 1));
     if (ph < pocketH - 1e-6) warn.push({ t:"Box too shallow for the magnets", s:`The corner posts are too short for ${mg.d} × ${mg.t} mm magnets. Make the box taller or use thinner magnets.` });
-    bosses.forEach(([x, z]) => { solids.push(post(x, -z, bossR, 0, fl, H - ph)); if (ph > 0) solids.push(post(x, -z, bossR, pocketD/2, H - ph, H)); });
-  } else bosses.forEach(([x, z]) => solids.push(post(x, -z, bossR, bossHole/2, fl, H)));
+    bosses.forEach(([x, z]) => { solids.push(post(x, -z, bossR, 0, postBot, H - ph)); if (ph > 0) solids.push(post(x, -z, bossR, pocketD/2, H - ph, H)); });
+  } else bosses.forEach(([x, z]) => solids.push(post(x, -z, bossR, bossHole/2, postBot, H)));
+  if (postHang) bosses.forEach(([x, z]) => solids.push(encLoft(C.ringCircle(0.4, 40).map(p => [p[0] + x, p[1] - z]), postFree, C.ringCircle(bossR, 40).map(p => [p[0] + x, p[1] - z]), postBot + 0.01)));
   let board = null, boardNeed = null;
   const boardsInfo = [];
   // levels and their plates (Session 46): a board on a level stands on the level's top, and its mounts go on the plate
@@ -3895,7 +3946,7 @@ function buildEnclosure(){
       const covered = (Array.isArray(E.cut) ? E.cut : []).some((c, ci) => c.face === q.face && !left.includes(ci) && (() => { const bb = ringsBounds(placedRings(c, E)); return q.u >= bb[0] - 0.5 && q.u <= bb[2] + 0.5 && v >= bb[1] - 0.5 && v <= bb[3] + 0.5; })());
       if (near && !covered) hints.push(`${B.label}: its ${k.label.replace(/[,:(].*$/, "").trim()} on the ${ENC_FACE_NAME[q.face]} has no opening in front of it.`);
     });
-    if (info.fits !== false && bosses.some(([x, z]) => x + bossR > x0 && x - bossR < x1 && -z + bossR > y0 && -z - bossR < y1))
+    if (info.fits !== false && (!postHang || info.top + boardTall(bd.key, B) > postFree) && bosses.some(([x, z]) => x + bossR > x0 && x - bossR < x1 && -z + bossR > y0 && -z - bossR < y1))
       warn.push({ t:`${B.label} sits on a screw post`, s:"A corner screw post is under it. Move it, or make the box bigger." });
     if (info.top + 1 > H - lipH) warn.push({ t:"Not enough headroom", s:`The top of ${B.label} is ${info.top.toFixed(1)} mm up, too close to the lid. Make the box taller or its standoffs shorter.` });
     // two boards on top of each other
@@ -3929,21 +3980,62 @@ function buildEnclosure(){
   const insideParts = [], rIn = Math.max(0, R - t), levelInfo = [];
   let frontZ = D/2 + 10;                                        // where the next flat plate goes, in front of the box
   const bossClear = bosses.length ? { x: iw/2 - (Math.abs(bosses[0][0]) - bossR - 0.6), y: id/2 - (Math.abs(bosses[0][1]) - bossR - 0.6) } : null;
+  // where each level's screws go (Session 52): posts in the corners (a level above the first stands its posts on the level
+  // under it, 9 mm further in, clear of that one's own screws), brackets on the side walls (nothing on the floor), or posts
+  // where they are put. A plate notches round the lid posts only where they reach down to it (short lid posts).
+  const LV = ENC_LEVEL, notchOf = L => bossClear && (!postHang || fl + L.z > postFree - 0.2) ? bossClear : null, BRK = { r:3.5, in:4.5, boss:7, drop:8.5 };
+  const holdOf = levels.map(L => L.hold), lvW = iw - 2*LV.gap, lvD = id - 2*LV.gap;
+  const postPlan = levels.map((L, k) => {
+    const nc = notchOf(L), py = Math.max(7, (nc ? nc.y : 0) + 7), ys = [-(lvD/2 - py), lvD/2 - py];
+    if (holdOf[k] === "brackets"){
+      const zb = fl + L.z - L.t, below = k ? fl + levels[k - 1].z : fl;
+      if (zb - BRK.boss - BRK.drop < below + 1){ warn.push({ t:`Level ${k + 1}: no room for wall brackets`, s:`They need ${(BRK.boss + BRK.drop + 1).toFixed(0)} mm under the level: it stands on corner posts instead. Raise it, or lower the one under it.` }); holdOf[k] = "posts"; }
+      else return ys.flatMap(y => [[-(iw/2 - BRK.in), y], [iw/2 - BRK.in, y]]);
+    }
+    if (holdOf[k] === "posts"){ const xi = lvW/2 - 7 - 9*k; return xi > 8 ? ys.flatMap(y => [[-xi, y], [xi, y]]) : []; }
+    if (holdOf[k] === "custom") return L.at.map(([x, y]) => [clamp(x, -(lvW/2 - 4), lvW/2 - 4), clamp(y, -(lvD/2 - 4), lvD/2 - 4)]);
+    return [];
+  });
+  const standsOnPosts = k => holdOf[k] === "posts" || holdOf[k] === "custom";
+  // what stands where a post stands: the boards on the floor (or the level) under it, and the screws of the level under it
+  postPlan.forEach((pts, k) => {
+    if (standsOnPosts(k)) pts.forEach(([x, y], i) => {
+      const hit = boardsInfo.find(b => b.fits !== false && b.lvl === k && x + LV.post > b.bb[0] - 1 && x - LV.post < b.bb[2] + 1 && y + LV.post > b.bb[1] - 1 && y - LV.post < b.bb[3] + 1);
+      if (hit) warn.push({ t:`${hit.label} is under a post of level ${k + 1}`, s:`Move it, or choose wall brackets or posts where you put them for level ${k + 1} (Inside).` });
+      if (k && postPlan[k - 1].some(([a, b]) => Math.hypot(a - x, b - y) < LV.post + LV.clear/2 + 0.5)) warn.push({ t:`Level ${k + 1}: a post stands on a screw of level ${k}`, s:"Move that post, or the screws of the level under it." });
+    });
+    else if (holdOf[k] === "brackets") pts.forEach(([x, y]) => {
+      const bot = fl + levels[k].z - levels[k].t - BRK.boss - BRK.drop, xw = Math.sign(x)*iw/2;
+      const hit = boardsInfo.find(b => b.fits !== false && b.lvl === k && b.top + boardTall(b.key, BOARDS[b.key] || {}) + 1 > bot && Math.min(xw, x - Math.sign(x)*(BRK.r + 1)) < b.bb[2] && Math.max(xw, x - Math.sign(x)*(BRK.r + 1)) > b.bb[0] && y + BRK.r > b.bb[1] && y - BRK.r < b.bb[3]);
+      if (hit) warn.push({ t:`${hit.label} runs into a wall bracket of level ${k + 1}`, s:"Move it away from the side wall, or raise the level." });
+      ductInfo.forEach(du => { if (!du.isY && Math.sign(du.sgn) === Math.sign(x) && Math.abs(du.at - y) < half + BRK.r + 0.5) warn.push({ t:`Level ${k + 1}: a wall bracket is on cable channel ${du.k + 1}`, s:"Move the channel along the wall." }); });
+    });
+  });
   levels.forEach((L, k) => {
-    const g = ENC_LEVEL.gap, w = iw - 2*g, d = id - 2*g, zt = fl + L.z, zb = zt - L.t;
+    const g = ENC_LEVEL.gap, w = iw - 2*g, d = id - 2*g, zt = fl + L.z, zb = zt - L.t, nc = notchOf(L);
     let outer;
-    if (bossClear){                                             // square notches round the corner posts
-      const nx = Math.max(0, bossClear.x - g), ny = Math.max(0, bossClear.y - g);
+    if (nc){                                                    // square notches round the corner posts
+      const nx = Math.max(0, nc.x - g), ny = Math.max(0, nc.y - g);
       outer = [[-w/2 + nx, -d/2], [w/2 - nx, -d/2], [w/2 - nx, -d/2 + ny], [w/2, -d/2 + ny], [w/2, d/2 - ny], [w/2 - nx, d/2 - ny], [w/2 - nx, d/2], [-w/2 + nx, d/2], [-w/2 + nx, d/2 - ny], [-w/2, d/2 - ny], [-w/2, -d/2 + ny], [-w/2 + nx, -d/2 + ny]];
     } else outer = C.ringRect(w, d, Math.max(0, rIn - g), seg);
     // notched round the cable channels (Session 51)
     ductInfo.forEach(du => { const along = du.at, depthN = DU.depth + 0.4 - g + 0.4;
       if (!encNotch(outer, du.face, along - half - 0.4, along + half + 0.4, depthN)) warn.push({ t:`Level ${k + 1} cannot pass cable channel ${du.k + 1}`, s:"The channel is too near a corner for the level's edge: move it nearer the middle." }); });
-    const holes = [], ny0 = bossClear ? bossClear.y : 0, py = Math.max(7, ny0 + 7);
-    const postAt = [[-(w/2 - 7), -(d/2 - py)], [w/2 - 7, -(d/2 - py)], [-(w/2 - 7), d/2 - py], [w/2 - 7, d/2 - py]];
-    if (L.hold === "posts"){
-      postAt.forEach(([x, y]) => { holes.push(encOrient(C.ringCircle(ENC_LEVEL.clear/2, 24).map(q => [q[0] + x, q[1] + y]), false)); solids.push(post(x, y, ENC_LEVEL.post, ENC_LEVEL.hole/2, fl, zb)); });
-    } else {                                                    // 45° ledges along the side walls, under the plate's edges
+    const holes = [], ny0 = nc ? nc.y : 0, py = Math.max(7, ny0 + 7), postAt = postPlan[k];
+    // its screws: through the plate into posts (from the floor, or from the level under it, printed on that one) or brackets
+    if (holdOf[k] !== "ledges") postAt.forEach(([x, y]) => holes.push(encOrient(C.ringCircle(ENC_LEVEL.clear/2, 24).map(q => [q[0] + x, q[1] + y]), false)));
+    if (standsOnPosts(k) && k === 0) postAt.forEach(([x, y]) => solids.push(post(x, y, ENC_LEVEL.post, ENC_LEVEL.hole/2, fl, zb)));
+    const upper = levels[k + 1], upPosts = upper && standsOnPosts(k + 1) ? postPlan[k + 1] : [];
+    upPosts.forEach(([x, y]) => levelSolids[k].push(post(x, y, ENC_LEVEL.post, ENC_LEVEL.hole/2, zt - 0.01, fl + upper.z - upper.t)));
+    if (holdOf[k] === "brackets") postAt.forEach(([x, y]) => {
+      // a bracket on the side wall: a D-shaped boss (flat on the wall) with a screw hole, over a 45° wedge into the wall
+      const sx = Math.sign(x), wall = sx*(iw/2 + 0.5), R2 = BRK.r, top = [];
+      top.push([wall, y - R2]); for (let i = 0; i <= 12; i++){ const a = -Math.PI/2 + i/12*Math.PI; top.push([x - sx*R2*Math.cos(a), y + R2*Math.sin(a)]); } top.push([wall, y + R2]);
+      const ring = sx > 0 ? top.slice().reverse() : top, z1 = zb, z0 = zb - BRK.boss;
+      solids.push(C.extrudePolysAt([{ outer:encOrient(ring, true), holes:[encOrient(C.ringCircle(ENC_LEVEL.hole/2, 24).map(q => [q[0] + x, q[1] + y]), false)] }], z0, z1));
+      solids.push(encLoft(ring.map(([px, py2]) => [wall + (px - wall)*0.06, py2]), z0 - BRK.drop, ring, z0 + 0.01));
+    });
+    if (holdOf[k] === "ledges"){                                                    // 45° ledges along the side walls, under the plate's edges
       // 0.2 mm out for each 0.25 mm up (a little steeper than 45°, as the photo frame's bevel), 3 mm out under the plate
       const yr = id/2 - Math.max(2, ny0 + 1), n = Math.ceil(ENC_LEVEL.ledge/0.2), hgt = n*0.25;
       for (const sx of [-1, 1]) for (let i=0;i<n;i++){
@@ -3972,12 +4064,13 @@ function buildEnclosure(){
     let gridN = 0;
     if (L.grid){
       const G = L.grid, busy = [...passRects.map(r => [r[0] - 3, r[1] - 3, r[2] + 3, r[3] + 3]), ...levelSlots[k].map(r => [r[0] - 2, r[1] - 2, r[2] + 2, r[3] + 2])];
-      if (L.hold === "posts") postAt.forEach(([x, y]) => busy.push([x - 6, y - 6, x + 6, y + 6]));
+      if (holdOf[k] !== "ledges") postAt.forEach(([x, y]) => busy.push([x - 6, y - 6, x + 6, y + 6]));
+      upPosts.forEach(([x, y]) => busy.push([x - 5.5, y - 5.5, x + 5.5, y + 5.5]));
       anchorX.forEach(x => busy.push([x - 4.5, yA - 2.5, x + 4.5, yA + 2.5]));
       notchRects.forEach(r => busy.push([r[0] - 2.5, r[1] - 2.5, r[2] + 2.5, r[3] + 2.5]));
       if (L.vent) busy.push([-w*0.27, -4 - Math.min(30, d*0.35)/2 - 3, w*0.27, -4 + Math.min(30, d*0.35)/2 + 3]);
       boardsInfo.filter(b => b.lvl === k + 1).forEach(b => busy.push([b.bb[0] - 3, b.bb[1] - 3, b.bb[2] + 3, b.bb[3] + 3]));
-      if (bossClear) for (const sx of [-1, 1]) for (const sy of [-1, 1]) busy.push([sx > 0 ? w/2 - bossClear.x - 4 : -w/2 - 1, sy > 0 ? d/2 - bossClear.y - 4 : -d/2 - 1, sx > 0 ? w/2 + 1 : -w/2 + bossClear.x + 4, sy > 0 ? d/2 + 1 : -d/2 + bossClear.y + 4]);
+      if (nc) for (const sx of [-1, 1]) for (const sy of [-1, 1]) busy.push([sx > 0 ? w/2 - nc.x - 4 : -w/2 - 1, sy > 0 ? d/2 - nc.y - 4 : -d/2 - 1, sx > 0 ? w/2 + 1 : -w/2 + nc.x + 4, sy > 0 ? d/2 + 1 : -d/2 + nc.y + 4]);
       const nx = Math.floor((w - 12)/G), ny = Math.floor((d - 12)/G);
       for (let i = 0; i <= nx; i++) for (let j = 0; j <= ny; j++){
         const x = -nx*G/2 + i*G, y = -ny*G/2 + j*G;
@@ -3999,7 +4092,7 @@ function buildEnclosure(){
         pr(-g2 - 2, -g2, zt - 0.01, zt + 5); pr(g2, g2 + 2, zt - 0.01, zt + 5); pr(-g2 - 2, g2 + 2, zt + 5 - 0.01, zt + 6.2); anchorsOn++;
       }
     }
-    levelInfo.push({ grid:gridN, anchors:anchorsOn, pass:L.pass });
+    levelInfo.push({ grid:gridN, anchors:anchorsOn, pass:L.pass, hold:holdOf[k], posts:postAt.map(q => q.slice()), onPosts:standsOnPosts(k) });
     const pieces = [plate, ...levelSolids[k]].filter(Boolean), dz = frontZ + d/2;
     insideParts.push({ inside:true, name:`Level ${k + 1}`, slot:clamp(+E.boxSlot || 0, 0, state.slots.length - 1), solid:C.affineSolid(C.mergeSolids(pieces), [1,0,0, 0,1,0, 0,0,1], [0, -zb, dz]) });
     frontZ += d + 10;
@@ -4231,7 +4324,7 @@ function buildEnclosure(){
       enclosurePlates = plates.length;
     }
   }
-  enclosureInfo = { test: !!state.base.enclosure.test, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, anchors:anchorsMade, ducts:ductInfo.length, count:(E.cut || []).length - left.length,
+  enclosureInfo = { test: !!state.base.enclosure.test, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR }, anchors:anchorsMade, ducts:ductInfo.length, count:(E.cut || []).length - left.length,
     split: splitInfo };
   return out;
 }
@@ -11250,6 +11343,7 @@ function enclosureFields(p){
     if (E.lid === "magnet"){
       selField(g, "Magnet size (diameter × thickness)", Object.keys(MAGNETS).map(k => [k, `${MAGNETS[k].d} × ${MAGNETS[k].t} mm`]), ()=>encHas(MAGNETS, E.magnet) ? E.magnet : "6x2", v=>{ E.magnet = v; baseChanged(); });
       const m = MAGNETS[encHas(MAGNETS, E.magnet) ? E.magnet : "6x2"];
+      encPostStyleField(g);
       note(g, `Eight round magnets: four pressed into the corner posts, four into the lid. Check each pair attracts before you glue them (a drop of superglue), or the lid will push away. The lid needs to be at least ${(m.t + 0.8).toFixed(1)} mm thick.`);
     }
     if (E.lid === "screw" || E.lid === "none"){
@@ -11257,6 +11351,7 @@ function enclosureFields(p){
       if (E.fasten !== "none"){
         selField(g, "Screw size", Object.keys(SCREWS).map(k => [k, k]), ()=>E.screw, v=>{ E.screw = v; renderTab(); baseChanged(); });
         if (E.lid === "screw") segField(g, [["sink","Countersunk"],["bore","Counterbored"],["plain","Plain hole"]], ()=>E.head, v=>{ E.head = v; baseChanged(); });
+        encPostStyleField(g);
         const s = encHas(SCREWS, E.screw) ? SCREWS[E.screw] : SCREWS.M3;
         note(g, (E.fasten === "insert"
           ? `${E.screw} heat inserts: the posts get a ${s.insert} mm hole, at least ${s.insertDepth} mm deep. Press the insert in with a soldering iron at about 220 °C, flush with the top.`
@@ -11409,7 +11504,25 @@ function enclosureFields(p){
       box.insertAdjacentHTML("beforeend", `<p class="hint" style="margin:0 0 4px"><b>Level ${k + 1}</b>: a shelf, printed flat in front of the box</p>`);
       numField(box,{ label:"Height of its top above the floor (mm)", min:6,max:280,step:0.5, get:()=>L.z, set:v=>L.z=v, onChange:baseChanged });
       numField(box,{ label:"Thickness (mm)", min:1.2,max:5,step:0.1, get:()=>L.t, set:v=>L.t=v, onChange:baseChanged });
-      segField(box, [["posts","On 4 posts, screwed"],["ledges","On ledges (45°)"]], ()=>L.hold === "ledges" ? "ledges" : "posts", v=>{ L.hold = v; renderTab(); baseChanged(); }, "two");
+      const hold0 = () => ["posts","brackets","ledges","custom"].includes(L.hold) ? L.hold : "posts";
+      selField(box, "It is held by", [["posts","4 posts in the corners, screwed"],["brackets","Brackets on the side walls, screwed (floor free)"],["custom","Posts where I put them, screwed"],["ledges","Ledges on the side walls (45°), no screws"]], hold0, v=>{
+        L.hold = v;
+        if (v === "custom" && !(Array.isArray(L.at) && L.at.length)){ const li = I && I.levels && I.levels[k]; L.at = (li && li.posts && li.posts.length ? li.posts : [[-20, -15], [20, -15], [-20, 15], [20, 15]]).map(([x, y]) => ({ x:Math.round(x), y:Math.round(y) })); }
+        renderTab(); baseChanged(); });
+      const li0 = I && I.levels && I.levels[k];
+      if (hold0() === "posts") note(box, k ? "Its posts stand on the level under it (printed on that one), 9 mm further in than that level's screws. M3 self-tapping screws hold the plate down." : "The posts stand on the floor. To keep the floor free for boards, choose brackets on the side walls, or put the posts where they fit.");
+      else if (hold0() === "brackets") note(box, "A screw bracket on each side wall, front and back, under the plate: nothing stands on the floor (or the level) under it. Each prints with the box, over a 45° slope.");
+      else if (hold0() === "custom"){
+        const at = Array.isArray(L.at) ? L.at : (L.at = []);
+        note(box, (k ? "Posts on the level under it, printed on that one. " : "Posts on the floor. ") + "Put them in gaps between your boards: across from the middle (right is +) and front to back (back is +), in mm.");
+        at.forEach((q, i) => {
+          const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;align-items:center"; box.appendChild(row);
+          numField(row,{ label:`Post ${i + 1} across`, min:-200,max:200,step:1, get:()=>q.x, set:v=>q.x=v, onChange:baseChanged, noReset:true });
+          numField(row,{ label:"front to back", min:-200,max:200,step:1, get:()=>q.y, set:v=>q.y=v, onChange:baseChanged, noReset:true });
+        });
+        buttonRow(box, [...(at.length < 6 ? [["Add a post", ()=>{ at.push({ x:0, y:0 }); renderTab(); baseChanged(); }]] : []), ...(at.length > 2 ? [["Remove the last", ()=>{ at.pop(); renderTab(); baseChanged(); }]] : [])]);
+      }
+      if (li0 && li0.hold !== hold0()) note(box, "No room for brackets under it: it stands on corner posts for now (see the warning).");
       const pass0 = () => ENC_PASS.includes(L.pass) ? L.pass : (L.cable === false ? "none" : "back");
       selField(box, "Cables to the floor above pass", [["back","Through a slot at the back"],["front","Through a slot at the front"],["left","Through a slot on the left"],["right","Through a slot on the right"],["corners","Through a hole in each corner"],["none","Nowhere (no hole)"]], pass0, v=>{ L.pass = v; L.cable = v !== "none"; renderTab(); baseChanged(); });
       if (pass0() !== "none") segField(box, [["small","Small (for a few wires)"],["large","Large (for a plug or a bundle)"]], ()=>L.passSize === "large" ? "large" : "small", v=>{ L.passSize = v; baseChanged(); }, "two");
@@ -14634,7 +14747,7 @@ function sanitizeProject(data){
   if (st.base && "card" in st.base) st.base.card = cleanCard(st.base.card);
   if (st.base && st.base.enclosure && typeof st.base.enclosure === "object"){
     const E = st.base.enclosure, one = (v, list) => list.includes(v) ? v : list[0];
-    E.lid = one(E.lid, ["screw","press","magnet","slide","none"]); E.fasten = one(E.fasten, ["insert","screw","none"]); E.head = one(E.head, ["sink","bore","plain"]);
+    E.lid = one(E.lid, ["screw","press","magnet","slide","none"]); E.postStyle = one(E.postStyle, ["full","hang"]); E.fasten = one(E.fasten, ["insert","screw","none"]); E.head = one(E.head, ["sink","bore","plain"]);
     E.magnet = encHas(MAGNETS, E.magnet) ? E.magnet : "6x2"; E.feet = one(E.feet, ["none","recess"]); E.mount = one(E.mount, ["none","ears","tabs","din","straps","skadis","pegboard"], "none"); E.tabN = E.tabN === 1 ? 1 : 2;
     E.earN = E.earN === 4 ? 4 : 2; E.strapDir = one(E.strapDir, ["across","up"], "across"); E.footSize = encHas(FEET, E.footSize) ? String(E.footSize) : "8";
     const L0 = E.logo && typeof E.logo === "object" ? E.logo : {};
@@ -14654,7 +14767,8 @@ function sanitizeProject(data){
     E.boardLvl = Math.round(Math.min(ENC_LEVEL.max, Math.max(0, cleanNum(E.boardLvl, 0))));          // the main board's floor (Session 51)
     // levels and dividers (Session 46)
     E.levels = (Array.isArray(E.levels) ? E.levels : []).slice(0, ENC_LEVEL.max).filter(l => l && typeof l === "object").map(l => ({
-      z:Math.min(300, Math.max(6, cleanNum(l.z, 30))), t:Math.min(5, Math.max(1.2, cleanNum(l.t, 2))), hold:l.hold === "ledges" ? "ledges" : "posts", cable:l.cable !== false, vent:l.vent === true,
+      z:Math.min(300, Math.max(6, cleanNum(l.z, 30))), t:Math.min(5, Math.max(1.2, cleanNum(l.t, 2))), hold:["posts","brackets","ledges","custom"].includes(l.hold) ? l.hold : "posts", cable:l.cable !== false, vent:l.vent === true,
+      at:(Array.isArray(l.at) ? l.at : []).slice(0, 6).filter(q => q && typeof q === "object").map(q => ({ x:Math.min(200, Math.max(-200, cleanNum(q.x, 0))), y:Math.min(200, Math.max(-200, cleanNum(q.y, 0))) })),
       pass:ENC_PASS.includes(l.pass) ? l.pass : (l.cable === false ? "none" : "back"), passSize:l.passSize === "large" ? "large" : "small", grid:[0, 10, 15, 20].includes(+l.grid) ? +l.grid : 0,
       anchors:Math.round(Math.min(8, Math.max(0, cleanNum(l.anchors, 0)))) }));
     E.walls = (Array.isArray(E.walls) ? E.walls : []).slice(0, ENC_DIV.max).filter(w => w && typeof w === "object").map(w => ({

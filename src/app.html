@@ -12981,6 +12981,7 @@ function cleanModelColour(c, n, assetsIn){
 }
 async function loadProject(data){
   if (!data || !data.state) return false;
+  const cameWithModel = !!data.model;          // a model in the file, even one the cleaning refuses: not looked up below
   data = sanitizeProject(data);
   const def = DEFAULTS();
   state = Object.assign(def, data.state);
@@ -13000,9 +13001,10 @@ async function loadProject(data){
     try { assets[id] = { dataURL:url, canvas:await dataURLToCanvas(url) }; } catch(e){}
   }
   // opened without its model (the autosave, the recent list, a share link): the copy kept in this browser, if any.
-  // Its pictures (a GLB's colours) come with the project; without them (a share link) it keeps its plain colours
-  if (!stlData && state.base.type === "stl" && state.base.stl && state.base.stl.name){
-    const m = openedModels.get(state.base.stl.name) || await keptModel(state.base.stl.name);
+  // Its pictures (a GLB's colours) come with the project; without them (a share link) it keeps its plain colours.
+  // A file that carried a model the cleaning refused stays without one (it says so), whatever its name
+  if (!stlData && !cameWithModel && state.base.type === "stl" && state.base.stl && state.base.stl.name){
+    const m = await keptModel(state.base.stl.name);
     if (m){
       let col = m.colour || null;
       if (col && col.tex && col.tex.some(id => id && !assets[id])) col = col.cc ? { cc:col.cc, uv:null, texOf:null, tex:[] } : null;

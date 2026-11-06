@@ -1864,8 +1864,10 @@ are missing").
   name and its triangle count, as `state.base.stl.name`), with its paint and its own colours.
 - The newest four are kept, up to 300 MB. Nothing is stored when "Save my work in this browser" is off. **Clear saved work in
   this browser** clears them.
-- `loadProject`, opening a project without its model (the autosave, the recent list, a share link), takes the model from the
-  tab's own list or from IndexedDB. A share link carries no pictures, so a model's picture colours (a GLB's texture) are dropped
+- `loadProject`, opening a project without its model (the autosave, the recent list, a share link), takes the model from
+  IndexedDB. Only from there, and only when the file carried no model at all: a file whose model the cleaning refused stays
+  without one and says so (the first version also took the tab's own copy and so brought back a refused model by its name:
+  `test:paint`'s hostile models and its "says which file to open" checks caught it). A share link carries no pictures, so a model's picture colours (a GLB's texture) are dropped
   then and its plain colours kept.
 - jsdom has no IndexedDB (the functions do nothing there); `check:browser` opens a model, reloads the page and finds it back.
 
@@ -1875,7 +1877,7 @@ are missing").
   holes measured at three heights; no support; an edge kept to 45%; not with the colours kept.
 - `test:relief`: the photo's colours (the border and back unpainted, every colour off leaving it plain), the stand's slot.
 - `test:project`: a hostile relief colour and stand, hostile tracer edges.
-- `check:browser`: BROWSER_NOTE
+- `check:browser`: a GLB (325 190 triangles, with its picture colours) opened, the page loaded again, and the project saved without the model opened with the same model and its colours.
 
 **Not done**
 - The tracer: references other than paper (a bank card or a coin), a second height level (bosses, counterbores), lens

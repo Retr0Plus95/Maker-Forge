@@ -2265,6 +2265,38 @@ plain scene (scratchpad `shot46.js`, the parts by name).
 warns); brackets on the front and back walls. Next release (0.47): art, icons, engravings and labels on any face of the box.
 **Still to check by hand**: a printed wall bracket and short post with a screw in; a board dropped into the new rim.
 
+## Session 53: project boxes, art, words and icons on any face (v0.47.0)
+
+Asked (the owner): "make it easy to add art and icons and engravings" (with the box list in Session 52).
+
+**Art** (`E.art`, up to `ENC_ART.max` 10, each cleaned by `encArtClean` in the build and in `sanitizeProject`): `{face, kind
+(text/icon/picture), text, font, icon, size, x, y, rot, finish (engrave/inlay/raised), slot, depth}`. `encArtShape`: words are
+drawn by `textCanvas` (the font loaded first: `document.fonts.check`, then a rebuild once `load` finishes), an icon by
+`drawIcon` on a 480 px square, both traced from their ink (`encInkMask`, `maskToPolys` with `keep`); words are scaled so their
+letters are `size` tall, an icon so its 24-unit square is (a flat icon stays flat: **found while testing**, "minus" was 140 mm
+wide the first way). Shapes are cached by kind/text/font/icon/size without the filament (**found while testing**: a copy in
+another filament came out in the first one's). The picture goes through `encLogo` (a stand-in `E.logo`), so it splits into the
+filaments like the lid logo. Placing (in `buildEnclosure`, after the labels and before the split plan): a wall's piece is
+centred `y` above the wall's middle, the lid's and the floor's at (x, y) on the plan (the floor reads with the box turned over:
+`encArtPlace` mirrors it); each must fit its face (1 mm in on walls, 1.5 mm and the corners' rounding on the lid and floor) and
+keep 0.6 mm from `taken` (openings, labels, screw heads), or it is left out with a warning. **Raised** is for walls only (the
+lid and the floor print face down: it becomes inlaid there). Cutting: a wall's outside is now made in slabs for any number of
+cut depths (labels and art), like the lid's; inlaid art is a part per filament ("Front art (Red)") filling its pocket; raised
+art in the box's filament is part of the box, in another a part of its own. Lid art goes into both lids' cuts (the screwed lid
+mirrored, `flipY`, as it prints face down; the sliding lid at its top). A box made in parts takes art on the lid only (a
+warning). `enclosureInfo.art`. **Label every opening** (`encAutoLabel`): a short name from the opening's kind for ports,
+buttons and lights; it only fills openings without a label.
+
+**Tests**: new `tools-boxart-test.js` (in `test:enclosure`): words on all six faces in all three finishes (the volume each takes
+or adds, the inlay filling its pocket), raised in the box's filament, the lid's and floor's art in the first layers, the lid's
+read from above, all 54 icons, left out over an opening or past the edge, turned words, no lid, the sliding lid, support (none),
+the Art tab picture inlaid and engraved, Label every opening, the panel, a hostile project. The doc picture:
+`docs/images/box-art.jpg`, rendered with the lid turned over onto the box (scratchpad `shot46.js`, `ASSEMBLE=1 SLOTCOL=1`).
+
+**Not done, next**: dragging art in the 3D view (it is typed in); art wrapping round a rounded corner; art on a box made in
+parts; a picture inlaid in the lid and on a wall at once recomputes the trace each build (`encLogoCache` holds one size).
+**Still to check by hand**: raised and inlaid words on a printed wall (text 5 mm and under); fonts in a slicer preview.
+
 ## Unfinished (in priority order)
 
 - **0.44: colour from a photo, with more AI, for the CR7 figure** (click to colour done in Session 50; the rest below is next) (the owner, Session 49: "fix the auto painter function from a pic,

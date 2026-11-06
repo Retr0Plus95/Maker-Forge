@@ -192,6 +192,14 @@ Some objects in brief:
 
       ![The box with a battery tray, two cable channels and a divider; level 1 with mounting holes, zip-tie anchors and cradles](docs/images/floors.jpg)
     - When it all doesn't fit one bed, each part goes on a plate of its own.
+  - **Art, words and icons on the box** (new in 0.47): put a name, a word, any of the 54 icons or the Art tab's picture on any face: the lid, the floor, the front, the back or a side.
+    - **Add words**, **Add an icon** or **Add the Art tab picture**, then choose the face, the size, where it goes (across and up from the middle of the face) and whether it is turned.
+    - **Engraved** cuts it into the face (one filament; paint it in for contrast). **Inlaid** fills that pocket flush in another filament, smooth to the touch. **Raised** stands it out of a wall (walls only: the lid and the floor print face down, so there it is inlaid).
+    - The words use any of the app's fonts. The picture is split into your filaments like the lid logo.
+    - Art that would cover an opening, or run off the face, is left out and the warning says why. **Copy** makes another one just below.
+    - **Label every opening** names each opening that has no label yet (USB-C, HDMI, DC IN, ON/OFF, PUSH, LED…), engraved under it; change any of them on the Openings page.
+
+      ![A project box with WEATHER inlaid in orange on the front, a sun icon, engraved USB-C and PUSH labels, a raised Wi-Fi icon on the side, and a cloud and Station 1 inlaid in the lid](docs/images/box-art.jpg)
   - **Printing without support** (new in 0.41): a port opening in a wall gets a pointed top by itself when its top edge would be a bridge longer than your printer's bridge limit (set on the Printer page): **Top: auto**, **Flat** or **Pointed** on each opening. Fan grilles in walls default to **Slots**, upright slots with pointed tops; **Honeycomb** in a wall uses flat-topped cells; vent slots have pointed tops. All of them print without support.
   - **Mounting** hangs the box up:
     - **Screw ears:** two or four tabs at floor level, each with a screw hole and a 45° fin each side.

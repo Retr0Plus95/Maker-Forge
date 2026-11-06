@@ -2023,6 +2023,34 @@ slot and honeycomb vents (0); honeycomb on the lid unchanged; the quick starts' 
 - Snap-in parts (IEC inlet, rockers, meters) keep flat tops (a gable would show round the bezel); most printers bridge them.
 - Small round holes (pilot lights, banana sockets) count a little support with teardrops off; they print fine in practice.
 
+## Session 48: Arrange it for me (v0.42.0)
+
+The layout solver from the box plan (Unfinished: "0.42, arrange it for me"), as asked: "the ai to help design after specific
+needs and parts chosen". The solver comes first so 0.43's AI only has to choose parts and settings, never positions.
+
+**Changes**
+- `encArrange(keepSize)` (exposed as `MF.arrange`): every board in `encBoardList(E)` packed on its floor or level. The main
+  board goes first, 1 mm in from the walls its ports face (from `BOARD_PORTS` and `boardPortPlace`), clear of the corner
+  posts; the rest are packed bottom-left on a skyline, 3 mm apart, each turned whichever way packs lower, biggest first.
+  Without `keepSize` it tries inner widths 2 mm apart, packs each, and keeps the smallest floor area that holds everything
+  and fits `state.printer.bed`; the height follows the tallest board plus its `BOARD_TALL` parts and the main board's
+  highest port opening (with a pointed top's gable). With levels the height is left alone. The main board's port openings (`c.auto === "ports"`) are put back where the board ends up. Returns
+  `{ok, before, after, n, ports}` or `{ok:false, why}`.
+- Corner clearance uses the box's own rule for corner posts (`bossesOn`: a magnet lid, or screws unless the lid presses or
+  slides in), so a box with no lid keeps its boards off the posts too (found by the doc screenshot: two "sits on a screw
+  post" warnings).
+- Board mounts: two buttons, **Arrange it for me (smallest box)** and **Arrange in this box**, with a note of what changed
+  and one Undo step.
+
+**Tests**: new `tools-arrange-test.js` (in `test:enclosure`): three sets in the smallest box (no warnings, every port opening
+in place), packed tighter than a row, the Uno against the wall its ports face, a 200 × 150 box kept, a box too small
+refused with a hint, boards on a level, the panel button, and 60 random sets of 2 to 6 boards with random lids and
+fastenings (nothing overlapping, on a post or outside the box; the few too big for one floor on the bed said so).
+
+**Not done**
+- It does not add levels by itself when the parts don't fit one floor on the bed; it says so. Next with the AI help.
+- Cable room between boards is the 3 mm gap only; openings other than the main board's ports stay where they are.
+
 ## Unfinished (in priority order)
 
 - **The next two builds** (the owner, 2026-11-05: "Mechanisms toolkit, model doctor, 3d relief from any photo, sign maker and fix it parts library should be done over the next two builds"; ideas 2, 3, 6, 8 and 10 of Session 36's list). Planned split:
@@ -2072,7 +2100,7 @@ slot and honeycomb vents (0); honeycomb on the lid unchanged; the quick starts' 
     - **0.41, lids, mounts and print fixes:** snap-fit and hinged lids, a snap-on DIN clip, pointed tops added by themselves
       to wall openings wider than a bridge (the PSU box's 600 mm², the 23 mm² of an Uno's USB-B), honeycomb roofs, artwork on
       walls.
-    - **0.42, arrange it for me:** a layout solver that packs the chosen parts (on levels when they do not fit one floor),
+    - **0.42, arrange it for me** (done in Session 48, but for levels added by themselves): a layout solver that packs the chosen parts (on levels when they do not fit one floor),
       keeps each board's ports on a wall, leaves cable room, and sizes the box; "make it smaller" and "make it printable on my
       bed" as goals.
     - **0.43, the icon maker and AI help** (the owner chose "Both": the owner's own API key in the browser now, the local

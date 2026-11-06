@@ -5,7 +5,7 @@
 Free and open source (MIT). One HTML file: no install, no account, no uploads. It runs on your own computer, tablet or phone, even offline.
 
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-2a9d8f)](LICENSE)
-[![Version 0.34](https://img.shields.io/badge/version-0.34-1f6f8b)](CHANGELOG.md)
+[![Version 0.43](https://img.shields.io/badge/version-0.43-1f6f8b)](CHANGELOG.md)
 [![Runs in the browser](https://img.shields.io/badge/runs%20in-your%20browser-e9c46a)](#get-started-in-a-minute)
 [![Exports 3MF, STL, OBJ](https://img.shields.io/badge/exports-3MF%20·%20STL%20·%20OBJ-d1495b)](#printers-and-slicers)
 
@@ -42,9 +42,9 @@ Every button in the **Start from** sidebar opens with a finished example, so you
 | **Bobble heads** | A face | Printed spring neck |
 | **Tea lights and lanterns** | A silhouette or a photo | LED only |
 | **Photo frames, plaques, coasters, cylinders, spheres, vases** | A picture, or paint | Frames for a photo (10 × 15 cm, A5 and others) with a back panel, stand and keyholes; stands for plaques and desk signs; turned shapes: vase, egg, cone, dome, ring |
-| **Project boxes and electronics enclosures** | Openings and a lid logo | About 150 openings (with a search): USB-C and charging boards, buttons, switches, fans, displays, pilot lights, the ESP32-CAM, motion and distance sensors, speaker grilles; labels; screw ears, hanging tabs, a DIN rail clip, strap loops, SKÅDIS hooks or pegboard pegs; Raspberry Pi case, power bank box, PSU box; fit test; a box bigger than your bed is made in parts that screw together; over 60 boards and modules on standoffs or in cradles, several in one box, a board's ports added for you; levels (a second floor), dividers with a fan, the parts shown inside |
+| **Project boxes and electronics enclosures** | Openings and a lid logo | About 150 openings (with a search): USB-C and charging boards, buttons, switches, fans, displays, pilot lights, the ESP32-CAM, motion and distance sensors, speaker grilles; labels; screw ears, hanging tabs, a DIN rail clip, strap loops, SKÅDIS hooks or pegboard pegs; Raspberry Pi case, power bank box, PSU box; fit test; a box bigger than your bed is made in parts that screw together; over 60 boards and modules on standoffs or in cradles, several in one box, a board's ports added for you; levels (a second floor), dividers with a fan, the parts shown inside; **Arrange it for me** (the smallest box that holds them); **Describe your project** fills the box in from a line of words; a multicolour icon for the lid; optional AI help (your own Claude key, or Ollama on your computer) |
 | **Replacement parts from a photo** | A photo of a flat part on paper | Photo to 3D tracer, true circles for holes, SVG and DXF outlines |
-| **Your own model, painted** | An STL, OBJ, 3MF, GLB or glTF | Up to 8 colours, by hand, automatically or from a photo; text and pictures raised, engraved or inlaid; cut flat to stand |
+| **Your own model, painted** | An STL, OBJ, 3MF, GLB or glTF | Up to 8 colours, by hand, automatically or from a photo; turn the view while you paint without switching tools; text and pictures raised, engraved or inlaid; cut flat to stand |
 | **AI-made 3D models, in colour** | A GLB, or an OBJ with its MTL and pictures, from Meshy, Tripo, Rodin or any 3D app | Opens in its own colours, turned into the filaments you have |
 
 ---
@@ -93,6 +93,10 @@ Every button in the **Start from** sidebar opens with a finished example, so you
 **Colour from a photo** follows the model's shape: one photo of the front, and the back the photo can't see comes out right too.
 
 ![The test figure: its front photo; seen from behind as coloured before version 0.30, a patchwork with blue legs; as coloured now, a red shirt, white shorts and skin legs; and its real colours](docs/images/photo-shape.jpg)
+
+**Project boxes, described in words**: type what goes in it and the boards are arranged, the openings placed, and an icon made for the lid (new in 0.43).
+
+![The icon maker: a fan with a snowflake on a hexagon badge, inlaid into a project box's lid](docs/images/icon-maker.jpg)
 
 **Sharp paint edges**: each stroke, box, lasso and painted picture is cut into the model, so a colour ends where you painted it.
 

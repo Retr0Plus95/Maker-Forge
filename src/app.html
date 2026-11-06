@@ -2719,15 +2719,22 @@ function encFreeBoardSpot(E, n){
 // and an L-shaped fence round each corner, 0.3 mm clear of the board and rising 1.2 mm above it. All of it upright, so
 // it prints without support; the board drops in (a dab of hot glue, or the lid, keeps it there)
 const ENC_CRADLE = { seat:4, arm:8, gap:0.3, fence:1.6, over:1.2 };
-function encCradle(x, y, w, d, fl, sh, fence){
+// bounds (a level's plate, Session 51): every piece trimmed to it, so nothing hangs over the plate's edge (the wall holds
+// the board there); a piece trimmed to nothing is left out
+const encClip = (pts, bounds) => { if (!bounds) return pts; const q = pts.map(([x, y]) => [Math.min(bounds[2], Math.max(bounds[0], x)), Math.min(bounds[3], Math.max(bounds[1], y))]);
+  return Math.abs(C.area2(q)) / 2 > 0.6 ? q : null; };
+function encCradle(x, y, w, d, fl, sh, fence, bounds){
   const out = [], C2 = ENC_CRADLE, top = fl + sh + 1.6 + C2.over;
   for (const sx of [-1, 1]) for (const sy of [-1, 1]){
     const cx = x + sx*w/2, cy = y + sy*d/2, at = (px, py) => [cx + sx*px, cy + sy*py];
-    const seat = [[0, 0], [-C2.seat, 0], [-C2.seat, -C2.seat], [0, -C2.seat]].map(q => at(q[0], q[1]));
-    out.push(C.extrudePolysAt([{ outer:encOrient(seat, true), holes:[] }], fl - 0.01, fl + sh));
+    const seat = encClip([[0, 0], [-C2.seat, 0], [-C2.seat, -C2.seat], [0, -C2.seat]].map(q => at(q[0], q[1])), bounds);
+    if (seat) out.push(C.extrudePolysAt([{ outer:encOrient(seat, true), holes:[] }], fl - 0.01, fl + sh));
     const a = Math.min(C2.arm, w/3, d/3), g = C2.gap, f = fence;
-    const L = [[g, -a], [g + f, -a], [g + f, g + f], [-a, g + f], [-a, g], [g, g]].map(q => at(q[0], q[1]));
-    out.push(C.extrudePolysAt([{ outer:encOrient(L, true), holes:[] }], fl - 0.01, top));
+    // the L in two bars (so a trimmed one stays a simple shape): along x and along y
+    for (const bar of [[[-a, g], [g + f, g], [g + f, g + f], [-a, g + f]], [[g, -a], [g + f, -a], [g + f, g], [g, g]]]){
+      const L = encClip(bar.map(q => at(q[0], q[1])), bounds);
+      if (L) out.push(C.extrudePolysAt([{ outer:encOrient(L, true), holes:[] }], fl - 0.01, top));
+    }
   }
   return out;
 }
@@ -2735,13 +2742,15 @@ function encCradle(x, y, w, d, fl, sh, fence){
 // and slots through the floor (or the level) either side of it for a hook-and-loop strap (22 mm) round it, or for zip ties on
 // a small one. Returns the fences (solids) and the slots (plan rectangles [x0, y0, x1, y1]).
 const ENC_TRAY = { gap:0.6, fence:1.6, arm:10, strap:22, slot:2.6, off:1.4 };
-function encStrapTray(x, y, w, d, fl, tall){
+function encStrapTray(x, y, w, d, fl, tall, bounds){
   const T = ENC_TRAY, out = [], slots = [], fh = Math.min(12, Math.max(4, tall*0.4));
   for (const sx of [-1, 1]) for (const sy of [-1, 1]){
     const cx = x + sx*w/2, cy = y + sy*d/2, at = (px, py) => [cx + sx*px, cy + sy*py];
     const a = Math.min(T.arm, w/3, d/3), g = T.gap, f = T.fence;
-    const L = [[g, -a], [g + f, -a], [g + f, g + f], [-a, g + f], [-a, g], [g, g]].map(q => at(q[0], q[1]));
-    out.push(C.extrudePolysAt([{ outer:encOrient(L, true), holes:[] }], fl - 0.01, fl + fh));
+    for (const bar of [[[-a, g], [g + f, g], [g + f, g + f], [-a, g + f]], [[g, -a], [g + f, -a], [g + f, g], [g, g]]]){
+      const L = encClip(bar.map(q => at(q[0], q[1])), bounds);
+      if (L) out.push(C.extrudePolysAt([{ outer:encOrient(L, true), holes:[] }], fl - 0.01, fl + fh));
+    }
   }
   // the strap goes across the short side: one strap, or two on a long battery; a short battery gets zip-tie slots
   const alongX = w >= d, long = alongX ? w : d, room = long - 2*Math.min(T.arm, w/3, d/3) - 4, n = long > 90 ? 2 : 1;
@@ -3846,6 +3855,7 @@ function buildEnclosure(){
   // levels and their plates (Session 46): a board on a level stands on the level's top, and its mounts go on the plate
   const ceilZ = H - (lidOn ? lipH : 0), levels = encLevels(E, ceilZ - fl), levelSolids = levels.map(() => []), ghosts = [], hints = [];
   const levelTop = k => k > 0 && levels[k - 1] ? fl + levels[k - 1].z : fl;
+  const plateB = [-(iw/2 - ENC_LEVEL.gap), -(id/2 - ENC_LEVEL.gap), iw/2 - ENC_LEVEL.gap, id/2 - ENC_LEVEL.gap];     // a level plate's extent (Session 51)
   const ceilingOver = k => k < levels.length ? fl + levels[k].z - levels[k].t : ceilZ;
   boardList.forEach((bd, n) => {
     if (bd.lvl > levels.length) bd.lvl = levels.length;
@@ -3864,9 +3874,9 @@ function buildEnclosure(){
       // it would stand outside the box: leave its mounts out until it fits
       warn.push({ t:`${B.label} does not fit`, s:`${B.label} is ${bw.toFixed(1)} × ${bdp.toFixed(1)} mm and the inside is ${iw.toFixed(1)} × ${id.toFixed(1)} mm, so its ${bd.holes ? "standoffs are" : "cradle is"} left out. Make the box bigger (at least ${Math.ceil(need.w)} × ${Math.ceil(need.d)} mm outside) or move it.` });
       info.fits = false;
-    } else if (bd.hold === "strap") dst.push(...encStrapTray(bd.x, bd.y, bw, bdp, base, boardTall(bd.key, B)).solids);
+    } else if (bd.hold === "strap") dst.push(...encStrapTray(bd.x, bd.y, bw, bdp, base, boardTall(bd.key, B), bd.lvl ? plateB : null).solids);
     else if (bd.holes) standoffs.filter(so => so.bd === bd).forEach(so => dst.push(post(so.x, so.y, so.r, so.hole/2, base - (bd.lvl ? 0.01 : 0), base + sh)));
-    else dst.push(...encCradle(bd.x, bd.y, bw, bdp, base, sh, bd.lvl ? ENC_CRADLE.fence : Math.min(ENC_CRADLE.fence, t + 0.4)));
+    else dst.push(...encCradle(bd.x, bd.y, bw, bdp, base, sh, bd.lvl ? ENC_CRADLE.fence : Math.min(ENC_CRADLE.fence, t + 0.4), bd.lvl ? plateB : null));
     // its see-through parts: the board, the room its parts take above it, and its ports (Session 46)
     const tall = boardTall(bd.key, B), solidBody = B.g === "battery" || /^lrs/.test(bd.key);
     if (solidBody) ghosts.push(ghostBox(x0, y0, base + sh, x1, y1, base + sh + tall, "parts", B.label));
@@ -3947,12 +3957,24 @@ function buildEnclosure(){
     else if (L.pass === "left" || L.pass === "right"){ const cx = (L.pass === "right" ? 1 : -1)*(w/2 - inset); holes.push(encOrient(C.ringRect(ph, pw, ph/2 - 0.1, 6).map(q => [q[0] + cx, q[1]]), false)); passRects.push([cx - ph/2, -pw/2, cx + ph/2, pw/2]); }
     else if (L.pass === "corners"){ const r = L.passBig ? 8 : 5.5, ox = w/2 - (L.hold === "posts" ? 18 : 12) - r + 5.5, oy = d/2 - Math.max(py + 11, 12) - r + 5.5;
       for (const sx of [-1, 1]) for (const sy of [-1, 1]){ holes.push(encOrient(C.ringCircle(r, 32).map(q => [q[0] + sx*ox, q[1] + sy*oy]), false)); passRects.push([sx*ox - r, sy*oy - r, sx*ox + r, sy*oy + r]); } }
+    // the zip-tie anchors' spots on the plate (Session 51), decided before the mounting holes so none lands under one: along its
+    // back edge, clear of its boards and cable passes
+    const yA = d/2 - 4, anchorX = [];
+    // the notches round the cable channels, on the plate (nothing may stand over them)
+    const notchRects = ductInfo.map(du => { const a0 = du.at - half - 0.4, a1 = du.at + half + 0.4, dep = DU.depth + 0.4;
+      return du.face === "back" ? [a0, d/2 - dep, a1, d/2 + 1] : du.face === "front" ? [a0, -d/2 - 1, a1, -d/2 + dep] : du.face === "right" ? [w/2 - dep, a0, w/2 + 1, a1] : [-w/2 - 1, a0, -w/2 + dep, a1]; });
+    if (L.anchors){ const along = w - 30;
+      for (let i = 0; i < L.anchors; i++){ const x = -along/2 + along*(i + 0.5)/L.anchors;
+        if (boardsInfo.some(b => b.lvl === k + 1 && x > b.bb[0] - 4 && x < b.bb[2] + 4 && yA > b.bb[1] - 4 && yA < b.bb[3] + 4) || [...passRects, ...notchRects].some(r => x > r[0] - 4 && x < r[2] + 4 && yA > r[1] - 4 && yA < r[3] + 4)) continue;
+        anchorX.push(x); } }
     // a grid of mounting holes (Session 51): 3.2 mm, for M3 bolts and nuts or self-tapping screws, every 10, 15 or 20 mm,
     // clear of the plate's edges, its posts, cable passes, air slots and the mounts of the boards on it
     let gridN = 0;
     if (L.grid){
       const G = L.grid, busy = [...passRects.map(r => [r[0] - 3, r[1] - 3, r[2] + 3, r[3] + 3]), ...levelSlots[k].map(r => [r[0] - 2, r[1] - 2, r[2] + 2, r[3] + 2])];
       if (L.hold === "posts") postAt.forEach(([x, y]) => busy.push([x - 6, y - 6, x + 6, y + 6]));
+      anchorX.forEach(x => busy.push([x - 4.5, yA - 2.5, x + 4.5, yA + 2.5]));
+      notchRects.forEach(r => busy.push([r[0] - 2.5, r[1] - 2.5, r[2] + 2.5, r[3] + 2.5]));
       if (L.vent) busy.push([-w*0.27, -4 - Math.min(30, d*0.35)/2 - 3, w*0.27, -4 + Math.min(30, d*0.35)/2 + 3]);
       boardsInfo.filter(b => b.lvl === k + 1).forEach(b => busy.push([b.bb[0] - 3, b.bb[1] - 3, b.bb[2] + 3, b.bb[3] + 3]));
       if (bossClear) for (const sx of [-1, 1]) for (const sy of [-1, 1]) busy.push([sx > 0 ? w/2 - bossClear.x - 4 : -w/2 - 1, sy > 0 ? d/2 - bossClear.y - 4 : -d/2 - 1, sx > 0 ? w/2 + 1 : -w/2 + bossClear.x + 4, sy > 0 ? d/2 + 1 : -d/2 + bossClear.y + 4]);
@@ -3969,13 +3991,10 @@ function buildEnclosure(){
     // boards on the plate must clear its holes: their mounts are on top of it
     const plate = C.extrudePolysAt([{ outer:encOrient(outer, true), holes }], zb, zt);
     ghosts.push(ghostBox(-w/2, -d/2, zb, w/2, d/2, zt, "level", `Level ${k + 1}`));
-    // zip-tie anchors on the plate (Session 51): along its back edge, clear of its boards and cable passes
+    // the zip-tie anchors on the plate (Session 51)
     let anchorsOn = 0;
-    if (L.anchors){
-      const yA = d/2 - 4, along = w - 30;
-      for (let i = 0; i < L.anchors; i++){
-        const x = -along/2 + along*(i + 0.5)/L.anchors;
-        if (boardsInfo.some(b => b.lvl === k + 1 && x > b.bb[0] - 4 && x < b.bb[2] + 4 && yA > b.bb[1] - 4 && yA < b.bb[3] + 4) || passRects.some(r => x > r[0] - 4 && x < r[2] + 4 && yA > r[1] - 4 && yA < r[3] + 4)) continue;
+    for (const x of anchorX){
+      {
         const g2 = 1.75, pr = (a0, a1, z0, z1) => levelSolids[k].push(C.extrudePolysAt([{ outer:encOrient([[x + a0, yA - 1], [x + a1, yA - 1], [x + a1, yA + 1], [x + a0, yA + 1]], true), holes:[] }], z0, z1));
         pr(-g2 - 2, -g2, zt - 0.01, zt + 5); pr(g2, g2 + 2, zt - 0.01, zt + 5); pr(-g2 - 2, g2 + 2, zt + 5 - 0.01, zt + 6.2); anchorsOn++;
       }

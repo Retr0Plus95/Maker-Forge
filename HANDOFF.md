@@ -1921,6 +1921,36 @@ are missing").
     Repo, fetched only when asked, with their licences kept), several icons combined into a new one, in several colours, for the
     lid or a label.
   - **More than the basics**: each section also gets medium-sized useful features, not only missing basics.
+  - **Project boxes, "the one and be all"** (the owner, Session 45): many more components and boards (done in 0.39), missing
+    features, the icon maker with AI help. Then: "Maybe a small local model too / Maybe a second floor for multipurpose boxes /
+    ... if we use a 120mm fan inside a project box there will be a lot of empty space and we should have different levels and
+    shapes inside the box too plus the ai to help design after specific needs and parts chosen / Add as many options as you can
+    think of without being overwhelming / Is there a way to enhance the engine behind the box generator further?"
+    Plan (0.40-0.43, reorder if asked):
+    - **0.40, the inside of the box:** the parts shown inside as see-through blocks (boards with their port bodies, modules,
+      fans, batteries), so you see what fits; checks in 3D (a port clear of the wall, a part under the lid, a fan's airflow).
+      Levels: a second floor (or more) at a height, printed flat as its own plate, resting on 45° ledges on the walls or on
+      posts, with its own boards, a cable pass-through and air holes. Dividers that slide into grooves (compartments, a
+      battery bay with its own door). An internal fan wall for a 120 mm fan with a duct towards the vents. Cable channels,
+      zip-tie anchors, standoff towers.
+    - **0.41, lids, mounts and print fixes:** snap-fit and hinged lids, a snap-on DIN clip, pointed tops added by themselves
+      to wall openings wider than a bridge (the PSU box's 600 mm², the 23 mm² of an Uno's USB-B), honeycomb roofs, artwork on
+      walls.
+    - **0.42, arrange it for me:** a layout solver that packs the chosen parts (on levels when they do not fit one floor),
+      keeps each board's ports on a wall, leaves cable room, and sizes the box; "make it smaller" and "make it printable on my
+      bed" as goals.
+    - **0.43, the icon maker and AI help** (the owner chose "Both": the owner's own API key in the browser now, the local
+      agent later). Describe the project ("ESP32, a relay, 12 V supply, a 120 mm fan, an OLED, two buttons, on a wall"): the AI
+      answers with a parts list and settings in the project's own format, every value checked by `sanitizeProject`, and the
+      solver lays them out, so the AI never makes geometry. **A small local model too:** Ollama on the owner's PC (its
+      OpenAI-style API on localhost; the site's address added to OLLAMA_ORIGINS), or, opt-in, a small model in the browser
+      (WebGPU, a few hundred MB, checked by SHA-256 like the others). Without any model: recipes and keyword search.
+    - **Options without overwhelm:** every new group closed until opened; recipes ("ESP32 sensor box", "bench supply",
+      "fan-cooled amp") that fill in sensible choices; the AI and the solver choose, the person adjusts.
+    - **The engine:** the box is now extrusions joined as overlapping closed shells. Next: (1) the parts catalogue with 3D
+      bodies (above) so every check is in 3D; (2) the body built with Manifold (already loaded for cutting): one clean solid,
+      exact volumes, rounded inside corners and edges by offsets, any inside shape unioned cleanly; (3) builds on the helper
+      thread; (4) design rules applied by themselves (bridges, wall thickness, screw bosses near edges).
 - **After 0.50: 1.0 and 2.0** (the owner, Session 43: "Let's keep manifold for now and use version 2.0 as a full 3d cad software
   we will find a way to keep it small fast and easy to use"; before that: "Should the version 1.0 be a fully parametric cad addon? The
   ability to connect to a local agent and get help with modelling").

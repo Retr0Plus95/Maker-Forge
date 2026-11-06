@@ -1650,6 +1650,23 @@ painted edge**, which every slicer reads.
   - **v0.32.0: models and pictures.** (Done in Session 38, but for the model doctor's split, hollowing and thickening: see Session 38's Not done.) The model doctor (repair with Manifold, thicken, hollow with drain holes, simplify, split for the bed with pins: this takes in Cutting next's split), the 3D relief from any photo (an AI depth model), and the sign maker (channel letters with LED channels, diffusers and mounts).
   - Watch for: the depth model is bigger than jsDelivr's 20 MB per-file limit (Depth Anything V2 Small is about 50 MB in fp16, 27 MB in int8), so it needs splitting into parts, or another host, before it can join `AI_FIGURE`; its licence (Apache-2.0 for Small only) goes in `models/LICENSE.md`; the owner's website hosts its own copy of every file in `AI_FIGURE`, so the new model must keep that `name:{ urls, sha256 }` form.
 
+- **The road to v0.50** (the owner, Session 40: "Should we start adding modelling and more CAD features for imported models / Make it
+  into the big 0.50 release and update the current sections in between"). The plan agreed (reorder if the owner asks):
+  - **0.35-0.44, every section updated, about two a release:** 0.35 name keychain, double-sided tag, business cards; 0.36 signs,
+    plaque, frame; 0.37 tracer, photo relief; 0.38 lithophane, jigsaw; 0.39 cookie cutter, circuit-board art; 0.40 lightbox, plastic
+    canvas; 0.41 bobble head, tea light, turned shapes; 0.42 project box (the PSU box's 600 mm² of support, honeycomb roofs, snap-fit
+    and hinged lids, a snap-on DIN clip); 0.43 phone case; 0.44 mechanisms, fix-it parts. Each: its audit, print-survey warnings, its
+    Known bugs and Not done, and what it lacks against similar tools.
+  - **0.45-0.49, the groundwork for modelling:** 0.45 move, rotate and scale handles in the 3D view with mm entry and snapping, the
+    basic shapes as primitives; 0.46 a modelling list for an imported model (like the paint list: steps replayed on the original,
+    saved, each editable and hideable); 0.47 the painter's leftovers (photo colour and curvature with exact edges, the preview) and
+    builds on the helper thread; 0.48 the import pipeline (units, the doctor's repairs, split for the bed with pins, a keyring hole:
+    Cutting next); 0.49 a shake-down (slicer checks, a browser pass, the bug list).
+  - **0.50, the model workshop** for imported models (mesh modelling with Manifold, not parametric CAD): add, subtract or intersect
+    boxes, cylinders, cones, spheres, text and other models; sketch on a face (lines, arcs, circles, rectangles, with sizes) and
+    extrude or cut; holes (plain, countersunk, for heat inserts, threaded with `threadSolid`); hollow with drain holes, shell and
+    thicken; mirror, align, measure (distance, angle, wall thickness). Rounded edges on a mesh are the hard part: chamfers, or an
+    honest "rounded, roughly".
 - **The next builds: expand and fix** (the owner, Session 39: "After 0.32 and all current features I think we need to work on
   expanding and fixing all the other current features and parts of the app, more accurate painting art placement and everything
   else"). Planned order, each a release:

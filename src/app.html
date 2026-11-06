@@ -123,6 +123,14 @@ button,input,select,textarea{font:inherit;color:inherit}
   background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);border-radius:999px;padding:7px 14px;
   font-size:12.5px;font-weight:600;box-shadow:var(--shadow);z-index:2}
 .explode input{accent-color:var(--accent);width:92px}
+.icongrid .icons{display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:4px;margin:6px 0 8px;max-height:220px;overflow:auto}
+.iconbtn{display:flex;align-items:center;justify-content:center;height:40px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:inherit;cursor:pointer}
+.iconbtn[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
+.iconpick svg{vertical-align:-5px}
+.iconlayer{margin:6px 0;padding:8px 10px}
+.iconideas{flex-wrap:wrap}
+.subh{font-size:13px;font-weight:700;margin:14px 0 6px}
+.encPlanOut{margin-top:8px}
 .paintmove{position:absolute;left:14px;bottom:48px;z-index:2;border:1px solid var(--line);border-radius:999px;padding:9px 16px;
   background:color-mix(in srgb,var(--panel) 92%,transparent);font:inherit;font-size:13px;font-weight:700;box-shadow:var(--shadow);cursor:pointer;color:inherit}
 .paintmove[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -1039,7 +1047,7 @@ function newItem(name, canvas, extra){
   }, extra||{});
 }
 const history = { past:[], future:[], timer:0 };
-const runtimeKeys = new Set(["src","thumb","solids","_img","_imgKey","_cm","_inlay","_raw","_srcCv","_srcSig","_frameW","_cut","_cutInfo","_bg"]);
+const runtimeKeys = new Set(["src","thumb","solids","_img","_imgKey","_cm","_inlay","_raw","_srcCv","_srcSig","_frameW","_cut","_cutInfo","_bg","_iconSig"]);
 const serialize = () => JSON.stringify(state, (k,v)=> runtimeKeys.has(k) ? undefined : v);
 function pushHistory(){
   clearTimeout(history.timer);
@@ -1093,8 +1101,8 @@ async function squeeze(text, back){
   return out;
 }
 async function makeShareLink(){
-  const st = JSON.parse(serialize()), pics = st.items.filter(it => !it.text).length;
-  st.items = st.items.filter(it => it.text); st.active = st.items.length ? 0 : -1;
+  const st = JSON.parse(serialize()), pics = st.items.filter(it => !it.text && !it.icon).length;
+  st.items = st.items.filter(it => it.text || it.icon); st.active = st.items.length ? 0 : -1;
   const json = JSON.stringify({ app:"Maker Forge", v:6, state:st }), packed = await squeeze(json);
   const tail = packed ? "#p=" + b64url(packed) : "#j=" + b64url(new TextEncoder().encode(json));
   return { url: location.href.split("#")[0] + tail, pics };
@@ -1239,6 +1247,7 @@ function cutoutCanvas(src, tol){
 
 /* the picture after rotation, cropping and adjustments, cached per item */
 function sourceCanvas(d){
+  if (d && d.icon) iconSrc(d);                     // an icon is drawn from its recipe (Session 49)
   if (!d.src) return null;
   const a = d.adjust||{ bright:0, contrast:0, sat:0 };
   const sig = [d.rot90||0, d.crop?1:0, a.bright, a.contrast, a.sat, d.src.width, d.src.height].join("|");
@@ -1324,6 +1333,213 @@ function textCanvas(t){
   x.font = font; x.fillStyle = "#000"; x.textAlign = "center"; x.textBaseline = "middle";
   lines.forEach((l,i)=>x.fillText(l, c.width/2, pad+lh*(i+0.5)));
   return c;
+}
+/* ---- the icon maker (Session 49) ----
+   Icons drawn for Maker Forge on a 24-unit grid (y down), as lists of shapes:
+     ["p", d, st, turn]           a path: M L H V C S Q Z, absolute or relative; turn: degrees round the middle (12, 12)
+     ["c", cx, cy, r, st]         a circle          ["a", cx, cy, r, from, to, st]  an arc, clockwise, in degrees (0 = right)
+     ["r", x, y, w, h, rx, st]    a rectangle with round corners
+   st: "s" a line 2 units wide with round ends, "f" filled, "h" a hole through what the icon has drawn so far.
+   An icon (a "recipe") is a badge, up to four icons on it, each in a filament colour, and a word underneath: the
+   picture is drawn from the recipe whenever it is needed (like text), so it follows the filament colours. */
+const iconStar = (cx, cy, R, r, n = 5) => "M" + Array.from({ length:2*n }, (_, i) => { const a = -Math.PI/2 + i*Math.PI/n, q = i % 2 ? r : R;
+  return (cx + q*Math.cos(a)).toFixed(2) + " " + (cy + q*Math.sin(a)).toFixed(2); }).join(" L") + " Z";
+const iconGear = (n, R, r) => { const pts = [], st = 2*Math.PI/n;
+  for (let i = 0; i < n; i++){ const a = i*st - Math.PI/2; [[-0.5, r], [-0.27, R], [0.27, R], [0.5, r]].forEach(([f, q]) => pts.push([12 + q*Math.cos(a + f*st), 12 + q*Math.sin(a + f*st)])); }
+  return "M" + pts.map(p => p.map(v => v.toFixed(2)).join(" ")).join(" L") + " Z"; };
+const ICON_GROUPS = [["power","Power and connections"],["signal","Signals and sensors"],["home","Home, weather and light"],["sym","Signs and symbols"],["make","Tools and making"]];
+const ICONS = {
+  power:{ label:"Power", g:"power", k:"on off switch standby", d:[["a",12,13,8,-55,235,"s"],["p","M12 3 V12","s"]] },
+  bolt:{ label:"Lightning bolt", g:"power", k:"electric voltage high charge flash", d:[["p","M13.5 2 L4 14 H11 L10 22 L20 9.5 H12.5 Z","f"]] },
+  plug:{ label:"Plug", g:"power", k:"mains socket cable power supply", d:[["p","M9 2.5 V7 M15 2.5 V7","s"],["p","M6 7 H18 V11 C18 14.5 15.3 17 12 17 C8.7 17 6 14.5 6 11 Z","s"],["p","M12 17 V22","s"]] },
+  battery:{ label:"Battery", g:"power", k:"cell charge 18650 lipo", d:[["r",2.5,7,17,10,2,"s"],["p","M22 10.5 V13.5","s"],["r",5.5,10,6.5,4,0.6,"f"]] },
+  charging:{ label:"Battery charging", g:"power", k:"charge charger usb power bank", d:[["r",2.5,7,17,10,2,"s"],["p","M22 10.5 V13.5","s"],["p","M12 8.5 L7.5 12.6 H11 L10 15.5 L14.5 11.4 H11 Z","f"]] },
+  usb:{ label:"USB", g:"power", k:"port connector data cable", d:[["p","M12 4 V18","s"],["c",12,19.5,2.2,"f"],["p","M12 13.5 L7 10.5 V7.5 M12 15.5 L17 12.5 V9.5","s"],["p","M9.8 5.2 L12 1.8 L14.2 5.2 Z","f"],["c",7,6.5,1.7,"f"],["r",15.3,7.6,3.4,3.4,0.3,"f"]] },
+  wifi:{ label:"Wi-Fi", g:"signal", k:"wireless network internet esp32 esp8266", d:[["a",12,19,14,-135,-45,"s"],["a",12,19,9.5,-135,-45,"s"],["a",12,19,5,-135,-45,"s"],["c",12,19,1.8,"f"]] },
+  bluetooth:{ label:"Bluetooth", g:"signal", k:"wireless ble radio", d:[["p","M7 7.5 L17 16.5 L12 21.5 V2.5 L17 7.5 L7 16.5","s"]] },
+  signal:{ label:"Signal bars", g:"signal", k:"strength reception mobile lte gsm", d:[["r",2.5,16,3.5,5.5,0.6,"f"],["r",7.5,12,3.5,9.5,0.6,"f"],["r",12.5,8,3.5,13.5,0.6,"f"],["r",17.5,3.5,3.5,18,0.6,"f"]] },
+  radio:{ label:"Radio waves", g:"signal", k:"antenna broadcast lora rf transmitter", d:[["c",12,9.5,2.2,"f"],["p","M12 11.5 V21.5","s"],["a",12,9.5,5.5,-40,40,"s"],["a",12,9.5,5.5,140,220,"s"],["a",12,9.5,9.5,-40,40,"s"],["a",12,9.5,9.5,140,220,"s"]] },
+  fan:{ label:"Fan", g:"signal", k:"cooling air blower ventilation", d:[["c",12,12,10,"s"],["p","M12 12 C10.5 9 10.8 5.3 13 4.6 C15.4 3.9 16.6 6.8 15 9.6 Z","f",0],["p","M12 12 C10.5 9 10.8 5.3 13 4.6 C15.4 3.9 16.6 6.8 15 9.6 Z","f",120],["p","M12 12 C10.5 9 10.8 5.3 13 4.6 C15.4 3.9 16.6 6.8 15 9.6 Z","f",240],["c",12,12,2,"f"]] },
+  thermometer:{ label:"Thermometer", g:"signal", k:"temperature heat sensor ds18b20 dht", d:[["p","M9.6 13.7 V5.4 C9.6 4.1 10.7 3 12 3 C13.3 3 14.4 4.1 14.4 5.4 V13.7","s"],["a",12,17.2,4.3,-56,236,"s"],["c",12,17.2,2.2,"f"],["p","M12 16 V8","s"]] },
+  drop:{ label:"Water drop", g:"signal", k:"humidity water moisture liquid rain", d:[["p","M12 2.5 C12 2.5 5 10 5 15 C5 18.9 8.1 22 12 22 C15.9 22 19 18.9 19 15 C19 10 12 2.5 12 2.5 Z","f"]] },
+  eye:{ label:"Eye", g:"signal", k:"vision motion sensor pir watch camera", d:[["p","M2 12 C4.5 7.3 8 5 12 5 C16 5 19.5 7.3 22 12 C19.5 16.7 16 19 12 19 C8 19 4.5 16.7 2 12 Z","s"],["c",12,12,3.3,"f"]] },
+  camera:{ label:"Camera", g:"signal", k:"photo picture esp32-cam lens", d:[["p","M3 8 C3 6.9 3.9 6 5 6 H7.5 L9 3.5 H15 L16.5 6 H19 C20.1 6 21 6.9 21 8 V18 C21 19.1 20.1 20 19 20 H5 C3.9 20 3 19.1 3 18 Z","s"],["c",12,12.8,3.8,"s"]] },
+  mic:{ label:"Microphone", g:"signal", k:"sound voice audio record", d:[["r",9,2.5,6,11,3,"f"],["p","M5.5 11 C5.5 14.6 8.4 17.5 12 17.5 C15.6 17.5 18.5 14.6 18.5 11 M12 17.5 V21.5 M8.5 21.5 H15.5","s"]] },
+  speaker:{ label:"Speaker", g:"signal", k:"sound volume audio amplifier", d:[["p","M3 9 H7 L12.5 4.8 V19.2 L7 15 H3 Z","f"],["a",12.5,12,4.5,-45,45,"s"],["a",12.5,12,8.5,-48,48,"s"]] },
+  music:{ label:"Music", g:"signal", k:"note song audio mp3 player", d:[["c",7,18,3,"f"],["c",17,16,3,"f"],["p","M10 18 V5.5 L20 3.5 V16","s"]] },
+  bell:{ label:"Bell", g:"signal", k:"alarm buzzer notification ring doorbell", d:[["p","M12 2.5 C8.7 2.5 6.5 5.2 6.5 8.7 V13 L4 17 H20 L17.5 13 V8.7 C17.5 5.2 15.3 2.5 12 2.5 Z","f"],["c",12,19.6,2.1,"f"]] },
+  clock:{ label:"Clock", g:"signal", k:"time timer rtc watch", d:[["c",12,12,9.5,"s"],["p","M12 6.5 V12 L15.5 14.5","s"]] },
+  gauge:{ label:"Gauge", g:"signal", k:"meter dial speed pressure level", d:[["a",12,15,9,-200,20,"s"],["p","M12 15 L16.5 9","s"],["c",12,15,1.8,"f"]] },
+  home:{ label:"House", g:"home", k:"home building smart home", d:[["p","M3 11 L12 3 L21 11 M5.5 9 V21 H18.5 V9","s"],["r",10,14,4,7,0.5,"f"]] },
+  bulb:{ label:"Light bulb", g:"home", k:"lamp light led idea", d:[["p","M9.3 15.2 C7.3 13.9 6 11.8 6 9.5 C6 6.2 8.7 3.5 12 3.5 C15.3 3.5 18 6.2 18 9.5 C18 11.8 16.7 13.9 14.7 15.2 Z","s"],["p","M9.3 18.2 H14.7 M10.3 21.3 H13.7","s"]] },
+  sun:{ label:"Sun", g:"home", k:"light day brightness solar weather", d:[["c",12,12,4.6,"f"],["p","M12 1.8 V4.2 M12 19.8 V22.2 M1.8 12 H4.2 M19.8 12 H22.2 M4.8 4.8 L6.5 6.5 M17.5 17.5 L19.2 19.2 M4.8 19.2 L6.5 17.5 M17.5 6.5 L19.2 4.8","s"]] },
+  moon:{ label:"Moon", g:"home", k:"night dark sleep", d:[["p","M20.2 14.6 C19.1 15.1 17.8 15.3 16.5 15.3 C11.8 15.3 8 11.5 8 6.8 C8 5.5 8.3 4.2 8.8 3.1 C5.4 4.4 3 7.7 3 11.6 C3 16.6 7 20.6 12 20.6 C15.7 20.6 18.9 18.1 20.2 14.6 Z","f"]] },
+  cloud:{ label:"Cloud", g:"home", k:"weather internet online server", d:[["p","M7 19 C4.2 19 2.5 17 2.5 14.6 C2.5 12.3 4.3 10.4 6.6 10.3 C7.3 7.2 9.9 5 13 5 C16.5 5 19.3 7.7 19.5 11.1 C21.3 11.6 22.5 13.2 22.5 15.1 C22.5 17.3 20.7 19 18.5 19 Z","f"]] },
+  snow:{ label:"Snowflake", g:"home", k:"cold cool freezer winter frost", d:[["p","M12 2 V22 M3.3 7 L20.7 17 M3.3 17 L20.7 7","s"],["p","M9 3.5 L12 6 L15 3.5 M9 20.5 L12 18 L15 20.5","s"],["p","M9 3.5 L12 6 L15 3.5 M9 20.5 L12 18 L15 20.5","s",60],["p","M9 3.5 L12 6 L15 3.5 M9 20.5 L12 18 L15 20.5","s",120]] },
+  flame:{ label:"Flame", g:"home", k:"fire heat hot heater", d:[["p","M12 22 C7.6 22 5 19 5 15.3 C5 11.4 8 9.3 8.6 5.6 C10.7 6.9 11.6 9 11.4 11.2 C13.1 10.2 13.8 7.6 13.2 2.5 C17 5 19 9.7 19 14.4 C19 18.9 16.2 22 12 22 Z","f"]] },
+  leaf:{ label:"Leaf", g:"home", k:"plant garden eco green soil", d:[["p","M4 20 C4 11 9 4.5 20 4 C20.2 14 14.5 19.5 6 19.2","f"],["p","M3.5 20.5 C7 16 10 13 14 10","s"]] },
+  lock:{ label:"Lock", g:"home", k:"secure safe password closed", d:[["r",4.5,10.5,15,11,2,"f"],["p","M8 10.5 V7.5 C8 5.3 9.8 3.5 12 3.5 C14.2 3.5 16 5.3 16 7.5 V10.5","s"],["c",12,15.5,1.7,"h"]] },
+  key:{ label:"Key", g:"home", k:"unlock access rfid nfc", d:[["c",7.5,12,4.3,"s"],["p","M11.8 12 H21 M18.2 12 V15.5 M15.2 12 V14.5","s"]] },
+  phone:{ label:"Phone", g:"home", k:"mobile smartphone app", d:[["r",6.5,2,11,20,2.2,"s"],["c",12,18.3,1.2,"f"]] },
+  screen:{ label:"Screen", g:"home", k:"monitor display oled lcd tft", d:[["r",2.5,4,19,12.5,1.5,"s"],["p","M8 21 H16 M12 16.5 V21","s"]] },
+  car:{ label:"Car", g:"home", k:"vehicle auto garage", d:[["p","M3 15.5 V12.5 L5.5 7 C5.9 6.2 6.7 5.7 7.6 5.7 H16.4 C17.3 5.7 18.1 6.2 18.5 7 L21 12.5 V15.5 C21 16.3 20.3 17 19.5 17 H4.5 C3.7 17 3 16.3 3 15.5 Z","f"],["c",7.3,13.2,1.5,"h"],["c",16.7,13.2,1.5,"h"],["r",4.5,17,3.5,3,1,"f"],["r",16,17,3.5,3,1,"f"]] },
+  warning:{ label:"Warning", g:"sym", k:"danger caution high voltage attention", d:[["p","M12 3 L22 20.5 H2 Z","f"],["p","M12 9.5 V14","h2"],["c",12,17.2,1.3,"h"]] },
+  info:{ label:"Information", g:"sym", k:"help about i", d:[["c",12,12,9.5,"s"],["p","M12 11 V17","s"],["c",12,7.4,1.4,"f"]] },
+  check:{ label:"Tick", g:"sym", k:"ok done yes good", d:[["p","M4 12.5 L9.5 18 L20 6.5","s"]] },
+  cross:{ label:"Cross", g:"sym", k:"no stop close x off", d:[["p","M5.5 5.5 L18.5 18.5 M18.5 5.5 L5.5 18.5","s"]] },
+  plus:{ label:"Plus", g:"sym", k:"add positive more up", d:[["p","M12 4 V20 M4 12 H20","s"]] },
+  minus:{ label:"Minus", g:"sym", k:"negative less down", d:[["p","M4 12 H20","s"]] },
+  heart:{ label:"Heart", g:"sym", k:"love like health", d:[["p","M12 21 C12 21 2.5 15 2.5 8.5 C2.5 5.4 4.9 3 8 3 C9.7 3 11.2 3.8 12 5 C12.8 3.8 14.3 3 16 3 C19.1 3 21.5 5.4 21.5 8.5 C21.5 15 12 21 12 21 Z","f"]] },
+  star:{ label:"Star", g:"sym", k:"favourite best rating", d:[["p",iconStar(12,12.6,10.2,4.3),"f"]] },
+  play:{ label:"Play", g:"sym", k:"start run go media", d:[["p","M7 4 L20 12 L7 20 Z","f"]] },
+  pause:{ label:"Pause", g:"sym", k:"stop wait media", d:[["r",5.5,4,4.5,16,1,"f"],["r",14,4,4.5,16,1,"f"]] },
+  up:{ label:"Arrow up", g:"sym", k:"increase raise direction", d:[["p","M12 20.5 V4.5 M5.5 11 L12 4.5 L18.5 11","s"]] },
+  right:{ label:"Arrow right", g:"sym", k:"next forward direction", d:[["p","M3.5 12 H19.5 M13 5.5 L19.5 12 L13 18.5","s"]] },
+  cycle:{ label:"Arrows round", g:"sym", k:"refresh reset recycle repeat", d:[["a",12,12,8,-160,60,"s"],["p","M17.2 18.8 L16 13.6 L21.2 15.2 Z","f"],["a",12,12,8,20,240,"s"],["p","M6.8 5.2 L8 10.4 L2.8 8.8 Z","f"]] },
+  gear:{ label:"Gear", g:"make", k:"settings cog mechanism machine", d:[["p",iconGear(8, 10.5, 7.8),"f"],["c",12,12,3.2,"h"]] },
+  wrench:{ label:"Wrench", g:"make", k:"tool fix repair spanner", d:[["a",16,8,4.6,0,270,"s"],["p","M4.5 19.5 L12.7 11.3","s"]] },
+  chip:{ label:"Chip", g:"make", k:"microcontroller cpu arduino processor ic", d:[["r",6,6,12,12,1.5,"f"],["p","M9 2.5 V5 M12 2.5 V5 M15 2.5 V5 M9 19 V21.5 M12 19 V21.5 M15 19 V21.5 M2.5 9 H5 M2.5 12 H5 M2.5 15 H5 M19 9 H21.5 M19 12 H21.5 M19 15 H21.5","s"],["r",9.5,9.5,5,5,0.8,"h"]] },
+  printer:{ label:"3D printer", g:"make", k:"print printing nozzle maker", d:[["p","M3 3 H21 M5 3 V21 M19 3 V21 M3 21 H21","s"],["p","M9.5 6.5 H14.5 V10 L12 12.5 L9.5 10 Z","f"],["r",8,16,8,3,0.5,"f"]] },
+  robot:{ label:"Robot", g:"make", k:"bot automation ai", d:[["r",4.5,8,15,11.5,2.5,"f"],["c",9,13.2,1.7,"h"],["c",15,13.2,1.7,"h"],["p","M12 8 V4.5","s"],["c",12,3.5,1.6,"f"],["p","M2 12.5 V15.5 M22 12.5 V15.5","s"]] },
+  box:{ label:"Box", g:"make", k:"package parcel enclosure case", d:[["p","M12 2.8 L20.5 7.3 V16.7 L12 21.2 L3.5 16.7 V7.3 Z M3.5 7.3 L12 11.8 L20.5 7.3 M12 11.8 V21.2","s"]] },
+  code:{ label:"Code", g:"make", k:"program software terminal firmware", d:[["p","M8 7 L3 12 L8 17 M16 7 L21 12 L16 17 M13.5 4.5 L10.5 19.5","s"]] },
+};
+const ICON_SHAPES = [["none","None"],["circle","Circle"],["rounded","Rounded square"],["hex","Hexagon"],["shield","Shield"]];
+const ICON_MAX_LAYERS = 4;
+function newIconRecipe(){
+  const two = state.slots.length > 1;
+  return { badge:{ shape:"circle", slot:0, ring:false, ringSlot:two ? 1 : 0 }, gap:true,
+    layers:[{ icon:"bolt", slot:two ? 1 : 0, size:1, x:0, y:0, rot:0 }], label:{ text:"", slot:two ? 1 : 0 } };
+}
+// every value checked (projects, the AI's answers and the panel all come through here)
+function cleanIcon(r){
+  const o = r && typeof r === "object" ? r : {}, n = (v, lo, hi, d) => { v = +v; return isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d; };
+  const slot = v => Math.round(n(v, 0, MAX_SLOTS - 1, 0)), B = o.badge && typeof o.badge === "object" ? o.badge : {}, Lb = o.label && typeof o.label === "object" ? o.label : {};
+  return {
+    badge:{ shape: ICON_SHAPES.some(s => s[0] === B.shape) ? B.shape : "circle", slot:slot(B.slot), ring:B.ring === true, ringSlot:slot(B.ringSlot) },
+    gap: o.gap !== false,
+    layers:(Array.isArray(o.layers) ? o.layers : []).filter(L => L && typeof L === "object" && encHas(ICONS, L.icon)).slice(0, ICON_MAX_LAYERS)
+      .map(L => ({ icon:L.icon, slot:slot(L.slot), size:n(L.size, 0.15, 1.4, 1), x:n(L.x, -1, 1, 0), y:n(L.y, -1, 1, 0), rot:Math.round(n(L.rot, -180, 180, 0)) })),
+    label:{ text:String(Lb.text == null ? "" : Lb.text).replace(/[\u0000-\u001f<>]/g, "").slice(0, 16), slot:slot(Lb.slot) }
+  };
+}
+// a path's letters and numbers drawn on a canvas (no Path2D: the tests' canvas has none)
+function iconPathOn(x, d){
+  const tok = String(d).match(/[MLHVCSQZmlhvcsqz]|-?\d*\.?\d+(?:e[-+]?\d+)?/g) || [];
+  let i = 0, cmd = "M", cx = 0, cy = 0, sx = 0, sy = 0, lc = null;
+  const num = () => +tok[i++];
+  while (i < tok.length){
+    if (/[A-Za-z]/.test(tok[i])) cmd = tok[i++];
+    const rel = cmd === cmd.toLowerCase(), C = cmd.toUpperCase(), ox = rel ? cx : 0, oy = rel ? cy : 0;
+    if (C === "Z"){ x.closePath(); cx = sx; cy = sy; lc = null; continue; }
+    if (C === "M"){ cx = ox + num(); cy = oy + num(); x.moveTo(cx, cy); sx = cx; sy = cy; cmd = rel ? "l" : "L"; lc = null; }
+    else if (C === "L"){ cx = ox + num(); cy = oy + num(); x.lineTo(cx, cy); lc = null; }
+    else if (C === "H"){ cx = (rel ? cx : 0) + num(); x.lineTo(cx, cy); lc = null; }
+    else if (C === "V"){ cy = (rel ? cy : 0) + num(); x.lineTo(cx, cy); lc = null; }
+    else if (C === "C"){ const a = ox + num(), b = oy + num(), c = ox + num(), e = oy + num(); cx = ox + num(); cy = oy + num(); x.bezierCurveTo(a, b, c, e, cx, cy); lc = [c, e]; }
+    else if (C === "S"){ const a = lc ? 2*cx - lc[0] : cx, b = lc ? 2*cy - lc[1] : cy, c = ox + num(), e = oy + num(); cx = ox + num(); cy = oy + num(); x.bezierCurveTo(a, b, c, e, cx, cy); lc = [c, e]; }
+    else if (C === "Q"){ const a = ox + num(), b = oy + num(); cx = ox + num(); cy = oy + num(); x.quadraticCurveTo(a, b, cx, cy); lc = null; }
+    else i++;
+  }
+}
+function iconShapeOn(x, s){
+  x.beginPath();
+  if (s[0] === "p"){ x.save(); if (s[3]){ x.translate(12, 12); x.rotate(s[3]*Math.PI/180); x.translate(-12, -12); } iconPathOn(x, s[1]); x.restore(); }
+  else if (s[0] === "c") { x.moveTo(s[1] + s[3], s[2]); x.arc(s[1], s[2], s[3], 0, Math.PI*2); }
+  else if (s[0] === "a") x.arc(s[1], s[2], s[3], s[4]*Math.PI/180, s[5]*Math.PI/180);
+  else if (s[0] === "r"){ const [, X, Y, W, H, R0] = s, R = Math.min(R0, W/2, H/2);
+    x.moveTo(X + R, Y); x.lineTo(X + W - R, Y); if (R) x.arc(X + W - R, Y + R, R, -Math.PI/2, 0); x.lineTo(X + W, Y + H - R); if (R) x.arc(X + W - R, Y + H - R, R, 0, Math.PI/2);
+    x.lineTo(X + R, Y + H); if (R) x.arc(X + R, Y + H - R, R, Math.PI/2, Math.PI); x.lineTo(X, Y + R); if (R) x.arc(X + R, Y + R, R, Math.PI, Math.PI*1.5); x.closePath(); }
+}
+const iconStyle = s => s[s[0] === "p" ? 2 : s[0] === "c" ? 4 : s[0] === "a" ? 6 : 6];
+// one icon drawn into x (already moved and scaled to its 24-unit grid). halo > 0: its outline grown by halo units, in one colour
+function drawIcon(x, key, colour, halo){
+  const I = ICONS[key]; if (!I) return;
+  x.lineCap = "round"; x.lineJoin = "round"; x.fillStyle = x.strokeStyle = colour;
+  for (const s of I.d){
+    const st = iconStyle(s);
+    if (st === "h" || st === "h2"){ if (halo) continue;
+      x.save(); x.globalCompositeOperation = "destination-out"; x.fillStyle = x.strokeStyle = "#000"; iconShapeOn(x, s);
+      if (st === "h2"){ x.lineWidth = 2.2; x.stroke(); } else x.fill(); x.restore(); continue; }
+    iconShapeOn(x, s);
+    if (st === "s"){ x.lineWidth = 2 + 2*halo; x.stroke(); }
+    else { x.fill(); if (halo){ x.lineWidth = 2*halo; x.stroke(); } }
+  }
+}
+function iconBadgeOn(x, shape, N){
+  const m = N*0.02, c = N/2, r = N/2 - m;
+  x.beginPath();
+  if (shape === "circle"){ x.moveTo(c + r, c); x.arc(c, c, r, 0, Math.PI*2); }
+  else if (shape === "rounded"){ const R = N*0.18; iconShapeOn(x, ["r", m, m, N - 2*m, N - 2*m, R, "f"]); }
+  else if (shape === "hex"){ for (let i = 0; i < 6; i++){ const a = Math.PI/6 + i*Math.PI/3; i ? x.lineTo(c + r*Math.cos(a), c + r*Math.sin(a)) : x.moveTo(c + r*Math.cos(a), c + r*Math.sin(a)); } x.closePath(); }
+  else if (shape === "shield"){ x.moveTo(c, m); x.bezierCurveTo(c + r*0.5, m + r*0.22, c + r*0.8, m + r*0.24, N - m, m + r*0.2); x.lineTo(N - m, c);
+    x.bezierCurveTo(N - m, c + r*0.55, c + r*0.45, N - m - r*0.12, c, N - m); x.bezierCurveTo(c - r*0.45, N - m - r*0.12, m, c + r*0.55, m, c); x.lineTo(m, m + r*0.2);
+    x.bezierCurveTo(c - r*0.8, m + r*0.24, c - r*0.5, m + r*0.22, c, m); x.closePath(); }
+}
+const iconHex = k => (state.slots[k] || state.slots[0] || { hex:"#888888" }).hex;
+const iconSig = r => JSON.stringify(r) + "|" + state.slots.map(s => s.hex).join(",");
+// the picture: N pixels across the badge, the word below it
+function iconCanvas(rec, N = 800){
+  const R = cleanIcon(rec), shape = R.badge.shape, word = R.label.text.trim(), lab = word ? Math.round(N*0.3) : 0;
+  const c = document.createElement("canvas"); c.width = N; c.height = N + lab;
+  const x = c.getContext("2d", { willReadFrequently:true });
+  const bg = shape !== "none" ? iconHex(R.badge.slot) : null;
+  if (bg){ x.fillStyle = bg; iconBadgeOn(x, shape, N); x.fill(); }
+  if (bg && R.badge.ring){ x.save(); x.beginPath(); x.translate(N/2, N/2); x.scale(0.9, 0.9); x.translate(-N/2, -N/2); iconBadgeOn(x, shape, N);
+    x.restore(); x.strokeStyle = iconHex(R.badge.ringSlot); x.lineWidth = N*0.035; x.stroke(); }
+  const inner = shape === "none" ? 1 : shape === "shield" ? 0.58 : 0.62;
+  R.layers.forEach((L, i) => {
+    const lc = document.createElement("canvas"); lc.width = N; lc.height = N;
+    const lx = lc.getContext("2d", { willReadFrequently:true }), place = q => { q.setTransform(1, 0, 0, 1, 0, 0); q.translate(N/2 + L.x*N/2, N/2 + L.y*N/2); q.rotate(L.rot*Math.PI/180); const s = L.size*inner*N/24; q.scale(s, s); q.translate(-12, -12); };
+    // a gap in the badge's colour (or see-through) round an icon laid over another, so each stays readable
+    if (R.gap && i > 0){ x.save(); place(x); if (bg) drawIcon(x, L.icon, bg, 1.1); else { x.globalCompositeOperation = "destination-out"; drawIcon(x, L.icon, "#000", 1.1); } x.restore(); }
+    place(lx); drawIcon(lx, L.icon, iconHex(L.slot), 0);
+    x.drawImage(lc, 0, 0);
+  });
+  if (word){
+    let size = lab*0.8; x.font = `800 ${size}px "Manrope", sans-serif`;
+    const w = x.measureText(word).width; if (w > N*0.96){ size *= N*0.96/w; x.font = `800 ${size}px "Manrope", sans-serif`; }
+    x.fillStyle = iconHex(R.label.slot); x.textAlign = "center"; x.textBaseline = "middle"; x.fillText(word, N/2, N + lab*0.52);
+  }
+  return c;
+}
+// an icon item's picture, drawn again when its recipe or the filament colours change
+function iconSrc(d){
+  if (!d || !d.icon) return;
+  const sig = iconSig(d.icon);
+  if (d.src && d._iconSig === sig) return;
+  d.src = iconCanvas(d.icon); d._iconSig = sig; d.aspect = d.src.width/d.src.height; d.thumb = thumbURL(d.src);
+  d._srcSig = ""; d._imgKey = ""; d.solids = null;
+}
+// a small picture of one icon for the panel, as SVG (the same shapes; holes drawn in the panel's colour)
+function iconSVG(key, size = 22){
+  const I = ICONS[key]; if (!I) return "";
+  const out = I.d.map(s => {
+    const st = iconStyle(s), hole = st === "h" || st === "h2", paint = hole ? `fill="${st === "h2" ? "none" : "var(--panel)"}" stroke="${st === "h2" ? "var(--panel)" : "none"}" stroke-width="2.2"` : st === "s" ? `fill="none" stroke="currentColor" stroke-width="2"` : `fill="currentColor"`;
+    if (s[0] === "p") return `<path d="${s[1]}" ${paint}${s[3] ? ` transform="rotate(${s[3]} 12 12)"` : ""}/>`;
+    if (s[0] === "c") return `<circle cx="${s[1]}" cy="${s[2]}" r="${s[3]}" ${paint}/>`;
+    if (s[0] === "r") return `<rect x="${s[1]}" y="${s[2]}" width="${s[3]}" height="${s[4]}" rx="${s[5]}" ${paint}/>`;
+    const a0 = s[4]*Math.PI/180, a1 = s[5]*Math.PI/180, p = a => [(s[1] + s[3]*Math.cos(a)).toFixed(2), (s[2] + s[3]*Math.sin(a)).toFixed(2)].join(" ");
+    return `<path d="M${p(a0)} A${s[3]} ${s[3]} 0 ${s[5] - s[4] > 180 ? 1 : 0} 1 ${p(a1)}" ${paint}/>`;
+  }).join("");
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">${out}</svg>`;
+}
+// ready-made ideas: a tap fills the recipe in
+const ICON_IDEAS = [
+  ["Power box", { badge:{ shape:"circle" }, layers:[{ icon:"bolt" }] }],
+  ["Cooling", { badge:{ shape:"hex" }, layers:[{ icon:"fan", size:0.95 }, { icon:"snow", size:0.42, x:0.42, y:0.42 }] }],
+  ["Weather station", { badge:{ shape:"rounded" }, layers:[{ icon:"thermometer", size:0.8, x:-0.25 }, { icon:"drop", size:0.55, x:0.3, y:0.15 }] }],
+  ["Smart home", { badge:{ shape:"rounded" }, layers:[{ icon:"home", size:0.95 }, { icon:"wifi", size:0.42, x:0.4, y:-0.38 }] }],
+  ["High voltage", { badge:{ shape:"none" }, layers:[{ icon:"warning", size:1 }] }],
+  ["Audio", { badge:{ shape:"circle" }, layers:[{ icon:"speaker", size:0.9 }] }],
+  ["Grow light", { badge:{ shape:"shield" }, layers:[{ icon:"leaf", size:0.85 }, { icon:"sun", size:0.4, x:0.35, y:-0.35 }] }],
+  ["Robot", { badge:{ shape:"circle" }, layers:[{ icon:"robot", size:0.9 }] }],
+];
+function iconIdea(idea){
+  const base = newIconRecipe(), two = state.slots.length > 1, three = state.slots.length > 2;
+  const r = { badge:Object.assign(base.badge, idea.badge), gap:true, label:base.label,
+    layers:idea.layers.map((L, i) => Object.assign({ slot:i === 0 ? (two ? 1 : 0) : (three ? 2 : two ? 1 : 0), size:1, x:0, y:0, rot:0 }, L)) };
+  return cleanIcon(r);
 }
 const VECTOR_SYMBOLS = { "♥":"heart", "★":"star", "✿":"flower", "●":"dot" };
 function shapePath(ctx, kind, cx, cy, r){
@@ -2474,6 +2690,329 @@ function encCradle(x, y, w, d, fl, sh, fence){
 // into grooves on the walls and the floor, printed flat; one can hold a fan.
 const ENC_LEVEL = { max:3, gap:0.4, post:3.5, hole:2.5, clear:3.4, ledge:3 }, ENC_DIV = { max:4, t:2, gap:0.4, rib:1.2 };
 const ENC_FANS = [0, 40, 60, 80, 92, 120, 140];
+/* ---- AI help (Session 49) ----
+   Optional, and off until set up in Settings: Claude with the person's own API key, called straight from this page, or
+   a model on their own computer through Ollama. The AI never makes geometry: it answers with a plan in the app's own
+   terms (board and opening names from the lists, an icon recipe), every value checked here as a project file is, and the
+   app lays it out. Without any AI the same plans come from the words typed (aiFromWords). What is sent: the words typed,
+   the lists of names and the filament colours; never pictures, models or projects. The key stays in this browser: in
+   memory, or in its storage when "Remember" is ticked. It is never put in a project, a share link or an export. */
+const AI = { provider:"none", model:"claude-opus-5-5", key:"", remember:false, ollama:"http://localhost:11434", ollamaModel:"llama3.2", hooks:{} };
+try { const a = JSON.parse(localStorage.getItem("makerforge.ai") || "null");
+  if (a && typeof a === "object"){
+    if (["none","claude","ollama"].includes(a.provider)) AI.provider = a.provider;
+    if (typeof a.model === "string" && /^[\w.:-]{1,60}$/.test(a.model)) AI.model = a.model;
+    if (typeof a.ollama === "string" && /^https?:\/\/[\w.:[\]-]{1,80}$/.test(a.ollama)) AI.ollama = a.ollama;
+    if (typeof a.ollamaModel === "string" && /^[\w.:/-]{1,60}$/.test(a.ollamaModel)) AI.ollamaModel = a.ollamaModel;
+    if (a.remember === true && typeof a.key === "string" && a.key.length < 300){ AI.remember = true; AI.key = a.key; }
+  } } catch(e){}
+function aiSave(){
+  try { localStorage.setItem("makerforge.ai", JSON.stringify({ provider:AI.provider, model:AI.model, ollama:AI.ollama, ollamaModel:AI.ollamaModel,
+    remember:AI.remember, key:AI.remember ? AI.key : "" })); } catch(e){}
+}
+const aiReady = () => AI.provider === "claude" ? !!AI.key : AI.provider === "ollama";
+const aiName = () => AI.provider === "claude" ? "Claude" : AI.provider === "ollama" ? `${AI.ollamaModel} (Ollama)` : "";
+// one question, one answer as JSON matching the schema
+async function aiAsk(system, prompt, schema){
+  if (AI.hooks.ask) return AI.hooks.ask(system, prompt, schema);              // the tests' stand-in
+  if (AI.provider === "claude"){
+    if (!AI.key) throw new Error("Add your Claude API key in Settings first.");
+    const fb = /^claude-(opus-5-5|opus-5|fable-5-1|sonnet-5-5)$/.test(AI.model);   // a declined answer tried again on another model
+    let r;
+    try {
+      r = await fetch("https://api.anthropic.com/v1/messages", { method:"POST",
+        headers: Object.assign({ "content-type":"application/json", "x-api-key":AI.key, "anthropic-version":"2023-06-01",
+          "anthropic-dangerous-direct-browser-access":"true" }, fb ? { "anthropic-beta":"server-side-fallback-2026-07-01" } : {}),
+        body: JSON.stringify(Object.assign({ model:AI.model, max_tokens:8000, system, messages:[{ role:"user", content:prompt }],
+          output_config:{ effort:"low", format:{ type:"json_schema", schema } } }, fb ? { fallbacks:"default" } : {})) });
+    } catch(err){ throw new Error("Claude could not be reached. Check your connection" + (location.protocol === "https:" ? ", or this website may not allow it (its security settings)." : ".")); }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(r.status === 401 ? "Claude did not accept the API key: check it in Settings." : r.status === 429 ? "Claude is busy or your account's limit is reached: try again in a minute."
+      : `Claude answered with an error (${r.status}${j.error && j.error.message ? ": " + String(j.error.message).slice(0, 160) : ""}).`);
+    if (j.stop_reason === "refusal") throw new Error("Claude would not answer that. Try describing it another way.");
+    const t = (j.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+    try { return JSON.parse(t); } catch(e){ throw new Error("Claude's answer could not be read. Try again."); }
+  }
+  if (AI.provider === "ollama"){
+    let r;
+    try {
+      r = await fetch(AI.ollama.replace(/\/+$/, "") + "/api/chat", { method:"POST", headers:{ "content-type":"application/json" },
+        body: JSON.stringify({ model:AI.ollamaModel, stream:false, format:schema, options:{ temperature:0 },
+          messages:[{ role:"system", content:system }, { role:"user", content:prompt }] }) });
+    } catch(err){ throw new Error(`Ollama could not be reached at ${AI.ollama}. Is it running? This page's address must be in OLLAMA_ORIGINS (see the manual).`); }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(`Ollama answered with an error (${r.status}${j.error ? ": " + String(j.error).slice(0, 160) : ""}). Is the model "${AI.ollamaModel}" pulled?`);
+    try { return JSON.parse(j.message && j.message.content || ""); } catch(e){ throw new Error("The local model's answer could not be read. Try again, or a bigger model."); }
+  }
+  throw new Error("Set up AI help in Settings (⚙) first.");
+}
+const aiFilaments = () => state.slots.map((s, i) => `${i + 1}: ${s.name} (${s.hex})`).join("; ");
+
+// ---- icons ----
+const AI_ICON_SCHEMA = () => ({ type:"object", additionalProperties:false, required:["badge","ring","ringFilament","badgeFilament","icons","word","wordFilament"],
+  properties:{ badge:{ type:"string", enum:ICON_SHAPES.map(s => s[0]) }, badgeFilament:{ type:"integer" }, ring:{ type:"boolean" }, ringFilament:{ type:"integer" },
+    icons:{ type:"array", items:{ type:"object", additionalProperties:false, required:["icon","filament","size","x","y","turn"],
+      properties:{ icon:{ type:"string", enum:Object.keys(ICONS) }, filament:{ type:"integer" }, size:{ type:"number" }, x:{ type:"number" }, y:{ type:"number" }, turn:{ type:"number" } } } },
+    word:{ type:"string" }, wordFilament:{ type:"integer" } } });
+const AI_ICON_SYSTEM = () => `You design small multicolour icons for 3D printing, made from a fixed set of simple icons laid on a badge. ` +
+  `Answer only with the JSON asked for. Icons (name: what it shows): ${Object.entries(ICONS).map(([k, I]) => `${k}: ${I.label}`).join("; ")}. ` +
+  `Badge shapes: ${ICON_SHAPES.map(s => s[0]).join(", ")}. Filaments are numbered: ${aiFilaments()}. Use at most ${ICON_MAX_LAYERS} icons, usually one to three; ` +
+  `the first is the main one (size 0.8 to 1, x 0, y 0); smaller ones (size 0.35 to 0.5) sit near a corner (x and y from -1 to 1, y down). ` +
+  `Each icon's filament must differ from the badge's, and the colours should contrast well. A word under the badge is optional (at most 16 letters; leave it empty unless asked or clearly useful).`;
+function aiIconToRecipe(a){
+  const f = v => Math.round(+v || 1) - 1;
+  return cleanIcon({ badge:{ shape:a.badge, slot:f(a.badgeFilament), ring:a.ring === true, ringSlot:f(a.ringFilament) }, gap:true,
+    layers:(a.icons || []).map(L => ({ icon:L.icon, slot:f(L.filament), size:L.size, x:L.x, y:L.y, rot:L.turn })), label:{ text:a.word || "", slot:f(a.wordFilament) } });
+}
+function aiIconRow(g, d, R, again){
+  g.insertAdjacentHTML("beforeend", `<h3 class="subh">Design it with AI</h3>`);
+  if (!aiReady()){ note(g, "Describe an icon in words and an AI puts it together from these icons. Set it up in <b>Settings (⚙) → AI help</b>: your own Claude API key, or a model on your computer with Ollama."); return; }
+  const w = document.createElement("div"); w.className = "field full";
+  w.innerHTML = `<label for="aiIconTxt">Describe it</label><textarea class="ta" id="aiIconTxt" rows="2" maxlength="300" placeholder="A fan with a small snowflake, blue and white"></textarea>`;
+  g.appendChild(w); const ta = w.querySelector("textarea"); ta.value = AI.lastIcon || "";
+  const row = buttonRow(g, [[`Design it (${aiName()})`, async e => {
+    const words = ta.value.trim(); if (!words){ notify("Describe the icon first."); return; }
+    AI.lastIcon = words; const b = e.target; b.disabled = true; b.textContent = "Thinking…";
+    try { const a = await aiAsk(AI_ICON_SYSTEM(), words, AI_ICON_SCHEMA()); const r = aiIconToRecipe(a);
+      if (!r.layers.length) throw new Error("The AI's answer had no icons in it. Try again.");
+      Object.assign(R, r); again(); pushHistory(); notify("Here's the AI's icon. Change anything below, or ask again."); }
+    catch(err){ notify(err.message); b.disabled = false; b.textContent = `Design it (${aiName()})`; }
+  }]]);
+  note(g, "Only these words, the list of icon names and your filament colours are sent.");
+  return row;
+}
+
+// ---- project boxes: a plan from a description ----
+const AI_FACES = ENC_FACES.map(f => f[0]);
+const AI_BOX_SCHEMA = () => ({ type:"object", additionalProperties:false, required:["board","more","openings","lid","mount","levels","icon","notes"],
+  properties:{ board:{ type:"string", enum:Object.keys(BOARDS).filter(k => k !== "custom") },
+    more:{ type:"array", items:{ type:"object", additionalProperties:false, required:["kind","level"], properties:{ kind:{ type:"string", enum:Object.keys(BOARDS).filter(k => k !== "none" && k !== "custom") }, level:{ type:"integer" } } } },
+    openings:{ type:"array", items:{ type:"object", additionalProperties:false, required:["kind","face","count","size"], properties:{ kind:{ type:"string", enum:Object.keys(CUTOUTS) }, face:{ type:"string", enum:AI_FACES }, count:{ type:"integer" }, size:{ type:"number" } } } },
+    lid:{ type:"string", enum:["screw","press","magnet","slide","none"] }, mount:{ type:"string", enum:["none","ears","tabs","din","straps","skadis","pegboard"] },
+    levels:{ type:"integer" }, icon:AI_ICON_SCHEMA(), notes:{ type:"string" } } });
+const AI_BOX_SYSTEM = () => `You plan 3D-printed project boxes for electronics. Answer only with the JSON asked for, using names from these lists. ` +
+  `Boards and modules (name: what it is): ${Object.entries(BOARDS).filter(([k]) => k !== "custom").map(([k, B]) => `${k}: ${B.label}`).join("; ")}. ` +
+  `Openings in the walls or lid (name: what it is): ${Object.entries(CUTOUTS).map(([k, c]) => `${k}: ${c.label}`).join("; ")}. ` +
+  `Faces: ${AI_FACES.join(", ")} (top is the lid, bottom the floor). Rules: "board" is the main controller (or "none"); every other board or module goes in "more" ` +
+  `(level 0 is the floor; use levels 1 and 2 only when you also ask for that many levels, for a tall box with many parts); ` +
+  `the main board's own ports are added by the app, so do not list its USB or power socket again; screens, buttons, knobs and lights usually go on the front or the top, ` +
+  `power inlets, sockets and cable glands on the back, fans and vents on the sides; count is how many of that opening; size is a fan's size in mm (40 to 140) and 0 for the rest. ` +
+  `"levels" is 0 to 3. Make an icon for the lid that says what the box does (filaments: ${aiFilaments()}). Keep "notes" to one or two plain sentences for the maker: anything to check.`;
+// the plan from the words alone (no AI): each part of the description matched against the names of the boards and openings
+const AI_STOP = new Set("a an and the with for of to in on at or my our two three four five six one some box project case into inside plus also want need mm module board".split(" "));
+const AI_NUM = { one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, a:1, an:1, pair:2 };
+function aiFromWords(text){
+  const t = String(text || "").toLowerCase().replace(/[^\w\s.,;/+×x-]/g, " ");
+  const plan = { board:"none", more:[], openings:[], lid:null, mount:null, levels:0, icon:null, notes:"", matched:[], missed:[] };
+  if (/\bmagnet/.test(t)) plan.lid = "magnet"; else if (/\bslid(e|ing)\b/.test(t)) plan.lid = "slide"; else if (/\bpress[- ]?fit|snap/.test(t)) plan.lid = "press"; else if (/\bno lid|open top/.test(t)) plan.lid = "none";
+  if (/\bdin\b/.test(t)) plan.mount = "din"; else if (/sk[aå]dis/.test(t)) plan.mount = "skadis"; else if (/pegboard/.test(t)) plan.mount = "pegboard"; else if (/\bwall\b|screw ears|hang/.test(t)) plan.mount = "ears";
+  const lv = t.match(/\b(two|three|2|3) (levels|floors|shelves)|second (floor|level|shelf)/); if (lv) plan.levels = /three|3/.test(lv[0]) ? 2 : 1;
+  const hay = (k, v) => ` ${k} ${v.label || ""} ${v.k || ""} `.toLowerCase().replace(/[^\w\s.-]/g, " ");
+  const tables = [["board", BOARDS], ["opening", CUTOUTS]];
+  for (let ph of t.split(/[,;\n]|\band\b|\bplus\b|\bwith\b/)){
+    ph = ph.trim(); if (!ph) continue;
+    let count = 1; const nm = ph.match(/^(\d+)\s*(x|×)?\s+(?!mm\b|v\b|a\b|w\b|inch|-)|^(one|two|three|four|five|six|seven|eight|a pair of)\s/);
+    if (nm){ count = nm[1] ? +nm[1] : AI_NUM[nm[3].split(" ").pop()] || AI_NUM[nm[3]] || 1; ph = ph.slice(nm[0].length); }
+    const size = (ph.match(/\b(40|50|60|70|80|92|120|140)\s*mm\b/) || [])[1];
+    // sizes in mm are not names ("60 mm fan" is a fan); "4-channel" is "4" and "channel"; a plural matches its single
+    const mmSizes = (ph.match(/\b\d+(\.\d+)?\s*mm\b/g) || []).map(m => " " + m.replace(/\s+/g, " ").replace(/(\d)mm/, "$1 mm"));
+    const words = ph.replace(/\b\d+(\.\d+)?\s*mm\b/g, " ").split(/[\s/-]+/).filter(w => w && (w.length > 1 || /\d/.test(w)) && !AI_STOP.has(w));
+    if (!words.length) continue;
+    let best = null;
+    for (const [what, T] of tables) for (const [k, v] of Object.entries(T)){
+      if (k === "none" || k === "custom" || !v.label) continue;
+      const h = hay(k, v); let s = 0;
+      for (const w of words){
+        const forms = [w, w.replace(/(es|s)$/, ""), w + "s"].filter(f => f.length);
+        if (forms.some(f => new RegExp(`[\\s,(-]${f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s,)-]`).test(h))) s += 2; else if (w.length > 3 && forms.some(f => f.length > 3 && h.includes(f))) s += 1; }
+      if (k === words.join("")) s += 3;
+      for (const m of mmSizes) if (h.includes(m)) s += 1.5;                       // "5 mm LED": the 5 mm one
+      if (!s) continue;
+      s = s / (words.length*2) + (v.label.length < 40 ? 0.02 : 0);          // the share of the words found; shorter names win a tie
+      if (what === "board" && /^(arduino|pi|esp|mcu)$/.test(v.g)) s += 0.01;
+      if (!best || s > best.s) best = { what, k, v, s };
+    }
+    if (!best || best.s < 0.5){ plan.missed.push(ph); continue; }
+    plan.matched.push(`${ph} → ${best.v.label}`);
+    if (best.what === "board"){
+      if (plan.board === "none" && /^(arduino|pi|esp|mcu)$/.test(best.v.g)) plan.board = best.k;
+      else for (let i = 0; i < count; i++) plan.more.push({ kind:best.k, level:0 });
+    } else {
+      const g = best.v.g, face = g === "air" ? "right" : g === "port" || g === "mount" ? "back" : "front";
+      plan.openings.push({ kind:best.k, face, count, size: best.k === "fan" ? +(size || 0) : 0 });
+    }
+  }
+  return plan;
+}
+// a plan checked against the lists, as the box settings (anything unknown is left out and named)
+function aiCleanPlan(p){
+  const o = p && typeof p === "object" ? p : {}, out = { board:"none", more:[], openings:[], lid:null, mount:null, levels:0, icon:null, notes:"", left:[] };
+  if (encHas(BOARDS, o.board) && o.board !== "custom") out.board = o.board; else if (o.board && o.board !== "none") out.left.push(String(o.board).slice(0, 40));
+  (Array.isArray(o.more) ? o.more : []).slice(0, 12).forEach(m => { if (m && encHas(BOARDS, m.kind) && m.kind !== "none" && m.kind !== "custom") out.more.push({ kind:m.kind, lvl:Math.max(0, Math.min(ENC_LEVEL.max, Math.round(+m.level || 0))) }); else if (m) out.left.push(String(m.kind).slice(0, 40)); });
+  let n = 0;
+  (Array.isArray(o.openings) ? o.openings : []).forEach(c => {
+    if (!c || !encHas(CUTOUTS, c.kind)){ if (c) out.left.push(String(c.kind).slice(0, 40)); return; }
+    const k = Math.max(1, Math.min(8, Math.round(+c.count || 1)));
+    for (let i = 0; i < k && n < 40; i++, n++) out.openings.push({ kind:c.kind, face:AI_FACES.includes(c.face) ? c.face : "front", size:ENC_FANS.includes(+c.size) && +c.size ? +c.size : 0 });
+  });
+  if (["screw","press","magnet","slide","none"].includes(o.lid)) out.lid = o.lid;
+  if (["none","ears","tabs","din","straps","skadis","pegboard"].includes(o.mount)) out.mount = o.mount;
+  out.levels = Math.max(0, Math.min(ENC_LEVEL.max, Math.round(+o.levels || 0)));
+  out.more.forEach(m => { if (m.lvl > out.levels) m.lvl = out.levels; });
+  if (o.icon && typeof o.icon === "object"){ const r = o.icon.icons ? aiIconToRecipe(o.icon) : cleanIcon(o.icon); if (r.layers.length) out.icon = r; }
+  out.notes = String(o.notes || "").replace(/[\u0000-\u001f<>]/g, " ").slice(0, 400);
+  return out;
+}
+// the plan made into the box: the boards arranged in the smallest box, the box grown for its openings, the openings
+// spread along their faces, the icon on the lid. Returns what it did.
+function encApplyPlan(raw){
+  const P = aiCleanPlan(raw), E = state.base.enclosure;
+  if (P.board === "none" && !P.more.length && !P.openings.length) return { ok:false, why:"Nothing in that matched a board, module or opening. Try names like \"ESP32\", \"relay\", \"OLED\", \"USB-C\" or \"120 mm fan\"." };
+  E.board = P.board; E.boardX = 0; E.boardY = 0; E.boardRot = false;
+  E.more = P.more.map(m => ({ kind:m.kind, x:0, y:0, h:3, rot:false, hold:"holes", lvl:m.lvl }));
+  E.cut = [];
+  if (P.lid) E.lid = P.lid;
+  if (P.mount) E.mount = P.mount;
+  const H0 = Math.max(+E.h || 40, 30);
+  E.levels = Array.from({ length:P.levels }, (_, k) => ({ z:Math.round(H0*(k + 1)/(P.levels + 1)), t:2, hold:"posts", cable:true, vent:false }));
+  if (P.levels) E.h = Math.max(+E.h || 40, 45*(P.levels + 1));
+  let arranged = null;
+  if (E.board !== "none" || E.more.length){ arranged = encArrange(false); if (!arranged.ok) return { ok:false, why:arranged.why }; }
+  if (P.levels){
+    // each level just above the tallest part under it (from the floor's top), the box tall enough for the top one's parts
+    const tallOf = lvl => Math.max(10, ...encBoardList(E).filter(b => (b.lvl || 0) === lvl).map(b => (+b.sh || 5) + 1.6 + boardTall(b.key, b.B)));
+    const lipH = E.lid === "none" || E.lid === "slide" ? 0 : (+E.lipH || 0);
+    let z = tallOf(0) + 4; E.levels.forEach((L, k) => { L.z = Math.ceil(z); z += (L.t || 2) + tallOf(k + 1) + 4; });
+    E.h = Math.min(250, Math.max(+E.h, Math.ceil((+E.floor || 2) + z + lipH + 3)));
+  }
+  // room for the openings: each face at least as big as its biggest opening, with a margin
+  const t = +E.wall || 2, fl = +E.floor || 2, made = P.openings.map(o => { const c = newOpening(o.kind, o.face); if (o.size && c.kind === "fan") c.size = o.size; return c; });
+  made.forEach(c => { const b = ringsBounds(placedRings(Object.assign({}, c, { u:0, v:0 }), E)), cw = b[2] - b[0], ch = b[3] - b[1];
+    if (ENC_WALLS.has(c.face)){ const along = c.face === "front" || c.face === "back" ? "w" : "d"; E[along] = Math.max(+E[along], Math.ceil(cw + 2*t + 10)); E.h = Math.max(+E.h, Math.ceil(ch + fl + 14)); }
+    else { E.w = Math.max(+E.w, Math.ceil(cw + 2*t + 10)); E.d = Math.max(+E.d, Math.ceil(ch + 2*t + 10)); } });
+  if (arranged) encArrange(true);                                  // the boards again, in the grown box
+  for (let round = 0; round < 5; round++){
+    E.cut = E.cut.filter(c => c.auto === "ports");
+    const lost = made.filter(c => !encPlaceOpening(E, c, c.prefer || (c.prefer = c.face)));
+    if (!lost.length){
+      const I = (buildEnclosure(), enclosureInfo), out = I ? I.warn.filter(w => /^Opening \d+ .*left out$|behind the lid/.test(w.t)) : [];
+      if (!out.length) break;
+      lost.push(...out.map(w => E.cut[+w.t.match(/^Opening (\d+)/)[1] - 1]).filter(Boolean));
+    }
+    if (round === 4) break;
+    // more room where it was missing: the faces of what did not fit grow by 12 mm (and the boards are arranged again)
+    const grow = new Set(lost.map(c => c.prefer || c.face));
+    if ([...grow].some(f => f === "front" || f === "back" || f === "top" || f === "bottom")) E.w = Math.min(300, +E.w + 12);
+    if ([...grow].some(f => f === "left" || f === "right" || f === "top" || f === "bottom")) E.d = Math.min(300, +E.d + 12);
+    if ([...grow].some(f => ENC_WALLS.has(f))) E.h = Math.min(250, +E.h + 8);
+    if (arranged) encArrange(true);
+  }
+  let icon = null;
+  if (P.icon){
+    if (E.lid === "none") E.lid = "screw";
+    if (!E.logo) E.logo = JSON.parse(JSON.stringify(DEFAULTS().base.enclosure.logo));
+    E.logo.on = true; E.logo.x = 0; E.logo.y = 0; E.logo.width = Math.max(10, Math.min(40, Math.round(Math.min(E.w, E.d)*0.45)));
+    icon = P.icon;
+  }
+  return { ok:true, boards:(E.board !== "none" ? 1 : 0) + E.more.length, openings:made.length, icon, size:[E.w, E.d, E.h], notes:P.notes, left:P.left };
+}
+// an opening put where it fits: its own face first, then the faces near it; on a wall, at mid height, then higher and
+// lower rows; along the face from the middle out. A cheap check of the face's flat area, the lid's lip and the other
+// openings (the build checks it properly afterwards). Returns false when no face has room.
+const ENC_NEXT_FACE = { front:["front","top","back","left","right"], back:["back","left","right","front"], left:["left","right","back","front"],
+  right:["right","left","back","front"], top:["top","front","back"], bottom:["bottom","back","left","right"] };
+function encPlaceOpening(E, c, prefer){
+  const t = +E.wall || 2, W = +E.w, D = +E.d, H = +E.h, R = +E.radius || 0, lidOn = E.lid !== "none";
+  const lipH = lidOn && E.lid !== "slide" ? (+E.lipH || 0) : 0, flatR = Math.max(R, t);
+  for (const face of ENC_NEXT_FACE[prefer] || [prefer]){
+    if (face === "top" && !lidOn) continue;
+    c.face = face; const b0 = ringsBounds(placedRings(Object.assign({}, c, { u:0, v:0 }), E)), wall = ENC_WALLS.has(face);
+    const len = face === "front" || face === "back" ? W : face === "left" || face === "right" ? D : 0;
+    const lim = wall ? [-(len/2 - flatR - 1.5), 1.5, len/2 - flatR - 1.5, H - (lipH ? lipH + 1.5 : 1.5)] : [-(W/2 - t - 3), -(D/2 - t - 3), W/2 - t - 3, D/2 - t - 3];
+    const others = (E.cut || []).filter(o => o !== c && o.face === face).map(o => ringsBounds(placedRings(o, E)));
+    const rows = wall ? [0.5, 0.3, 0.7, 0.2, 0.8].map(f => Math.round(H*f)) : [0, -D*0.25, D*0.25].map(Math.round);
+    for (const v of rows){
+      const vb = [b0[1] + v, b0[3] + v]; if (vb[0] < lim[1] || vb[1] > lim[3]) continue;
+      for (let k = 0; k < 120; k++){
+        const u = (k % 2 ? -1 : 1)*Math.ceil(k/2)*1.5, bb = [b0[0] + u, vb[0], b0[2] + u, vb[1]];
+        if (bb[0] < lim[0] || bb[2] > lim[2]){ if (Math.ceil(k/2)*1.5 > len + W) break; continue; }
+        if (others.some(o => bb[0] < o[2] + 2 && o[0] < bb[2] + 2 && bb[1] < o[3] + 2 && o[1] < bb[3] + 2)) continue;
+        c.u = u; c.v = v; if (!E.cut.includes(c)) E.cut.push(c); return true;
+      }
+    }
+  }
+  c.face = prefer; return false;
+}
+// ready-made descriptions: a tap fills the box in (the same words a person could type)
+const ENC_RECIPES = [
+  ["ESP32 sensor box", "ESP32 DevKit, BME280 weather sensor, sensor vent, a 5 mm LED"],
+  ["Relay controller", "Arduino Uno, 4-channel relay, LM2596 buck converter, DC barrel jack, 2 cable glands"],
+  ["Fan-cooled box", "Raspberry Pi 4, 60 mm fan, vent, rocker switch"],
+  ["Battery LED controller", "ESP32-C3 SuperMini, TP4056 charger, 18650 holder, slide switch, WS2812 LED ring 12"],
+  ["Bench power supply", "Mean Well LRS-100, IEC power inlet, rocker switch, voltmeter, 2 banana sockets, 40 mm fan"],
+];
+// the box's "Describe your project" page
+function encDescribe(p){
+  group(p, "Describe your project", g => {
+    note(g, "Say what goes in the box and it is filled in for you: the boards arranged in the smallest box that fits your bed, the openings on their walls" + (aiReady() ? ", and an icon for the lid." : ".") +
+      " It starts the box's boards and openings again; Undo puts them back.");
+    const rec = document.createElement("div"); rec.className = "row iconideas"; g.appendChild(rec);
+    const w = document.createElement("div"); w.className = "field full";
+    w.innerHTML = `<label for="encDesc">What goes in it</label><textarea class="ta" id="encDesc" rows="3" maxlength="600" placeholder="ESP32, a 4-channel relay, 12 V barrel jack, OLED, two buttons, 60 mm fan"></textarea>`;
+    g.appendChild(w); const ta = w.querySelector("textarea"); ta.value = AI.lastBox || "";
+    ENC_RECIPES.forEach(([name, words]) => { const b = document.createElement("button"); b.className = "btn small"; b.textContent = name; b.title = words;
+      b.onclick = () => { ta.value = words; AI.lastBox = words; }; rec.appendChild(b); });
+    const out = document.createElement("div"); out.className = "hint encPlanOut";
+    const done = r => {
+      if (!r.ok){ out.innerHTML = esc(r.why); notify(r.why); return; }
+      const bits = [`${r.boards} board${r.boards === 1 ? "" : "s"} and module${r.boards === 1 ? "" : "s"}`, `${r.openings} opening${r.openings === 1 ? "" : "s"}`];
+      notify(`Filled in: ${bits.join(", ")}, the box ${r.size.join(" × ")} mm. Undo puts it back.`);
+      out.innerHTML = [r.matched && r.matched.length ? `<b>Found:</b> ${r.matched.map(esc).join("; ")}.` : "",
+        r.missed && r.missed.length ? `<b>Not recognised:</b> ${r.missed.map(esc).join("; ")}. Add them by hand on the pages below.` : "",
+        r.left && r.left.length ? `<b>Left out (not in the lists):</b> ${r.left.map(esc).join(", ")}.` : "",
+        r.notes ? `<b>The AI says:</b> ${esc(r.notes)}` : ""].filter(Boolean).join("<br>");
+      renderTab(); baseChanged(); pushHistory();
+    };
+    const byWords = () => { const words = ta.value.trim(); if (!words){ notify("Describe what goes in the box first."); return; }
+      AI.lastBox = words; const plan = aiFromWords(words), r = encApplyPlan(plan); r.matched = plan.matched; r.missed = plan.missed; done(r); };
+    const btns = [["Fill it in from the words", byWords]];
+    if (aiReady()) btns.unshift([`Plan it with AI (${aiName()})`, async e => {
+      const words = ta.value.trim(); if (!words){ notify("Describe what goes in the box first."); return; }
+      AI.lastBox = words; const b = e.target; b.disabled = true; b.textContent = "Thinking…";
+      try { const plan = await aiAsk(AI_BOX_SYSTEM(), words, AI_BOX_SCHEMA()), r = encApplyPlan(plan);
+        if (r.ok && r.icon){ const it = await addIconItem(r.icon); it.name = "Lid icon"; tab = "make"; }
+        done(r); }
+      catch(err){ notify(err.message); out.textContent = err.message; }
+      finally { b.disabled = false; b.textContent = `Plan it with AI (${aiName()})`; }
+    }]);
+    buttonRow(g, btns); g.appendChild(out);
+    if (!aiReady()) note(g, "For an AI that also picks sensible faces, levels and an icon, set up <b>Settings (⚙) → AI help</b>.");
+  });
+}
+// Settings → AI help
+function aiSettings(b){
+  b.insertAdjacentHTML("beforeend", `<h3 class="subh">AI help (optional)</h3>`);
+  segField(b, [["none","Off"],["claude","Claude (your API key)"],["ollama","On this computer (Ollama)"]], () => AI.provider, v => { AI.provider = v; aiSave(); $("#settingsBtn").click(); });
+  if (AI.provider === "claude"){
+    const w = document.createElement("div"); w.className = "field full";
+    w.innerHTML = `<label for="aiKey">Claude API key</label><input type="password" class="txt" id="aiKey" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">`;
+    b.appendChild(w); const inp = w.querySelector("input"); inp.value = AI.key;
+    inp.oninput = () => { AI.key = inp.value.trim().slice(0, 300); aiSave(); };
+    checkField(b, "Remember the key in this browser", () => AI.remember, v => { AI.remember = v; aiSave(); });
+    textField(b, "Model", () => AI.model, v => { if (/^[\w.:-]{0,60}$/.test(v)) AI.model = v || "claude-opus-5-5"; aiSave(); }, { max:60, placeholder:"claude-opus-5-5", onChange:() => {} });
+    note(b, "Get a key at console.anthropic.com; using it is billed to your account. The key goes only from this page to Anthropic, and is never put in a project, link or file. Unless you tick Remember, it is forgotten when you close the page.");
+  }
+  if (AI.provider === "ollama"){
+    textField(b, "Ollama address", () => AI.ollama, v => { if (/^https?:\/\/[\w.:[\]-]{1,80}$/.test(v)) AI.ollama = v; aiSave(); }, { max:80, placeholder:"http://localhost:11434", onChange:() => {} });
+    textField(b, "Model", () => AI.ollamaModel, v => { if (/^[\w.:/-]{1,60}$/.test(v)) AI.ollamaModel = v; aiSave(); }, { max:60, placeholder:"llama3.2", onChange:() => {} });
+    note(b, `Ollama runs models on your own computer, free and offline. Install it from ollama.com, run <code>ollama pull ${esc(AI.ollamaModel)}</code>, and let this page talk to it: set <code>OLLAMA_ORIGINS</code> to <code>${esc(location.origin === "null" ? "*" : location.origin)}</code> and restart Ollama. Small models make more mistakes; everything they answer is checked.`);
+  }
+  if (AI.provider !== "none") buttonRow(b, [["Test it", async e => { const bt = e.target; bt.disabled = true; bt.textContent = "Asking…";
+    try { const a = await aiAsk("Answer only with the JSON asked for.", "Say hello in one short sentence.", { type:"object", additionalProperties:false, required:["hello"], properties:{ hello:{ type:"string" } } });
+      notify(`${aiName()} answered: "${String(a.hello || "").slice(0, 80)}"`); }
+    catch(err){ notify(err.message); } finally { bt.disabled = false; bt.textContent = "Test it"; } }]]);
+}
+
 function encLevels(E, room){
   const L = (Array.isArray(E.levels) ? E.levels : []).slice(0, ENC_LEVEL.max).map(l => ({ z:clamp(+l.z || 30, 6, Math.max(6, room - 4)), t:clamp(+l.t || 2, 1.2, 5),
     hold:l.hold === "ledges" ? "ledges" : "posts", cable:l.cable !== false, vent:l.vent === true })).sort((a, b) => a.z - b.z);
@@ -7923,6 +8462,7 @@ async function rebuildAll(resetItems){
       // one piece of artwork that cannot be laid on the model leaves the rest of the model buildable
       // (Session 27: a model with artwork on it would not build at all, "Cannot read properties of undefined")
       try {
+        if (d.icon) iconSrc(d);
         if (d.text && !d.src){ await document.fonts.load(`${d.text.weight} 180px "${d.text.font}"`); d.src = textCanvas(d.text); d.aspect = d.src.width/d.src.height; }
         if (!d.src && d.asset && assets[d.asset]) d.src = assets[d.asset].canvas;
         if (d.src && !d.thumb) d.thumb = thumbURL(d.src);
@@ -10378,6 +10918,7 @@ function enclosureFields(p){
   numField(p,{ label:"Height of the box (mm)", min:8,max:250,step:1, get:()=>E.h, set:v=>E.h=v, onChange:baseChanged,
     sub:()=> I ? `Inside: ${mm(I.inner[0])} × ${mm(I.inner[1])} × ${mm(I.inner[2])}. With the lid on: ${mm(I.total)} tall.` : "" });
   note(p, "The box prints open side up and the lid beside it, outside face down, so neither needs support. Openings, screw posts and board mounts are on the pages below.");
+  encDescribe(p);
   group(p, "Walls and corners", g => {
     numField(g,{ label:"Wall thickness (mm)", min:0.8,max:6,step:0.1, get:()=>E.wall, set:v=>E.wall=v, onChange:baseChanged,
       sub:()=>"2 mm is stiff for most boxes. Use a multiple of your line width (0.4 mm nozzle: 1.6, 2.0, 2.4)." });
@@ -11802,7 +12343,7 @@ function tabArt(p){
     <input class="vh" type="file" id="fileInput" accept="image/*" multiple>
     <ul class="items" id="itemList"></ul>`);
   wireDrop(); renderItemList();
-  buttonRow(p, [["Add text", addTextItem], ["Duplicate", duplicateItem], ["◀", ()=>moveItem(-1)], ["▶", ()=>moveItem(1)],
+  buttonRow(p, [["Add text", addTextItem], ["Make an icon", ()=>addIconItem()], ["Duplicate", duplicateItem], ["◀", ()=>moveItem(-1)], ["▶", ()=>moveItem(1)],
     ["Rename", renameItem], ["Remove", removeItem]]);
   const d = state.items[state.active];
   if (!d){
@@ -11951,6 +12492,7 @@ function tabArt(p){
     }
   }, d.outline.on);
 
+  if (d.icon) group(p, "Icon", g2 => iconPanel(g2, d), true);
   if (d.text) group(p,"Text", g2 => {
     const w = document.createElement("div"); w.className = "field full";
     w.innerHTML = `<label for="itxt">Words</label><textarea class="ta" id="itxt" rows="2">${esc(d.text.value)}</textarea>`;
@@ -12108,6 +12650,80 @@ async function addFiles(files){
   }
   setBusy(false); logLine(`Added ${imgs.length} picture${imgs.length===1?"":"s"}`);
   renderTab(); schedule(); pushHistory();
+}
+// a new icon on the Art tab (Session 49): drawn from a recipe, in the loaded filaments' colours
+async function addIconItem(recipe){
+  dropExamples();
+  try { await document.fonts.load('800 180px "Manrope"'); } catch(e){}
+  const icon = cleanIcon(recipe || newIconRecipe()), canvas = iconCanvas(icon);
+  const it = newItem("Icon", canvas, { icon, mode:"flat", quality:"ultra", height:0.8 });
+  it._iconSig = iconSig(icon); it.src = canvas; it.thumb = thumbURL(canvas);
+  const wereOn = state.items.filter(x => !x.text && x.enabled !== false); wereOn.forEach(x => { x.enabled = false; x.solids = null; });
+  state.items.push(it); state.active = state.items.length - 1;
+  renderTab(); schedule(); pushHistory();
+  return it;
+}
+// the icon's settings: ideas, the badge, each icon (picked from a grid), the word under it, and the AI
+let iconPickFor = -1;
+function iconPanel(g, d){
+  const R = d.icon = cleanIcon(d.icon), redo = () => { d.icon = cleanIcon(R); iconSrc(d); renderItemList(); d.solids = null; schedule(); }, again = () => { redo(); renderTab(); };
+  const two = state.slots.length > 1;
+  // ideas
+  const ideas = document.createElement("div"); ideas.className = "row iconideas";
+  ICON_IDEAS.forEach(([name, idea]) => { const b = document.createElement("button"); b.className = "btn small"; b.textContent = name;
+    b.onclick = () => { const r = iconIdea(idea); r.label.text = R.label.text; Object.assign(R, r); again(); pushHistory(); }; ideas.appendChild(b); });
+  g.insertAdjacentHTML("beforeend", `<p class="hint">Start from an idea, or build your own from up to ${ICON_MAX_LAYERS} icons on a badge. Each part prints in the filament you pick.</p>`); g.appendChild(ideas);
+  // the badge
+  g.insertAdjacentHTML("beforeend", `<h3 class="subh">Badge</h3>`);
+  segField(g, ICON_SHAPES, () => R.badge.shape, v => { R.badge.shape = v; again(); }, "two");
+  if (R.badge.shape !== "none"){
+    slotField(g, "Badge colour", () => R.badge.slot, v => { R.badge.slot = +v; again(); });
+    checkField(g, "A ring round the edge", () => R.badge.ring, v => { R.badge.ring = v; again(); });
+    if (R.badge.ring) slotField(g, "Ring colour", () => R.badge.ringSlot, v => { R.badge.ringSlot = +v; again(); });
+  }
+  // the icons
+  g.insertAdjacentHTML("beforeend", `<h3 class="subh">Icons</h3>`);
+  R.layers.forEach((L, i) => {
+    const box = document.createElement("div"); box.className = "card iconlayer"; g.appendChild(box);
+    const head = document.createElement("div"); head.className = "row";
+    head.innerHTML = `<button class="btn small iconpick" aria-expanded="${iconPickFor === i}" title="Choose another icon">${iconSVG(L.icon, 20)} ${esc(ICONS[L.icon].label)} ▾</button>`;
+    head.querySelector("button").onclick = () => { iconPickFor = iconPickFor === i ? -1 : i; renderTab(); };
+    box.appendChild(head);
+    if (iconPickFor === i) iconGrid(box, L.icon, k => { L.icon = k; iconPickFor = -1; again(); pushHistory(); });
+    slotField(box, "Colour", () => L.slot, v => { L.slot = +v; again(); });
+    if (R.badge.shape !== "none" && L.slot === R.badge.slot) note(box, "<b>Same colour as the badge:</b> it won't show. Pick another colour.");
+    numField(box, { label:"Size", min:0.15, max:1.4, step:0.05, get:() => L.size, set:v => L.size = v, onChange:redo, noReset:true });
+    numField(box, { label:"Left or right", min:-1, max:1, step:0.02, get:() => L.x, set:v => L.x = v, onChange:redo, noReset:true });
+    numField(box, { label:"Up or down", min:-1, max:1, step:0.02, get:() => L.y, set:v => L.y = v, onChange:redo, noReset:true });
+    numField(box, { label:"Turn (°)", min:-180, max:180, step:5, get:() => L.rot, set:v => L.rot = v, onChange:redo, noReset:true });
+    const btns = [["Remove", () => { R.layers.splice(i, 1); iconPickFor = -1; again(); pushHistory(); }]];
+    if (i > 0) btns.unshift(["Bring back", () => { R.layers.splice(i - 1, 0, R.layers.splice(i, 1)[0]); again(); pushHistory(); }]);
+    if (i < R.layers.length - 1) btns.unshift(["Bring forward", () => { R.layers.splice(i + 1, 0, R.layers.splice(i, 1)[0]); again(); pushHistory(); }]);
+    buttonRow(box, btns);
+  });
+  if (R.layers.length < ICON_MAX_LAYERS) buttonRow(g, [["Add an icon", () => {
+    const n = R.layers.length, slot = state.slots.length > 2 ? 2 : two ? 1 : 0;
+    R.layers.push({ icon:"star", slot, size:0.45, x:n % 2 ? 0.45 : -0.45, y:-0.45, rot:0 }); iconPickFor = R.layers.length - 1; again(); pushHistory(); }]]);
+  if (R.layers.length > 1) checkField(g, "A gap round icons laid over others", () => R.gap, v => { R.gap = v; again(); });
+  // the word
+  g.insertAdjacentHTML("beforeend", `<h3 class="subh">Word underneath</h3>`);
+  textField(g, "Word (up to 16 letters)", () => R.label.text, v => { R.label.text = v; }, { max:16, placeholder:"12 V", onChange:() => { redo(); renderTab(); } });
+  if (R.label.text.trim()) slotField(g, "Word colour", () => R.label.slot, v => { R.label.slot = +v; again(); });
+  // the AI
+  aiIconRow(g, d, R, again);
+}
+// every icon as a button, with a search box
+function iconGrid(parent, cur, pick){
+  const w = document.createElement("div"); w.className = "icongrid";
+  w.innerHTML = `<input type="search" class="txt srch" placeholder="Search, e.g. fan, wifi, warning" aria-label="Search the icons" autocomplete="off"><div class="icons"></div>`;
+  const inp = w.querySelector("input"), list = w.querySelector(".icons");
+  const fill = () => {
+    const words = inp.value.toLowerCase().split(/\s+/).filter(Boolean);
+    const keys = Object.keys(ICONS).filter(k => { const I = ICONS[k], hay = `${k} ${I.label} ${I.k}`.toLowerCase(); return words.every(q => hay.includes(q)); });
+    list.innerHTML = keys.map(k => `<button class="iconbtn" data-k="${k}" aria-pressed="${k === cur}" title="${esc(ICONS[k].label)}" aria-label="${esc(ICONS[k].label)}">${iconSVG(k, 26)}</button>`).join("") || `<p class="hint">Nothing found: try another word.</p>`;
+    list.querySelectorAll("button").forEach(b => b.onclick = () => pick(b.dataset.k));
+  };
+  inp.oninput = fill; fill(); parent.appendChild(w);
 }
 async function addTextItem(){
   dropExamples();
@@ -13075,6 +13691,7 @@ $("#settingsBtn").onclick = ()=>openModal("Settings", b => {
   segField(b, [["auto","Match system"],["light","Light"],["dark","Dark"]], ()=>state.view.theme, v=>{ state.view.theme = v; applyTheme(); $("#settingsBtn").click(); });
   selField(b, "Units", [["mm","Millimetres"],["in","Inches"]], ()=>state.view.units, v=>{ state.view.units = v; refreshScene(); renderTab(); });
   checkField(b, "Save my work in this browser automatically", ()=>state.view.autosave !== false, v=>{ state.view.autosave = v; });
+  aiSettings(b);
   numField(b, { label:"Maximum preview detail (cells)", min:200, max:900, step:50, get:()=>state.view.maxCells||700,
     set:v=>state.view.maxCells=v, onChange:()=>{ dirty(); }, sub:()=>"Lower it if the app feels slow on this computer." });
   buttonRow(b, [["Clear saved work in this browser", ()=>{ try { localStorage.removeItem("makerforge.project"); localStorage.removeItem("makerforge.recent"); forgetModels(); notify("Saved work cleared."); } catch(e){} }]]);
@@ -13533,6 +14150,7 @@ function sanitizeProject(data){
       it.text = { value: cleanStr(it.text.value, 200, "Text"),
         font: fontNames.has(it.text.font) ? it.text.font : "Manrope", weight: cleanNum(it.text.weight, 700) };
     }
+    if (it.icon && !it.text) it.icon = cleanIcon(it.icon); else delete it.icon;          // an icon's recipe (Session 49)
     for (const k of ["width","rotation","offU","offV","height","step","minH","maxH","embed","res","smooth"])
       if (k in it) it[k] = cleanNum(it[k], undefined);
     // the same type check as the settings: numbers must be numbers, groups objects (the picture's own
@@ -14228,10 +14846,12 @@ window.MakerForge = {
   get busy(){ return busy || queued || rebuildPending || exampleBusy > 0 || photoJobsOut > 0 || photoFitting > 0 || photoBusy > 0; },
   thumb: modelThumb,
   art: { cutout: aiCutout, uncut: aiUncut, hasBackground: pictureHasBackground, wraps: wrapsRound },
+  ai: { state:AI, ask:aiAsk, fromWords:aiFromWords, cleanPlan:aiCleanPlan, iconToRecipe:aiIconToRecipe, iconSchema:AI_ICON_SCHEMA, boxSchema:AI_BOX_SCHEMA },
+  icons: { list:ICONS, ideas:ICON_IDEAS, idea:iconIdea, clean:cleanIcon, canvas:iconCanvas, add:addIconItem, svg:iconSVG },
   examples: { list: EXAMPLES, forType: EXAMPLE_FOR_TYPE, art: EXAMPLE_ART, canvas: exampleCanvas, load: loadExample, drop: dropExamples },
   get tracer(){ return tracerInfo; },
   get enclosure(){ return enclosureInfo; },
-  get cutouts(){ return CUTOUTS; }, get boards(){ return BOARDS; }, boardPorts:BOARD_PORTS, addBoardPorts:encAddBoardPorts, arrange:encArrange, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
+  get cutouts(){ return CUTOUTS; }, get boards(){ return BOARDS; }, boardPorts:BOARD_PORTS, addBoardPorts:encAddBoardPorts, arrange:encArrange, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
   get jigsaw(){ return jigsawInfo; },
   get lithophane(){ return lithoInfo; },
   get print(){ return printFresh() ? printInfo : null; },

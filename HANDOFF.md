@@ -2297,6 +2297,38 @@ the Art tab picture inlaid and engraved, Label every opening, the panel, a hosti
 parts; a picture inlaid in the lid and on a wall at once recomputes the trace each build (`encLogoCache` holds one size).
 **Still to check by hand**: raised and inlaid words on a printed wall (text 5 mm and under); fonts in a slicer preview.
 
+## Session 54: project boxes, a parts list, a floor grid, names and printed extras (v0.48.0)
+
+Asked (the owner, Session 52's list): "Do all the other improvements and even 20 more. Really flush out the whole project box
+system".
+
+**What you'll need** (`enclosureInfo.need`, `[count, what]`, the panel's group of that name with **Copy the list**): lid screws
+(length: the lid plus the insert depth less 1, rounded up to 6/8/10/12/16/20/25/30) and inserts, or magnets (two per post);
+board screws (6 mm) per screw size and inserts; level screws (each level's posts or brackets, not ledges); straps and zip ties
+(from `encStrapTray` per battery); feet; DIN clip screws; fans in openings and dividers; tie-mount screws; joins of a box in
+parts; the boards themselves. Opening parts (switches, sockets) aren't counted.
+**Finger pull** (`E.pull`, the Lid page; not for a sliding lid or none): a notch 18 × 3.5 mm in the top of the front wall
+(`notchesOn.front`, so the lid's lip leaves a gap over it), left out with a warning over an opening.
+**Board names** (`E.partNames`, shown only with a board on the floor): `encLabelText` of the label up to its first bracket,
+comma or colon (the first word when it is wider than the board + 12 mm), 3.2 mm stroke text in front of the board (behind it
+when there's no room), clear of other boards (+2.5), `taken.bottom` and each other; cut 0.4 mm into the floor's top (a slab
+from `fl - 0.4` with them as holes). **Found while testing**: each name was blocked by its own board's margin.
+**Floor grid** (`E.floorGrid` 0/10/15/20): through holes 3.2 mm (`holesOn.bottom`, `taken.bottom`) kept 6 mm from the walls, and
+clear of `taken.bottom`, floor boards (+4), names, full-height lid posts, the first level's corner posts (worked out as
+`postPlan` does) or posts where they are put, channels, dividers' lines and floor anchors' bands.
+**Extras** (in front of the box, packed like the levels): `E.ductCover` (a 13.2 mm strip, 1.2 thick, the channel's height, with
+a tongue 0.2 mm wider than the 4 mm gap between the lips), `E.spacers` (0–16, `spacerH`, `spacerScrew`: tubes the clearance hole
++ 3.2 mm across), `E.tieMounts` (0–16: a 12 × 18 × 1.6 base with an M3 hole, a 3.5 mm bridge for a tie).
+**Your own battery** (`BOARDS.batcustom`; `E.batW/batD/batT` for the main one, `bw/bd/bt` on an extra one, kept only on that kind).
+**Airflow hint**: a converter, supply, Pi, amplifier or motor driver in a box with no air opening (group "air", or a fan, vent,
+grille) and no divider fan.
+
+**Tests**: new `tools-boxextras-test.js` (in `test:enclosure`). The doc picture: `docs/images/box-extras.jpg`.
+
+**Not done, next** (the rest of Session 52's list): a snap-fit and a hinged lid; a gasket groove; a battery compartment with a
+door; Arrange inside rooms and dividers on levels; dragging art and posts in the 3D view.
+**Still to check by hand**: a channel cover's press fit; a zip-tie mount's bridge; names 3.2 mm tall on a real floor.
+
 ## Unfinished (in priority order)
 
 - **0.44: colour from a photo, with more AI, for the CR7 figure** (click to colour done in Session 50; the rest below is next) (the owner, Session 49: "fix the auto painter function from a pic,

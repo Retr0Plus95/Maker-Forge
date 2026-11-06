@@ -200,6 +200,17 @@ Some objects in brief:
     - **Label every opening** names each opening that has no label yet (USB-C, HDMI, DC IN, ON/OFF, PUSH, LED…), engraved under it; change any of them on the Openings page.
 
       ![A project box with WEATHER inlaid in orange on the front, a sun icon, engraved USB-C and PUSH labels, a raised Wi-Fi icon on the side, and a cloud and Station 1 inlaid in the lid](docs/images/box-art.jpg)
+  - **Floor, names and extras** (new in 0.48):
+    - **Mounting holes in the floor:** 3.2 mm holes every 10, 15 or 20 mm wherever nothing else is (boards, posts, openings, channels, dividers, anchors), for M3 bolts or self-tapping screws, so you can screw in whatever you add later.
+    - **Each board's name engraved on the floor beside it**, 0.4 mm deep, so every board goes back in its place.
+    - **Covers for the cable channels:** a strip for each channel with a tongue that presses between its lips, printed flat.
+    - **Spacers** (printed tubes, any height, for M2 to M4 screws) and **zip-tie mounts** that screw down, printed flat in front of the box.
+  - **A finger pull** (on the Lid page): a notch in the top of the front wall, so a press-fit or magnet lid lifts off easily. The lid's lip has a gap over it.
+  - **My own battery or pack** (in the battery list): type its length, width and thickness and it gets a strap tray or a cradle like the others.
+  - **What you'll need**: a list of the screws (with their lengths), heat inserts, magnets, rubber feet, straps, fans and boards the box takes, worked out from the box as it is. **Copy the list** puts it on the clipboard for your shopping list.
+  - A board that gets warm (a power supply, a converter, a Raspberry Pi, a motor driver) in a box with no vent or fan gets a hint to add one.
+
+    ![A project box with a grid of mounting holes in the floor, ARDUINO UNO and BUCK engraved beside the boards, a finger pull in the front wall, a cable channel with its cover, spacers and zip-tie mounts](docs/images/box-extras.jpg)
   - **Printing without support** (new in 0.41): a port opening in a wall gets a pointed top by itself when its top edge would be a bridge longer than your printer's bridge limit (set on the Printer page): **Top: auto**, **Flat** or **Pointed** on each opening. Fan grilles in walls default to **Slots**, upright slots with pointed tops; **Honeycomb** in a wall uses flat-topped cells; vent slots have pointed tops. All of them print without support.
   - **Mounting** hangs the box up:
     - **Screw ears:** two or four tabs at floor level, each with a screw hole and a 45° fin each side.

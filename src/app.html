@@ -446,7 +446,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.47.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.48.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -946,7 +946,7 @@ const DEFAULTS = () => ({
       mount:"none", earN:2, tabN:2, earHole:4.5, earT:3, strapW:12, strapT:2.5, strapDir:"across",
       labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
       split:"bed", splitParts:2, splitScrew:"M3",
-      board:"none", boardX:0, boardY:0, boardRot:false, boardHold:"holes", boardLvl:0, more:[], levels:[], walls:[], ducts:[], art:[], anchors:{ n:0, where:"back" }, showParts:true, standH:5, bw:60, bd:40, bsx:52, bsy:32, bscrew:"M3", boxSlot:1, lidSlot:1,
+      board:"none", boardX:0, boardY:0, boardRot:false, boardHold:"holes", boardLvl:0, more:[], levels:[], walls:[], ducts:[], art:[], pull:false, partNames:false, floorGrid:0, ductCover:false, spacers:0, spacerH:5, spacerScrew:"M3", tieMounts:0, batW:60, batD:35, batT:10, anchors:{ n:0, where:"back" }, showParts:true, standH:5, bw:60, bd:40, bsx:52, bsy:32, bscrew:"M3", boxSlot:1, lidSlot:1,
       // every key newOpening gives, so a saved box opens exactly as it was
       cut:[ { face:"front", kind:"usbc", u:-25, v:12, w:9.2, h:3.4, r:1.6, rot:false, label:"", labelPos:"below", top:"flat", notch:false },
             { face:"front", kind:"btn", u:0, v:18, dia:12.2, rot:false, label:"", labelPos:"below", top:"flat", notch:false },
@@ -2142,6 +2142,7 @@ const BOARDS = {
   cr2450:{ g:"battery", label:"Coin cell holder CR2450", k:"button coin", w:30, d:30, tall:7, check:true },
   sla1:{ g:"battery", label:"Lead-acid battery 12 V 1.2 Ah (97 × 43 × 52)", k:"sla gel agm", w:97, d:43, tall:52, check:true },
   sla7:{ g:"battery", label:"Lead-acid battery 12 V 7 Ah (151 × 65 × 94)", k:"sla gel agm big", w:151, d:65, tall:94, check:true },
+  batcustom:{ g:"battery", label:"My own battery or pack (type its size)", k:"custom battery any size lipo pack own", w:60, d:35, tall:10 },
   custom:{ label:"My own board" }
 };
 // openings: typical part sizes; the clearance setting is added to every one of them
@@ -2522,13 +2523,16 @@ function encBoardList(E){
       B = { w:bw0, d:bd0, screw:E.bscrew, label:"Your board",
         holes:[[(bw0 - sx0)/2, (bd0 - sy0)/2], [(bw0 + sx0)/2, (bd0 - sy0)/2], [(bw0 - sx0)/2, (bd0 + sy0)/2], [(bw0 + sx0)/2, (bd0 + sy0)/2]] };
     }
+    // your own battery (Session 54): its size typed in
+    if (key === "batcustom") B = Object.assign({}, B, { w:clamp(+o.bw || 60, 5, 250), d:clamp(+o.bd || 35, 5, 250), tall:clamp(+o.bt || 10, 2, 120),
+      label:`Your battery (${clamp(+o.bw || 60, 5, 250)} × ${clamp(+o.bd || 35, 5, 250)} × ${clamp(+o.bt || 10, 2, 120)})` });
     if (!(B.w > 0 && B.d > 0)) return;
     const holes = B.holes && o.hold !== "edges" ? B.holes : null, bat = B.g === "battery";
     // a battery (Session 51) lies on the floor in a strap tray unless "corner cradle" (edges) is chosen
     out.push({ key, B, main, src:o, x:+o.x || 0, y:+o.y || 0, rot:o.rot === true, sh:bat ? 1 : +o.h || +E.standH || 5, holes,
       hold:holes ? "holes" : bat && o.hold !== "edges" ? "strap" : "edges", lvl:Math.max(0, Math.round(+(main ? E.boardLvl : o.lvl) || 0)) });
   };
-  add(E.board, { x:E.boardX, y:E.boardY, rot:E.boardRot, h:E.standH, hold:E.boardHold }, true);
+  add(E.board, { x:E.boardX, y:E.boardY, rot:E.boardRot, h:E.standH, hold:E.boardHold, bw:E.batW, bd:E.batD, bt:E.batT }, true);
   (Array.isArray(E.more) ? E.more : []).slice(0, 12).forEach(m => m && typeof m === "object" && add(m.kind, m, false));
   return out;
 }
@@ -3935,6 +3939,54 @@ function buildEnclosure(){
     artOn[face].push({ i, finish, depth, union:place(sh.union), colours:(finish === "engrave" ? [] : sh.colours).map(c => ({ slot:c.slot, polys:place(c.polys) })) });
     artInfo.push({ i, face, kind:a.kind, finish, w, h, depth, colours:finish === "engrave" ? 0 : sh.colours.length });
   });
+  // a finger pull (Session 54): a notch in the top of the front wall, so a press-fit or magnet lid lifts off
+  if (E.pull === true && lidOn && !slide){
+    const Hf = wallH("front"), pb = [-9, Hf - 3.5, 9, Hf];
+    const clash = taken.front.find(o => pb[0] < o.bb[2] + 0.6 && o.bb[0] < pb[2] + 0.6 && pb[1] < o.bb[3] + 0.6 && o.bb[1] < pb[3] + 0.6);
+    if (clash) warn.push({ t:"Finger pull left out", s:`It would cut into ${clash.n ? "opening " + clash.n : clash.what} at the top of the front: move that down.` });
+    else { notchesOn.front.push([pb[0], pb[2], pb[1]]); taken.front.push({ n:0, what:"the finger pull", bb:pb }); }
+  }
+  // each board's name engraved on the floor in front of it (Session 54), to put them back in the right place
+  const floorNames = [], nameH = 3.2, nameHalf = 0.3, earlyHints = [];
+  if (E.partNames === true) boardList.filter(bd => !bd.lvl).forEach(bd => {
+    const bw = bd.rot ? bd.B.d : bd.B.w, bdp = bd.rot ? bd.B.w : bd.B.d;
+    let text = encLabelText(String(bd.B.label).replace(/\s*[(,:].*$/, "")); if (!text) return;
+    if (C.strokeText(text, 0, 0, nameH).width > bw + 12) text = text.split(" ")[0];
+    const w2 = C.strokeText(text, 0, 0, nameH).width/2 + nameHalf, gap = (bd.hold === "holes" ? 1 : 2.4) + 1.2;
+    for (const side of [-1, 1]){
+      const cy = side < 0 ? bd.y - bdp/2 - gap - nameH/2 : bd.y + bdp/2 + gap + nameH/2, bb = [bd.x - w2, cy - nameH/2 - nameHalf, bd.x + w2, cy + nameH/2 + nameHalf];
+      if (bb[0] < -iw/2 + 2 || bb[2] > iw/2 - 2 || bb[1] < -id/2 + 2 || bb[3] > id/2 - 2) continue;
+      const hitB = boardList.some(o => { const ow = o.rot ? o.B.d : o.B.w, od = o.rot ? o.B.w : o.B.d; return o !== bd && !o.lvl && bb[0] < o.x + ow/2 + 2.5 && o.x - ow/2 - 2.5 < bb[2] && bb[1] < o.y + od/2 + 2.5 && o.y - od/2 - 2.5 < bb[3]; });
+      if (hitB || taken.bottom.some(o => bb[0] < o.bb[2] + 0.6 && o.bb[0] < bb[2] + 0.6 && bb[1] < o.bb[3] + 0.6 && o.bb[1] < bb[3] + 0.6) || floorNames.some(f => bb[0] < f.bb[2] + 1 && f.bb[0] < bb[2] + 1 && bb[1] < f.bb[3] + 1 && f.bb[1] < bb[3] + 1)) continue;
+      floorNames.push({ text, bb, polys:C.strokePolys(C.strokeText(text, bd.x, cy, nameH).segs, nameHalf, 0.04) }); return;
+    }
+    earlyHints.push(`No room on the floor for ${text}'s name next to it.`);
+  });
+  // a grid of mounting holes in the floor (Session 54), like a level's: wherever nothing is or will be
+  let floorGridN = 0;
+  const FG = [10, 15, 20].includes(+E.floorGrid) ? +E.floorGrid : 0;
+  if (FG){
+    const busy = taken.bottom.map(o => [o.bb[0] - 2, o.bb[1] - 2, o.bb[2] + 2, o.bb[3] + 2]);
+    boardList.filter(bd => !bd.lvl).forEach(bd => { const bw = bd.rot ? bd.B.d : bd.B.w, bdp = bd.rot ? bd.B.w : bd.B.d; busy.push([bd.x - bw/2 - 4, bd.y - bdp/2 - 4, bd.x + bw/2 + 4, bd.y + bdp/2 + 4]); });
+    floorNames.forEach(f => busy.push([f.bb[0] - 1.5, f.bb[1] - 1.5, f.bb[2] + 1.5, f.bb[3] + 1.5]));
+    if (bosses.length && !postHang) bosses.forEach(([x, z]) => busy.push([x - bossR - 4, -z - bossR - 4, x + bossR + 4, -z + bossR + 4]));
+    const lv0 = encLevels(E, 1e9)[0];
+    if (lv0 && (lv0.hold === "posts" || !lv0.hold)){ const bcY = bosses.length ? id/2 - (Math.abs(bosses[0][1]) - bossR - 0.6) : 0, py = Math.max(7, bcY + 7), px = (iw - 0.8)/2 - 7, yy = (id - 0.8)/2 - py;
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]) busy.push([sx*px - 7, sy*yy - 7, sx*px + 7, sy*yy + 7]); }
+    if (lv0 && lv0.hold === "custom") lv0.at.forEach(([x, y]) => busy.push([x - 7, y - 7, x + 7, y + 7]));
+    encDucts(E).forEach(u => { const a = u.at, dd = ENC_DUCT.depth + 4, hw = ENC_DUCT.w/2 + ENC_DUCT.fin + 3;
+      busy.push(u.face === "back" ? [a - hw, id/2 - dd, a + hw, id/2] : u.face === "front" ? [a - hw, -id/2, a + hw, -id/2 + dd] : u.face === "right" ? [iw/2 - dd, a - hw, iw/2, a + hw] : [-iw/2, a - hw, -iw/2 + dd, a + hw]); });
+    encDividers(E).forEach(dv => busy.push(dv.axis === "x" ? [-iw, dv.at - 4, iw, dv.at + 4] : [dv.at - 4, -id, dv.at + 4, id]));
+    const anc = E.anchors && typeof E.anchors === "object" && +E.anchors.n > 0 ? E.anchors.where : null;
+    if (anc === "back" || anc === "all") busy.push([-iw, id/2 - 10, iw, id]);
+    if (anc === "sides" || anc === "all"){ busy.push([-iw, -id, -iw/2 + 10, id]); busy.push([iw/2 - 10, -id, iw, id]); }
+    const nx = Math.floor((iw - 14)/FG), ny = Math.floor((id - 14)/FG);
+    for (let i = 0; i <= nx; i++) for (let j = 0; j <= ny; j++){
+      const x = -nx*FG/2 + i*FG, y = -ny*FG/2 + j*FG;
+      if (Math.abs(x) > iw/2 - 6 - ri*0.3 || Math.abs(y) > id/2 - 6 - ri*0.3 || busy.some(r => x > r[0] - 1.6 && x < r[2] + 1.6 && y > r[1] - 1.6 && y < r[3] + 1.6)) continue;
+      holesOn.bottom.push(C.ringCircle(1.6, 16).map(q => [q[0] + x, q[1] + y])); taken.bottom.push({ n:0, what:"a mounting hole", bb:[x - 1.6, y - 1.6, x + 1.6, y + 1.6] }); floorGridN++;
+    }
+  }
   // split into parts (Session 40): planned once every opening and label is in place, so the joins keep clear of them
   // every board's place on the floor (Session 45: all of them, not only one with holes), for the joins to keep clear of
   const boardRects = boardList.map(bd => { const bw = bd.rot ? bd.B.d : bd.B.w, bdp = bd.rot ? bd.B.w : bd.B.d;
@@ -4003,10 +4055,12 @@ function buildEnclosure(){
       if (depth < want - 1e-6) warn.push({ t:"Floor too thin for the foot recesses", s:`The recesses are ${depth.toFixed(1)} mm deep instead of ${want.toFixed(1)}. Make the floor at least ${(want + 0.6).toFixed(1)} mm thick.` });
       if (depth > 0) cuts.push({ depth, holes: feet.map(([x, y]) => encOrient(C.ringCircle(footR, 40).map(q => [q[0] + x, q[1] + y]), false)), islands: [] });
     }
-    const levels = [...new Set([0, ...cuts.map(c => c.depth), fl])].filter(v => v <= fl).sort((a, b) => a - b);
+    // the boards' names are cut into the floor's top (Session 54), 0.4 mm deep
+    const nameD = floorNames.length && fl >= 1.2 ? 0.4 : 0, names = floorNames.flatMap(f => f.polys), top = nameD ? { from: fl - nameD, holes: labHoles(names), islands: labIslands(names) } : null;
+    const levels = [...new Set([0, ...cuts.map(c => c.depth), ...(top ? [top.from] : []), fl])].filter(v => v <= fl).sort((a, b) => a - b);
     for (let k=0;k<levels.length-1;k++){
-      const a = levels[k], b = levels[k+1], on = cuts.filter(c => c.depth >= b - 1e-9);
-      solids.push(C.extrudePolysAt([{ outer: fo.slice(), holes: [...open, ...on.flatMap(c => c.holes)] }, ...on.flatMap(c => c.islands)], a, b));
+      const a = levels[k], b = levels[k+1], on = cuts.filter(c => c.depth >= b - 1e-9), up = top && a >= top.from - 1e-9 ? [top] : [];
+      solids.push(C.extrudePolysAt([{ outer: fo.slice(), holes: [...open, ...on.flatMap(c => c.holes), ...up.flatMap(c => c.holes)] }, ...on.flatMap(c => c.islands), ...up.flatMap(c => c.islands)], a, b));
     }
   }
   // plan coordinates are (x, -z)
@@ -4021,7 +4075,7 @@ function buildEnclosure(){
   let board = null, boardNeed = null;
   const boardsInfo = [];
   // levels and their plates (Session 46): a board on a level stands on the level's top, and its mounts go on the plate
-  const ceilZ = H - (lidOn ? lipH : 0), levels = encLevels(E, ceilZ - fl), levelSolids = levels.map(() => []), ghosts = [], hints = [];
+  const ceilZ = H - (lidOn ? lipH : 0), levels = encLevels(E, ceilZ - fl), levelSolids = levels.map(() => []), ghosts = [], hints = [...earlyHints];
   const levelTop = k => k > 0 && levels[k - 1] ? fl + levels[k - 1].z : fl;
   const plateB = [-(iw/2 - ENC_LEVEL.gap), -(id/2 - ENC_LEVEL.gap), iw/2 - ENC_LEVEL.gap, id/2 - ENC_LEVEL.gap];     // a level plate's extent (Session 51)
   const ceilingOver = k => k < levels.length ? fl + levels[k].z - levels[k].t : ceilZ;
@@ -4069,7 +4123,7 @@ function buildEnclosure(){
     // two boards on top of each other
     boardsInfo.forEach(o => { if (o.lvl === info.lvl && o.fits !== false && info.fits !== false && x0 < o.bb[2] && o.bb[0] < x1 && y0 < o.bb[3] && o.bb[1] < y1)
       warn.push({ t:`${B.label} overlaps ${o.label}`, s:`${B.label} and ${o.label} take the same place on the floor. Move one of them.` }); });
-    info.bb = [x0, y0, x1, y1]; info.at = [bd.x, bd.y]; info.rot = bd.rot; info.key = bd.key;
+    info.bb = [x0, y0, x1, y1]; info.at = [bd.x, bd.y]; info.rot = bd.rot; info.key = bd.key; info.tall = boardTall(bd.key, B);
     boardsInfo.push(info);
     if (!board) board = info;
   });
@@ -4123,7 +4177,7 @@ function buildEnclosure(){
     });
     else if (holdOf[k] === "brackets") pts.forEach(([x, y]) => {
       const bot = fl + levels[k].z - levels[k].t - BRK.boss - BRK.drop, xw = Math.sign(x)*iw/2;
-      const hit = boardsInfo.find(b => b.fits !== false && b.lvl === k && b.top + boardTall(b.key, BOARDS[b.key] || {}) + 1 > bot && Math.min(xw, x - Math.sign(x)*(BRK.r + 1)) < b.bb[2] && Math.max(xw, x - Math.sign(x)*(BRK.r + 1)) > b.bb[0] && y + BRK.r > b.bb[1] && y - BRK.r < b.bb[3]);
+      const hit = boardsInfo.find(b => b.fits !== false && b.lvl === k && b.top + (b.tall || 10) + 1 > bot && Math.min(xw, x - Math.sign(x)*(BRK.r + 1)) < b.bb[2] && Math.max(xw, x - Math.sign(x)*(BRK.r + 1)) > b.bb[0] && y + BRK.r > b.bb[1] && y - BRK.r < b.bb[3]);
       if (hit) warn.push({ t:`${hit.label} runs into a wall bracket of level ${k + 1}`, s:"Move it away from the side wall, or raise the level." });
       ductInfo.forEach(du => { if (!du.isY && Math.sign(du.sgn) === Math.sign(x) && Math.abs(du.at - y) < half + BRK.r + 0.5) warn.push({ t:`Level ${k + 1}: a wall bracket is on cable channel ${du.k + 1}`, s:"Move the channel along the wall." }); });
     });
@@ -4286,6 +4340,40 @@ function buildEnclosure(){
       if (lo < Dv.at + gp/2 + rb && hi > Dv.at - gp/2 - rb) warn.push({ t:`Divider ${k + 1} crosses ${b.label}`, s:`Move the divider or ${b.label}.` }); });
     dividerInfo.push({ w:wp, h:hp, fan:fanNote, crossings:crossings.length });
   });
+  // extras printed flat in front of the box (Session 54): a cover for each cable channel (a strip with a tongue that
+  // presses between its lips), spacers for boards, and zip-tie mounts that screw down (a bridge and a screw hole)
+  const extraInfo = { covers:0, spacers:0, mounts:0 }, exSlot = clamp(+E.boxSlot || 0, 0, state.slots.length - 1), xb = (x0, y0, x1, y1) => encOrient([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], true);
+  if (E.ductCover === true && ductInfo.length && !state.base.enclosure.test){
+    const cw = DU.w + 2*DU.fin, Lc = Math.max(10, ductTop - fl - 1), tw = DU.w - 2*DU.lip + 0.2, pcs = [];
+    ductInfo.forEach((du, k) => { const x = -((ductInfo.length - 1)*(cw + 6))/2 + k*(cw + 6);
+      pcs.push(C.extrudePolysAt([{ outer:xb(x - cw/2, -Lc/2, x + cw/2, Lc/2), holes:[] }], 0, 1.2));
+      pcs.push(C.extrudePolysAt([{ outer:xb(x - tw/2, -Lc/2 + 3, x + tw/2, Lc/2 - 3), holes:[] }], 1.19, 1.2 + DU.fin + 0.3)); });
+    insideParts.push({ inside:true, name:`Cable channel cover${ductInfo.length === 1 ? "" : "s"}`, slot:exSlot, solid:C.affineSolid(C.mergeSolids(pcs), [1,0,0, 0,1,0, 0,0,1], [0, 0, frontZ + Lc/2]) });
+    frontZ += Lc + 10; extraInfo.covers = ductInfo.length;
+  }
+  const spN = Math.round(clamp(+E.spacers || 0, 0, 16)), zmN = Math.round(clamp(+E.tieMounts || 0, 0, 16));
+  if ((spN || zmN) && !state.base.enclosure.test){
+    const sc = encHas(SCREWS, E.spacerScrew) ? SCREWS[E.spacerScrew] : SCREWS.M3, sh2 = clamp(+E.spacerH || 5, 1, 40), od = sc.clear + 3.2, pcs = [], step = Math.max(od, 12) + 4;
+    const cols = Math.max(1, Math.floor((W + 20)/step)), at = n => [-(Math.min(cols, spN + zmN) - 1)*step/2 + (n % cols)*step, Math.floor(n/cols)*(step + 8)];
+    for (let n = 0; n < spN; n++){ const [x, y] = at(n);
+      pcs.push(C.extrudePolysAt([{ outer:encOrient(C.ringCircle(od/2, 32).map(q => [q[0] + x, q[1] + y]), true), holes:[encOrient(C.ringCircle(sc.clear/2, 24).map(q => [q[0] + x, q[1] + y]), false)] }], 0, sh2)); }
+    for (let n = 0; n < zmN; n++){ const [x, y] = at(spN + n);
+      // a 12 × 18 mm base with a screw hole at one end, and a bridge a zip tie threads under at the other
+      pcs.push(C.extrudePolysAt([{ outer:xb(x - 6, y - 9, x + 6, y + 9), holes:[encOrient(C.ringCircle(1.75, 24).map(q => [q[0] + x, q[1] + y - 4.5]), false)] }], 0, 1.6));
+      pcs.push(C.extrudePolysAt([{ outer:xb(x - 5.75, y + 3, x - 1.75, y + 7), holes:[] }], 1.59, 5.6));
+      pcs.push(C.extrudePolysAt([{ outer:xb(x + 1.75, y + 3, x + 5.75, y + 7), holes:[] }], 1.59, 5.6));
+      pcs.push(C.extrudePolysAt([{ outer:xb(x - 5.75, y + 3, x + 5.75, y + 7), holes:[] }], 5.59, 6.8)); }
+    const rows = Math.ceil((spN + zmN)/cols), depth = rows*(step + 8);
+    insideParts.push({ inside:true, name:"Spacers and tie mounts", slot:exSlot, solid:C.affineSolid(C.mergeSolids(pcs), [1,0,0, 0,1,0, 0,0,1], [0, 0, frontZ + step/2]) });
+    frontZ += depth + 10; extraInfo.spacers = spN; extraInfo.mounts = zmN;
+  }
+  // a warm part in a closed box (Session 54): a hint to let the air out
+  {
+    const warmRe = /^(lrs|buck|boost|xl4015|lm2596|xl6009|mp1584|pi$|pi5|l298|drv8825|a4988|tb6600|mosfet|amp)/;
+    const warm = boardsInfo.filter(b => b.fits !== false && (warmRe.test(b.key) || (BOARDS[b.key] && /power supply|converter|amplifier|motor driver/i.test(BOARDS[b.key].label))));
+    const air = (E.cut || []).some((c, i) => !left.includes(i) && encHas(CUTOUTS, c.kind) && (CUTOUTS[c.kind].g === "air" || /fan|vent|grille|honeycomb/i.test(c.kind + " " + CUTOUTS[c.kind].label))) || encDividers(E).some(d => d.fan);
+    if (warm.length && !air) hints.push(`${warm.map(b => b.label.replace(/\s*\(.*$/, "")).slice(0, 2).join(" and ")} ${warm.length === 1 ? "gets" : "get"} warm: add a vent or a fan (Openings), so the heat gets out.`);
+  }
   solids.push(...mount.solids);
   const parts = [{ name:"Box", slot:clamp(+E.boxSlot || 0, 0, state.slots.length - 1), solid:C.mergeSolids(solids.filter(Boolean)) }, ...artParts];
   if (slide){
@@ -4448,7 +4536,26 @@ function buildEnclosure(){
       enclosurePlates = plates.length;
     }
   }
-  enclosureInfo = { test: !!state.base.enclosure.test, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR }, anchors:anchorsMade, ducts:ductInfo.length, count:(E.cut || []).length - left.length,
+  // what to buy or have ready (Session 54): screws, inserts, magnets, feet, straps and fans, from the box as it is
+  const need = [], nAdd = (n, what) => { if (n > 0) need.push([n, what]); }, len = v => [6, 8, 10, 12, 16, 20, 25, 30].find(q => q >= v) || 30;
+  if (!state.base.enclosure.test){
+    if (lidOn && magnet && bosses.length) nAdd(2*lidPins.length, `round magnets ${mg.d} × ${mg.t} mm (half in the posts, half in the lid; check they attract)`);
+    else if (lidOn && bossesOn && E.fasten !== "none"){ nAdd(lidPins.length, `${E.screw} screws, ${len(lidT + screw.insertDepth - 1)} mm long, for the lid`); if (E.fasten === "insert") nAdd(lidPins.length, `${E.screw} heat inserts for the lid`); }
+    const bs = {}; boardList.filter(bd => bd.holes).forEach(bd => { const k = encHas(SCREWS, bd.B.screw) ? bd.B.screw : "M3"; bs[k] = (bs[k] || 0) + bd.holes.length; });
+    Object.entries(bs).forEach(([k, n]) => { nAdd(n, `${k} screws, 6 mm long, for the boards`); if (E.fasten === "insert") nAdd(n, `${k} heat inserts for the boards' standoffs`); });
+    const lvScrews = levelInfo.reduce((a, l) => a + (l.hold === "ledges" ? 0 : l.posts.length), 0); nAdd(lvScrews, "M3 self-tapping screws, 8 mm long, for the levels");
+    let straps = 0, ties = 0; boardList.filter(bd => bd.hold === "strap").forEach(bd => { const bw = bd.rot ? bd.B.d : bd.B.w, bdp = bd.rot ? bd.B.w : bd.B.d, tr = encStrapTray(0, 0, bw, bdp, 0, boardTall(bd.key, bd.B));
+      if (tr.strap === "strap") straps += tr.slots.length/2; else ties += tr.slots.length/2; });
+    nAdd(straps, "hook-and-loop straps, 20 mm wide, for the batteries"); nAdd(ties, "zip ties for the small batteries");
+    nAdd(feet.length, `stick-on rubber feet, ${FEET[encHas(FEET, E.footSize) ? E.footSize : "8"].d} mm`);
+    if (mount.din) nAdd(2, "M3 screws, 8 mm long, for the DIN rail clip");
+    (E.cut || []).forEach((c, i) => { if (!left.includes(i) && c.kind === "fan") nAdd(1, `${c.size || 40} mm fan, with 4 screws`); });
+    encDividers(E).forEach(d => { if (d.fan) nAdd(1, `${d.fan} mm fan for a divider, with 4 screws`); });
+    nAdd(extraInfo.mounts, "M3 screws for the zip-tie mounts");
+    if (split) nAdd(split.pins ? split.pins.length : 0, `${E.splitScrew || "M3"} screws and heat inserts for the joins`);
+    const parts2 = {}; boardList.forEach(bd => { parts2[bd.B.label] = (parts2[bd.B.label] || 0) + 1; }); Object.entries(parts2).forEach(([k, n]) => nAdd(n, k));
+  }
+  enclosureInfo = { test: !!state.base.enclosure.test, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR }, anchors:anchorsMade, ducts:ductInfo.length, count:(E.cut || []).length - left.length,
     split: splitInfo };
   return out;
 }
@@ -9741,7 +9848,7 @@ document.querySelectorAll(".viewtools button[title]").forEach(b => { if (!b.getA
    active page is shown, so panels stay short, and the active page plus its scroll position are
    remembered per tab and object, so changing a setting never loses your place. */
 const SECTION_ICONS = [
-  [/^art, words and icons/i,"✦"],
+  [/^art, words and icons/i,"✦"], [/^floor, names and extras/i,"▦"], [/^what you'll need/i,"≡"],
   [/hanging hole/i,"◎"], [/^thickness$/i,"⇕"], [/^feet$/i,"⊥"], [/cut it flat/i,"✂"],
   [/piece shape/i,"🧩"], [/thickness and gap/i,"⇕"], [/labels on the back/i,"#"], [/cut lines/i,"✂"], [/frame or tray/i,"◫"],
   [/^basics$|^main$/i,"☰"], [/every name|batch/i,"≡"], [/font/i,"𝐅"], [/charm|symbol|decor/i,"✦"], [/picture|photo/i,"▨"],
@@ -11471,6 +11578,7 @@ function enclosureFields(p){
       encPostStyleField(g);
       note(g, `Eight round magnets: four pressed into the corner posts, four into the lid. Check each pair attracts before you glue them (a drop of superglue), or the lid will push away. The lid needs to be at least ${(m.t + 0.8).toFixed(1)} mm thick.`);
     }
+    if (E.lid !== "slide" && E.lid !== "none") checkField(g, "A finger pull at the front (a notch to lift the lid)", ()=>E.pull === true, v=>{ E.pull = v; baseChanged(); });
     if (E.lid === "screw" || E.lid === "none"){
       segField(g, [["insert","Heat inserts"],["screw","Self-tapping"],["none","No screws"]], ()=>E.fasten, v=>{ E.fasten = v; renderTab(); baseChanged(); });
       if (E.fasten !== "none"){
@@ -11550,6 +11658,27 @@ function enclosureFields(p){
         ["Remove", ()=>{ list.splice(k, 1); renderTab(); baseChanged(); pushHistory(); }]]);
     });
   }, Array.isArray(E.art) && E.art.length > 0);
+  // the floor and extras (Session 54)
+  group(p, "Floor, names and extras", g => {
+    selField(g, "Mounting holes in the floor", [["0","None"],["10","3.2 mm holes every 10 mm"],["15","3.2 mm holes every 15 mm"],["20","3.2 mm holes every 20 mm"]], ()=>String(E.floorGrid || 0), v=>{ E.floorGrid = +v; baseChanged(); });
+    if (E.floorGrid && I) note(g, `${I.floorGrid || 0} holes where nothing else is (boards, posts, openings, channels), for M3 bolts and nuts or self-tapping screws: screw on whatever you add later.`);
+    if (encBoardList(E).some(b => !b.lvl)) checkField(g, "Each board's name engraved on the floor beside it", ()=>E.partNames === true, v=>{ E.partNames = v; baseChanged(); });
+    if (E.partNames && I) note(g, I.names ? `${I.names} name${I.names === 1 ? "" : "s"} cut 0.4 mm into the floor, so each board goes back in its place.` : "No room for the names beside the boards: move them apart.");
+    if (encDucts(E).length) checkField(g, "Covers for the cable channels (snap in, printed flat)", ()=>E.ductCover === true, v=>{ E.ductCover = v; baseChanged(); });
+    numField(g,{ label:"Spacers (printed tubes for a board or a part)", min:0,max:16,step:1, get:()=>E.spacers || 0, set:v=>E.spacers=v, onChange:baseChanged, noReset:true });
+    if (+E.spacers > 0){
+      numField(g,{ label:"Spacer height (mm)", min:1,max:40,step:0.5, get:()=>E.spacerH ?? 5, set:v=>E.spacerH=v, onChange:baseChanged, noReset:true });
+      selField(g, "Spacer screws", Object.keys(SCREWS).map(k => [k, k]), ()=>encHas(SCREWS, E.spacerScrew) ? E.spacerScrew : "M3", v=>{ E.spacerScrew = v; baseChanged(); });
+    }
+    numField(g,{ label:"Zip-tie mounts (screw down, a tie threads under)", min:0,max:16,step:1, get:()=>E.tieMounts || 0, set:v=>E.tieMounts=v, onChange:baseChanged, noReset:true });
+    note(g, "The covers, spacers and tie mounts print flat in front of the box.");
+  }, !!(E.floorGrid || E.partNames || E.ductCover || E.spacers || E.tieMounts));
+  // what to have ready (Session 54)
+  if (I && I.need && I.need.length) group(p, "What you'll need", g => {
+    note(g, I.need.map(([n, w]) => `• ${n} × ${esc(w)}`).join("<br>"));
+    buttonRow(g, [["Copy the list", ()=>{ const txt = I.need.map(([n, w]) => `${n} x ${w}`).join("\n"); try { navigator.clipboard.writeText(txt).then(() => notify("The list is copied.")); } catch (e) { notify("Copying isn't allowed here."); } }]]);
+    note(g, "Openings' parts (switches, sockets, screens) aren't counted: they are on the Openings page.");
+  });
   group(p, "Feet", g => {
     checkField(g, "Recesses for stick-on rubber feet", ()=>E.feet === "recess", v=>{ E.feet = v ? "recess" : "none"; renderTab(); baseChanged(); });
     if (E.feet === "recess"){
@@ -11604,7 +11733,12 @@ function enclosureFields(p){
       else if (BB.g === "battery") segField(g, [["holes", "Strap tray"], ["edges", "Corner cradle"]], ()=>E.boardHold === "edges" ? "edges" : "holes", v=>{ E.boardHold = v; renderTab(); encBoardChanged(); }, "two");
       const nlv = Array.isArray(E.levels) ? E.levels.length : 0;     // the main board on any floor (Session 51)
       if (nlv) selField(g, "On", [["0","The floor"], ...Array.from({ length:nlv }, (_, k) => [String(k + 1), `Level ${k + 1}`])], ()=>String(Math.min(nlv, +E.boardLvl || 0)), v=>{ E.boardLvl = +v; encBoardChanged(); });
-      if (BB.g === "battery" && E.boardHold !== "edges") note(g, "It lies on the floor in a strap tray: a low fence at each corner and slots through the floor either side for a 20 mm hook-and-loop strap round it (zip ties for a small one).");
+      if (E.board === "batcustom"){
+        numField(g,{ label:"Battery length (mm)", min:5,max:250,step:0.5, get:()=>E.batW ?? 60, set:v=>E.batW=v, onChange:encBoardChanged, noReset:true });
+        numField(g,{ label:"Battery width (mm)", min:5,max:250,step:0.5, get:()=>E.batD ?? 35, set:v=>E.batD=v, onChange:encBoardChanged, noReset:true });
+        numField(g,{ label:"Battery thickness (mm)", min:2,max:120,step:0.5, get:()=>E.batT ?? 10, set:v=>E.batT=v, onChange:encBoardChanged, noReset:true });
+      }
+      if (BB.g === "battery" && E.boardHold !== "edges") note(g, "It lies on the floor in a strap tray: a low rim round it and slots through the floor either side for a 20 mm hook-and-loop strap round it (zip ties for a small one).");
       else note(g, (BB.holes && E.boardHold !== "edges") || E.board === "custom" ? `Standoffs with ${E.fasten === "insert" ? "holes for heat inserts" : "pilot holes for self-tapping screws"} under each of its holes.`
         : `${BB.holes ? "" : "No holes listed for this one, so it"}${BB.holes ? "It" : ""} sits in a cradle: a seat under each corner and a low fence round it, 0.3 mm clear. Drop it in; a dab of hot glue keeps it.`
         + (BB.check ? " Sizes differ between makers: measure yours and use My own board if it is not " + BB.w + " × " + BB.d + " mm." : ""));
@@ -11627,6 +11761,11 @@ function enclosureFields(p){
       if (fitIt && fitIt.fits === false) note(box, "⚠ It does not fit where it is: move it, or make the box bigger.");
       if (B2.holes) segField(box, [["holes", "On its screw holes"], ["edges", "By its edges"]], ()=>m.hold === "edges" ? "edges" : "holes", v=>{ m.hold = v; renderTab(); encBoardChanged(); }, "two");
       else if (B2.g === "battery") segField(box, [["holes", "Strap tray"], ["edges", "Corner cradle"]], ()=>m.hold === "edges" ? "edges" : "holes", v=>{ m.hold = v; renderTab(); encBoardChanged(); }, "two");
+      if (m.kind === "batcustom"){
+        numField(box,{ label:"Battery length (mm)", min:5,max:250,step:0.5, get:()=>m.bw ?? 60, set:v=>m.bw=v, onChange:encBoardChanged, noReset:true });
+        numField(box,{ label:"Battery width (mm)", min:5,max:250,step:0.5, get:()=>m.bd ?? 35, set:v=>m.bd=v, onChange:encBoardChanged, noReset:true });
+        numField(box,{ label:"Battery thickness (mm)", min:2,max:120,step:0.5, get:()=>m.bt ?? 10, set:v=>m.bt=v, onChange:encBoardChanged, noReset:true });
+      }
       numField(box,{ label:"Position, across (mm)", min:-150,max:150,step:0.5, get:()=>m.x, set:v=>m.x=v, onChange:encBoardChanged });
       numField(box,{ label:"Position, front to back (mm)", min:-150,max:150,step:0.5, get:()=>m.y, set:v=>m.y=v, onChange:encBoardChanged });
       numField(box,{ label:"Height off the floor (mm)", min:1,max:40,step:0.5, get:()=>m.h, set:v=>m.h=v, onChange:encBoardChanged });
@@ -14922,7 +15061,8 @@ function sanitizeProject(data){
     E.boardHold = E.boardHold === "edges" ? "edges" : "holes";
     E.more = (Array.isArray(E.more) ? E.more : []).slice(0, 12).filter(m => m && typeof m === "object" && encHas(BOARDS, m.kind) && m.kind !== "none" && m.kind !== "custom").map(m => ({
       kind:m.kind, x:Math.min(150, Math.max(-150, cleanNum(m.x, 0))), y:Math.min(150, Math.max(-150, cleanNum(m.y, 0))), h:Math.min(40, Math.max(1, cleanNum(m.h, 3))),
-      rot:m.rot === true, hold:m.hold === "edges" ? "edges" : "holes", lvl:Math.round(Math.min(ENC_LEVEL.max, Math.max(0, cleanNum(m.lvl, 0)))) }));
+      rot:m.rot === true, hold:m.hold === "edges" ? "edges" : "holes", lvl:Math.round(Math.min(ENC_LEVEL.max, Math.max(0, cleanNum(m.lvl, 0)))),
+      ...(m.kind === "batcustom" ? { bw:Math.min(250, Math.max(5, cleanNum(m.bw, 60))), bd:Math.min(250, Math.max(5, cleanNum(m.bd, 35))), bt:Math.min(120, Math.max(2, cleanNum(m.bt, 10))) } : {}) }));
     E.boardLvl = Math.round(Math.min(ENC_LEVEL.max, Math.max(0, cleanNum(E.boardLvl, 0))));          // the main board's floor (Session 51)
     // levels and dividers (Session 46)
     E.levels = (Array.isArray(E.levels) ? E.levels : []).slice(0, ENC_LEVEL.max).filter(l => l && typeof l === "object").map(l => ({
@@ -14936,6 +15076,11 @@ function sanitizeProject(data){
     E.ducts = (Array.isArray(E.ducts) ? E.ducts : []).slice(0, ENC_DUCT.max).filter(u => u && typeof u === "object").map(u => ({ face:["back","front","left","right"].includes(u.face) ? u.face : "back", at:Math.min(150, Math.max(-150, cleanNum(u.at, 0))) }));
     E.showParts = E.showParts !== false;
     E.art = (Array.isArray(E.art) ? E.art : []).slice(0, ENC_ART.max).filter(a => a && typeof a === "object").map(encArtClean);     // art on the box (Session 53)
+    // Session 54: a finger pull, the boards' names on the floor, a floor grid, channel covers, spacers and tie mounts, your own battery
+    E.pull = E.pull === true; E.partNames = E.partNames === true; E.floorGrid = [0, 10, 15, 20].includes(+E.floorGrid) ? +E.floorGrid : 0; E.ductCover = E.ductCover === true;
+    E.spacers = Math.round(Math.min(16, Math.max(0, cleanNum(E.spacers, 0)))); E.spacerH = Math.min(40, Math.max(1, cleanNum(E.spacerH, 5))); E.spacerScrew = encHas(SCREWS, E.spacerScrew) ? E.spacerScrew : "M3";
+    E.tieMounts = Math.round(Math.min(16, Math.max(0, cleanNum(E.tieMounts, 0))));
+    E.batW = Math.min(250, Math.max(5, cleanNum(E.batW, 60))); E.batD = Math.min(250, Math.max(5, cleanNum(E.batD, 35))); E.batT = Math.min(120, Math.max(2, cleanNum(E.batT, 10)));
     const A0 = E.anchors && typeof E.anchors === "object" ? E.anchors : {};
     E.anchors = { n:Math.round(Math.min(12, Math.max(0, cleanNum(A0.n, 0)))), where:["back","sides","all"].includes(A0.where) ? A0.where : "back" };
     // split into parts (Session 40): a project from before it splits only when the box is bigger than the bed

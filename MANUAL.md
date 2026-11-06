@@ -143,6 +143,7 @@ Some objects in brief:
 
   ![A frame for a 10 × 15 cm photo with its back panel and stand; a plaque and a desk sign, each with its stand](docs/images/frames-stands.jpg)
 - **Photo to 3D tracer.** Photograph a flat part on plain paper, shot from straight above. Give one real measurement, or let the sheet of paper be the ruler. Round holes become true circles. The outline also downloads as SVG and DXF.
+  - **Edges** (step 5): a **chamfered** or **rounded** top edge, nicer to hold; a **bottom chamfer** (0.3–0.5 mm) so the first layer's squish doesn't make a fitted part too big; and **Countersink the round holes**, so flat screw heads sit flush (a screw's clearance hole, M2 to M4, takes that screw's head; any other round hole widens to twice its size). For the shape on its own, in one colour.
 - **Lithophane.** Flat, curved or a cylinder, with a rectangle, arch, oval or heart outline. The **test strip** prints steps from 0.6 to 3.2 mm, so you can choose thicknesses for your filament.
 - **Jigsaw puzzle.** Choose the number of pieces, the style of the knobs and the gap. **Shuffle** draws a new cut. A frame or a tray can print with it. A strip of a picture's colour thinner than the nozzle takes the colour beside it, so it doesn't print as a sliver.
 - **Project box.** Openings for USB, buttons, switches, fans, displays and pilot lights, each with an optional engraved label. Screwed, magnet or sliding lids. **Fit test** prints a small box with one of each opening, to try before the real thing.
@@ -209,6 +210,8 @@ Under **From a picture**: a plaque, medallion, arch or heart whose surface rises
 - **Carve it (tame the jumps)** works as a carver does: each part keeps its own shape (a head stays round) and the big jumps between near and far, such as a figure in front of a wall, are made small. At 0 the depth is used as it is, and a figure stands on a flat-topped step. **Use the whole height for the subject** finds where the background ends, keeps it at the base and spreads the subject's depth over the whole relief.
 - **Relief height** is how far the nearest part stands above the **Base**. **Keep the background flat** leaves the farthest share at the base, **Contrast** shapes the curve, **Smoothing** softens it and **Detail** sets how fine the surface is.
 - A **border** (at a share of the relief's height) and a **hole to hang it**.
+- **The photo's colours**: the relief's face is painted with the loaded filaments nearest the photo, so a multi-colour printer prints the photo on its own relief. The border, sides and back stay in the relief's own filament; turn colours off on the Art tab to leave them out.
+- **A stand to put it on a desk**: a low base whose slot takes the relief's bottom edge.
 
 ### The model doctor
 
@@ -407,6 +410,7 @@ The view is only drawn again when something changes, so an open Maker Forge left
 ## 9. Saving, opening and sharing
 
 - Your work is **saved in this browser** as you go, and comes back when you open the app again. Settings can turn this off.
+- An **imported model** is kept in this browser too (the last four, up to 300 MB), so it comes back with your work, from the recent list and from a share link opened in the same browser. It never leaves your computer. **Clear saved work in this browser** in Settings forgets them.
 - **Ctrl+S** (or **Save project** on the Export tab) downloads a project file (`.json`) with everything in it, pictures and imported models included. **Open project** opens one again. The last three projects you saved or downloaded files for are listed there too, to open with one click.
 - **Share a link** puts your design in a link to send to someone. Pictures are left out of links; send the project file for those.
 - **Start over** clears everything for a new project.

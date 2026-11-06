@@ -100,6 +100,13 @@ async function settle() {
     await host("frame", b => { b.frame = Object.assign(b.frame, { photo: "a5", border: 40, overlap: 2, sheet: 3, panelT: 4, stand: "leg", hang: true }); },
       b => b.frame.photo === "a5" || b.frame.photo, "the biggest frame for a photo (A5, 40 mm round it) builds in time");
     await host("board", b => { b.board.stand = "yes"; }, b => b.board.stand === false || b.board.stand, "a plaque's stand that is not true/false: none");
+    // Session 44: the relief's colours and stand, the tracer's edges and countersinks
+    await host("relief", b => { b.relief = Object.assign(b.relief, { colour: "<img src=x>", stand: "yes" }); },
+      b => b.relief.colour === "one" && b.relief.stand === false || JSON.stringify(b.relief), "a relief's colour that does not exist and a stand that is not true/false: one colour, no stand", true);
+    await host("tracer", b => { b.tracer = Object.assign(b.tracer, { edgeTop: "__proto__", edgeSize: 1e9, edgeBottom: -4, sink: "please" }); },
+      b => b.tracer.edgeTop === "square" && b.tracer.edgeSize === 5 && b.tracer.edgeBottom === 0 && b.tracer.sink === false || JSON.stringify(b.tracer).slice(0, 300), "a traced part's edge that does not exist, a 1000 km edge and a negative bottom chamfer: square, clamped, no countersinks", true);
+    await host("tracer", b => { b.tracer = Object.assign(b.tracer, { edgeTop: "round", edgeSize: "big", edgeBottom: 0.5, sink: true }); },
+      b => b.tracer.edgeTop === "round" && b.tracer.edgeSize === 1 && b.tracer.edgeBottom === 0.5 && b.tracer.sink === true || JSON.stringify(b.tracer).slice(0, 300), "a rounded edge whose size is a word: the default 1 mm, the rest kept", true);
     // Session 38: signs and reliefs
     await host("sign", b => { b.sign = { style: "<script>", text: "<img src=x onerror=alert(1)>".repeat(30), letterH: 1e9, depth: -5, wall: "thick", backing: "everywhere", mount: "nails", holes: "yes", diffuserSlot: 99, font: -3, evil: 1 }; },
       b => b.sign.style === "channel" && b.sign.text.length === 200 && b.sign.letterH === 400 && b.sign.depth === 2 && b.sign.wall === 1.6 && b.sign.backing === "none" && b.sign.mount === "keyhole" && b.sign.holes === false && b.sign.diffuserSlot === 7 && b.sign.font === 0 && !("evil" in b.sign)

@@ -828,6 +828,18 @@ function pageCoverage() {
       if (!(mc.op && mc.tex === 1 && mc.pal.length === 6 && nearPal.every(d => d < 12) && mc.painted > 0.999 && Math.abs(mc.tall - 102) < 1)) findings.push({ where: "model with its own colours", what: JSON.stringify(mc) });
       fs.unlinkSync(fGlb);
       notes.push(`a GLB with a colour picture opened in Chromium: ${mc.pal.length} colours (${mc.slots}), ${(mc.painted * 100).toFixed(1)}% painted, ${mc.tall} mm tall`);
+      // Session 44: the model is kept in this browser (IndexedDB). The page is loaded again (the tab's own copy is gone),
+      // and the project saved without the model (as the autosave and the recent list keep it) brings it back
+      const before = await page.evaluate(() => ({ payload: window.MakerForge.projectPayload(false), name: window.MakerForge.state.base.stl.name, tris: window.MakerForge.parts[0].solid.idx.length / 3 }));
+      await page.waitForTimeout(800);
+      await page.reload(); await page.waitForFunction(() => window.MakerForge && window.MakerForge.rev > 0 && !window.MakerForge.busy, null, { timeout: 60000 });
+      await page.setInputFiles("#projInput", { name: "saved-without-model.json", mimeType: "application/json", buffer: Buffer.from(before.payload) });
+      await page.waitForFunction(n => { const MF = window.MakerForge; return MF.state.base.stl && MF.state.base.stl.name === n && MF.parts.length; }, before.name, { timeout: 60000 }).catch(() => {});
+      await settle(page);
+      const kept = await page.evaluate(() => { const MF = window.MakerForge; return { name: (MF.state.base.stl || {}).name, tris: MF.parts.length ? MF.parts[0].solid.idx.length / 3 : 0, colour: !!(MF.model && MF.model.colour),
+        missing: /not saved with it/.test(document.querySelector("#panel") ? document.querySelector("#panel").textContent : "") }; });
+      if (!(kept.name === before.name && kept.tris === before.tris && kept.colour && !kept.missing)) findings.push({ where: "model kept in the browser", what: JSON.stringify(kept) });
+      notes.push(`model kept in this browser: after a reload, the project saved without it opened with ${kept.name === before.name && kept.tris === before.tris ? "the same model (" + kept.tris + " triangles)" : "NOT THE MODEL"}${kept.colour ? " and its colours" : ", NO COLOURS"}`);
     }
     notes.push(`AI figure finder: a wrong model file ${refused.ai ? "WAS NOT" : "was"} refused; the real one found the figure in ${aiMs} ms with the download (outline ${Math.round(ai.match * 100)}%, ${ai.yaw}° round, size off ${(sizeOff * 100).toFixed(1)}%)`);
   }

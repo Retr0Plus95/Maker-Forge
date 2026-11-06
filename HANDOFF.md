@@ -1818,6 +1818,70 @@ The second section update on the road to v0.50.
 - Still to check by hand: a printed 10 × 15 frame with a real photo and sheet (the 0.15 mm press fit of the panel, the stand's angle
   and grip, the keyholes on screws), the slot stand's 0.3 mm fit.
 
+## Session 44: the tracer and the photo relief, and imported models kept (v0.38.0)
+
+The third section update on the road to v0.50, and the first of the basics asked for in Session 43 ("improve basic things that
+are missing").
+
+**Bug hunt**
+- **The Chromium fuzz harness** (now with `keepExample` in a spec, so objects made from a picture keep their example):
+  - the tracer: 80 random combinations of edges, countersinks, thickness, offset, holes, plate and cover modes, colours, size;
+  - the relief: 60 of source, shape, size, colours, stand, border, hole and shaping.
+  - Every part closed, outward-facing, NaN-free, on the bed, no page error, none slow: no case failed.
+- **The weak spots were what was missing:** a traced part came out with sharp square edges and a first layer that squishes out
+  (so a part traced to fit came out too big at the bottom); a relief was one colour, and could only hang.
+
+**The traced part's edges** (`tracerEdges`; settings `tracer.edgeTop` ("square"/"chamfer"/"round"), `edgeSize` 0.2–5,
+`edgeBottom` 0–1, `sink`)
+- Built as slabs like the photo frame:
+  - the top `eT` mm in 0.2 mm slabs, each the outline's distance field at its own inset (45° for a chamfer, a quarter circle
+    for a rounded edge); the bottom `eB` mm in 0.1 mm slabs stepping in at 45°; the middle is the traced outline as before;
+  - round holes stay true circles in every slab, grown by the inset (so a hole's edge is chamfered too);
+  - `eT` is kept to 45% of the thickness, `eB` to 30%.
+- **The field's inset:** `signedDistanceField` counts from pixel centres, so a level t lies t/2 px inside the outline below
+  1 px and t − 0.4 px beyond (measured on a 15 mm disc). `tracerEdges` maps the inset it wants to the level it needs.
+- **Countersinks:** each round hole widens at 45° towards the top. A hole within 0.6 mm of a screw's clearance (SCREWS: M2 to
+  M4) takes that screw's head + 0.4 mm; any other round hole widens to twice its size. The depth is kept 0.6 mm above the
+  bottom chamfer. The panel lists each countersink.
+- Only for the shape on its own in one colour: a plate, a cover or the picture's colours (whose top layer is the colours) say
+  so instead.
+- The slabs overlap by 0.01 mm (as the frame's do), so the volume reading counts each overlap twice: about 1% high on a 5 mm
+  part with a 1 mm edge. Slicers join them.
+
+**The relief** (`relief.colour` "one"/"photo", `relief.stand`)
+- **The photo's colours:** the picture read at one pixel per grid cell (up to 800 across), matched to the filaments by
+  `buildCellMap` (the Art tab's switched-off colours left out); every face triangle (normal up, inside the border) takes its
+  pixel's filament as `importPaint`, as a model with its own colours does, so the paint pipeline and every export carry it.
+  The border, the outline's walls and the back stay in the relief's filament. The panel names the filaments used.
+- **A stand:** `standFor` with the slot as wide as the thickest point within 3 mm of the bottom edge (the border's height when
+  there is one).
+
+**Imported models kept in this browser** (`keepModel`, `keptModel`, `forgetModels`, `MODEL_DB`)
+- Every model opened (from a file or a project file) is put in IndexedDB (`makerforge` / `models`) under its name (the file's
+  name and its triangle count, as `state.base.stl.name`), with its paint and its own colours.
+- The newest four are kept, up to 300 MB. Nothing is stored when "Save my work in this browser" is off. **Clear saved work in
+  this browser** clears them.
+- `loadProject`, opening a project without its model (the autosave, the recent list, a share link), takes the model from the
+  tab's own list or from IndexedDB. A share link carries no pictures, so a model's picture colours (a GLB's texture) are dropped
+  then and its plain colours kept.
+- jsdom has no IndexedDB (the functions do nothing there); `check:browser` opens a model, reloads the page and finds it back.
+
+**Tests**
+- New `tools-tracer-edge-test.js` (in `npm run test:tracer`): the wall measured by ray casts at known heights (a 1 mm chamfer in
+  0.47 mm half way up, 0.89 mm near the top; a 1.5 mm rounding at its quarter circle; a 0.4 mm bottom chamfer); countersunk
+  holes measured at three heights; no support; an edge kept to 45%; not with the colours kept.
+- `test:relief`: the photo's colours (the border and back unpainted, every colour off leaving it plain), the stand's slot.
+- `test:project`: a hostile relief colour and stand, hostile tracer edges.
+- `check:browser`: BROWSER_NOTE
+
+**Not done**
+- The tracer: references other than paper (a bank card or a coin), a second height level (bosses, counterbores), lens
+  distortion. Rounded and chamfered edges on a back plate or a cover.
+- The relief: colour by the AI's segments rather than by pixel (a face in one skin tone), a relief on a box lid.
+- Keeping models: no list of kept models to pick from yet (they come back with a project only).
+- Still to check by hand: a printed traced part with a bottom chamfer (does it cancel the slicer's own elephant-foot
+  compensation, or add to it?), countersinks with real screws, a coloured relief in a slicer.
+
 ## Unfinished (in priority order)
 
 - **The next two builds** (the owner, 2026-11-05: "Mechanisms toolkit, model doctor, 3d relief from any photo, sign maker and fix it parts library should be done over the next two builds"; ideas 2, 3, 6, 8 and 10 of Session 36's list). Planned split:
@@ -1851,16 +1915,16 @@ The second section update on the road to v0.50.
     undoable. A local script (`maker-forge-mcp.js`, an MCP server) relays an agent (Claude Code, Claude Desktop, any MCP client)
     to the open page over localhost (a WebSocket the page connects to when asked; newer Chrome asks the user before a page reaches
     the local network). Nothing leaves the machine but what the agent sends.
-  - **1.0, parametric modelling on Manifold** (mesh, not B-rep; still one file): the 0.46 modelling list grown into a feature
+  - **1.0, parametric modelling on Manifold** (mesh, not B-rep; still one file): the 0.47 modelling list grown into a feature
     history edited by numbers; sketches with sizes and simple constraints; holes, patterns, variables used across features
     ("wall = 2 mm"); the agent working through the same history. No true fillets or STEP: chamfers, or "rounded, roughly".
   - **2.0, full 3D CAD**: true solids (B-rep: fillets, shells, STEP in and out), kept small, fast and easy to use. How is open:
     OpenCascade (opencascade.js, LGPL, loaded separately like Manifold) is 10-15 MB and slow to start, so look for a slimmer
     build or another kernel first. Decide before starting 2.0, not now.
-- **Basics missing** (asked for in Session 43: "improve basic things that are missing"; one or two each release from 0.37):
-  several different objects on one plate (part of 0.45-0.49: modelling needs it); imported models kept by the autosave, the
+- **Basics missing** (asked for in Session 43: "improve basic things that are missing"; one or two each release from 0.38):
+  several different objects on one plate (part of 0.46-0.49: modelling needs it); imported models kept by the autosave, the
   recent list and share links (now the file must be opened again: keep it in IndexedDB); move/rotate/scale handles with typed
-  sizes (0.45); a proper icon set for the rail; a check in Firefox, Safari and on touch screens.
+  sizes (0.46); a proper icon set for the rail; a check in Firefox, Safari and on touch screens.
 - **The next builds: expand and fix** (the owner, Session 39: "After 0.32 and all current features I think we need to work on
   expanding and fixing all the other current features and parts of the app, more accurate painting art placement and everything
   else"). Planned order, each a release:

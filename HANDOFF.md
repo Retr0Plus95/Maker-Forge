@@ -1986,6 +1986,43 @@ board), plates, the panel and a hostile file.
 - A level's boards are not checked against the posts under it, nor a level's cable slot against a board above it.
 - Still to check by hand: a printed level on posts and on ledges, a divider in its grooves (the 0.4 mm play), a fan in a divider.
 
+## Session 47: project boxes that print without support (v0.41.0)
+
+The print fixes from the box plan (Unfinished: "0.41, lids, mounts and print fixes"). Measured in Chromium before and after:
+PSU box 633 → 184 mm², power bank box 73 → 47, project box 25 → 25, Raspberry Pi case 0.
+
+**Where the PSU box's support came from** (each opening taken out in turn): the 60 mm fan's ring grille 383 mm² (the top of
+every curved slot is a flat overhang), the vent slots' round tops 55, the voltmeter window 54, the IEC inlet 52, the rocker
+45, two banana sockets 24, the potentiometer 9. The power bank box: the USB-A port 26, the button 15, four pilot lights 33.
+
+**Changes**
+- `encPointed(c, rings)`: an opening's top is "pointed", "flat" or "auto" (new openings, `newOpening`); auto points a wall
+  opening of an `ENC_POINTABLE` kind when its width is more than `state.printer.bridge` (10 mm). Saved projects keep "flat".
+  `ENC_POINTABLE` gained the new port kinds (USB-B, mini-USB, stacked USB-A, micro/mini-HDMI, full SD, keystone, RJ11). The
+  panel's checkbox became Auto / Flat / Pointed with a line saying what Auto chose. The fit test's "same opening" key uses
+  the top actually made, not the word.
+- Fan grilles: a new style "slots" (2.2 mm upright slots, 1.6 mm bars, inside the circle, `encGableSlot`'s 45° gable on top),
+  the default for new fans (`CUTOUTS.fan.style`), so the PSU box quick start uses it. The fan's screw holes are teardrops in a
+  wall whatever `E.teardrop` says (they are under the fan's frame).
+- `encHoneycomb(..., wall)`: in a wall the cells are flat-topped (the same grid turned a quarter: columns), so each top is a
+  bridge of one side (cell/√3, 2.3 mm for 4 mm cells) between 60° slopes. On a lid or floor, unchanged.
+- Vent slots in a wall: `encGableSlot` instead of round ends.
+
+**Tried and taken out: a snap-fit lid.** Wedges on the lip and ridges on the walls (additive only) do not work: a ridge that
+sticks out further than the lip's gap (0.2 mm) also hits the lip itself, so the lid jams rather than snaps. A real snap needs
+something cut away: a groove round the inside of the walls, or a window in the lip that a bump on the wall clicks into (the
+lip built in bands, or cut with Manifold). Next time, with a fit-test print: windows in the lip's middles (1.2 × 12 mm,
+0.6 mm from the lid plate), 0.45 mm diamond bumps on the walls at the matching height, the lip at least 3 mm.
+
+**Tests**: new `tools-boxprint-test.js` (in `test:enclosure`): Auto on a USB-A (25.6 → 0 mm²), a USB-C staying flat under a
+10 mm limit and pointed under 6 mm, a saved flat top kept; a 60 mm fan's rings (317 mm²) against slots and honeycomb (0);
+slot and honeycomb vents (0); honeycomb on the lid unchanged; the quick starts' support under their new limits.
+
+**Not done**
+- The snap-fit lid (above), the hinged lid, the snap-on DIN clip, artwork on walls: still in the plan.
+- Snap-in parts (IEC inlet, rockers, meters) keep flat tops (a gable would show round the bezel); most printers bridge them.
+- Small round holes (pilot lights, banana sockets) count a little support with teardrops off; they print fine in practice.
+
 ## Unfinished (in priority order)
 
 - **The next two builds** (the owner, 2026-11-05: "Mechanisms toolkit, model doctor, 3d relief from any photo, sign maker and fix it parts library should be done over the next two builds"; ideas 2, 3, 6, 8 and 10 of Session 36's list). Planned split:
@@ -2111,7 +2148,7 @@ board), plates, the panel and a hostile file.
 ## Known bugs and issues
 
 - Enclosure opening sizes are typical datasheet values: modules differ between makers, verify with calipers (Session 11).
-- Enclosure: wall openings wider than the bridge limit (default 10 mm, e.g. USB-A, LCD bezels) are reported as needing support; the Openings page offers a pointed top or a notch for ports and rectangles (Session 12), but snap-in parts keep their flat tops. The PSU box preset still reads about 600 mm² (fan rings, IEC inlet, rocker, voltmeter). Honeycomb fan grilles are worse (their pointy-top hexagons have 30° roofs).
+- Enclosure: wall openings wider than the bridge limit (default 10 mm, e.g. USB-A, LCD bezels) are reported as needing support; the Openings page offers a pointed top or a notch for ports and rectangles (Session 12), but snap-in parts keep their flat tops. Since Session 47 the PSU box quick start reads about 184 mm² (the IEC inlet, rocker and voltmeter keep flat tops for their bezels); fan grilles default to slots and honeycomb in walls is flat-topped, both without support.
 - Enclosure: artwork goes on the lid only (inlay or engraved), not on the walls.
 - Enclosure, Session 40 not yet printed: the join flanges (an M3 insert in a 4.0 mm hole with a pointed top, M3 × 14 screws through 3.4 mm holes), the lid posts on them and the lid in parts. Print a small box in two parts first (**Always**, 2 parts).
 - Cutting (Session 32) needs a closed model: one with gaps is refused, and the app does not repair it. Pieces of a model that overlap (eyes set into a head, the shell's floor inside its walls) are joined before a cut, so its volume reading drops by the overlap. On a 300 000-triangle model each change to engraved artwork takes about a second on the page. An inlay's pieces touch the object exactly; how each slicer takes that is still to be seen.

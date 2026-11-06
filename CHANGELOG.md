@@ -3,6 +3,19 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.41.0
+
+Project boxes that print without support.
+
+- **Pointed tops by themselves:** a port opening in a wall whose top would be a bridge longer than your printer's bridge limit (a USB-A port, an Ethernet socket) gets a 45° pointed top. Each opening's top is **Auto**, **Flat** or **Pointed**; openings in saved projects keep theirs.
+- **Fan grilles of slots:** upright slots with pointed tops inside the fan's circle, now the default. Rings and honeycomb are still there.
+- **Honeycomb in a wall** uses flat-topped cells: each top is a short bridge instead of a shallow roof.
+- **Vent slots in a wall** have pointed tops.
+
+**Fixed**
+- The PSU box quick start needed about 630 mm² of support (its fan grille, vents, inlet and switches); it now needs about 184 mm². What's left is under the IEC inlet, the rocker switch and the meter, whose flat tops stay hidden by their bezels.
+- A USB-A port, a fan grille or a honeycomb vent in a wall needed support; they print without now. The power bank box quick start went from 73 to 47 mm².
+- A fan's screw holes in a wall needed a little support; they are teardrops now (hidden by the fan).
 ## 0.40.0
 
 Project boxes: the inside. Levels, dividers, a fan inside, and your parts shown in place.

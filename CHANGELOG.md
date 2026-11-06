@@ -12,6 +12,8 @@ Project boxes that print without support.
 - **Honeycomb in a wall** uses flat-topped cells: each top is a short bridge instead of a shallow roof.
 - **Vent slots in a wall** have pointed tops.
 
+![A 60 mm fan grille in a wall: rings need 317 mm² of support, slots need none](docs/images/fan-grilles.jpg)
+
 **Fixed**
 - The PSU box quick start needed about 630 mm² of support (its fan grille, vents, inlet and switches); it now needs about 184 mm². What's left is under the IEC inlet, the rocker switch and the meter, whose flat tops stay hidden by their bezels.
 - A USB-A port, a fan grille or a honeycomb vent in a wall needed support; they print without now. The power bank box quick start went from 73 to 47 mm².

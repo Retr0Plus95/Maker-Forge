@@ -2071,6 +2071,11 @@
     if (!F.T) return Object.assign(res, { empty: true });
     res.bounds = { mn: F.mn.slice(), mx: F.mx.slice() }; res.height = F.mx[1] - Math.max(0, F.mn[1]);
     res.floating = F.mn[1] > o.tol ? F.mn[1] : 0;
+    // a part that reaches below the bed: the slicer drops the whole print until its lowest point is on the bed, so it is
+    // checked from there (Session 40: a double-sided tag's back letters stood 0.8 mm under the plate, and the plate,
+    // in the air round them, read as lying on the bed)
+    const sunk = F.mn[1] < -o.tol ? -F.mn[1] : 0;
+    if (sunk) { for (let t = 0; t < F.T; t++) for (let k = 0; k < 3; k++) F.V[t * 9 + k * 3 + 1] += sunk; F.mx[1] += sunk; F.mn[1] = 0; res.sunk = sunk; }
     const G = makeRayGrid(F);
     yield "overhangs";
     const scan = overhangScan(F, G, o);
@@ -2092,7 +2097,7 @@
     flats.forEach(f => { if (f.kind === "support" && f.part >= 0) perPart[f.part] += f.area; });
     res.overhang = { area: steep + flats.filter(f => f.kind === "support").reduce((a, f) => a + f.area, 0), steep, narrow: scan.narrow, perPart, flag,
       lowest: null, angle: o.angle };
-    for (let t = 0; t < F.T; t++) if (flag[t] === 1) { const y = Math.min(F.V[t * 9 + 1], F.V[t * 9 + 4], F.V[t * 9 + 7]); if (res.overhang.lowest == null || y < res.overhang.lowest) res.overhang.lowest = y; }
+    for (let t = 0; t < F.T; t++) if (flag[t] === 1) { const y = Math.min(F.V[t * 9 + 1], F.V[t * 9 + 4], F.V[t * 9 + 7]) - sunk; if (res.overhang.lowest == null || y < res.overhang.lowest) res.overhang.lowest = y; }
     res.flats = flats;
     // triangle soups for showing the result: red where support is needed, blue where it prints anyway
     const soup = k => { let n = 0; for (let t = 0; t < F.T; t++) if (flag[t] === k) n++;

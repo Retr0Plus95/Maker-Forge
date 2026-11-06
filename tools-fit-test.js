@@ -145,6 +145,10 @@ async function appTests() {
     C.extrudePolysAt([{ outer: C.ringRect(40, 20, 0, 1), holes: [] }], 4.99, 6)]);
   const sa = C.analyzePrint([stack], { angle: 45, tol: 0.2, nozzle: 0.4, layer: 0.2, bed: [256, 256, 256] }).overhang.area;
   check(near(sa, 400, 15), "three overlapping shells in one part: the 20 × 20 mm shelf hanging out at the top is all that needs support", sa.toFixed(1) + " mm²");
+  // Session 40: a part that reaches below the bed is checked from its lowest point, as a slicer drops the print onto it
+  { const pl = C.extrudePolysAt([{ outer: C.ringRect(40, 20, 0, 1), holes: [] }], 0, 3), post = C.extrudePolysAt([{ outer: C.ringRect(6, 6, 0, 1), holes: [] }], -0.8, 0.01);
+    const r = C.analyzePrint([pl, post], { angle: 45, nozzle: 0.4, layer: 0.2, bed: [256, 256, 256] });
+    check(r.sunk > 0.79 && r.overhang.area > 700, "a plate on a post that reaches 0.8 mm below the bed: the plate is in the air round the post (it read as lying on the bed)", `${r.overhang.area.toFixed(0)} mm²`); }
 
   console.log("the keychain: a second line and a credit on the back");
   let q = await build("nameplate", b => { const np = b.nameplate; np.batch = false; np.text = "Emma"; np.line2 = ""; np.credit.on = false; np.doubleSided = false; np.engrave = false; });
@@ -177,6 +181,15 @@ async function appTests() {
   check(MF.plate.credit && (MF.plate.credit.smaller || MF.plate.credit.size === 0), "a credit too big for the back is made smaller to fit (or left out, and the panel says so)", JSON.stringify(MF.plate.credit));
   q = await build("nameplate", b => { b.nameplate.credit.text = "forge.example"; b.nameplate.credit.size = 3.5; b.nameplate.doubleSided = true; });
   check(!q.some(r => r.name === "Credit (back)") && q.some(r => r.name === "Name (back)"), "with the mirrored name on the back, the back is the name's: no credit");
+  // Session 40: the back name is flush in the bottom, like the credit (it stood 0.8 mm below the plate, which then
+  // printed in the air round the letters)
+  { const nb = q.find(r => r.name === "Name (back)"), b2 = nb && C.solidBounds(nb.solid), pl = q.find(r => r.name === "Plate");
+    check(good(q) && b2 && near(b2.mn[1], 0, 1e-3) && near(b2.mx[1], 0.8, 1e-3), "a double-sided tag: the back name flush in the first 0.8 mm, everything on the bed", b2 && `${b2.mn[1].toFixed(2)}–${b2.mx[1].toFixed(2)} mm`);
+    const mid = []; { const S = nb.solid, P = S.pos, I = S.idx; for (let t = 0; t < I.length && mid.length < 30; t += 3) { const ys = [P[I[t]*3+1], P[I[t+1]*3+1], P[I[t+2]*3+1]];
+      if (ys.every(y => Math.abs(y - 0.8) < 1e-4)) mid.push([(P[I[t]*3] + P[I[t+1]*3] + P[I[t+2]*3]) / 3, 0.4, (P[I[t]*3+2] + P[I[t+1]*3+2] + P[I[t+2]*3+2]) / 3]); } }
+    check(mid.length >= 4 && mid.filter(pt => insideMesh(pl.solid, pt)).length === 0, "the plate is cut away where the back name is", `${mid.length} points, ${mid.filter(pt => insideMesh(pl.solid, pt)).length} in the plate`);
+    const ds = await supportOf();
+    check(ds >= 0 && ds < 3, "and the tag needs no support", ds.toFixed(1) + " mm²"); }
   q = await build("nameplate", b => { b.nameplate.doubleSided = false; b.nameplate.batch = true; b.nameplate.names = "Emma | Svensson\nNoah"; b.nameplate.credit.on = false; });
   check(good(q) && MF.plate.count === 2, "a list of names: \"Emma | Svensson\" puts the surname on a second line", `${MF.plate.count} plates`);
   st().base.nameplate.batch = false;

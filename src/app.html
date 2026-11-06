@@ -3841,6 +3841,17 @@ async function buildNamePlate(){
   const parts = [], plateSlot = clamp(state.base.slot,0,state.slots.length-1);
   plateInfo = { pieces:platePolys.length, holes:platePolys.reduce((a,p)=>a+p.holes.length,0) };
 
+  // letters set into the bottom: the plate left between two strokes narrower than the nozzle can't print (the slicer
+  // drops it or smears it), so those gaps are filled with the letters' colour (Session 40: 0.37 mm slivers inside a
+  // script name's loops)
+  const fillNarrow = field => {
+    const r = Math.max(0.2, (state.printer.nozzle || 0.4) * 0.55) * PLATE_PX, mask = new Uint8Array(W*H), far = new Uint8Array(W*H);
+    for (let i=0;i<W*H;i++) mask[i] = field[i] >= 0.5 ? 1 : 0;
+    const d1 = C.edt(mask, W, H); for (let i=0;i<W*H;i++) far[i] = d1[i] > r ? 1 : 0;
+    const d2 = C.edt(far, W, H), out = Float32Array.from(field);
+    for (let i=0;i<W*H;i++) if (!mask[i] && d2[i] > r) out[i] = 1;
+    return out;
+  };
   // a small line of text on the back (a credit: your website, shop or name), mirrored so it reads with the tag turned
   // over, cut into the bottom face, and filled flush in a second colour or left engraved (Session 37). It shrinks
   // until it sits 0.8 mm inside the plate's edge and clear of the keyring hole
@@ -3871,16 +3882,26 @@ async function buildNamePlate(){
       if (ok && any) done = { field:C.coverageField(d, W, H), h };
     }
     if (done){
-      creditPolys = traceIn(done.field, maskBounds(done.field, W, H), 2, fopt);
+      creditPolys = traceIn(fillNarrow(done.field), maskBounds(done.field, W, H), 2, fopt);
       plateInfo.credit = { size:done.h, smaller: done.h < clamp(cr.size || 3.5, 1.5, 8) - 0.01 };
     } else plateInfo.credit = { size:0, smaller:true };
   }
   // the plate with letters cut out of a layer of it; a letter's own holes (the middle of an o) stay as islands
   // (each letter's hole goes in the piece of plate it lies in: a plate in several pieces would otherwise be torn)
   const cutOut = (polys, cut) => withHoles(polys, cut.map(n => n.outer)).concat(...cut.map(n => n.holes.map(hl => ({ outer:hl, holes:[] }))));
-  const credD = creditPolys.length ? clamp(cr.depth || 0.4, 0.2, Math.min(1.2, np.thick*0.4)) : 0;
+  // a double-sided tag: the name mirrored, flush in the bottom face in its own filament, like the credit (Session 40;
+  // it used to stand below the plate, so the plate printed in the air round the letters)
+  let backPolys = [];
+  if (np.doubleSided){
+    const mirrored = new Float32Array(coverage.length);
+    for (let y=0;y<H;y++) for (let x=0;x<W;x++) mirrored[y*W+x] = coverage[y*W + (W-1-x)];
+    const filled = fillNarrow(mirrored);
+    backPolys = traceIn(filled, maskBounds(filled, W, H), 2, fopt);
+  }
+  const bottomPolys = backPolys.length ? backPolys : creditPolys;
+  const credD = bottomPolys.length ? clamp(backPolys.length ? np.backH || 0.8 : cr.depth || 0.4, 0.2, Math.min(1.2, np.thick*0.4)) : 0;
   const plateLayers = [];
-  if (credD) plateLayers.push(C.extrudePolysAt(cutOut(platePolys, creditPolys), 0, credD + 0.01));
+  if (credD) plateLayers.push(C.extrudePolysAt(cutOut(platePolys, bottomPolys), 0, credD + 0.01));
 
   if (np.engrave){
     const depth = clamp(np.nameH, 0.2, np.thick - 0.4 - credD);
@@ -3915,13 +3936,7 @@ async function buildNamePlate(){
     const sol = polys.length ? C.extrudePolysAt(polys, Math.max(0,np.thick-0.3), np.thick+np.nameH) : null;
     if (sol) parts.push({ name:`Picture (${state.slots[pp.slot].name})`, slot:pp.slot, solid:sol });
   });
-  if (np.doubleSided){                    // mirrored copy underneath so it reads from the back too
-    const mirrored = new Float32Array(coverage.length);
-    for (let y=0;y<H;y++) for (let x=0;x<W;x++) mirrored[y*W+x] = coverage[y*W + (W-1-x)];
-    const backPolys = traceIn(mirrored, maskBounds(mirrored, W, H), 2, fopt);
-    if (backPolys.length) parts.push({ name:"Name (back)", slot:clamp(np.backSlot,0,state.slots.length-1),
-      solid:C.extrudePolysAt(backPolys, -np.backH, 0.3) });
-  }
+  if (backPolys.length) parts.push({ name:"Name (back)", slot:clamp(np.backSlot,0,state.slots.length-1), solid:C.extrudePolysAt(backPolys, 0, credD) });
   if (credD && cr.inlay !== false) parts.push({ name:"Credit (back)", slot:clamp(cr.slot|0, 0, state.slots.length-1),
     solid:C.extrudePolysAt(creditPolys, 0, credD) });
   return parts.filter(p=>p.solid);
@@ -9705,9 +9720,10 @@ function nameplateFields(p){
   group(p,"Both sides", g2 => {
     checkField(g2,"Mirrored name on the back",()=>np.doubleSided, v=>{ np.doubleSided = v; renderTab(); baseChanged(); });
     if (np.doubleSided){
-      numField(g2,{ label:"Back letter height (mm)", min:0.3,max:4,step:0.1, get:()=>np.backH, set:v=>np.backH=v, onChange:baseChanged });
+      numField(g2,{ label:"Back letter depth (mm)", min:0.2,max:1.2,step:0.05, get:()=>np.backH, set:v=>np.backH=v, onChange:baseChanged,
+        sub:()=>np.backH > np.thick*0.4 + 1e-6 ? `At most ${(np.thick*0.4).toFixed(2)} mm in a ${np.thick} mm plate.` : "" });
       slotField(g2, "Back filament", ()=>String(np.backSlot), v=>{ np.backSlot = +v; baseChanged(); });
-      note(g2, "The back layer prints first, straight onto the plate, so the tag reads correctly either way up.");
+      note(g2, "The back name prints in the first layers, face down on the bed and flush with the back, mirrored so it reads when the tag is turned over. The tag lies flat and needs no support.");
     }
   }, np.doubleSided);
   group(p,"Fine tuning", g2 => {

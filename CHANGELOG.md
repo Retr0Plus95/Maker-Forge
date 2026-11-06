@@ -15,6 +15,13 @@ Paint that ends exactly where you painted it.
 - **A stroke follows the line you drew**, so a fast stroke no longer leaves gaps between its dabs.
 - **Painted pictures are read finer** (240 pixels across instead of 160) when Sharp edges is on.
 
+**Fixed**
+- A double-sided tag's back name stood below the plate, so the plate printed in the air round the letters. The name is now flush in the back, in its own filament, and the tag lies flat (**Back letter height** is now **Back letter depth**).
+- The print check said a print needed no support when part of it reached below the bed, as that tag did.
+- Letters set into the back of a tag (the double-sided name, the credit) left slivers of plate thinner than the nozzle between close strokes; those gaps are filled now.
+
+![The double-sided tag seen from below, through the bed: the mirrored name and hearts set flush into its back](docs/images/double-sided-back.jpg)
+
 ![The same strokes on coarse triangles: jagged on the left, smooth with Sharp edges on the right](docs/images/paint-sharp.jpg)
 
 ## 0.33.0

@@ -1634,6 +1634,23 @@ painted edge**, which every slicer reads.
 - `tools-paint-test.js`: "the brush preview lights up exactly the triangles the stroke paints" now runs with Sharp edges off (with
   them on, the stroke is then cut in).
 
+**Bugs found along the way** (a new scratch harness builds an object in real Chromium, with real fonts, from random combinations of
+its settings and checks every part: closed, outward, not NaN, on the bed, no page error; 120 name keychains, then 80 more)
+- **A double-sided tag's back name stood 0.8 mm (up to 4) below the plate** (`extrudePolysAt(backPolys, -backH, 0.3)`), so the plate
+  printed in the air round the letters. Every double-sided case in the harness failed "below the bed". It is now set flush into
+  the bottom like the credit (`bottomPolys`, the plate cut away under it, `Name (back)` from 0 to the depth). `backH` is now the depth,
+  0.2 to 1.2 mm and at most 40% of the plate; the field is **Back letter depth**.
+- **The print check read it as needing no support**: `analyzePrintSteps` took y = 0 as the bed even when a part reached lower, so the
+  plate's underside counted as lying on the bed. It now checks from the lowest point, as a slicer drops the print (`res.sunk`). A plate on
+  a post 0.8 mm below the bed now reads 764 mm². The print survey is unchanged for every other object, so nothing else had parts below
+  the bed.
+- **Slivers of plate between letters set into the back**: with the name flush in the bottom, the survey found a 0.37 mm wall in the
+  first layers (inside a script name's loops; the credit had the same). `fillNarrow` closes the letters' mask by 0.55 × the nozzle, so
+  gaps narrower than about a nozzle print in the letters' colour. The tag now has no thin walls and needs no support.
+- Tests: `test:fit` has the tag flush and cut, needing no support, and the print check on a part below the bed.
+- Checked and already fixed: HANDOFF's Known bugs still said the keychain's picture used a flood fill; it has used the colour cut-out
+  since Session 34.
+
 **Not done**
 - The brush preview still lights up whole triangles (the cut comes after the stroke). A ring the brush's size is drawn as before.
 - Colour from a photo, curvature, the model's own colours and fills still colour whole triangles: their edges come from per-triangle
@@ -1676,7 +1693,6 @@ painted edge**, which every slicer reads.
        edge (sub-triangle paint, which needs a slicer check of the export).
      - Pictures on objects: placement by the picture's real size on curved faces (`makeWrapProjector`), snapping to the face's middle,
        numeric placement in mm.
-     - The keychain's "picture beside the name" still uses the flood-fill `cutoutCanvas` (Known bugs): move it to the colour key.
   2. **Every object, one by one** (P7 in this list): each generator's audit, print-survey warnings and its own Known bugs.
      - The PSU box's 600 mm² of support.
      - Honeycomb grilles' 30° roofs.

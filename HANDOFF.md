@@ -1704,6 +1704,60 @@ its settings and checks every part: closed, outward, not NaN, on the bed, no pag
 - Still to check: a cut model's 3mf in Bambu Studio, OrcaSlicer and PrusaSlicer (it is an ordinary closed mesh with more triangles,
   so no surprise is expected).
 
+## Session 42: the name keychain, the double-sided tag and business cards (v0.36.0)
+
+The first section update on the road to v0.50 ("Don't forget to check for bugs along the way and update the documentation with
+screenshots included. And go for it").
+
+**Bug hunt** (the Chromium fuzz harness from Session 41, `mf-fuzz.js` in the session's scratchpad, not kept in the repository; it
+takes an object, a list of values per setting or `auto`, and builds random combinations, checking every part)
+- Name keychain: 200 cases after the fixes, none bad. Business card: 160 cases, none bad. Signs, plaque, frame: 60 each, none bad.
+- **The credit on the back was never placed on a script name in a real browser** (`plateInfo.credit.size` 0, "too big"), on v0.31 to
+  v0.34 alike: `backFit` (then inline) drew it only at the middle of the name's outline, and on "Emma" in Dancing Script that middle is
+  4 px from a gap in the plate, so every size failed. jsdom's box glyphs give a plate with no gap there, so `test:fit` passed. Now
+  every spot of the plate where `dEdge ≥ margin` is a candidate (a 0.5 mm grid, nearest the middle first, with up and down counted
+  double); each is tried with up to 600 of the text's pixels, then pixel by pixel. "@retr0plus" now fits at its full 3.5 mm.
+  `plateInfo.credit.moved` says how far it went. The test is a name with a gap in its middle ("Ab          Cd", no bridging): the credit
+  moves aside at its full size.
+
+- `tools-audit.js index.html nameplate,card` found two card controls that change nothing. **Name in capitals** really did
+  nothing on the default card: its font, Bebas Neue, has capitals only (as Bungee does). Those fonts are marked `capsOnly` in
+  `FONTS`, and the switch is a note with them. **A card for each name in a list** does nothing with an empty list (the card says
+  so); it is in the audit's expected list for that case.
+
+**New**
+- **Its own text on a double-sided tag's back** (`nameplate.backText`, ≤ 40): drawn in the name's font through the same `backFit`,
+  from 0.8 × the letter height down to 2 mm, 1.2 mm inside the edge, flush like the mirrored name. `plateInfo.back.size` (0 when it
+  doesn't fit; the panel says so). The checkbox is now **Something on the back too**.
+- **A magnet pocket** (`nameplate.magnet`: a `MAGNETS` key or "none"; `magnets` 1 or 2; idea 39).
+  - A round pocket 0.3 mm wider and 0.2 mm deeper than the magnet, open to the bed (the magnet is glued in afterwards).
+  - Placed at the deepest point of a distance field of the plate's outside, the ring hole and any letters set into the back
+    (`backRaster`); two go in the left and right halves.
+  - Refused with a reason in `plateInfo.magnet`: a plate thinner than the pocket plus 0.8 mm, or no spot (r + 0.8) mm clear.
+  - The plate is now built as slabs at every height where something changes: letters in the back, the pocket's roof, an engraved
+    name. Each slab is cut by what is in it.
+  - A 10 mm pocket's roof is a 10.3 mm bridge, over the default 10 mm limit: the check asks for support, and the panel says so.
+- **A tagline on business cards** (`card.tagline`, ≤ 80): a row under the title at 0.85 of its size, front only, in the title's
+  filament, in `mainH`, both layouts' placing, the width fit, the small-letter warning and the nudge.
+
+**Tests**
+- `test:fit`:
+  - the credit moving aside;
+  - the back text flush, fitted and 1.2 mm inside;
+  - a back text too long;
+  - an 8 × 2 pocket (empty to 2.2 mm at its middle, 3.6 mm out still empty, 4.6 mm out plate, plate above);
+  - two pockets on a long name;
+  - too thin, and no room for 12 mm behind 8 mm letters;
+  - a pocket clear of back text.
+- `test:card`: a tagline on every layout, measured in the title's filament, every code still reading.
+- `test:project`: hostile back text, magnet and tagline.
+
+**Not done**
+- Cards' own next steps (Session 33): a vertical layout of its own, emboss in the card's colour, NFC card slots.
+- A magnet sealed inside with a pause (the pocket is open, for glue).
+- A keychain plate's interior holes (a letter counter bigger than the border, as in "Emma" at 3.2 mm) are kept, as before.
+- Still to check by hand: a printed tag with a magnet; the back text and credit on a real print.
+
 ## Unfinished (in priority order)
 
 - **The next two builds** (the owner, 2026-11-05: "Mechanisms toolkit, model doctor, 3d relief from any photo, sign maker and fix it parts library should be done over the next two builds"; ideas 2, 3, 6, 8 and 10 of Session 36's list). Planned split:

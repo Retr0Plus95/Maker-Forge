@@ -87,6 +87,12 @@ async function settle() {
       b => b.nameplate.line2.length === 60 && b.nameplate.line2Size === 0.3 && b.nameplate.credit.on === false && b.nameplate.credit.text.length === 40 && b.nameplate.credit.size === 8
         && b.nameplate.credit.depth === 0.2 && b.nameplate.credit.slot === 7 && b.nameplate.credit.font === 0 || JSON.stringify([b.nameplate.line2.length, b.nameplate.line2Size, b.nameplate.credit]),
       "a keychain's second line 5000 letters long and a credit that is not quite right: 60 letters, its size clamped to 0.3, the credit off until turned on");
+    // Session 42: the keychain's own back text and magnet pocket, and the card's tagline
+    await host("nameplate", b => { b.nameplate.line2 = ""; b.nameplate.doubleSided = true; b.nameplate.backText = "<img src=x onerror=alert(7)>".repeat(5); b.nameplate.magnet = "__proto__"; b.nameplate.magnets = 9; },
+      b => b.nameplate.backText.length === 40 && b.nameplate.magnet === "none" && b.nameplate.magnets === 1 || JSON.stringify([b.nameplate.backText.length, b.nameplate.magnet, b.nameplate.magnets]),
+      "a back text 140 letters long, a magnet that does not exist and nine of them: 40 letters, no magnet, one");
+    await host("card", b => { b.card.tagline = "<script>alert(8)</script>".repeat(10); },
+      b => b.card.tagline.length === 80 || b.card.tagline.length, "a card tagline 250 letters long is cut to 80");
     // Session 38: signs and reliefs
     await host("sign", b => { b.sign = { style: "<script>", text: "<img src=x onerror=alert(1)>".repeat(30), letterH: 1e9, depth: -5, wall: "thick", backing: "everywhere", mount: "nails", holes: "yes", diffuserSlot: 99, font: -3, evil: 1 }; },
       b => b.sign.style === "channel" && b.sign.text.length === 200 && b.sign.letterH === 400 && b.sign.depth === 2 && b.sign.wall === 1.6 && b.sign.backing === "none" && b.sign.mount === "keyhole" && b.sign.holes === false && b.sign.diffuserSlot === 7 && b.sign.font === 0 && !("evil" in b.sign)

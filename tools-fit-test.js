@@ -190,6 +190,42 @@ async function appTests() {
     check(mid.length >= 4 && mid.filter(pt => insideMesh(pl.solid, pt)).length === 0, "the plate is cut away where the back name is", `${mid.length} points, ${mid.filter(pt => insideMesh(pl.solid, pt)).length} in the plate`);
     const ds = await supportOf();
     check(ds >= 0 && ds < 3, "and the tag needs no support", ds.toFixed(1) + " mm²"); }
+  // Session 41: the credit goes where it fits, nearest the middle (it was only tried at the middle of the name's outline:
+  // on a script name that is often a narrow neck or a gap, and in a browser it was always left out)
+  q = await build("nameplate", b => { const np = b.nameplate; np.doubleSided = false; np.text = "Ab          Cd"; np.style = "traced"; np.join = 0; np.line2 = "";
+    np.credit.on = true; np.credit.text = "forge"; np.credit.size = 3; np.credit.inlay = true; });
+  check(good(q) && MF.plate.credit && MF.plate.credit.size >= 2.9 && MF.plate.credit.moved > 2 && q.some(r => r.name === "Credit (back)"),
+    "a name with a gap in its middle: the credit moves aside to fit, at its full size", JSON.stringify(MF.plate.credit));
+  Object.assign(st().base.nameplate, { text:"Emma", join:0.6 }); st().base.nameplate.credit.on = false;
+  // Session 41: its own text on the back of a double-sided tag
+  q = await build("nameplate", b => { b.nameplate.doubleSided = true; b.nameplate.backText = "Call 070-123 45 67"; });
+  { const nb = q.find(r => r.name === "Name (back)"), b2 = nb && C.solidBounds(nb.solid), w0 = b2 ? b2.mx[0] - b2.mn[0] : 0;
+    check(good(q) && nb && near(b2.mn[1], 0, 1e-3) && MF.plate.back && MF.plate.back.size > 2, "its own text on the back instead of the name, flush and fitted inside the plate", MF.plate.back && `${MF.plate.back.size.toFixed(1)} mm tall, ${w0.toFixed(1)} mm wide`);
+    const pl = C.solidBounds(q.find(r => r.name === "Plate").solid);
+    check(b2.mn[0] > pl.mn[0] + 1.1 && b2.mx[0] < pl.mx[0] - 1.1, "1.2 mm inside the plate's edge"); }
+  q = await build("nameplate", b => { b.nameplate.backText = "x".repeat(40); b.nameplate.letterHeight = 10; });
+  check(MF.plate.back && (MF.plate.back.size === 0 || MF.plate.back.size < 4) && good(q), "a back text too long is made smaller, or left out and the panel says so", JSON.stringify(MF.plate.back));
+  // Session 41: a magnet pocket in the back
+  q = await build("nameplate", b => { const np = b.nameplate; np.backText = ""; np.doubleSided = false; np.letterHeight = 22; np.thick = 3.5; np.magnet = "8x2"; np.magnets = 1; });
+  { const pl = q.find(r => r.name === "Plate"), mi = MF.plate.magnet;
+    check(good(q) && mi && mi.ok && mi.n === 1, "an 8 × 2 mm magnet pocket in a 3.5 mm plate", JSON.stringify(mi));
+    // at the pocket's middle: empty from the bed up to 2.2 mm, plate above; 3.6 mm to the side (past its 4.15 mm radius
+    // less a little) still empty, 4.6 mm to the side plate
+    const [cx, cz] = mi.at[0];
+    check(!insideMesh(pl.solid, [cx, 1.1, cz]) && !insideMesh(pl.solid, [cx, 2.1, cz]) && insideMesh(pl.solid, [cx, 2.8, cz]) && !insideMesh(pl.solid, [cx + 3.6, 1.1, cz]) && insideMesh(pl.solid, [cx + 4.6, 1.1, cz]),
+      "the pocket is open to the bed, 8.3 mm across and 2.2 mm deep, with plate over it", `at ${cx}, ${cz}`); }
+  q = await build("nameplate", b => { b.nameplate.magnets = 2; b.nameplate.text = "Sebastian"; });
+  check(good(q) && MF.plate.magnet && MF.plate.magnet.ok && MF.plate.magnet.n === 2, "two pockets on a long name", JSON.stringify(MF.plate.magnet));
+  q = await build("nameplate", b => { b.nameplate.thick = 2; b.nameplate.magnet = "6x3"; b.nameplate.magnets = 1; });
+  check(MF.plate.magnet && !MF.plate.magnet.ok && MF.plate.magnet.why === "thick" && good(q), "a plate too thin for the magnet says how thick it must be", JSON.stringify(MF.plate.magnet));
+  q = await build("nameplate", b => { const np = b.nameplate; np.thick = 4.5; np.magnet = "12x3"; np.letterHeight = 8; np.text = "Li"; np.line2 = ""; np.sym.side = "none"; np.pic.on = false; np.border = 2; np.style = "traced"; });
+  check(MF.plate.magnet && !MF.plate.magnet.ok && MF.plate.magnet.why === "small" && good(q), "no room for a 12 mm magnet behind small letters: said, and left out", JSON.stringify(MF.plate.magnet));
+  // (the test page's letters are solid boxes, so a mirrored name fills the back: a short text leaves room)
+  q = await build("nameplate", b => { const np = b.nameplate; np.magnet = "8x2"; np.thick = 3.5; np.letterHeight = 22; np.text = "Emma"; np.doubleSided = true; np.backText = "No 7"; np.sym.side = "both"; np.border = 3.2; });
+  { const nb = q.find(r => r.name === "Name (back)"), at = MF.plate.magnet.at && MF.plate.magnet.at[0];
+    const clear = at && [[0, 0], [4, 0], [-4, 0], [0, 4], [0, -4]].every(([dx, dz]) => !insideMesh(nb.solid, [at[0] + dx, 0.4, at[1] + dz]));
+    check(good(q) && nb && MF.plate.magnet.ok && clear, "a magnet and text on the back together: the pocket keeps clear of the letters", JSON.stringify(MF.plate.magnet)); }
+  Object.assign(st().base.nameplate, { magnet:"none", doubleSided:false, backText:"", thick:2.4, border:3.2 }); st().base.nameplate.sym.side = "both";
   q = await build("nameplate", b => { b.nameplate.doubleSided = false; b.nameplate.batch = true; b.nameplate.names = "Emma | Svensson\nNoah"; b.nameplate.credit.on = false; });
   check(good(q) && MF.plate.count === 2, "a list of names: \"Emma | Svensson\" puts the surname on a second line", `${MF.plate.count} plates`);
   st().base.nameplate.batch = false;

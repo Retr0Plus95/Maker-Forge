@@ -138,6 +138,19 @@ async function appTests(){
   }
   await build({ layout:"left" });
 
+  // Session 41: a tagline under the title, in the title's filament, on every layout; the codes still read
+  { const bad = [];
+    for (const layout of ["left","right","centre","split","minimal"]){
+      // flush letters replace the card's own plastic, so the title's filament is measured, not the whole card
+      const tv = () => MF.parts.filter(p => p.slot === K().titleSlot).reduce((s, p) => s + C.checkMesh(p.solid).volume, 0);
+      await build({ layout, tagline:"" }); const v0 = tv();
+      await build({ layout, tagline:"Prints that fit, first time" }); I = MF.card.info;
+      const front = I.qr && I.qr.front, back = I.qr && I.qr.back;
+      if (!(tv() > v0 + 0.3) || !MF.parts.every(closed) || (front && readFace("bed") !== front.text) || (back && readFace("top") !== back.text)) bad.push(layout);
+    }
+    check(!bad.length, "a tagline under the title on every layout: it prints, the card stays closed and its codes read", bad.join(", "));
+    await build({ layout:"left", tagline:"" }); }
+
   console.log("\nfinishes");
   const vFlush = volume();
   await build({ backFinish:"raised" }); I = MF.card.info;

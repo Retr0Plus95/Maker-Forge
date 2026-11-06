@@ -434,7 +434,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.39.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.40.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -933,7 +933,7 @@ const DEFAULTS = () => ({
       mount:"none", earN:2, tabN:2, earHole:4.5, earT:3, strapW:12, strapT:2.5, strapDir:"across",
       labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
       split:"bed", splitParts:2, splitScrew:"M3",
-      board:"none", boardX:0, boardY:0, boardRot:false, boardHold:"holes", more:[], levels:[], walls:[], showParts:true, standH:5, bw:60, bd:40, bsx:52, bsy:32, bscrew:"M3", boxSlot:1, lidSlot:1,
+      board:"none", boardX:0, boardY:0, boardRot:false, boardHold:"holes", more:[], levels:[], walls:[], anchors:{ n:0, where:"back" }, showParts:true, standH:5, bw:60, bd:40, bsx:52, bsy:32, bscrew:"M3", boxSlot:1, lidSlot:1,
       // every key newOpening gives, so a saved box opens exactly as it was
       cut:[ { face:"front", kind:"usbc", u:-25, v:12, w:9.2, h:3.4, r:1.6, rot:false, label:"", labelPos:"below", top:"flat", notch:false },
             { face:"front", kind:"btn", u:0, v:18, dia:12.2, rot:false, label:"", labelPos:"below", top:"flat", notch:false },
@@ -3106,6 +3106,24 @@ function buildEnclosure(){
     frontZ += d + 10;
     if (zb < fl + 4) warn.push({ t:`Level ${k + 1} is very low`, s:"It is less than 4 mm above the floor: raise it." });
   });
+  // zip-tie anchors (Session 46): two posts and a bar over a 3.5 mm gap a tie threads under, 4 mm in from the chosen
+  // walls, spaced evenly, skipping boards, posts and screw posts
+  const an = E.anchors && typeof E.anchors === "object" ? E.anchors : {}, nA = Math.round(clamp(+an.n || 0, 0, 12));
+  let anchorsMade = 0;
+  if (nA){
+    const sides = an.where === "sides" ? ["left","right"] : an.where === "all" ? ["back","left","right","front"] : ["back"], spots = [];
+    sides.forEach(f => { const along = f === "back" || f === "front" ? iw : id, k = Math.max(1, Math.round(nA*along/(sides.length > 1 ? (sides.includes("front") ? 2*(iw + id) : 2*id) : along)));
+      for (let i=0;i<k;i++){ const a = -along/2 + along*(i + 0.5)/k; spots.push(f === "back" ? [a, id/2 - 4, 0] : f === "front" ? [a, -id/2 + 4, 0] : [f === "right" ? iw/2 - 4 : -iw/2 + 4, a, 1]); } });
+    const clear = (x, y) => !boardsInfo.some(b => !b.lvl && x > b.bb[0] - 4 && x < b.bb[2] + 4 && y > b.bb[1] - 4 && y < b.bb[3] + 4) && !bosses.some(([bx, bz]) => Math.hypot(bx - x, -bz - y) < bossR + 5)
+      && !standoffs.some(so => !so.bd.lvl && Math.hypot(so.x - x, so.y - y) < so.r + 4);
+    spots.slice(0, nA).forEach(([x, y, turn]) => {
+      if (!clear(x, y)) return;
+      const g2 = 1.75, pr = (a0, a1, b0, b1, z0, z1) => solids.push(C.extrudePolysAt([{ outer:encOrient(turn ? [[x + b0, y + a0], [x + b1, y + a0], [x + b1, y + a1], [x + b0, y + a1]] : [[x + a0, y + b0], [x + a1, y + b0], [x + a1, y + b1], [x + a0, y + b1]], true), holes:[] }], z0, z1));
+      pr(-g2 - 2, -g2, -1, 1, fl - 0.01, fl + 5); pr(g2, g2 + 2, -1, 1, fl - 0.01, fl + 5); pr(-g2 - 2, g2 + 2, -1, 1, fl + 5 - 0.01, fl + 6.2);
+      anchorsMade++;
+    });
+    if (anchorsMade < nA) hints.push(`${nA - anchorsMade} zip-tie anchor${nA - anchorsMade === 1 ? " was" : "s were"} left out where a board or a post is.`);
+  }
   // dividers (Session 46): grooves on the walls and the floor, the plate printed flat in front
   const dividers = encDividers(E), dividerInfo = [];
   dividers.forEach((Dv, k) => {
@@ -3297,7 +3315,7 @@ function buildEnclosure(){
       enclosurePlates = plates.length;
     }
   }
-  enclosureInfo = { test: !!state.base.enclosure.test, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map(l => ({ z:l.z, t:l.t, hold:l.hold })), dividers:dividerInfo, count:(E.cut || []).length - left.length,
+  enclosureInfo = { test: !!state.base.enclosure.test, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map(l => ({ z:l.z, t:l.t, hold:l.hold })), dividers:dividerInfo, anchors:anchorsMade, count:(E.cut || []).length - left.length,
     split: splitInfo };
   return out;
 }
@@ -10346,6 +10364,9 @@ function enclosureFields(p){
     });
     if (walls.length < ENC_DIV.max) buttonRow(g, [["Add a divider", ()=>{ walls.push({ axis:"x", at:0, height:0, fan:0, cable:true }); renderTab(); baseChanged(); pushHistory(); }]]);
     note(g, "A divider splits the box into rooms, or holds a fan inside: a 120 mm fan in a divider blows from one room to the other, with the vents on the far wall.");
+    const A = E.anchors && typeof E.anchors === "object" ? E.anchors : (E.anchors = { n:0, where:"back" });
+    numField(g,{ label:"Zip-tie anchors on the floor", min:0,max:12,step:1, get:()=>A.n || 0, set:v=>A.n=v, onChange:baseChanged, sub:()=>"Little bridges a zip tie threads under, to tie cables down. They keep clear of boards and posts." });
+    if (A.n > 0) segField(g, [["back","Along the back"],["sides","Along the sides"],["all","All round"]], ()=>A.where || "back", v=>{ A.where = v; baseChanged(); });
   }, true);
   group(p, "Openings", g => {
     const warn = I ? I.warn : [];
@@ -13401,6 +13422,8 @@ function sanitizeProject(data){
       axis:w.axis === "y" ? "y" : "x", at:Math.min(200, Math.max(-200, cleanNum(w.at, 0))), height:Math.min(300, Math.max(0, cleanNum(w.height, 0))),
       fan:ENC_FANS.includes(+w.fan) ? +w.fan : 0, cable:w.cable !== false }));
     E.showParts = E.showParts !== false;
+    const A0 = E.anchors && typeof E.anchors === "object" ? E.anchors : {};
+    E.anchors = { n:Math.round(Math.min(12, Math.max(0, cleanNum(A0.n, 0)))), where:["back","sides","all"].includes(A0.where) ? A0.where : "back" };
     // split into parts (Session 40): a project from before it splits only when the box is bigger than the bed
     E.split = one(E.split, ["bed","parts","off"]); E.splitParts = Math.round(Math.min(ENC_SPLIT.maxParts, Math.max(2, cleanNum(E.splitParts, 2))));
     E.splitScrew = encHas(SCREWS, E.splitScrew) ? E.splitScrew : "M3";

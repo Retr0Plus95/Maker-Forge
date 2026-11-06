@@ -44,7 +44,7 @@ Plus, depending on what changed:
 - anything touching geometry or export → `npm run test:print`
 - jigsaw work, or `traceField` / `fieldToPolys` → `npm run test:jigsaw`
 - lithophane work, or `heightSheet` / `ringField` / `checkMesh` → `npm run test:litho`
-- enclosure work → `npm run test:enclosure` (it runs `tools-boards-test.js` too: every board and module, cradles, several boards, a board's ports, the search)
+- enclosure work → `npm run test:enclosure` (it runs `tools-boards-test.js` too: every board and module, cradles, several boards, a board's ports, the search; and `tools-inside-test.js`: levels, dividers and fans, the see-through parts and their checks, zip-tie anchors, plates)
 - painter work, or `meshEditor` / the paint steps / 3mf or OBJ reading and writing → `npm run test:paint`; sharp paint edges
   (`cutField`, `strokeField`, `pictureFields`, `areaField`, `sharpenPart` and the `pc.sharp` mesh) → `npm run test:sharp` (`CORE=1` for the core only)
 - phone case work, or `PHONES` / `heightSheet` → `npm run test:phonecase`

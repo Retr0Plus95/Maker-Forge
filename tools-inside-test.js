@@ -109,6 +109,18 @@ function insideMesh(s, p) {
     check(MF.enclosure.warn.some(w => /crosses/.test(w.t)), "a divider across a board is named");
   }
 
+  console.log("\nzip-tie anchors");
+  {
+    const q = direct({ w: 160, d: 120, h: 60, anchors: { n: 4, where: "back" } }), I = MF.enclosure, box = q.find(p => p.name === "Box").solid;
+    // the first anchor's bar over its gap: solid at the bar, open under it
+    const x = -156 / 2 + 156 * 0.5 / 4, y = 116 / 2 - 4;
+    check(closed(q) && I.anchors === 4 && insideMesh(box, [x, fl + 5.6, -y]) && !insideMesh(box, [x, fl + 2.5, -y]), "four anchors along the back: a bar with a gap under it for a tie", `${I.anchors} made`);
+    fresh({ w: 160, d: 120, h: 60, anchors: { n: 6, where: "all" } }); MF.rebuild(false); await settle();
+    check((await supportOf()) < 3, "they need no support (the bar bridges 3.5 mm)");
+    direct({ w: 160, d: 120, h: 60, board: "uno", boardY: 30, anchors: { n: 4, where: "back" } });
+    check(MF.enclosure.anchors < 4 && MF.enclosure.hints.some(h => /zip-tie anchor/.test(h)), "where a board sits they are left out, and it says so", `${MF.enclosure.anchors} made`);
+  }
+
   console.log("\nthe plates when it does not fit one bed");
   {
     MF.state.printer.bed = [256, 256, 256];
@@ -126,13 +138,13 @@ function insideMesh(s, p) {
     const btns = [...document.querySelectorAll("#panel button")].map(b => b.textContent);
     check(btns.some(t => /Add a level/.test(t)) && btns.some(t => /Add a divider/.test(t)), "the Inside page has Add a level and Add a divider");
     const s0 = JSON.parse(MF.projectPayload()).state; s0.base.type = "enclosure";
-    Object.assign(s0.base.enclosure, { levels: Array.from({ length: 9 }, () => ({ z: "high", t: 1e9, hold: "<b>", cable: "no" })), walls: [{ axis: "z", at: 1e9, height: -4, fan: 77, cable: 0 }, "junk"], showParts: "maybe",
+    Object.assign(s0.base.enclosure, { levels: Array.from({ length: 9 }, () => ({ z: "high", t: 1e9, hold: "<b>", cable: "no" })), walls: [{ axis: "z", at: 1e9, height: -4, fan: 77, cable: 0 }, "junk"], showParts: "maybe", anchors: { n: 1e6, where: "everywhere" },
       more: [{ kind: "relay1", lvl: 99 }] });
     const f = new win.File([JSON.stringify({ app: "Maker Forge", v: 6, state: s0 })], "p.json", { type: "application/json" }), inp = document.querySelector("#projInput"), r0 = MF.rev;
     Object.defineProperty(inp, "files", { value: [f], configurable: true }); inp.dispatchEvent(new win.Event("change"));
     for (let i = 0; i < 100 && MF.rev === r0; i++) await sleep(30); await settle(); await sleep(500); await settle();
     const E = MF.state.base.enclosure;
-    check(E.levels.length === 3 && E.levels.every(l => l.z === 30 && l.t === 5 && l.hold === "posts" && l.cable === true) && E.walls.length === 1 && E.walls[0].axis === "x" && E.walls[0].at === 200 && E.walls[0].height === 0 && E.walls[0].fan === 0 && E.showParts === true && E.more[0].lvl === 3 && closed(MF.parts),
+    check(E.levels.length === 3 && E.levels.every(l => l.z === 30 && l.t === 5 && l.hold === "posts" && l.cable === true) && E.walls.length === 1 && E.walls[0].axis === "x" && E.walls[0].at === 200 && E.walls[0].height === 0 && E.walls[0].fan === 0 && E.showParts === true && E.anchors.n === 12 && E.anchors.where === "back" && E.more[0].lvl === 3 && closed(MF.parts),
       "nine levels of nonsense, a divider on an axis that does not exist and a fan size no one makes: three levels, clamped, one divider, no fan, and it builds", JSON.stringify(E.walls));
   }
 

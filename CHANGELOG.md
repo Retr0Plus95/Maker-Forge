@@ -3,6 +3,20 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.40.0
+
+Project boxes: the inside. Levels, dividers, a fan inside, and your parts shown in place.
+
+- **Your parts shown inside, see-through** (not printed): each board, the room its parts take and its ports. The box now warns when parts reach the lid or a level above, and names a board's port with no opening in front of it.
+- **Levels** (a second floor, up to three): a shelf at the height you choose, printed flat as its own plate. It stands on four posts it screws to, or rests on ledges along the side walls. A slot for cables and air slots are options. Extra boards and modules can go **on a level**, their standoffs or cradles on its plate.
+- **Dividers** (up to four): plates that slide into grooves on the walls and floor, across or front to back, printed flat. Each can hold a **fan** (40 to 140 mm, with its grille and screw holes) and have a cable notch. A 120 mm fan in a divider blows from one room to the other.
+- **Zip-tie anchors** on the floor, along the back, the sides or all round, keeping clear of boards and posts.
+- When the box, lid, levels and dividers don't fit one bed together, each goes on a plate of its own and the print check measures each.
+
+![A box with a level at the top, a divider holding a 120 mm fan and the parts shown see-through](docs/images/box-inside.jpg)
+
+**Fixed**
+- No bug fixes in this release.
 ## 0.39.0
 
 Project boxes: many more parts, and boards held the way they need.

@@ -3,6 +3,15 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.47.0
+
+Project boxes: art, words and icons on any face, engraved, inlaid or raised.
+
+- **Art, words and icons on the box:** a name, a word, any of the 54 icons or the Art tab's picture on the lid, the floor, the front, the back or a side. Each one can be engraved, inlaid flush in another filament, or raised on a wall, at the size and place you choose, upright or turned, in any of the app's fonts.
+- **Label every opening:** one click names each opening (USB-C, HDMI, DC IN, ON/OFF, PUSH, LED…), engraved under it.
+
+![A project box with WEATHER inlaid in orange on the front, a sun icon, engraved USB-C and PUSH labels, a raised Wi-Fi icon on the side, and a cloud and Station 1 inlaid in the lid](docs/images/box-art.jpg)
+
 ## 0.46.0
 
 Project boxes: screw mounts you can move, so the bottom floor is free, and neater holders for boards and batteries.

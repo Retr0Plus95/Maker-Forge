@@ -446,7 +446,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.46.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.47.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -946,7 +946,7 @@ const DEFAULTS = () => ({
       mount:"none", earN:2, tabN:2, earHole:4.5, earT:3, strapW:12, strapT:2.5, strapDir:"across",
       labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
       split:"bed", splitParts:2, splitScrew:"M3",
-      board:"none", boardX:0, boardY:0, boardRot:false, boardHold:"holes", boardLvl:0, more:[], levels:[], walls:[], ducts:[], anchors:{ n:0, where:"back" }, showParts:true, standH:5, bw:60, bd:40, bsx:52, bsy:32, bscrew:"M3", boxSlot:1, lidSlot:1,
+      board:"none", boardX:0, boardY:0, boardRot:false, boardHold:"holes", boardLvl:0, more:[], levels:[], walls:[], ducts:[], art:[], anchors:{ n:0, where:"back" }, showParts:true, standH:5, bw:60, bd:40, bsx:52, bsy:32, bscrew:"M3", boxSlot:1, lidSlot:1,
       // every key newOpening gives, so a saved box opens exactly as it was
       cut:[ { face:"front", kind:"usbc", u:-25, v:12, w:9.2, h:3.4, r:1.6, rot:false, label:"", labelPos:"below", top:"flat", notch:false },
             { face:"front", kind:"btn", u:0, v:18, dia:12.2, rot:false, label:"", labelPos:"below", top:"flat", notch:false },
@@ -3232,6 +3232,82 @@ function ringsBounds(rings){
   rings.forEach(L => L.forEach(([x, y]) => { b[0] = Math.min(b[0], x); b[1] = Math.min(b[1], y); b[2] = Math.max(b[2], x); b[3] = Math.max(b[3], y); }));
   return b;
 }
+/* Art on the box (Session 53): words, an icon or the Art tab's picture on any face (the lid, the floor, a wall),
+   engraved, inlaid flush in a filament, or raised (walls only: the lid and the floor print face down). E.art is a list;
+   each piece is drawn on a canvas, traced, and cut into its face like an opening's label. Shapes are in mm, centred,
+   y up, before they are turned (rot) and moved to their place on the face. */
+const ENC_ART = { max:10, faces:["front","back","left","right","top","bottom"], kinds:["text","icon","picture"], finishes:["engrave","inlay","raised"] };
+function encArtClean(a){
+  const o = a && typeof a === "object" ? a : {}, one = (v, list) => list.includes(v) ? v : list[0], num = (v, lo, hi, d) => { const n = +v; return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
+  return { face:one(o.face, ENC_ART.faces), kind:one(o.kind, ENC_ART.kinds), text:typeof o.text === "string" ? o.text.replace(/[\u0000-\u001f\u007f<>]/g, "").slice(0, 40) : "",
+    font:FONTS.some(f => f.n === o.font) ? o.font : "Manrope", icon:encHas(ICONS, o.icon) ? o.icon : "power", size:num(o.size, 3, 200, 12),
+    x:num(o.x, -200, 200, 0), y:num(o.y, -200, 200, 0), rot:[0, 90, 180, 270].includes(+o.rot) ? +o.rot : 0, finish:one(o.finish, ENC_ART.finishes),
+    slot:Math.round(num(o.slot, 0, MAX_SLOTS - 1, 2)), depth:num(o.depth, 0.2, 3, 0.6) };
+}
+// a canvas's ink (alpha over half) as a mask, trimmed to it: { m, w, h } or null
+function encInkMask(c){
+  const x = c.getContext("2d"), W = c.width, H = c.height, d = x.getImageData(0, 0, W, H).data;
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let j=0;j<H;j++) for (let i=0;i<W;i++) if (d[4*(j*W + i) + 3] > 127){ if (i < x0) x0 = i; if (i > x1) x1 = i; if (j < y0) y0 = j; if (j > y1) y1 = j; }
+  if (x1 < 0) return null;
+  const p = 3, w = x1 - x0 + 1 + 2*p, h = y1 - y0 + 1 + 2*p, m = new Uint8Array(w*h);
+  for (let j=y0;j<=y1;j++) for (let i=x0;i<=x1;i++) if (d[4*(j*W + i) + 3] > 127) m[(j - y0 + p)*w + (i - x0 + p)] = 1;
+  return { m, w, h, inkH: y1 - y0 + 1 };
+}
+const encArtCache = new Map();
+// a piece's shape: { union (polys), colours ([{ slot, polys }]), w, h } in mm, centred, or { why } when it can't be made
+function encArtShape(a, bgSlot){
+  if (a.kind === "picture"){
+    const item = state.items[state.active] || state.items[0], src = item && sourceCanvas(item);
+    if (!src) return { why:"There is no picture on the Art tab yet." };
+    const w0 = a.size, tmp = [];
+    const lg = encLogo({ logo:{ width:w0, x:0, y:0, mode:a.finish === "engrave" ? "engrave" : "inlay" } }, bgSlot, [-1e4, -1e4, 1e4, 1e4], 0, [], tmp);
+    if (!lg) return { why:(tmp[0] && tmp[0].s) || "The picture came out empty." };
+    return { union:lg.union, colours:a.finish === "engrave" ? [] : lg.colours, w:lg.size[0], h:lg.size[1] };
+  }
+  const key = [a.kind, a.text, a.font, a.icon, a.size].join("|"), withSlot = o => o.why ? o : Object.assign({}, o, { colours:[{ slot:a.slot, polys:o.union }] });
+  if (encArtCache.has(key)) return withSlot(encArtCache.get(key));
+  let mk = null;
+  if (a.kind === "text"){
+    if (!a.text.trim()) return { why:"Type the words first." };
+    const F = FONTS.find(f => f.n === a.font) || { n:"Manrope", w:800 };
+    if (document.fonts && document.fonts.check && !document.fonts.check(`${F.w} 40px "${F.n}"`)){
+      document.fonts.load(`${F.w} 180px "${F.n}"`).then(() => { [...encArtCache.keys()].filter(k => k.includes(F.n)).forEach(k => encArtCache.delete(k)); if (state.base.type === "enclosure") baseChanged(); }).catch(() => {});
+    }
+    mk = encInkMask(textCanvas({ value:a.text, font:F.n, weight:F.w }));
+  } else {
+    const N = 480, c = document.createElement("canvas"); c.width = c.height = N + 40;
+    const x = c.getContext("2d", { willReadFrequently:true }); x.translate(20, 20); x.scale(N/24, N/24); drawIcon(x, a.icon, "#000", 0);
+    mk = encInkMask(c);
+  }
+  if (!mk) return { why:"It came out empty." };
+  // words: their letters are the height given; an icon: its 24-unit square is (so a flat one, a minus, stays flat)
+  const mmPerPx = a.kind === "icon" ? a.size/480 : a.size/mk.inkH, union = C.maskToPolys(mk.m, mk.w, mk.h, { mmPerPx, keep:true });
+  const out = union.length ? { union, w:(mk.w - 6)*mmPerPx, h:(mk.h - 6)*mmPerPx } : { why:"It came out empty." };
+  if (encArtCache.size > 40) encArtCache.clear();
+  encArtCache.set(key, out);
+  return withSlot(out);
+}
+// polys turned by rot (degrees, anticlockwise), moved by (dx, dy), and mirrored top to bottom when flip (the floor reads
+// with the box turned over); outlines anticlockwise, holes clockwise
+function encArtPlace(polys, rot, dx, dy, flip){
+  const c = Math.round(Math.cos(rot*Math.PI/180)), sn = Math.round(Math.sin(rot*Math.PI/180));
+  const tf = ([x, y]) => { const u = x*c - y*sn + dx, v = x*sn + y*c + dy; return [u, flip ? -v : v]; };
+  return polys.map(q => ({ outer:encOrient(q.outer.map(tf), true), holes:q.holes.map(L => encOrient(L.map(tf), false)) }));
+}
+// short names for "Label every opening" (Session 53)
+function encAutoLabel(kind){
+  const k = encHas(CUTOUTS, kind) ? CUTOUTS[kind] : null; if (!k) return "";
+  const L = (k.label + " " + kind).toLowerCase();
+  if (k.g === "port"){
+    const hit = [[/usb-?c|usbc/, "USB-C"], [/usb/, "USB"], [/hdmi/, "HDMI"], [/ethernet|rj45/, "LAN"], [/sd card|microsd|sd slot|\bsd\b/, "SD"], [/barrel|dc |dcpcb/, "DC IN"],
+      [/xt60|xt30|battery/, "BATT"], [/audio|jack|6\.35/, "AUDIO"], [/antenna|sma|bnc/, "ANT"], [/iec|mains|inlet/, "MAINS"], [/fuse/, "FUSE"], [/rca/, "AV"], [/d-sub|db9|serial/, "SERIAL"]].find(([re]) => re.test(L));
+    return hit ? hit[1] : encLabelText(k.label.split(/[ ,(]/)[0]).slice(0, 8);
+  }
+  if (k.g === "button") return /reset|pinhole/.test(L) ? "RESET" : /rocker|toggle|slide switch|key switch|footswitch/.test(L) ? "ON/OFF" : /pot|rotary|encoder|knob|trimmer/.test(L) ? "ADJ" : "PUSH";
+  if (k.g === "light") return /pilot|indicator|lamp/.test(L) ? "ON" : /ring|stick|strip|matrix/.test(L) ? "" : "LED";
+  return "";
+}
 /* The logo on the lid: the active artwork, split into the loaded filaments like a flat decal, and
    inlaid flush into the lid's outside face (or engraved into it). The lid prints outside face down, so
    the logo is its first layers. Returned in the lid's top view (x right, y towards the back). */
@@ -3833,12 +3909,42 @@ function buildEnclosure(){
     if (flip) segs = segs.map(q => [q[0], -q[1], q[2], -q[3]]);
     labelsOn[face].push(...C.strokePolys(segs, lhalf, 0.04));
   });
+  // art on the box (Session 53): each piece placed on its face once the openings and labels are, kept clear of them
+  const artOn = { front:[], back:[], left:[], right:[], top:[], bottom:[] }, artInfo = [], boxSlot0 = clamp(+E.boxSlot || 0, 0, state.slots.length - 1);
+  (Array.isArray(E.art) && !state.base.enclosure.test ? E.art : []).slice(0, ENC_ART.max).forEach((a0, i) => {
+    const a = encArtClean(a0), face = a.face, wall = ENC_WALLS.has(face), lab = `Art ${i + 1}`;
+    if (face === "top" && !lidOn){ warn.push({ t:`${lab} left out`, s:"It is on the lid, but the box has no lid." }); return; }
+    const sh = encArtShape(a, face === "top" ? clamp(+E.lidSlot || 0, 0, state.slots.length - 1) : boxSlot0);
+    if (sh.why){ warn.push({ t:`${lab} left out`, s:sh.why }); return; }
+    const turned = a.rot === 90 || a.rot === 270, w = turned ? sh.h : sh.w, h = turned ? sh.w : sh.h;
+    const cx = a.x, cy = wall ? wallH(face)/2 + a.y : a.y;
+    const slideA = iw/2 + gr - fit - lidT;
+    const lim = wall ? [-faceInfo[face].L/2 + 1, 1, faceInfo[face].L/2 - 1, wallH(face) - 1]
+      : face === "top" ? (slide ? [-slideA + 1, -D/2 + 1, slideA - 1, D/2 - t - fit - 1] : [-W/2 + 1.5 + R*0.3, -D/2 + 1.5 + R*0.3, W/2 - 1.5 - R*0.3, D/2 - 1.5 - R*0.3])
+      : [-W/2 + 1.5 + R*0.3, -D/2 + 1.5 + R*0.3, W/2 - 1.5 - R*0.3, D/2 - 1.5 - R*0.3];
+    const bb = [cx - w/2, cy - h/2, cx + w/2, cy + h/2];
+    if (bb[0] < lim[0] || bb[1] < lim[1] || bb[2] > lim[2] || bb[3] > lim[3]){ warn.push({ t:`${lab} left out`, s:`At ${w.toFixed(0)} × ${h.toFixed(0)} mm it runs past the edge of the ${ENC_FACE_NAME[face]}: make it smaller or move it.` }); return; }
+    // the floor's plan is mirrored front to back from how it reads (the box turned over)
+    const bbP = face === "bottom" ? [bb[0], -bb[3], bb[2], -bb[1]] : bb;
+    const clash = taken[face].find(o => bbP[0] < o.bb[2] + 0.6 && o.bb[0] < bbP[2] + 0.6 && bbP[1] < o.bb[3] + 0.6 && o.bb[1] < bbP[3] + 0.6);
+    if (clash){ warn.push({ t:`${lab} left out`, s:`It overlaps ${clash.n ? "opening " + clash.n : clash.what || "a screw hole"} on the ${ENC_FACE_NAME[face]}: move one of them, or make it smaller.` }); return; }
+    taken[face].push({ n:0, what:lab.toLowerCase(), bb:bbP });
+    const th = wall ? t : face === "top" ? lidT : fl, finish = !wall && a.finish === "raised" ? "inlay" : a.finish;
+    const depth = finish === "raised" ? a.depth : clamp(a.depth, 0.2, Math.max(0.2, th - 0.6));
+    const place = polys => encArtPlace(polys, a.rot, cx, cy, face === "bottom");
+    artOn[face].push({ i, finish, depth, union:place(sh.union), colours:(finish === "engrave" ? [] : sh.colours).map(c => ({ slot:c.slot, polys:place(c.polys) })) });
+    artInfo.push({ i, face, kind:a.kind, finish, w, h, depth, colours:finish === "engrave" ? 0 : sh.colours.length });
+  });
   // split into parts (Session 40): planned once every opening and label is in place, so the joins keep clear of them
   // every board's place on the floor (Session 45: all of them, not only one with holes), for the joins to keep clear of
   const boardRects = boardList.map(bd => { const bw = bd.rot ? bd.B.d : bd.B.w, bdp = bd.rot ? bd.B.w : bd.B.d;
     return { r:[bd.x - bw/2, bd.y - bdp/2, bd.x + bw/2, bd.y + bdp/2], what: bd.main ? "the board" : bd.B.label }; });
   const splitG = { W, D, H, t, fl, R, iw, id, slide, lidOn, lipH, magnet, pocketD, pocketH, bossR, bossHole, screw, bosses, taken, boardRects, warn, test: !!state.base.enclosure.test, mountSolids: mount.solids };
   const split = encSplitPlan(E, splitG);
+  if (split) for (const f of ["front","back","left","right","bottom"]) if (artOn[f].length){
+    warn.push({ t:`Art on the ${ENC_FACE_NAME[f]} left out`, s:"A box made in parts takes art on the lid only, for now." }); artOn[f] = []; }
+  const ART_FACE = { front:"Front", back:"Back", left:"Left side", right:"Right side", top:"Lid", bottom:"Floor" };
+  const artParts = [], artName = (face, slot) => `${ART_FACE[face]} art (${(state.slots[slot] || state.slots[0]).name})`;
   const lidPins = split ? bosses.concat(split.pins) : bosses;
   if (split && lidOn) split.pins.forEach(([x, z]) => { const r = (magnet ? pocketD : screw.head)/2 + 0.5; taken.top.push({ n:0, what:"a screw hole", bb:[x - r, -z - r, x + r, -z + r] }); });
   const solids = [];
@@ -3852,12 +3958,21 @@ function buildEnclosure(){
     notchesOn[face].slice().sort((p, q) => q[0] - p[0]).forEach(([x0, x1, yb]) => outer.push([x1, Hw], [x1, yb], [x0, yb], [x0, Hw]));
     outer.push([-F.L/2, Hw]);
     const open = holesOn[face].map(L => encOrient(L, false)), labs = labelsOn[face];
-    if (labs.length && t >= 0.8){
-      const e = labDepth(t);                          // the outside of a wall is its far side (local y = t)
-      solids.push(C.affineSolid(C.mergeSolids([
-        C.extrudePolysAt([{ outer, holes: open }], 0, t - e),
-        C.extrudePolysAt([{ outer: outer.slice(), holes: [...open, ...labHoles(labs)] }, ...labIslands(labs)], t - e, t)]), F.M, F.T));
+    // cuts into the outside of a wall (its far side, local y = t), each to its own depth: labels, engraved or inlaid art
+    const wc = [];
+    if (labs.length && t >= 0.8) wc.push({ depth: labDepth(t), holes: labHoles(labs), islands: labIslands(labs) });
+    artOn[face].filter(x => x.finish !== "raised").forEach(x => wc.push({ depth: x.depth, holes: labHoles(x.union), islands: labIslands(x.union) }));
+    if (wc.length){
+      const zs = [...new Set([0, t, ...wc.map(c => +(t - c.depth).toFixed(4))])].filter(z => z >= 0 && z <= t).sort((a, b) => a - b), pcs = [];
+      for (let k=0;k<zs.length-1;k++){ const on = wc.filter(c => t - c.depth <= zs[k] + 1e-6);
+        pcs.push(C.extrudePolysAt([{ outer: outer.slice(), holes: [...open, ...on.flatMap(c => c.holes)] }, ...on.flatMap(c => c.islands)], zs[k], zs[k+1])); }
+      solids.push(C.affineSolid(C.mergeSolids(pcs), F.M, F.T));
     } else solids.push(C.affineSolid(C.extrudePolysAt([{ outer, holes: open }], 0, t), F.M, F.T));
+    // inlaid art fills its pocket flush; raised art stands on the outside (in the box's filament, or a part of its own)
+    artOn[face].forEach(x => x.colours.forEach(c => {
+      const sol = C.affineSolid(x.finish === "raised" ? C.extrudePolysAt(c.polys, t - 0.01, t + x.depth) : C.extrudePolysAt(c.polys, t - x.depth, t), F.M, F.T);
+      if (x.finish === "raised" && c.slot === boxSlot0) solids.push(sol); else artParts.push({ name:artName(face, c.slot), slot:c.slot, solid:sol });
+    }));
   }
   if (slide){
     // rails on the side walls, from the front face to the back wall: a groove cut into the wall at
@@ -3881,6 +3996,8 @@ function buildEnclosure(){
     // its own depth, so the floor is built in layers
     const cuts = [];
     if (labs.length && fl >= 0.8) cuts.push({ depth: clamp(+E.labelDepth || 0.4, 0.2, fl - 0.4), holes: labHoles(labs), islands: labIslands(labs) });
+    artOn.bottom.forEach(x => { cuts.push({ depth: x.depth, holes: labHoles(x.union), islands: labIslands(x.union) });
+      x.colours.forEach(c => artParts.push({ name:artName("bottom", c.slot), slot:c.slot, solid:C.extrudePolysAt(c.polys, 0, x.depth) })); });
     if (feet.length){
       const want = clamp(+E.footDepth || 1, 0.4, 3), depth = Math.min(want, Math.max(0, fl - 0.6));
       if (depth < want - 1e-6) warn.push({ t:"Floor too thin for the foot recesses", s:`The recesses are ${depth.toFixed(1)} mm deep instead of ${want.toFixed(1)}. Make the floor at least ${(want + 0.6).toFixed(1)} mm thick.` });
@@ -4170,7 +4287,7 @@ function buildEnclosure(){
     dividerInfo.push({ w:wp, h:hp, fan:fanNote, crossings:crossings.length });
   });
   solids.push(...mount.solids);
-  const parts = [{ name:"Box", slot:clamp(+E.boxSlot || 0, 0, state.slots.length - 1), solid:C.mergeSolids(solids.filter(Boolean)) }];
+  const parts = [{ name:"Box", slot:clamp(+E.boxSlot || 0, 0, state.slots.length - 1), solid:C.mergeSolids(solids.filter(Boolean)) }, ...artParts];
   if (slide){
     // printed as it sits, top face up: a stack of thin slabs whose edges step in at 45° like the
     // grooves. Openings, labels and the logo go through or into its top face, a finger notch at the front.
@@ -4179,6 +4296,8 @@ function buildEnclosure(){
     const logo = E.logo && E.logo.on ? encLogo(E, clamp(+E.lidSlot || 0, 0, state.slots.length - 1), [-(a0 - Lt), -D/2, a0 - Lt, back], 0, taken.top, warn) : null;
     const logoDepth = clamp(+(E.logo && E.logo.depth) || 0.6, 0.2, Math.max(0.2, Lt - 0.6));
     if (logo) cuts.push({ depth: logoDepth, holes: labHoles(logo.union), islands: labIslands(logo.union) });
+    const lidArt = artOn.top.map(x => Object.assign({}, x, { depth:Math.min(x.depth, Math.max(0.2, Lt - 0.6)) }));
+    lidArt.forEach(x => cuts.push({ depth: x.depth, holes: labHoles(x.union), islands: labIslands(x.union) }));
     const nd = Math.min(1, Lt - 0.6);
     if (nd > 0.2) cuts.push({ depth: nd, holes: [encOrient(C.ringRect(16, 4, 1.9, 6).map(([x, y]) => [x, y - D/2 + 6]), false)], islands: [] });
     const n = Math.max(1, Math.ceil(Lt/0.2 - 1e-6)), hs = new Set([0, Lt]);
@@ -4192,6 +4311,8 @@ function buildEnclosure(){
     }
     const bed = state.printer.bed || [256,256,256], beside = W*2 + 10 + 2*mount.out > bed[0] && D*2 + 10 <= bed[1] ? [0, 0, -(D + 10)] : [W + 10 + mount.out, 0, 0];
     parts.push({ name:"Lid", slot:clamp(+E.lidSlot || 0, 0, state.slots.length - 1), solid:C.affineSolid(C.mergeSolids(lid.filter(Boolean)), [1,0,0, 0,1,0, 0,0,1], beside) });
+    lidArt.forEach(x => x.colours.forEach(c => parts.push({ name:artName("top", c.slot), slot:c.slot, lid:true,
+      solid:C.affineSolid(C.extrudePolysAt(c.polys, Lt - x.depth, Lt), [1,0,0, 0,1,0, 0,0,1], beside) })));
     if (logo){
       logo.colours.forEach(c => parts.push({ name:`Lid logo (${state.slots[c.slot].name})`, slot:c.slot,
         solid:C.affineSolid(C.extrudePolysAt(c.polys, Lt - logoDepth, Lt), [1,0,0, 0,1,0, 0,0,1], beside) }));
@@ -4209,6 +4330,7 @@ function buildEnclosure(){
     const logo = E.logo && E.logo.on ? encLogo(E, clamp(+E.lidSlot || 0, 0, state.slots.length - 1), [-W/2, -D/2, W/2, D/2], R, taken.top, warn) : null;
     const logoDepth = clamp(+(E.logo && E.logo.depth) || 0.6, 0.2, Math.max(0.2, lidT - 0.6));
     if (logo){ const u = flipY(logo.union); lidCuts.push({ depth: logoDepth, holes: labHoles(u), islands: labIslands(u) }); }
+    artOn.top.forEach(x => { const u = flipY(x.union); lidCuts.push({ depth: x.depth, holes: labHoles(u), islands: labIslands(u) }); });
     // the lid in slabs; each cut into its outside (labels, the logo) runs from the bed up to its own depth
     const slab1 = (z0, z1, r, on) => C.extrudePolysAt([{ outer: lidOuter.slice(), holes: [...topHoles(), ...(r > 0 ? screwHoles(r) : []), ...on.flatMap(c => c.holes)] },
       ...on.flatMap(c => c.islands)], z0, z1);
@@ -4270,6 +4392,8 @@ function buildEnclosure(){
     lidShift = beside;
     parts.push({ name:"Lid", slot:clamp(+E.lidSlot || 0, 0, state.slots.length - 1), lid:true,
       solid:C.affineSolid(C.mergeSolids(lid.filter(Boolean)), [1,0,0, 0,1,0, 0,0,1], beside) });
+    artOn.top.forEach(x => x.colours.forEach(c => parts.push({ name:artName("top", c.slot), slot:c.slot, lid:true,
+      solid:C.affineSolid(C.extrudePolysAt(encArtPlace(c.polys, 0, 0, 0, true), 0, x.depth), [1,0,0, 0,1,0, 0,0,1], beside) })));
     if (logo) logo.colours.forEach(c => parts.push({ name:`Lid logo (${state.slots[c.slot].name})`, slot:c.slot, lid:true,
       solid:C.affineSolid(C.extrudePolysAt(flipY(c.polys), 0, logoDepth), [1,0,0, 0,1,0, 0,0,1], beside) }));
     if (logo) enclosureLogo = { size:logo.size, colours:logo.colours.length, depth:logoDepth };
@@ -4324,7 +4448,7 @@ function buildEnclosure(){
       enclosurePlates = plates.length;
     }
   }
-  enclosureInfo = { test: !!state.base.enclosure.test, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR }, anchors:anchorsMade, ducts:ductInfo.length, count:(E.cut || []).length - left.length,
+  enclosureInfo = { test: !!state.base.enclosure.test, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR }, anchors:anchorsMade, ducts:ductInfo.length, count:(E.cut || []).length - left.length,
     split: splitInfo };
   return out;
 }
@@ -9617,6 +9741,7 @@ document.querySelectorAll(".viewtools button[title]").forEach(b => { if (!b.getA
    active page is shown, so panels stay short, and the active page plus its scroll position are
    remembered per tab and object, so changing a setting never loses your place. */
 const SECTION_ICONS = [
+  [/^art, words and icons/i,"✦"],
   [/hanging hole/i,"◎"], [/^thickness$/i,"⇕"], [/^feet$/i,"⊥"], [/cut it flat/i,"✂"],
   [/piece shape/i,"🧩"], [/thickness and gap/i,"⇕"], [/labels on the back/i,"#"], [/cut lines/i,"✂"], [/frame or tray/i,"◫"],
   [/^basics$|^main$/i,"☰"], [/every name|batch/i,"≡"], [/font/i,"𝐅"], [/charm|symbol|decor/i,"✦"], [/picture|photo/i,"▨"],
@@ -11391,6 +11516,40 @@ function enclosureFields(p){
     note(g, LG.mode === "engrave" ? "Cut into the lid's face: one filament is enough. Fill it with paint for contrast."
       : "Each colour of the logo becomes its own part in that filament. Colours that match the lid or the picture's background are left as lid. Choose which colours print on the Art tab.");
   }, !!(E.logo && E.logo.on));
+  // art, words and icons on any face (Session 53)
+  group(p, "Art, words and icons on the box", g => {
+    const list = Array.isArray(E.art) ? E.art : (E.art = []), info = (I && I.art) || [];
+    note(g, "Put a name, a word or an icon on any face: engraved into it, inlaid flush in another filament, or raised on a wall. The Art tab's picture can go on too.");
+    const add = (o) => { if (list.length >= ENC_ART.max) return; const face = o.face || "front";
+      list.push(encArtClean(Object.assign({ face, x:0, y:0, finish:"inlay", slot:state.slots.length > 1 ? (+E.boxSlot === 1 ? 2 % state.slots.length : 1) : 0, depth:0.6 }, o))); renderTab(); baseChanged(); pushHistory(); };
+    if (list.length < ENC_ART.max) buttonRow(g, [["Add words", ()=>add({ kind:"text", text:"MY PROJECT", size:8 })], ["Add an icon", ()=>add({ kind:"icon", icon:"power", size:12 })],
+      ...(state.items.length ? [["Add the Art tab picture", ()=>add({ kind:"picture", face:E.lid === "none" ? "front" : "top", size:Math.round(Math.min(40, (+E.w || 100)*0.4)) })]] : [])]);
+    const cuts = Array.isArray(E.cut) ? E.cut : [], unl = cuts.filter(c => !encLabelText(c.label) && encAutoLabel(c.kind));
+    if (unl.length) buttonRow(g, [[`Label every opening (${unl.length})`, ()=>{ unl.forEach(c => c.label = encAutoLabel(c.kind)); renderTab(); baseChanged(); pushHistory(); }]]);
+    list.forEach((a, k) => {
+      const box = document.createElement("div"); box.style.cssText = "border-top:1px solid rgba(128,128,128,.35);margin-top:10px;padding-top:6px"; g.appendChild(box);
+      const got = info.find(x => x.i === k), what = a.kind === "text" ? `“${esc(a.text || "…")}”` : a.kind === "icon" ? esc((ICONS[a.icon] || {}).label || "an icon") : "the Art tab picture";
+      box.insertAdjacentHTML("beforeend", `<p class="hint" style="margin:0 0 4px"><b>Art ${k + 1}</b>: ${what}${got ? `, ${got.w.toFixed(0)} × ${got.h.toFixed(0)} mm` : ""}</p>`);
+      selField(box, "On", ENC_FACES.filter(([f]) => f !== "top" || E.lid !== "none"), ()=>a.face, v=>{ a.face = v; if (v === "top" || v === "bottom"){ if (a.finish === "raised") a.finish = "inlay"; } renderTab(); baseChanged(); });
+      segField(box, [["text","Words"],["icon","Icon"],["picture","Picture"]], ()=>a.kind, v=>{ a.kind = v; if (v === "picture" && a.size < 15) a.size = 30; renderTab(); baseChanged(); });
+      if (a.kind === "text"){
+        textField(box, "Words", ()=>a.text, v=>{ a.text = v; }, { max:40, onChange:baseChanged });
+        selField(box, "Font", FONTS.map(f => [f.n, f.n]), ()=>a.font, v=>{ a.font = v; baseChanged(); });
+      } else if (a.kind === "icon") iconGrid(box, a.icon, key => { a.icon = key; renderTab(); baseChanged(); pushHistory(); });
+      else note(box, state.items.length ? "The picture on the Art tab, split into your filaments like the lid logo." : "Add a picture on the Art tab first.");
+      numField(box,{ label:a.kind === "picture" ? "Width (mm)" : "Height (mm)", min:3,max:200,step:0.5, get:()=>a.size, set:v=>a.size=v, onChange:baseChanged, noReset:true });
+      const wall = ENC_WALLS.has(a.face);
+      numField(box,{ label:"Across (mm from the middle)", min:-200,max:200,step:0.5, get:()=>a.x, set:v=>a.x=v, onChange:baseChanged, noReset:true });
+      numField(box,{ label:wall ? "Up (mm from the middle)" : "Front to back (mm from the middle)", min:-200,max:200,step:0.5, get:()=>a.y, set:v=>a.y=v, onChange:baseChanged, noReset:true });
+      segField(box, [["0","Upright"],["90","Turned left"],["270","Turned right"],["180","Upside down"]], ()=>String(a.rot || 0), v=>{ a.rot = +v; baseChanged(); });
+      segField(box, wall ? [["engrave","Engraved"],["inlay","Inlaid"],["raised","Raised"]] : [["engrave","Engraved"],["inlay","Inlaid"]], ()=>!wall && a.finish === "raised" ? "inlay" : a.finish, v=>{ a.finish = v; renderTab(); baseChanged(); });
+      if (a.finish !== "engrave" && a.kind !== "picture") slotField(box, "Filament", ()=>a.slot, v=>{ a.slot = +v; baseChanged(); });
+      numField(box,{ label:a.finish === "raised" ? "Stands out (mm)" : "Depth (mm)", min:0.2,max:a.finish === "raised" ? 3 : 1.6,step:0.1, get:()=>a.depth, set:v=>a.depth=v, onChange:baseChanged, noReset:true });
+      note(box, a.finish === "engrave" ? "Cut into the face: one filament is enough. Paint it in for contrast." : a.finish === "raised" ? "Stands out of the wall; the wall prints upright, so it needs no support." : "Fills a pocket flush with the face in its own filament: smooth to the touch, with a sharp edge.");
+      buttonRow(box, [["Copy", ()=>{ if (list.length < ENC_ART.max){ list.splice(k + 1, 0, encArtClean(Object.assign({}, a, { y:a.y - a.size - 3 }))); renderTab(); baseChanged(); pushHistory(); } }],
+        ["Remove", ()=>{ list.splice(k, 1); renderTab(); baseChanged(); pushHistory(); }]]);
+    });
+  }, Array.isArray(E.art) && E.art.length > 0);
   group(p, "Feet", g => {
     checkField(g, "Recesses for stick-on rubber feet", ()=>E.feet === "recess", v=>{ E.feet = v ? "recess" : "none"; renderTab(); baseChanged(); });
     if (E.feet === "recess"){
@@ -14776,6 +14935,7 @@ function sanitizeProject(data){
       fan:ENC_FANS.includes(+w.fan) ? +w.fan : 0, cable:w.cable !== false, notch:["none","small","large","ends"].includes(w.notch) ? w.notch : (w.cable === false ? "none" : "small") }));
     E.ducts = (Array.isArray(E.ducts) ? E.ducts : []).slice(0, ENC_DUCT.max).filter(u => u && typeof u === "object").map(u => ({ face:["back","front","left","right"].includes(u.face) ? u.face : "back", at:Math.min(150, Math.max(-150, cleanNum(u.at, 0))) }));
     E.showParts = E.showParts !== false;
+    E.art = (Array.isArray(E.art) ? E.art : []).slice(0, ENC_ART.max).filter(a => a && typeof a === "object").map(encArtClean);     // art on the box (Session 53)
     const A0 = E.anchors && typeof E.anchors === "object" ? E.anchors : {};
     E.anchors = { n:Math.round(Math.min(12, Math.max(0, cleanNum(A0.n, 0)))), where:["back","sides","all"].includes(A0.where) ? A0.where : "back" };
     // split into parts (Session 40): a project from before it splits only when the box is bigger than the bed

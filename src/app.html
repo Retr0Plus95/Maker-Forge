@@ -1961,7 +1961,7 @@ const CUTOUTS = {
   mic:{ g:"sensor", label:"Microphone (electret, 10 mm) or a sound sensor's mic", kind:"round", dia:10 },
   speaker:{ g:"sound", label:"Speaker grille (holes over the cone)", kind:"grille", dia:28, hd:2 },
   buzzer:{ g:"sound", label:"Buzzer: a few small holes", kind:"grille", dia:10, hd:1.6 },
-  fan:{ g:"air", label:"Fan: grille + 4 screws", kind:"fan", size:40, style:"rings" },
+  fan:{ g:"air", label:"Fan: grille + 4 screws", kind:"fan", size:40, style:"slots" },
   vent:{ g:"air", label:"Vent: slots, honeycomb or holes", kind:"vent", w:50, h:20, style:"slots" },
   // Session 45: many more, the most common first within each group. k: more words the search finds them by
   usbb:{ g:"port", label:"USB-B port (Arduino Uno, printers)", k:"arduino uno", kind:"rect", w:12.2, h:11, r:0.5 },
@@ -2055,7 +2055,7 @@ const ENC_FACE_NAME = Object.fromEntries(ENC_FACES.map(([k,v]) => [k, v.toLowerC
 const ENC_WALLS = new Set(["front","back","left","right"]);
 function newOpening(kind, face){
   const k = encHas(CUTOUTS, kind) ? kind : "round", d = CUTOUTS[k];
-  const c = { face: encHas(ENC_FACE_NAME, face) ? face : "front", kind:k, u:0, v:0, rot:false, label:"", labelPos:"below", top:"flat", notch:false };
+  const c = { face: encHas(ENC_FACE_NAME, face) ? face : "front", kind:k, u:0, v:0, rot:false, label:"", labelPos:"below", top:"auto", notch:false };
   for (const key of ["w","h","r","dia","hw","hh","hd","size","style"]) if (d[key] != null) c[key] = d[key];
   return c;
 }
@@ -2104,9 +2104,18 @@ function encRound(dia, wall, tear){
   const r = Math.max(0.25, dia/2);
   return wall && tear && dia >= 3 ? encTeardrop(r, Math.max(16, Math.round(r*8))) : C.ringCircle(r, Math.max(16, Math.round(r*10)));
 }
-function encHex(s){ const R = s/Math.sqrt(3), L = []; for (let i=0;i<6;i++){ const a = Math.PI/2 + i*Math.PI/3; L.push([Math.cos(a)*R, Math.sin(a)*R]); } return L; }
-// pointy-top hexagons (flat sides vertical, so the roofs are 60° slopes in a wall)
-function encHoneycomb(w, h, cell, bar, inside){
+function encHex(s, flat){ const R = s/Math.sqrt(3), L = []; for (let i=0;i<6;i++){ const a = (flat ? 0 : Math.PI/2) + i*Math.PI/3; L.push([Math.cos(a)*R, Math.sin(a)*R]); } return L; }
+// pointy-top hexagons on a lid or floor; on a wall (Session 47) flat-top ones: a pointy top's roof slopes only 30° from
+// level and needed support, a flat top is a short bridge (one side, cell/√3) between two 60° slopes
+function encHoneycomb(w, h, cell, bar, inside, wall){
+  if (wall){                                                  // the same grid turned a quarter: columns instead of rows
+    const R = cell/Math.sqrt(3), dy = cell + bar, dx = (cell + bar)*Math.sqrt(3)/2, out = [];
+    for (let i=-Math.ceil(w/dx)-1; i<=Math.ceil(w/dx)+1; i++) for (let j=-Math.ceil(h/dy)-1; j<=Math.ceil(h/dy)+1; j++){
+      const x = i*dx, y = j*dy + (i & 1 ? dy/2 : 0);
+      if (inside ? inside(x, y, R) : (Math.abs(x) + R <= w/2 && Math.abs(y) + cell/2 <= h/2)) out.push(encHex(cell, true).map(p => [p[0]+x, p[1]+y]));
+    }
+    return out;
+  }
   const R = cell/Math.sqrt(3), dx = cell + bar, dy = (cell + bar)*Math.sqrt(3)/2, out = [];
   for (let j=-Math.ceil(h/dy)-1; j<=Math.ceil(h/dy)+1; j++) for (let i=-Math.ceil(w/dx)-1; i<=Math.ceil(w/dx)+1; i++){
     const x = i*dx + (j & 1 ? dx/2 : 0), y = j*dy;
@@ -2114,6 +2123,8 @@ function encHoneycomb(w, h, cell, bar, inside){
   }
   return out;
 }
+// an upright slot with a 45° gable on top (Session 47: vent slots and fan slots on walls print without support)
+const encGableSlot = (sw, h, x) => [[x - sw/2, -h/2], [x + sw/2, -h/2], [x + sw/2, h/2 - sw/2], [x, h/2], [x - sw/2, h/2 - sw/2]];
 // a printed pilot light's hole is never smaller than its lens: the LED pocket, 0.9 mm of wall round it
 // and 0.15 mm of play a side (the lens's shank is octagonal, sized by its corners)
 const lensOct = r => r/Math.cos(Math.PI/8);
@@ -2159,7 +2170,12 @@ function openingRings(c, wall, E){
     case "fan": {
       const s = encHas(FAN_SPACING, c.size) ? +c.size : 40, sp = FAN_SPACING[s], ro = s/2 - 1.5, hole = s <= 30 ? 3.1 : s >= 92 ? 4.4 : 3.4;
       if (c.style === "open") out.push(encRound(ro*2, wall, tear));
-      else if (c.style === "honeycomb") out.push(...encHoneycomb(s, s, Math.max(3.5, s/9), 1.2, (x, y, R) => Math.hypot(x, y) + R <= ro));
+      else if (c.style === "honeycomb") out.push(...encHoneycomb(s, s, Math.max(3.5, s/9), 1.2, (x, y, R) => Math.hypot(x, y) + R <= ro, wall));
+      else if (c.style === "slots"){                 // upright slots inside the circle, pointed on top: no support in a wall
+        const sw = 2.2, bar = 1.6, n = Math.floor((2*ro + bar)/(sw + bar));
+        for (let i=0;i<n;i++){ const x = -((n - 1)*(sw + bar))/2 + i*(sw + bar), hh = 2*Math.sqrt(Math.max(0, ro*ro - (Math.abs(x) + sw/2)*(Math.abs(x) + sw/2))) - 1;
+          if (hh > sw + 1) out.push(encGableSlot(sw, hh, x)); }
+      }
       else {                                         // rings, split by four diagonal spokes
         const bar = 1.4, pitch = Math.max(3.4, s/11), open = pitch - bar, spoke = 1.6;
         for (let r = Math.max(3, s*0.14); r + open <= ro + 0.01; r += pitch){
@@ -2172,18 +2188,20 @@ function openingRings(c, wall, E){
           }
         }
       }
-      for (const sx of [-1,1]) for (const sy of [-1,1]) out.push(encRound(hole, wall, tear).map(p => [p[0] + sx*sp/2, p[1] + sy*sp/2]));
+      // the screw holes are under the fan's frame: teardrops in a wall whatever the round-hole setting (Session 47)
+      for (const sx of [-1,1]) for (const sy of [-1,1]) out.push(encRound(hole, wall, true).map(p => [p[0] + sx*sp/2, p[1] + sy*sp/2]));
       break;
     }
     case "vent": {
       const w = pos(c.w), h = pos(c.h), bar = 2;
-      if (c.style === "honeycomb") out.push(...encHoneycomb(w, h, 4, 1.4));
+      if (c.style === "honeycomb") out.push(...encHoneycomb(w, h, 4, 1.4, null, wall));
       else if (c.style === "holes"){
         const d = 3, p = d + bar, nx = Math.max(1, Math.floor((w - d)/p) + 1), ny = Math.max(1, Math.floor((h - d)/p) + 1);
         for (let j=0;j<ny;j++) for (let i=0;i<nx;i++) out.push(C.ringCircle(d/2, 20).map(q => [q[0] + (i - (nx-1)/2)*p, q[1] + (j - (ny-1)/2)*p]));
       } else {                                       // upright slots: each roof only bridges the slot's width
         const sw = 2, n = Math.max(1, Math.floor((w + bar)/(sw + bar))), x0 = -((n - 1)*(sw + bar))/2;
-        for (let i=0;i<n;i++) out.push(C.ringRect(sw, h, sw/2 - 0.01, 4).map(q => [q[0] + x0 + i*(sw + bar), q[1]]));
+        // pointed on top in a wall (Session 47: the round tops needed support), round on a lid or floor
+        for (let i=0;i<n;i++) out.push(wall ? encGableSlot(sw, h, x0 + i*(sw + bar)) : C.ringRect(sw, h, sw/2 - 0.01, 4).map(q => [q[0] + x0 + i*(sw + bar), q[1]]));
       }
       break;
     }
@@ -2225,7 +2243,17 @@ function openingRings(c, wall, E){
 }
 // openings whose top edge may be turned into a 45° point (ports and plain rectangles; parts that
 // snap into their cut-out, like rocker switches and IEC inlets, need the flat top edge to clip onto)
-const ENC_POINTABLE = new Set(["usbc","usbcboard","usba","micro","hdmi","rj45","sd","dcpcb","xt60","slide","dht11","dht22","rect"]);
+const ENC_POINTABLE = new Set(["usbc","usbcboard","usba","micro","hdmi","rj45","sd","dcpcb","xt60","slide","dht11","dht22","rect",
+  "usbb","usbmini","usba2","hdmimicro","hdmimini","sdfull","keystone","rj11"]);
+// a wall opening's top (Session 47): "pointed" always, "flat" never, "auto" (new openings) when its top edge would be a
+// bridge longer than the printer's bridge limit
+function encPointed(c, rings){
+  if (!ENC_WALLS.has(c.face) || !ENC_POINTABLE.has(c.kind) || !rings.length) return false;
+  if (c.top === "pointed") return true;
+  if (c.top !== "auto") return false;
+  const b = ringsBounds([rings[0]]);
+  return b[2] - b[0] > (state.printer.bridge ?? 10);
+}
 // Every board in the box (Session 45): the main one from "Board mounts" and up to 12 extra boards and modules. Each is
 // held on standoffs through its holes, or by its edges in a cradle when it has none here (or "By its edges" is picked).
 function encBoardList(E){
@@ -2353,7 +2381,7 @@ function boardPortPlace(bd, port){
 function placedRings(c, E){
   let rings = openingRings(c, ENC_WALLS.has(c.face), E);
   if (c.rot) rings = rings.map(L => L.map(([x, y]) => [-y, x]));
-  if (c.top === "pointed" && ENC_WALLS.has(c.face) && ENC_POINTABLE.has(c.kind) && rings.length){
+  if (encPointed(c, rings)){
     // a gable over the opening: its roof slopes at 45°, so the top prints without a bridge
     const b = ringsBounds([rings[0]]), w = b[2] - b[0];
     rings[0] = [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [(b[0] + b[2])/2, b[3] + w/2], [b[0], b[3]]];
@@ -2457,7 +2485,7 @@ const encLogoCache = new WeakMap();                   // a picture's canvas -> i
 function encTestSettings(E){
   const T = JSON.parse(JSON.stringify(E)), seen = new Set(), wallCuts = [], flatCuts = { top:[], bottom:[] };
   (E.cut || []).forEach(c => {
-    const key = [c.kind, c.w, c.h, c.dia, c.r, c.size, c.style, !!c.rot, c.hw, c.hh, c.hd, c.notch === true, c.top === "pointed", encLabelText(c.label), ENC_WALLS.has(c.face) ? "wall" : c.face].join("|");
+    const key = [c.kind, c.w, c.h, c.dia, c.r, c.size, c.style, !!c.rot, c.hw, c.hh, c.hd, c.notch === true, ENC_WALLS.has(c.face) && encPointed(c, (r => c.rot ? r.map(L => L.map(([x, y]) => [-y, x])) : r)(openingRings(c, true, E))), encLabelText(c.label), ENC_WALLS.has(c.face) ? "wall" : c.face].join("|");
     if (seen.has(key)) return; seen.add(key);
     (ENC_WALLS.has(c.face) ? wallCuts : flatCuts[c.face]).push(JSON.parse(JSON.stringify(c)));
   });
@@ -10431,14 +10459,18 @@ function enclosureFields(p){
       }
       if (k.kind === "fan"){
         selField(box, "Fan size", Object.keys(FAN_SPACING).map(s => [s, `${s} mm fan (screws ${FAN_SPACING[s]} mm apart)`]), ()=>String(c.size), v=>{ c.size = +v; encOpeningChanged(i); });
-        segField(box, [["rings","Rings"],["honeycomb","Honeycomb"],["open","Open"]], ()=>c.style, v=>{ c.style = v; baseChanged(); });
+        segField(box, [["slots","Slots"],["rings","Rings"],["honeycomb","Honeycomb"],["open","Open"]], ()=>c.style, v=>{ c.style = v; baseChanged(); }, "four");
+        if (ENC_WALLS.has(c.face)) note(box, c.style === "rings" ? "In a wall, the rings' tops need support: Slots or Honeycomb print without." : "Prints in a wall without support.");
       }
       if (k.kind === "vent") segField(box, [["slots","Slots"],["honeycomb","Honeycomb"],["holes","Round holes"]], ()=>c.style, v=>{ c.style = v; baseChanged(); });
       if (k.kind !== "round" && k.kind !== "grille") checkField(box, "Turn it 90°", ()=>c.rot, v=>{ c.rot = v; renderTab(); encOpeningChanged(i); });
       if (wall && ENC_POINTABLE.has(c.kind)){
         const b = ringsBounds(placedRings({ ...c, top:"flat" }, E)), span = b[2] - b[0], lim = state.printer.bridge ?? 10;
-        if (span > lim && c.top !== "pointed" && !c.notch) note(box, `Its top edge is a ${span.toFixed(1)} mm bridge, longer than your bridge limit (${lim} mm). Most printers bridge 15 to 20 mm; if yours sags, give it a pointed top.`);
-        if (!c.notch) checkField(box, "Pointed top (prints without a bridge)", ()=>c.top === "pointed", v=>{ c.top = v ? "pointed" : "flat"; renderTab(); baseChanged(); });
+        if (!c.notch){
+          segField(box, [["auto","Top: auto"],["flat","Flat"],["pointed","Pointed"]], ()=>c.top === "pointed" ? "pointed" : c.top === "auto" ? "auto" : "flat", v=>{ c.top = v; renderTab(); baseChanged(); });
+          note(box, c.top === "auto" ? (span > lim ? `Pointed by itself: its top would be a ${span.toFixed(1)} mm bridge, longer than your printer's ${lim} mm. Flat keeps it square.` : `Flat: its ${span.toFixed(1)} mm top bridges fine. It turns pointed if it grows past your ${lim} mm bridge limit.`)
+            : c.top === "flat" && span > lim ? `Its top edge is a ${span.toFixed(1)} mm bridge, longer than your bridge limit (${lim} mm). Most printers bridge 15 to 20 mm; if yours sags, choose Pointed.` : "A pointed top prints without a bridge.");
+        }
         checkField(box, "Open to the top edge (a notch the lid closes)", ()=>c.notch === true, v=>{ c.notch = v; renderTab(); baseChanged(); });
       }
       const had = !!encLabelText(c.label);
@@ -13433,7 +13465,7 @@ function sanitizeProject(data){
       if ("size" in o && encHas(FAN_SPACING, c.size)) o.size = +c.size;
       if ("style" in o && ["rings","honeycomb","open","slots","holes"].includes(c.style)) o.style = c.style;
       o.rot = c.rot === true;
-      o.label = encLabelText(c.label); o.labelPos = c.labelPos === "above" ? "above" : "below"; o.top = c.top === "pointed" ? "pointed" : "flat"; o.notch = c.notch === true;
+      o.label = encLabelText(c.label); o.labelPos = c.labelPos === "above" ? "above" : "below"; o.top = c.top === "pointed" ? "pointed" : c.top === "auto" ? "auto" : "flat"; o.notch = c.notch === true;
       return o;
     });
   }

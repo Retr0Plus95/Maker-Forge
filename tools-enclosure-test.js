@@ -303,7 +303,7 @@ async function settle() {
   const E = MF.state.base.enclosure;
   check(E.lid === "screw" && E.screw === "M3" && E.board === "none", "bad choices fall back to safe ones", `${E.lid}, ${E.screw}, ${E.board}`);
   check(E.cut.length === 2 && E.cut[0].kind === "round" && E.cut[0].face === "front" && E.cut[0].u === 400 && E.cut[0].v === -400, "bad openings are cleaned or dropped", JSON.stringify(E.cut[0]));
-  check(E.cut[1].size === 40 && E.cut[1].style === "rings", "a fan with an unknown size gets the default", JSON.stringify(E.cut[1]));
+  check(E.cut[1].size === 40 && E.cut[1].style === "slots", "a fan with an unknown size gets the default (slots since Session 47)", JSON.stringify(E.cut[1]));
   check(!document.querySelector("#panel img[src=x]") && !document.body.innerHTML.includes("onerror=alert"), "nothing injected into the page");
   // Session 12 settings in a hostile file
   const bad3 = { app: "maker-forge", state: JSON.parse(JSON.stringify(MF.state)) };

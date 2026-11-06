@@ -371,7 +371,9 @@ async function settle() {
     st().paint.ops[0].wrap = "ball"; MF.paint.repaint(); await settle();
     check(Object.keys(painted()).filter(k => k !== "255").length === 2, "and over a ball", JSON.stringify(painted()));
     st().paint.ops = []; st().items.splice(it, 1); st().active = st().items.length - 1; MF.rebuild(false); await settle(); }
-  // the brush preview shows exactly what the stroke then paints
+  // the brush preview shows exactly what the stroke then paints, with Sharp edges off (with them on, the stroke
+  // is then cut into the model, tools-sharp-test.js)
+  st().paint.sharp = false;
   st().paint.ops = [{ k: "brush", slot: 3, r: 5, facing: null, pts: [[0, 90, 0]] }]; MF.paint.repaint(); await settle();   // refined
   st().paint.ops = []; MF.paint.repaint(); await settle();
   check(MF.parts[0].solid === MF.parts[0].solid0, "with nothing painted the model is its plain self again");
@@ -380,6 +382,7 @@ async function settle() {
   const pv = MF.paint.previewTris({ part: 0, p: [20, 45, 33.5], dir: [0, 0, -1] });
   st().paint.ops = [{ k: "brush", slot: 3, r: 4, facing: null, pts: [[20, 45, 33.5]], radial: 3 }]; MF.paint.repaint(); await settle();
   check(pv && pv.tris.length > 0 && pv.tris.length === painted()[3], "the brush preview lights up exactly the triangles the stroke paints (three times round here)", `${pv && pv.tris.length} and ${painted()[3]}`);
+  st().paint.sharp = true;
   Object.assign(MF.paint.ui, { radial: 1, facing: true });
   // a box over the whole view: the side seen, then right through
   st().paint.ops = []; MF.paint.repaint(); await settle();

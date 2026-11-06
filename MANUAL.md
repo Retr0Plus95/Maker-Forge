@@ -152,6 +152,11 @@ Some objects in brief:
     - **Hooks for IKEA SKÅDIS:** flat hooks 40 mm apart (or 80, 120…). Tip the box, push the hooks through two slots in a row, and let it down.
     - **Pegs for pegboard:** for boards with 1/4-inch holes on a 1-inch grid, up to 6 mm thick. They go in the same way.
     - None of them need supports. To hang the box on screws through its back wall, add a **Wall-mount keyhole** opening on the back instead.
+  - **Split into parts**: a box bigger than your printer's bed is made in parts that screw together, each small enough for the bed. It is cut across its longer side. Inside each join both parts have a flange: the first part's has holes for heat inserts (or pilot holes, with **Self-tapping** screws), the next part's has clearance holes, and screws go through from inside. The lid is cut at the same places, and with a screwed or magnet lid the flanges also take two more lid screws (or magnets) each side of every join, so each part of the lid holds down on its own.
+  - **When it's bigger than the bed** (the usual choice) splits only when it has to, into as few parts as fit. **Always** splits it into the number of parts you set (2 to 8), even if it fits. **Never** keeps it in one piece. **Screws for the joins** sets the screw size (M3 unless you change it).
+  - The joins move to keep clear of openings, labels, posts, standoffs, feet, the board and the mounts; ears or loops that stick out count in each part's size. When one can't (a vent as long as the box, say), the app says which opening is in the way. A box with a sliding lid isn't split.
+  - The page says how the parts go together, how many inserts and screws to buy and their length, and what prints on each plate. **⊞** above the model lays the parts out on their plates; the download has a file for each plate (see Export).
+  - The flanges are set inside the walls, so the parts are exactly as long as the box between the joins. Press the inserts in before you put the parts together.
 - **Phone case.** Pick your phone; the sizes come from the makers' spec sheets. Print the **fit test rim** first. Print the case in TPU.
   - **A picture in the back** (Make tab, **Picture on the back**) is set flush into the back's first layers, in your loaded filaments. It works best with a logo, a drawing or text in a few flat colours. A photo is reduced to flat areas of your filaments and can look rough; the app says so. **Colours → Match to artwork** (or the button under the message on the Art tab) sets your other filaments to the picture's colours, keeping the case's own, and **Art → Cut out the subject with AI** takes a photo's background away.
   - The Art tab shows the picture in the colours it prints in. Click a colour there to leave it out.
@@ -356,7 +361,8 @@ The heights are the top of the first layer in the new colour, as the slider show
 - `model-bambu.3mf` for Bambu Studio (drag it in and choose **Import geometry only**), and `model-prusa-orca.3mf` for PrusaSlicer and OrcaSlicer, with every part assigned to its filament;
 - a coloured OBJ, one STL per filament and one merged STL;
 - printing notes and the project file;
-- for a one-colour-at-a-time printer, `colour-changes.txt`: where to pause and which spool to load.
+- for a one-colour-at-a-time printer, `colour-changes.txt`: where to pause and which spool to load;
+- for a project box made in parts, a pair of 3mf files for each plate (`plates/plate-1-bambu.3mf`, `plates/plate-1-prusa-orca.3mf` and so on), an STL for each part, and `how-it-goes-together.txt`. Print the plates one at a time; the model files above hold every plate side by side.
 
 Also on this tab: **A keychain for every name**, **Share a link**, the **Project file** buttons and **Slicer notes**.
 

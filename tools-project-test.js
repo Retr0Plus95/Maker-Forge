@@ -94,6 +94,13 @@ async function settle() {
     await host("relief", b => { b.relief = { source: "magic", shape: "star", width: 1e9, height: -1, cell: 0, contrast: "lots", hole: 1, extra: [] }; },
       b => b.relief.source === "ai" && b.relief.shape === "rect" && b.relief.width === 300 && b.relief.height === 0.3 && b.relief.cell === 0.15 && b.relief.contrast === 1 && b.relief.hole === false && !("extra" in b.relief)
         || JSON.stringify(b.relief), "a relief 1000 km wide with a negative height, a zero detail and a shape that doesn't exist: tamed", true);
+    // Session 40: a project box split into parts
+    await host("enclosure", b => { Object.assign(b.enclosure, { w: 1e9, d: 1e9, split: "<img src=x onerror=alert(1)>", splitParts: 1e9, splitScrew: "constructor" }); },
+      b => b.enclosure.split === "bed" && b.enclosure.splitParts === 8 && b.enclosure.splitScrew === "M3" && b.enclosure.w === 400 || JSON.stringify([b.enclosure.split, b.enclosure.splitParts, b.enclosure.splitScrew, b.enclosure.w]),
+      "a box a million km wide, split into a billion parts with constructor screws: 400 mm (too big for the bed even in parts, it says so), 8 parts at most, M3");
+    await host("enclosure", b => { Object.assign(b.enclosure, { w: 300, d: 120, split: "parts", splitParts: 1e9 }); },
+      b => b.enclosure.splitParts === 8 && MF.enclosure.split && MF.enclosure.split.n <= 8 || JSON.stringify([b.enclosure.splitParts, MF.enclosure.split && MF.enclosure.split.n]),
+      "a 300 mm box asked for a billion parts: eight at most, built quickly");
     check(!document.querySelector("#panel b, #panel img[src=x]") || ![...document.querySelectorAll("#panel b")].some(b => b.textContent === "hi"), "no markup from the file reached the page");
   }
 

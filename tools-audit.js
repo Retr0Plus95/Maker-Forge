@@ -6,6 +6,8 @@
 //   node tools-audit.js index.html board art       the Art tab's controls on the board
 //   CUT=inlay node tools-audit.js index.html box art   ... with the artwork cut in (engrave or inlay, Session 32;
 //                                                  Manifold runs in Node from models/)
+//   SET='{"w":300}' node tools-audit.js index.html enclosure   ... from these settings instead of the object's defaults
+//                                                  (Session 40: a box bigger than the bed, so its Split into parts page shows)
 const boot = require("./tools-test-env.js");
 const env = boot(process.argv[2]);
 const win = env.window, document = win.document, $$ = s => [...document.querySelectorAll(s)];
@@ -125,6 +127,7 @@ function find(c) {
   let tested = 0;
   for (const obj of pick) {
     const sel = document.querySelector("#objectSel"); sel.value = obj; sel.dispatchEvent(new win.Event("change")); await settle();
+    if (process.env.SET && MF.state.base[obj] && typeof MF.state.base[obj] === "object"){ Object.assign(MF.state.base[obj], JSON.parse(process.env.SET)); MF.rebuild(false); await settle(); MF.render(); }
     await clickTab(tabName);
     const list = controls();
     const baseState = JSON.stringify(MF.state.base), baseItems = JSON.stringify(MF.state.items.map(d => ({ ...d, src: 0, thumb: 0, _srcCv: 0, solids: 0, _raw: 0 })));

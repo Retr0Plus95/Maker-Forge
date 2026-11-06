@@ -2,7 +2,8 @@
 // kind of opening cuts a hole on every face it may go on, overlaps and misfits are left out with a
 // message, screws, lids and board standoffs, the presets, the rulers, and a hostile project file.
 // Session 12: engraved labels, magnet lids, foot recesses, notches, the sliding lid and the fit test.
-//   node tools-enclosure-test.js index.html
+// Session 40: a box bigger than the bed, split into parts that screw together.
+//   node tools-enclosure-test.js index.html          ONLY=split for the split parts only
 const boot = require("./tools-test-env.js");
 const env = boot(process.argv[2] || "index.html");
 const win = env.window, document = win.document;
@@ -16,6 +17,7 @@ async function settle() {
   return false;
 }
 (async () => {
+  if (process.env.ONLY === "split") return;
   await sleep(800);
   const MF = win.MakerForge, C = MF.core, st = MF.state;
   const fresh = over => { st.base.type = "enclosure"; st.base.enclosure = Object.assign(JSON.parse(JSON.stringify(MF.defaults.enclosure)), over || {}); };
@@ -447,8 +449,187 @@ async function settle() {
   $$("#presetGallery button").find(b => b.dataset.k === "Power bank box").click(); await settle();
   check(MF.parts.some(p => /Pilot light lenses \(4\)/.test(p.name)) && !MF.enclosure.left.length, "the Power bank box's four charge lights are pilot lights with lenses", MF.parts.map(p => p.name).join(", "));
 
+  await splitTests(MF, C);
+  finish();
+})();
+function finish() {
   const errs = env.errors.filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
   check(!errs.length, "no page errors", errs.slice(0, 3).map(e => e.split("\n")[0]).join(" / "));
   console.log(fails ? `\n${fails} FAILED` : "\nall passed");
   process.exit(fails ? 1 : 0);
-})();
+}
+
+// Session 40: a box bigger than the bed, split into parts that screw together (ONLY=split runs just this)
+async function splitTests(MF, C) {
+  console.log("\nSession 40: a box bigger than the bed, split into parts that screw together");
+  const $$ = q => [...document.querySelectorAll(q)], near = (a, c, tol) => Math.abs(a - c) <= tol, inp = document.querySelector("#projInput");
+  const closed = parts => parts.every(p => { const r = C.checkMesh(p.solid); return r.open === 0 && !r.nan && C.signedVolume(p.solid) > 0; });
+  const vol = p => C.checkMesh(p.solid).volume, bnd = p => C.solidBounds(p.solid);
+  const buildNow = async over => { MF.state.base.type = "enclosure"; MF.state.base.enclosure = Object.assign(JSON.parse(JSON.stringify(MF.defaults.enclosure)), over || {}); MF.rebuild(false); await settle(); return MF.parts; };
+  const openFile = async (data, name, done) => {
+    const f = new win.File([JSON.stringify(data)], name, { type: "application/json" });
+    Object.defineProperty(inp, "files", { value: [f], configurable: true }); inp.dispatchEvent(new win.Event("change"));
+    for (let i = 0; i < 100 && !done(); i++) await sleep(30); await settle();
+  };
+  // a point inside a solid: crossings of a ray (slightly skewed, so it misses edges) with its triangles
+  const inside = (S, p) => {
+    const d = [0.0123, 1, 0.0347], Q = S.pos, I = S.idx; let n = 0;
+    for (let t = 0; t < I.length; t += 3) {
+      const a = I[t] * 3, b = I[t + 1] * 3, c = I[t + 2] * 3;
+      const e1 = [Q[b] - Q[a], Q[b + 1] - Q[a + 1], Q[b + 2] - Q[a + 2]], e2 = [Q[c] - Q[a], Q[c + 1] - Q[a + 1], Q[c + 2] - Q[a + 2]];
+      const h = [d[1] * e2[2] - d[2] * e2[1], d[2] * e2[0] - d[0] * e2[2], d[0] * e2[1] - d[1] * e2[0]], det = e1[0] * h[0] + e1[1] * h[1] + e1[2] * h[2];
+      if (Math.abs(det) < 1e-12) continue;
+      const s = [p[0] - Q[a], p[1] - Q[a + 1], p[2] - Q[a + 2]], u = (s[0] * h[0] + s[1] * h[1] + s[2] * h[2]) / det; if (u < 0 || u > 1) continue;
+      const q = [s[1] * e1[2] - s[2] * e1[1], s[2] * e1[0] - s[0] * e1[2], s[0] * e1[1] - s[1] * e1[0]], v = (d[0] * q[0] + d[1] * q[1] + d[2] * q[2]) / det; if (v < 0 || u + v > 1) continue;
+      if ((e2[0] * q[0] + e2[1] * q[1] + e2[2] * q[2]) / det > 0) n++;
+    }
+    return n % 2 === 1;
+  };
+  const keepPrinter = JSON.parse(JSON.stringify(MF.state.printer)), bed = [256, 256, 260];
+  Object.assign(MF.state.printer, { model: "Bambu X2D", bed: bed.slice() });
+  const op = (kind, face, over) => Object.assign(MF.newOpening(kind, face), over);
+  // a 300 mm box with openings on all six faces, like the bench supply's case
+  const allFaces = () => [op("lcd1602", "front", { u: -70, v: 70 }), op("pot", "front", { u: 40, v: 60, label: "SET" }), op("banana", "front", { u: 90, v: 30 }), op("pilotp5", "front", { u: 110, v: 60 }),
+    op("iec", "back", { u: 90, v: 70 }), op("fan", "back", { u: -50, v: 45, size: 60 }), op("rocker", "back", { u: 40, v: 70 }), op("vent", "left", { u: 0, v: 60, w: 70, h: 30 }),
+    op("vent", "right", { u: 0, v: 60, w: 70, h: 30 }), op("vent", "top", { u: -90, v: 0, w: 60, h: 40 }), op("round", "bottom", { u: 80, v: 0, dia: 8 })];
+  let P = await buildNow({ w: 300, d: 160, h: 110, cut: allFaces() });
+  const I = MF.enclosure, S = I.split, E6 = MF.state.base.enclosure;
+  check(S && S.n === 2 && S.axis === 0 && P.filter(p => /^Box part/.test(p.name)).length === 2 && P.filter(p => /^Lid part/.test(p.name)).length === 2,
+    "300 × 160 × 110 on a 256 mm bed: two box parts and two lid parts", P.map(p => p.name).join(", "));
+  check(closed(P), "every part is a closed, outward solid", P.map(p => `${p.name} ${C.checkMesh(p.solid).open}`).join(", "));
+  check(!I.warn.length && I.count === E6.cut.length, `all ${E6.cut.length} openings in, on all six faces, no warnings`, I.warn.map(w => w.t).join(" | "));
+  const sizes = P.map(p => bnd(p).size);
+  check(sizes.every(z => z[0] <= bed[0] && z[2] <= bed[1] && z[1] <= bed[2]), "each part fits the bed", sizes.map(z => z.map(v => v.toFixed(0)).join("×")).join(", "));
+  // nothing lost or doubled: the parts are the whole box plus the flanges
+  E6.split = "off"; const whole = MF.buildEnclosure(); E6.split = "bed"; MF.buildEnclosure();
+  const boxParts = P.filter(p => p.role === "box"), sum = boxParts.reduce((a, p) => a + vol(p), 0);
+  check(Math.abs(sum - S.flangeVolume - vol(whole[0])) < 0.01, "the box parts are exactly the whole box plus the join flanges", `${sum.toFixed(2)} = ${vol(whole[0]).toFixed(2)} + ${S.flangeVolume.toFixed(2)} mm³`);
+  const s = S.seams[0], b1 = bnd(boxParts[0]), b2 = bnd(boxParts[1]);
+  check(near(b1.mx[0], s, 1e-4) && near(b2.mn[0], s, 1e-4) && near(b1.mn[0], -150, 1e-3) && near(b2.mx[0], 150, 1e-3), "they meet face to face at the join", `join at ${s.toFixed(3)} mm`);
+  // the screws: insert holes in part 1's flange, clearance holes counterbored for the heads in part 2's, lined up
+  const Sc = S.S, at = (along, p, q) => [along, q, p];
+  let bad = [];
+  S.holes.forEach(([p, q], i) => {
+    const ring = (part, along, r, want) => [[r, 0], [-r, 0], [0, -r]].forEach(([dp, dq]) => { if (inside(part.solid, at(along, p + dp, q + dq)) !== want) bad.push(`hole ${i} r ${r} in ${part.name}`); });
+    if (inside(boxParts[0].solid, at(s - S.tf / 2, p, q)) || inside(boxParts[1].solid, at(s + S.tf / 2, p, q))) bad.push(`hole ${i} blocked`);
+    ring(boxParts[0], s - S.tf / 2, Sc.insert / 2 - 0.25, false); ring(boxParts[0], s - S.tf / 2, Sc.insert / 2 + 0.5, true);
+    ring(boxParts[1], s + S.tf / 2, Sc.clear / 2 - 0.25, false); ring(boxParts[1], s + S.tf / 2, Sc.clear / 2 + 0.4, true);
+  });
+  check(S.holes.length >= 6 && !bad.length, `${S.holes.length} M3 screws through the join: ${Sc.insert} mm insert holes in part 1, ${Sc.clear} mm clearance holes in part 2, lined up`, bad.slice(0, 4).join("; "));
+  check(S.holes.every(([p, q]) => Math.abs(p) < S.A && q > E6.floor && q < E6.h), "every join screw is inside the box");
+  // the lid: each part screws down on its own, two more screws each side of the join, into the tops of the flanges
+  const lidParts = P.filter(p => p.role === "lid"), shift = [E6.w + 10, 0, 0];
+  bad = [];
+  S.pins.forEach(([x, z], i) => {
+    const k = x < s ? 0 : 1, post = boxParts[k], lid = lidParts[k], r0 = Sc && MF.state.base.enclosure.fasten === "insert" ? 2 : 1.25;
+    if (inside(post.solid, [x, E6.h - 1, z]) || !inside(post.solid, [x + r0 + 0.6, E6.h - 1, z]) || !inside(post.solid, [x, E6.h - 1, z + r0 + 0.6])) bad.push(`post ${i}`);
+    const lp = [x + shift[0], E6.lidThick - 0.3, -z + shift[2]];
+    if (inside(lid.solid, lp) || !inside(lid.solid, [lp[0] + 3.4 / 2 + 0.6, lp[1], lp[2]])) bad.push(`lid hole ${i}`);
+  });
+  check(S.pins.length === 4 && !bad.length, "the lid's four extra screws: insert holes in the flange tops, holes in the lid parts above them", bad.join("; "));
+  // laid out: every plate fits the bed, and nothing on a plate overlaps
+  const printed = MF.printParts(), byPlate = new Map();
+  printed.forEach(q => { if (!byPlate.has(q.plate)) byPlate.set(q.plate, []); byPlate.get(q.plate).push(Object.assign({ b: C.solidBounds(q) }, q)); });
+  let worst = -Infinity; const overlap = [];
+  byPlate.forEach(list => {
+    const mn = [0, 2].map(k => Math.min(...list.map(q => q.b.mn[k]))), mx = [0, 2].map(k => Math.max(...list.map(q => q.b.mx[k])));
+    worst = Math.max(worst, mx[0] - mn[0] - bed[0], mx[1] - mn[1] - bed[1]);
+    list.forEach((a, i) => list.slice(i + 1).forEach(c => { if (/logo/.test(a.name + c.name)) return; if (a.b.mn[0] < c.b.mx[0] && c.b.mn[0] < a.b.mx[0] && a.b.mn[2] < c.b.mx[2] && c.b.mn[2] < a.b.mx[2]) overlap.push(`${a.name}/${c.name}`); }));
+  });
+  check(byPlate.size === S.plates.length && worst <= 0 && !overlap.length && printed.every(q => near(C.solidBounds(q).mn[1], 0, 1e-4)), `laid out on ${byPlate.size} plates, each within the bed, on the bed, nothing overlapping`,
+    `${worst.toFixed(1)} mm to spare at the tightest; ${overlap.join(", ")}`);
+  check(MF.checks.list.some(r => r.t === "Fits the bed" && /plates/.test(r.s)) && !MF.checks.list.some(r => /Bigger than the print bed/.test(r.t)), "the checks say every plate fits the bed",
+    (MF.checks.list.find(r => /bed/i.test(r.t)) || {}).s);
+  check(/2 parts across its width/.test(S.parts) && new RegExp(`press ${S.holes.length} M3 heat inserts`).test(S.join) && /M3 × 14/.test(S.join) && S.plates.length === byPlate.size,
+    "it says how they go together", `${S.parts} ${S.join.slice(0, 110)}…`);
+  // nothing in the joins needs support or makes thin walls: the parts need what the one-piece box needs (its openings')
+  const pa = q => C.analyzePrint([{ name: "x", slot: 0, pos: q.pos, idx: q.idx }], { nozzle: 0.4, layer: 0.2, angle: 45, bridge: 10 });
+  const sup = P.filter(p => p.role).map(p => [p.name, pa(p.solid)]), one = [whole[0], whole.find(p => p.name === "Lid")].map(p => pa(p.solid));
+  const partsSup = sup.reduce((a, [, r]) => a + r.overhang.area, 0), oneSup = one.reduce((a, r) => a + r.overhang.area, 0);
+  // (the parts can read a little less: the check slices smaller parts more finely)
+  let nearJoin = 0;
+  sup.forEach(([, r]) => { const m = r.marks.support; for (let i = 0; i < m.length; i += 3) if (Math.abs(m[i] - s) < S.tf + 1) nearJoin++; });
+  check(partsSup <= oneSup + 1 && !nearJoin && sup.every(([, r]) => !r.thin.length), "nothing at the join needs support or is thin: the parts need no more than the one-piece box",
+    `${partsSup.toFixed(1)} vs ${oneSup.toFixed(1)} mm², all of it the openings'`);
+  // the Make tab shows it; the screw size changes the holes
+  $$("#tabs button").find(b => b.dataset.k === "make").click(); await sleep(40);
+  const page = $$("#secrail button").find(b => b.dataset.title === "Split into parts");
+  if (page) { page.click(); await sleep(40); }
+  check(!!page && document.querySelector("#panel").textContent.includes("Made in 2 parts across its width") && /Plate 1: Box part 1/.test(document.querySelector("#panel").textContent),
+    "the Make tab's Split into parts page says how it is made and what each plate holds");
+  E6.splitScrew = "M4"; const m4 = MF.buildEnclosure(), m4i = MF.enclosure.split;
+  check(m4i.key === "M4" && m4i.S.insert === 5.6 && m4.filter(p => p.role === "box").reduce((a, p) => a + vol(p), 0) !== sum, "M4 screws for the joins: bigger holes", `${m4i.S.insert} mm inserts, ${m4i.key} × ${m4i.screwLen}`);
+  E6.splitScrew = "M3";
+
+  // a join moves round an opening where it would have gone, and says so when it can't
+  P = await buildNow({ w: 300, d: 160, h: 110, cut: [op("usba", "front", { u: 0, v: 40 }), op("rect", "back", { u: -12, v: 40, w: 10, h: 10 })] });
+  const s2 = MF.enclosure.split.seams[0], tf = MF.enclosure.split.tf;
+  // (the back wall's "across" runs right to left seen from the front, so its opening is at x = +12)
+  check(closed(P) && !MF.enclosure.warn.length && Math.abs(s2) >= tf + 1 + 6.7 && Math.abs(s2 - 12) >= tf + 1 + 5.1, "a join keeps clear of openings where it would have gone, front and back", `moved from 0 to ${s2} mm`);
+  P = await buildNow({ w: 300, d: 160, h: 110, cut: [op("vent", "front", { u: 0, v: 50, w: 220, h: 30 })] });
+  check(closed(P) && !MF.enclosure.warn.length && MF.enclosure.split.n === 3, "a long vent: three parts instead of two, so no join crosses it", MF.enclosure.split.lengths.map(v => v.toFixed(1)).join(" + "));
+  P = await buildNow({ w: 300, d: 160, h: 110, cut: [op("vent", "front", { u: 0, v: 50, w: 270, h: 30 })] });
+  check(closed(P) && MF.enclosure.warn.some(w => /Opening 1 crosses a join/.test(w.t) && /parts 1 and 2/.test(w.s)) && MF.checks.list.some(r => /crosses a join/.test(r.t)),
+    "an opening a join can't avoid is said, on the box and in the checks", MF.enclosure.warn.map(w => w.s).join(" | "));
+  // on request, for a box that fits; a box long from front to back; magnets; a press-fit lid
+  P = await buildNow({ w: 200, d: 120, h: 60, cut: [], split: "parts", splitParts: 3 });
+  check(closed(P) && MF.enclosure.split.n === 3 && P.filter(p => p.role === "box").length === 3 && P.filter(p => p.role === "lid").length === 3, "split into three on request, though it fits",
+    MF.enclosure.split.lengths.map(v => v.toFixed(1)).join(" + "));
+  P = await buildNow({ w: 140, d: 300, h: 80, cut: [op("usbc", "right", { u: 30, v: 20 })] });
+  check(closed(P) && MF.enclosure.split.axis === 2 && P.every(p => bnd(p).size[2] <= bed[1]) && /across its depth/.test(MF.enclosure.split.parts) && !MF.enclosure.warn.length,
+    "a box long from front to back is split front to back", MF.enclosure.split.parts);
+  P = await buildNow({ w: 300, d: 140, h: 80, cut: [], lid: "magnet", lidThick: 3 });
+  check(closed(P) && MF.enclosure.split.pins.length === 4 && /magnets/.test(MF.enclosure.split.join) && !MF.enclosure.warn.length, "a magnet lid: magnet pockets each side of the join too");
+  P = await buildNow({ w: 300, d: 140, h: 80, cut: [], lid: "press" });
+  check(closed(P) && !MF.enclosure.split.pins.length && /presses in/.test(MF.enclosure.split.join), "a press-fit lid: each part of it presses in");
+  // mounts (v0.33.0): ears that take a box past the bed's width split it, with the ears on the end parts within the bed;
+  // a join keeps clear of the hanging tabs on the back
+  P = await buildNow({ w: 240, d: 120, h: 60, cut: [], mount: "ears", earN: 2 });
+  check(closed(P) && MF.enclosure.split && MF.enclosure.split.n === 2 && P.every(p => bnd(p).size[0] <= bed[0] && bnd(p).size[2] <= bed[1]) && !MF.enclosure.warn.length,
+    "a 240 mm box whose ears make it 267 mm wide is split, the ears on the end parts, each part within the bed", P.filter(p => p.role === "box").map(p => bnd(p).size[0].toFixed(0)).join(" + ") + " mm with the ears");
+  P = await buildNow({ w: 240, d: 250, h: 60, cut: [], mount: "ears", earN: 2 });
+  check(closed(P) && MF.enclosure.split && MF.enclosure.split.axis === 0 && P.every(p => bnd(p).size[0] <= bed[0] && bnd(p).size[2] <= bed[1]) && !MF.enclosure.warn.length,
+    "240 × 250 mm with ears (267 mm wide): cut across its width, the way that is too long for the bed, though its depth is longer", MF.enclosure.split && MF.enclosure.split.parts);
+  P = await buildNow({ w: 300, d: 120, h: 70, cut: [], mount: "tabs", tabN: 1 });
+  const sT = MF.enclosure.split && MF.enclosure.split.seams[0], tfT = MF.enclosure.split && MF.enclosure.split.tf;
+  // the tab is the only thing behind the back wall (z < -60): it must lie whole in one part, away from the join
+  const behind = MF.parts.filter(p => p.role === "box").map(p => { let lo = Infinity, hi = -Infinity; const Q = p.solid.pos; for (let i = 0; i < Q.length; i += 3) if (Q[i + 2] < -60.5) { lo = Math.min(lo, Q[i]); hi = Math.max(hi, Q[i]); } return [lo, hi]; });
+  check(closed(P) && MF.enclosure.split && !MF.enclosure.warn.length && behind.filter(([lo]) => isFinite(lo)).length === 1 && behind.every(([lo, hi]) => !isFinite(lo) || hi < sT - tfT || lo > sT + tfT),
+    "a hanging tab in the middle of the back: the join moves off it, and the tab stays whole on one part", `join at ${sT} mm; tab from ${behind.filter(([lo]) => isFinite(lo)).map(([lo, hi]) => lo.toFixed(0) + " to " + hi.toFixed(0)).join(", ")} mm`);
+  // found by a sweep of random boxes: a join that can't avoid a floor grille and its label cuts the floor's first layers
+  // where two of its edges cross the plane a hair apart; the cut face once came out with open edges there
+  Object.assign(MF.state.printer, { bed: [220, 220, 250] });
+  P = await buildNow(Object.assign({"w": 179, "d": 144, "h": 32, "lid": "screw", "radius": 4, "wall": 3, "fasten": "screw", "head": "bore", "lidThick": 3, "lipH": 6, "split": "parts", "splitParts": 4, "splitScrew": "M2.5", "feet": "recess", "board": "pi", "labelH": 4, "mount": "ears", "earN": 2}, { cut: [{"face": "front", "kind": "seg056", "u": 58, "v": 16, "rot": false, "label": "AB 12", "labelPos": "below", "top": "flat", "notch": false, "w": 50.6, "h": 19.2, "r": 0.3}, {"face": "front", "kind": "hole", "u": -25, "v": 16, "rot": false, "label": "AB 12", "labelPos": "below", "top": "flat", "notch": false, "dia": 3.4}, {"face": "bottom", "kind": "speaker", "u": -64, "v": -9, "rot": false, "label": "AB 12", "labelPos": "below", "top": "flat", "notch": false, "dia": 28, "hd": 2}, {"face": "front", "kind": "pirmini", "u": 44, "v": 18, "rot": false, "label": "", "labelPos": "below", "top": "flat", "notch": false, "dia": 10.4}] }));
+  check(closed(P) && MF.enclosure.split && MF.enclosure.split.n === 4 && MF.enclosure.warn.some(w => /crosses a join/.test(w.t)), "a join forced through a floor grille and its label: every part still closed",
+    P.filter(p => C.checkMesh(p.solid).open).map(p => `${p.name} ${C.checkMesh(p.solid).open}`).join(", "));
+  Object.assign(MF.state.printer, { bed: bed.slice() });
+  // what can't be split says why
+  P = await buildNow({ w: 300, d: 140, h: 80, cut: [], lid: "slide" });
+  check(!MF.enclosure.split && MF.enclosure.warn.some(w => /sliding lid is not split/.test(w.t)) && MF.checks.list.some(r => /Bigger than the print bed/.test(r.t)), "a sliding lid is not split, and says so");
+  P = await buildNow({ w: 300, d: 300, h: 80, cut: [] });
+  check(!MF.enclosure.split && MF.enclosure.warn.some(w => /even in parts/.test(w.t)), "too big both ways: says how deep it may be", (MF.enclosure.warn[0] || {}).s);
+  P = await buildNow({ w: 300, d: 140, h: 80, cut: [], split: "off" });
+  check(!MF.enclosure.split && P.length === 2 && MF.checks.list.some(r => /Bigger than the print bed/.test(r.t) && /Split into parts/.test(r.s)), "never split: one piece, and the check says it could be made in parts");
+  P = await buildNow({ w: 300, d: 140, h: 80, test: true });
+  check(!MF.enclosure.split && MF.enclosure.test, "the fit test is never split");
+  P = await buildNow({ cut: [] });
+  check(!MF.enclosure.split && P.length === 2 && P[0].name === "Box", "a box that fits the bed is still one piece");
+  // project files: a hostile file is cleaned, too few parts become two, an older file splits only when it must
+  const saved = JSON.parse(MF.projectPayload(false));
+  saved.state.items = [];
+  saved.state.base.enclosure = Object.assign(JSON.parse(JSON.stringify(MF.defaults.enclosure)), { split: "<img src=x onerror=alert(5)>", splitParts: 1e9, splitScrew: "__proto__", w: 121 });
+  await openFile(saved, "evil-split.json", () => MF.state.base.enclosure.w === 121);
+  const EH = MF.state.base.enclosure;
+  check(EH.split === "bed" && EH.splitParts === 8 && EH.splitScrew === "M3" && !document.body.innerHTML.includes("onerror=alert(5)"), "hostile split settings fall back: when it's bigger than the bed, 8 parts at most, M3",
+    `${EH.split}, ${EH.splitParts}, ${EH.splitScrew}`);
+  saved.state.base.enclosure = Object.assign(JSON.parse(JSON.stringify(MF.defaults.enclosure)), { split: "parts", splitParts: -4, w: 123 });
+  delete saved.state.base.enclosure.splitScrew;
+  await openFile(saved, "low.json", () => MF.state.base.enclosure.w === 123);
+  check(MF.state.base.enclosure.split === "parts" && MF.state.base.enclosure.splitParts === 2 && MF.state.base.enclosure.splitScrew === "M3", "too few parts become two; a missing screw size is M3");
+  saved.state.base.enclosure = Object.assign(JSON.parse(JSON.stringify(MF.defaults.enclosure)), { w: 290 });
+  ["split", "splitParts", "splitScrew"].forEach(k => delete saved.state.base.enclosure[k]);
+  await openFile(saved, "old.json", () => MF.state.base.enclosure.w === 290);
+  check(MF.state.base.enclosure.split === "bed" && MF.enclosure.split && MF.enclosure.split.n === 2, "a project from before splits a box only when it is bigger than the bed");
+  Object.assign(MF.state.printer, keepPrinter);
+}
+if (process.env.ONLY === "split") (async () => { await sleep(800); await splitTests(win.MakerForge, win.MakerForge.core); finish(); })();

@@ -434,7 +434,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.33.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.34.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -928,6 +928,7 @@ const DEFAULTS = () => ({
       fasten:"insert", screw:"M3", head:"sink", teardrop:false, grow:true, lensSlot:0, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
       mount:"none", earN:2, tabN:2, earHole:4.5, earT:3, strapW:12, strapT:2.5, strapDir:"across",
       labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
+      split:"bed", splitParts:2, splitScrew:"M3",
       board:"none", boardX:0, boardY:0, boardRot:false, standH:5, bw:60, bd:40, bsx:52, bsy:32, bscrew:"M3", boxSlot:1, lidSlot:1,
       // every key newOpening gives, so a saved box opens exactly as it was
       cut:[ { face:"front", kind:"usbc", u:-25, v:12, w:9.2, h:3.4, r:1.6, rot:false, label:"", labelPos:"below", top:"flat", notch:false },
@@ -2181,9 +2182,208 @@ function encDinClip(){
   }
   return C.mergeSolids(parts);
 }
+/* Split into parts that screw together (Session 40). A box longer than the printer's bed is cut across its long
+   side into parts that each fit. Inside each side of every join is a flange (a U along the walls and the floor):
+   the two flanges meet face to face and screw together, with heat inserts (or pilot holes for self-tapping screws)
+   in the first part's flange and clearance holes in the next part's. With a screwed or magnet lid the
+   flanges' wall strips run up to the top and take the lid's screws or magnets, so each part of the lid holds down
+   on its own. The joins move to keep clear of openings, labels, posts, standoffs, feet and the board, and an
+   opening a join can't avoid is said. The cut itself is splitSolid in src/core.js (no download), and the parts
+   are laid out on as many plates of the bed as they need. */
+const ENC_SPLIT = { pitch:50, edge:5, gap:8, plateGap:40, maxParts:8, lengths:[4,5,6,8,10,12,14,16,20,25,30,35,40] };
+function encSplitPlan(E, g){
+  const mode = E.split === "off" || E.split === "parts" ? E.split : "bed";
+  if (mode === "off" || g.test) return null;
+  const bed = state.printer.bed || [256,256,256], warn = g.warn;
+  // the footprint with the mounts (ears stick out at the sides, loops, hooks and tabs behind)
+  const ext = [-g.W/2, -g.D/2, g.W/2, g.D/2];
+  (g.mountSolids || []).forEach(m => { const b = C.solidBounds(m); ext[0] = Math.min(ext[0], b.mn[0]); ext[1] = Math.min(ext[1], b.mn[2]); ext[2] = Math.max(ext[2], b.mx[0]); ext[3] = Math.max(ext[3], b.mx[2]); });
+  // cut across the way that is too long for the bed; the box's longer side when both or neither are
+  const overX = ext[2] - ext[0] > bed[0], overZ = ext[3] - ext[1] > bed[1], axis = overX !== overZ ? (overX ? 0 : 2) : g.W >= g.D ? 0 : 2;
+  const Lc = axis ? g.D : g.W, bedL = axis ? bed[1] : bed[0], bedO = axis ? bed[0] : bed[1];
+  const Lo = axis ? ext[2] - ext[0] : ext[3] - ext[1], outLo = axis ? -g.D/2 - ext[1] : -g.W/2 - ext[0], outHi = axis ? ext[3] - g.D/2 : ext[2] - g.W/2;
+  if (mode === "bed" && ext[2] - ext[0] <= bed[0] && ext[3] - ext[1] <= bed[1]) return null;
+  if (g.slide){ warn.push({ split:true, t:"A box with a sliding lid is not split", s:"The sliding lid runs the whole length of the box, so it can't be made in parts. Pick a screwed, press-fit or magnet lid to split the box." }); return null; }
+  const key = encHas(SCREWS, E.splitScrew) ? E.splitScrew : "M3", S = SCREWS[key], insert = E.fasten !== "screw";
+  // the flange: tf thick (along the cut), b wide (in from the walls and up from the floor); with lid posts it must
+  // hold the lid's insert or magnet, and the lid's screw head must stay clear of the lid's own join
+  const posts = g.bosses.length > 0, lidHead = g.magnet ? g.pocketD : g.screw.head;
+  const tf = Math.ceil(2*Math.max(S.insertDepth + 1, 5, posts ? Math.max(2*g.bossR, lidHead + 2) : 0))/2;
+  const b = Math.ceil(2*Math.max(S.insert + 4, posts ? 2*g.bossR : 0))/2;
+  const dTop = posts ? (g.magnet ? g.pocketH + 1.2 : g.screw.insertDepth + 1) : 0;
+  const stripTop = posts || !g.lidOn || g.lipH <= 0 ? g.H : g.H - g.lipH - 0.5, yTop = stripTop - dTop;
+  if (yTop - g.fl < b + 3){
+    warn.push({ split:true, t:"Too shallow to split", s:`The joins between the parts need the box to be at least ${Math.ceil(g.H - yTop + g.fl + b + 3)} mm tall. Make it taller to split it.` }); return null; }
+  if (mode === "bed" && Lo > bedO){
+    warn.push({ split:true, t:"Too big for the bed even in parts", s:`The box is only split across its ${axis ? "depth" : "width"}, and at ${mm(Lo)} ${axis ? "wide" : "deep"} its parts would still be bigger than your bed (${bed[0]} × ${bed[1]} mm). Make it at most ${Math.floor(bedO - (Lo - (axis ? g.W : g.D)))} mm ${axis ? "wide" : "deep"}${Lo > (axis ? g.W : g.D) + 0.01 ? " (its mounts stick out too)" : ""}.` }); return null; }
+  const maxLen = mode === "bed" ? bedL - 2*ENC_SPLIT.edge : Infinity, minLen = 2*tf + 12, endMin = Math.max(g.R, g.t) + tf + 1, k = tf + 1;
+  // what a join must keep clear of, as spans along the cut axis
+  const span = (face, bb) => axis === 0 ? (face === "back" ? [-bb[2], -bb[0]] : [bb[0], bb[2]])
+    : face === "right" ? [-bb[2], -bb[0]] : face === "left" ? [bb[0], bb[2]] : [-bb[3], -bb[1]];
+  const obs = [];
+  (axis === 0 ? ["front","back","top","bottom"] : ["left","right","top","bottom"]).forEach(f => g.taken[f].forEach(o => {
+    const [lo, hi] = span(f, o.bb); obs.push({ lo, hi, what: o.n ? `Opening ${o.n}` : o.what || "a screw hole", n: o.n }); }));
+  if (g.boardRect){ const r = g.boardRect; obs.push(axis === 0 ? { lo:r[0], hi:r[2], what:"the board" } : { lo:-r[3], hi:-r[1], what:"the board" }); }
+  const clash = s => obs.filter(o => o.lo < s + k && o.hi > s - k);
+  // the end parts carry what sticks out past the box's ends, so they are measured from there
+  const start = -Lc/2 - outLo, end = Lc/2 + outHi;
+  const tryN = n => {
+    const seams = [], hits = []; let prev = -Lc/2;
+    for (let j = 1; j < n; j++){
+      const lo = Math.max(prev + minLen, end - (n - j)*maxLen, -Lc/2 + endMin), hi = Math.min((j === 1 ? start : prev) + maxLen, Lc/2 - (n - j)*minLen, Lc/2 - endMin);
+      if (lo > hi + 1e-9) return null;
+      const ideal = clamp(start + j*(end - start)/n, lo, hi);
+      let s = null;
+      for (let q = 0; q <= 2*(hi - lo) + 2 && s === null; q++) for (const sg of q ? [1, -1] : [1]){
+        const c = Math.round((ideal + sg*q*0.5)*2)/2;
+        if (c >= lo - 1e-9 && c <= hi + 1e-9 && !clash(c).length){ s = c; break; }
+      }
+      if (s === null){ s = clamp(Math.round(ideal*2)/2, lo, hi); clash(s).forEach(o => hits.push({ o, j })); }
+      seams.push(s); prev = s;
+    }
+    return { n, seams, hits };
+  };
+  let plan = null;
+  if (mode === "bed"){
+    const n0 = Math.max(2, Math.ceil((end - start)/maxLen));
+    for (let n = n0; n <= Math.min(ENC_SPLIT.maxParts, n0 + 2); n++){ const r = tryN(n); if (r && (!plan || (plan.hits.length && !r.hits.length))) plan = r; if (plan && !plan.hits.length) break; }
+  } else {
+    const want = clamp(Math.round(+E.splitParts || 2), 2, ENC_SPLIT.maxParts);
+    for (let n = want; n >= 2 && !plan; n--) plan = tryN(n);
+    if (plan && plan.n < want) warn.push({ split:true, t:`Split into ${plan.n} parts, not ${want}`, s:`At ${mm(Lc)} the box is too short for ${want} parts: each needs at least ${mm(minLen)} for its joins.` });
+  }
+  if (!plan){ warn.push({ split:true, t:"Too short to split", s:`Each part needs at least ${mm(minLen)} along the box for its joins.` }); return null; }
+  // an opening (or a post, the board...) a join could not avoid: one message for each, naming its joins
+  const hitBy = new Map();
+  plan.hits.forEach(({ o, j }) => { const js = hitBy.get(o.what) || []; if (!js.includes(j)) js.push(j); hitBy.set(o.what, js); });
+  const fixIt = mode === "bed" ? "split the box into a set number of parts" : "change the number of parts";
+  hitBy.forEach((js, what) => {
+    const where = js.map(j => `${j} and ${j + 1}`).join(", and "), opening = /^Opening/.test(what);
+    warn.push(opening ? { split:true, t:`${what} crosses a join`, s:`${what} (or its label) is where parts ${where} join, so the join's flange covers it on the inside. Move it, or ${fixIt}.` }
+      : { split:true, t:`A join runs through ${what}`, s:`Parts ${where} join through ${what}. Move it, or ${fixIt}.` });
+  });
+  const ends = [-Lc/2, ...plan.seams, Lc/2], lengths = ends.slice(1).map((e, i) => e - ends[i]);
+  if (mode === "parts"){
+    const reach = lengths.map((v, i) => v + (i === 0 ? outLo : 0) + (i === lengths.length - 1 ? outHi : 0)), long = reach.findIndex(v => v > bedL);
+    if (long >= 0) warn.push({ split:true, t:"A part is longer than the bed", s:`Part ${long + 1} is ${mm(reach[long])} long and your bed is ${bedL} mm: split the box into more parts.` });
+    if (Lo > bedO) warn.push({ split:true, t:"The parts are bigger than the bed", s:`At ${mm(Lo)} ${axis ? "wide" : "deep"} the parts don't fit your bed (${bed[0]} × ${bed[1]} mm): the box is only split across its ${axis ? "depth" : "width"}.` });
+  }
+  // the screws through each join: corner holes, more along the floor and up the walls, about 50 mm apart
+  const A = (axis ? g.iw : g.id)/2, cp = A - b/2, q0 = g.fl + b/2, holes = [[-cp, q0], [cp, q0]];
+  const nf = Math.ceil(2*cp/ENC_SPLIT.pitch); for (let i = 1; i < nf; i++) holes.push([-cp + i*2*cp/nf, q0]);
+  const q1 = yTop - b/2;
+  if (q1 - q0 >= b){ const nw = Math.ceil((q1 - q0)/ENC_SPLIT.pitch); for (let i = 1; i <= nw; i++) for (const sp of [-1, 1]) holes.push([sp*cp, q0 + i*(q1 - q0)/nw]); }
+  // a screw goes through the next part's whole flange and the insert's length into the first part's (a longer one
+  // pokes out behind the insert, which is fine: its hole goes right through)
+  const need = tf + S.insertDepth;
+  const pins = [];                                   // the lid's screws (or magnets) each side of every join: [x, z]
+  if (posts) plan.seams.forEach(s => { for (const sg of [-1, 1]) for (const sp of [-1, 1]){ const a = s + sg*tf/2, c = sp*cp; pins.push(axis === 0 ? [a, c] : [c, a]); } });
+  return { mode, axis, n:plan.n, seams:plan.seams, lengths, key, S, insert, tf, b, need, yTop, posts, A, holes, pins, bed, bedL, bedO,
+    screwLen: ENC_SPLIT.lengths.find(v => v >= need) || Math.ceil(need) };
+}
+// the flange (and the lid posts on it) for one side of a join at s: side -1 is the part before it, +1 the part after
+function encJoinSolids(P, g, s, side){
+  const { axis, tf, b, yTop, A, holes, S } = P, ov = 0.5, fl = g.fl;
+  const U = encOrient([[-A - ov, fl - ov], [A + ov, fl - ov], [A + ov, yTop], [A - b, yTop], [A - b, fl + b], [-A + b, fl + b], [-A + b, yTop], [-A - ov, yTop]], true);
+  // drawn across (x) and up (y), stood across the cut axis; holes with pointed tops, so they print without support
+  // (a counterbore for the heads was tried: its pointed tops broke out of the flange's top edges and needed support)
+  const M = axis ? [1,0,0, 0,0,-1, 0,1,0] : [0,1,0, 0,0,-1, 1,0,0];
+  const prism = (dia, a0, a1) => C.affineSolid(C.extrudePolysAt([{ outer:U.slice(), holes:holes.map(([p, q]) => encOrient(encRound(dia, true, true).map(([x, y]) => [x + p, y + q]), false)) }], a0, a1), M, [0,0,0]);
+  const out = [side < 0 ? prism(P.insert ? S.insert : S.pilot, s - tf, s) : prism(S.clear, s, s + tf)];
+  if (P.posts){
+    const a0 = side < 0 ? s - tf : s, a1 = side < 0 ? s : s + tf, ac = (a0 + a1)/2;
+    for (const sp of [-1, 1]){
+      const c0 = sp > 0 ? A - b : -A - ov, c1 = sp > 0 ? A + ov : -A + b, cc = sp*(A - b/2);
+      const rect = axis === 0 ? encRect(a0, -c1, a1, -c0) : encRect(c0, -a1, c1, -a0), hx = axis === 0 ? ac : cc, hz = axis === 0 ? cc : ac;   // plan: (x, -z)
+      const hole = r => [encOrient(C.ringCircle(r, 28).map(([x, y]) => [x + hx, y - hz]), false)];
+      if (g.magnet){
+        out.push(C.extrudePolysAt([{ outer:encOrient(rect, true), holes:[] }], yTop, g.H - g.pocketH));
+        out.push(C.extrudePolysAt([{ outer:encOrient(rect.slice(), true), holes:hole(g.pocketD/2) }], g.H - g.pocketH, g.H));
+      } else out.push(C.extrudePolysAt([{ outer:encOrient(rect, true), holes:hole(g.bossHole/2) }], yTop, g.H));
+    }
+  }
+  return out;
+}
+// the whole box, lid and lid logo cut into parts where the joins are, each box part with its flanges
+function encSplitParts(parts, P, g, lidShift){
+  const axis = P.axis, n = P.n, out = [];
+  const seams = P.seams.map(s => C.planeClear([parts[0].solid], axis, s));   // never exactly on a corner
+  let flangeVolume = 0;
+  const join = (s, side) => { const js = encJoinSolids(P, g, s, side); js.forEach(q => { flangeVolume += C.checkMesh(q).volume; }); return js; };
+  C.splitSolidAt(parts[0].solid, axis, seams).forEach((sol, k) => {
+    const list = [sol];
+    if (k > 0) list.push(...join(seams[k - 1], 1));
+    if (k < n - 1) list.push(...join(seams[k], -1));
+    out.push({ name:`Box part ${k + 1}`, slot:parts[0].slot, solid:C.mergeSolids(list), sec:k, role:"box" });
+  });
+  // the lid prints turned over (its z is the box's mirrored), beside the box: the same cuts, where they are on it
+  const lids = parts.filter(p => p.lid);
+  if (lids.length){
+    let planes = seams.map(s => axis ? -s + lidShift[2] : s + lidShift[0]);
+    if (axis) planes = planes.reverse();
+    planes = planes.map(p => C.planeClear(lids.map(q => q.solid), axis, p));
+    lids.forEach(lp => {
+      let pieces = C.splitSolidAt(lp.solid, axis, planes);
+      if (axis) pieces = pieces.reverse();             // piece k sits on box part k
+      pieces.forEach((sol, k) => { if (sol) out.push({ name: lp.name === "Lid" ? `Lid part ${k + 1}` : lp.name.replace(/^Lid logo/, `Lid part ${k + 1} logo`), slot:lp.slot, solid:sol, sec:k, role: lp.name === "Lid" ? "lid" : "logo" }); });
+    });
+  }
+  parts.slice(1).filter(p => !p.lid).forEach(p => out.push(Object.assign(p, { role:"other" })));   // the pilot light lenses
+  return { parts:out, seams, flangeVolume };
+}
+// where plate i of n lies, its middle from the first's: in a square-ish grid, so many plates stay close together (in a
+// row, 17 plates were 5 m long and the print check slowed to half a minute)
+function platePlace(i, n, bed){ const per = Math.ceil(Math.sqrt(n)); return [(i % per)*(bed[0] + ENC_SPLIT.plateGap), Math.floor(i/per)*(bed[1] + ENC_SPLIT.plateGap)]; }
+// the parts laid out on plates of the bed: in rows on each plate, a new plate when one is full, every plate's parts
+// centred on its bed. Sets each part's layout (where it prints) and plate.
+function encPackPlates(list, bed){
+  const E = ENC_SPLIT.edge, G = ENC_SPLIT.gap, UW = bed[0] - 2*E, UD = bed[1] - 2*E, plates = [];
+  const lead = list.filter(p => p.role !== "logo");
+  lead.forEach(p => {
+    const b = C.solidBounds(p.solid), w = b.size[0], d = b.size[2];
+    let at = null;
+    for (let i = 0; i < plates.length && !at; i++){
+      const rows = plates[i].rows, row = rows[rows.length - 1];
+      if (row.x + w <= UW + 1e-6 && row.z + d <= UD + 1e-6) at = [i, row];
+      else if (w <= UW + 1e-6 && row.z + row.h + G + d <= UD + 1e-6){ const r = { x:0, z:row.z + row.h + G, h:0 }; rows.push(r); at = [i, r]; }
+    }
+    if (!at){ const r = { x:0, z:0, h:0 }; plates.push({ rows:[r], items:[] }); at = [plates.length - 1, r]; }
+    const [i, row] = at;
+    plates[i].items.push({ p, b, x:row.x, z:row.z }); row.x += w + G; row.h = Math.max(row.h, d);
+  });
+  plates.forEach((pl, i) => {
+    const wu = Math.max(...pl.items.map(o => o.x + o.b.size[0])), du = Math.max(...pl.items.map(o => o.z + o.b.size[2]));
+    const at = platePlace(i, plates.length, bed), x0 = at[0] - wu/2, z0 = at[1] - du/2;
+    pl.items.forEach(o => { o.p.layout = [x0 + o.x - o.b.mn[0], -o.b.mn[1], z0 + o.z - o.b.mn[2]]; o.p.plate = i; });
+  });
+  list.filter(p => p.role === "logo").forEach(p => { const lid = lead.find(q => q.role === "lid" && q.sec === p.sec); if (lid){ p.layout = lid.layout.slice(); p.plate = lid.plate; } });
+  return plates.map(pl => pl.items.map(o => o.p.name));
+}
+// how the parts go together, for the Make tab and the exported README
+function encSplitText(P, plates, lid, magnet){
+  const ends = P.axis ? "back" : "left", per = P.holes.length, joins = P.n - 1;
+  const fix = P.insert ? `press ${per} ${P.key} heat inserts into the ${P.S.insert.toFixed(1)} mm holes in the flange of the first part (from the face where the parts meet)`
+    : `the first part's flange has ${per} ${P.S.pilot} mm pilot holes for ${P.key} self-tapping screws`;
+  const lidText = !lid ? "" : P.posts ? ` The lid is in ${P.n} parts too, and each holds down on its own: ${magnet ? "two more magnets" : "two more screws"} each side of every join, in the tops of the flanges${P.insert && !magnet ? " (heat inserts again)" : ""}.`
+    : ` The lid is in ${P.n} parts too: each presses in on its own.`;
+  return {
+    parts: `${P.n} parts across its ${P.axis ? "depth" : "width"}, ${P.lengths.map(v => mm(v)).join(" + ")}, numbered from the ${ends}.`,
+    join: `${joins === 1 ? "At the join" : `At each of the ${joins} joins`}, ${fix}, put the two parts together and screw them up from inside the next part: ${per} ${P.key} screws, at least ${mm(P.need).replace(/\.0 mm$/, " mm")} long (${P.key} × ${P.screwLen}), ${per*joins} in all.${lidText}`,
+    plates: plates.map((names, i) => `Plate ${i + 1}: ${names.join(", ")}`)
+  };
+}
+// the same, for the download: what each plate holds and how the parts join
+function encSplitReadme(){
+  const S = state.base.type === "enclosure" && enclosureInfo && enclosureInfo.split;
+  if (!S) return null;
+  return [`Maker Forge project box in parts: ${S.parts}`, "", S.join, "", ...S.plates.map(p => p.replace(/^Plate (\d+):/, "plates/plate-$1-*.3mf:")), "",
+    "Print the box parts open side up and the lid parts outside face down, as they lie in the files.",
+    "Heat inserts: press each in with a soldering iron at about 220 °C, flush with the face, before the parts go together."];
+}
 function buildEnclosure(){
   if (!state.base.enclosure) state.base.enclosure = DEFAULTS().base.enclosure;
   enclosureLogo = null;
+  let lidShift = [0, 0, 0];                             // where the lid prints, from where it sits on the box
   const E = state.base.enclosure.test ? encTestSettings(state.base.enclosure) : state.base.enclosure, warn = [], left = [];
   const W = clamp(+E.w || 100, 20, 400), D = clamp(+E.d || 60, 20, 400), H = clamp(+E.h || 30, 8, 300);
   const t = clamp(+E.wall || 2, 0.8, Math.min(W, D)/4), fl = clamp(+E.floor || 2, 0.6, H/2);
@@ -2301,6 +2501,13 @@ function buildEnclosure(){
     if (flip) segs = segs.map(q => [q[0], -q[1], q[2], -q[3]]);
     labelsOn[face].push(...C.strokePolys(segs, lhalf, 0.04));
   });
+  // split into parts (Session 40): planned once every opening and label is in place, so the joins keep clear of them
+  let boardRect = null;
+  if (boardB && boardB.holes){ const bw = E.boardRot ? boardB.d : boardB.w, bd = E.boardRot ? boardB.w : boardB.d, ox = +E.boardX || 0, oy = +E.boardY || 0; boardRect = [ox - bw/2, oy - bd/2, ox + bw/2, oy + bd/2]; }
+  const splitG = { W, D, H, t, fl, R, iw, id, slide, lidOn, lipH, magnet, pocketD, pocketH, bossR, bossHole, screw, bosses, taken, boardRect, warn, test: !!state.base.enclosure.test, mountSolids: mount.solids };
+  const split = encSplitPlan(E, splitG);
+  const lidPins = split ? bosses.concat(split.pins) : bosses;
+  if (split && lidOn) split.pins.forEach(([x, z]) => { const r = (magnet ? pocketD : screw.head)/2 + 0.5; taken.top.push({ n:0, what:"a screw hole", bb:[x - r, -z - r, x + r, -z + r] }); });
   const solids = [];
   // engraved labels: the outer skin of a face (depth labDepth) has the strokes cut out of it; the
   // insides of letters (the middle of an O or an A) stay as islands
@@ -2412,7 +2619,7 @@ function buildEnclosure(){
     // the lid prints upside down (turned about the x axis), so a point (x, z) of the box lands on (x, z) in plan
     const lidOuter = encOrient(C.ringRect(W, D, R, seg), true);
     const topHoles = () => holesOn.top.map(L => encOrient(L.map(([x, y]) => [x, -y]), false));
-    const screwHoles = r => bosses.map(([x, z]) => encOrient(C.ringCircle(r, 32).map(p => [p[0] + x, p[1] + z]), false));
+    const screwHoles = r => lidPins.map(([x, z]) => encOrient(C.ringCircle(r, 32).map(p => [p[0] + x, p[1] + z]), false));
     // lid labels are cut into its outside, which is the face on the bed
     const flipY = list => list.map(q => ({ outer: q.outer.map(([x, y]) => [x, -y]), holes: q.holes.map(hl => hl.map(([x, y]) => [x, -y])) }));
     const lidLabs = flipY(labelsOn.top), lidCuts = [];
@@ -2458,6 +2665,8 @@ function buildEnclosure(){
       // A notch's span along its wall, in the lid's plan (x across; y is the box's z, front positive).
       const gaps = { front: notchesOn.front.map(([u0, u1]) => [u0, u1]), back: notchesOn.back.map(([u0, u1]) => [-u1, -u0]),
         right: notchesOn.right.map(([u0, u1]) => [-u1, -u0]), left: notchesOn.left.map(([u0, u1]) => [u0, u1]) };
+      // a split box's lid posts stand on its joins' flanges, which run up to the top: the lip leaves a gap over them
+      if (split && split.posts) split.seams.forEach(s => (split.axis === 0 ? ["front","back"] : ["right","left"]).forEach(f => gaps[f].push([s - split.tf, s + split.tf])));
       const runs = (lo, hi, list) => {                   // [lo, hi] minus the gaps (widened by the fit), pieces over 2 mm
         let segs = [[lo, hi]];
         list.forEach(([g0, g1]) => { segs = segs.flatMap(([p, q]) => [[p, Math.min(q, g0 - fit - 0.3)], [Math.max(p, g1 + fit + 0.3), q]]).filter(([p, q]) => q - p > 2); });
@@ -2476,9 +2685,10 @@ function buildEnclosure(){
     }
     const bed = state.printer.bed || [256,256,256], behind = W*2 + 10 + 2*mount.out > bed[0] && D*2 + 10 <= bed[1];
     const beside = behind ? [0, 0, -(D + 10)] : [W + 10 + mount.out, 0, 0];
-    parts.push({ name:"Lid", slot:clamp(+E.lidSlot || 0, 0, state.slots.length - 1),
+    lidShift = beside;
+    parts.push({ name:"Lid", slot:clamp(+E.lidSlot || 0, 0, state.slots.length - 1), lid:true,
       solid:C.affineSolid(C.mergeSolids(lid.filter(Boolean)), [1,0,0, 0,1,0, 0,0,1], beside) });
-    if (logo) logo.colours.forEach(c => parts.push({ name:`Lid logo (${state.slots[c.slot].name})`, slot:c.slot,
+    if (logo) logo.colours.forEach(c => parts.push({ name:`Lid logo (${state.slots[c.slot].name})`, slot:c.slot, lid:true,
       solid:C.affineSolid(C.extrudePolysAt(flipY(c.polys), 0, logoDepth), [1,0,0, 0,1,0, 0,0,1], beside) }));
     if (logo) enclosureLogo = { size:logo.size, colours:logo.colours.length, depth:logoDepth };
   }
@@ -2513,8 +2723,16 @@ function buildEnclosure(){
     // beside the box on the left (the lid goes on the right or behind, the lenses in front)
     parts.push({ name:"DIN rail clip", slot:clamp(+E.boxSlot || 0, 0, state.slots.length - 1), solid:C.affineSolid(encDinClip(), [1,0,0, 0,1,0, 0,0,1], [-(W/2 + 10 + DIN.len/2), 0, 0]) });
   }
-  enclosureInfo = { test: !!state.base.enclosure.test, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boardNeed, fastenText, count:(E.cut || []).length - left.length };
-  return parts;
+  // split into parts: the whole box and lid cut where the joins are, the flanges added, laid out on the bed's plates
+  let splitInfo = null, out = parts;
+  if (split){
+    const r = encSplitParts(parts, split, splitG, lidShift), plates = encPackPlates(r.parts, split.bed);
+    out = r.parts;
+    splitInfo = Object.assign({}, split, { seams:r.seams, plates, flangeVolume:r.flangeVolume }, encSplitText(split, plates, lidOn, magnet));
+  }
+  enclosureInfo = { test: !!state.base.enclosure.test, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boardNeed, fastenText, count:(E.cut || []).length - left.length,
+    split: splitInfo };
+  return out;
 }
 /* An opening bigger than the face it is on used to be left out with a message that was easy to miss.
    Now the box grows just enough (the face's width, the box's height, or the floor and lid) and the
@@ -5072,6 +5290,13 @@ function makeBed(){
   bedHelper.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(p=>new THREE.Vector3(...p))),
     new THREE.LineBasicMaterial({ color: dark?0x63b6d1:0x1f6f8b })));
   if (viewOpts.rulers) bedHelper.add(makeRulers(bed, dark));
+  // parts on several plates (Session 40): the other plates' outlines beside the bed, where ⊞ lays their parts out
+  const nPlates = viewOpts.layout ? Math.max(0, ...modelParts.map(p => p.plate == null ? 0 : p.plate + 1)) : 0, sc = modelScale();
+  for (let i = 1; i < nPlates; i++){
+    const at = platePlace(i, nPlates, bed), x = at[0]*sc*(state.model.mirror ? -1 : 1), z = at[1]*sc;
+    bedHelper.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(p[0] + x, p[1], p[2] + z))),
+      new THREE.LineBasicMaterial({ color: dark?0x63b6d1:0x1f6f8b })));
+  }
   scene.add(bedHelper);
 }
 // the size and check pills sit left of the view buttons while there is room, below them otherwise
@@ -6800,7 +7025,7 @@ function printedParts(){
     let s;
     if (!R){ s = C.transformSolid(solid, sc, off[0]*sc, off[1]*sc + t[1], off[2]*sc); if (state.model.mirror) s = C.mirrorSolid(s); }
     else s = C.affineSolid(solid, M, [M[0]*off[0]+M[1]*off[1]+M[2]*off[2]+t[0], M[3]*off[0]+M[4]*off[1]+M[5]*off[2]+t[1], M[6]*off[0]+M[7]*off[1]+M[8]*off[2]+t[2]]);
-    return { name:p.name, slot:p.slot, pos:s.pos, idx:s.idx, paint:bare ? null : p.paint };
+    return { name:p.name, slot:p.slot, pos:s.pos, idx:s.idx, paint:bare ? null : p.paint, plate:p.plate };
   });
   c.key = key;
   return c.list;
@@ -6810,6 +7035,17 @@ function printBounds(){
   const mn = [Infinity,Infinity,Infinity], mx = [-Infinity,-Infinity,-Infinity];
   list.forEach(p => { const b = C.solidBounds(p); for (let k=0;k<3;k++){ mn[k] = Math.min(mn[k], b.mn[k]); mx[k] = Math.max(mx[k], b.mx[k]); } });
   return { mn, mx, size:[mx[0]-mn[0], mx[1]-mn[1], mx[2]-mn[2]] };
+}
+// a model that prints on several plates (a project box in parts, Session 40): each plate's size, where its parts print
+function plateBounds(){
+  const by = new Map();
+  printedParts().forEach(p => {
+    if (p.plate == null) return;
+    const b = C.solidBounds(p), q = by.get(p.plate);
+    if (!q) by.set(p.plate, { mn:b.mn.slice(), mx:b.mx.slice(), names:[p.name] });
+    else { for (let k=0;k<3;k++){ q.mn[k] = Math.min(q.mn[k], b.mn[k]); q.mx[k] = Math.max(q.mx[k], b.mx[k]); } q.names.push(p.name); }
+  });
+  return [...by.entries()].sort((a, b) => a[0] - b[0]).map(([plate, q]) => ({ plate, names:q.names, size:[q.mx[0]-q.mn[0], q.mx[1]-q.mn[1], q.mx[2]-q.mn[2]] }));
 }
 // the brim: one first-layer ring in the colour that has the most plastic on the bed
 function brimPart(){
@@ -7004,9 +7240,16 @@ function runChecks(){
   list.push(open === 0
     ? { k:"ok", t:"Every part is a closed mesh", s:`${tris.toLocaleString()} triangles in ${modelParts.length} part${modelParts.length===1?"":"s"}` }
     : { k:"warn", t:"Some parts have open edges", s:`${open} unpaired edges. Slicers usually repair this, but check the preview.` });
-  if (size.x > bed[0] || size.z > bed[1] || size.y > bed[2])
+  const plates = modelParts.some(p => p.plate != null) ? plateBounds() : null;
+  if (plates){                                       // parts on several plates: each plate must fit
+    const over = plates.filter(q => q.size[0] > bed[0] || q.size[2] > bed[1] || q.size[1] > bed[2]);
+    if (over.length) list.push({ k:"bad", t:"Bigger than the print bed", s: over.map(q => `Plate ${q.plate + 1} (${q.names.join(", ")}) is ${q.size[0].toFixed(0)} × ${q.size[2].toFixed(0)} × ${q.size[1].toFixed(0)} mm.`).join(" ") +
+      ` The ${P.model}'s bed is ${bed.join(" × ")} mm.` + (state.base.type === "enclosure" ? " Split the box into more parts (Make tab, Split into parts)." : "") });
+    else list.push({ k:"ok", t:"Fits the bed", s:`${modelParts.length} parts on ${plates.length} plate${plates.length === 1 ? "" : "s"}, each fits the ${P.model}'s ${bed[0]} × ${bed[1]} mm bed` });
+  } else if (size.x > bed[0] || size.z > bed[1] || size.y > bed[2])
     list.push({ k:"bad", t:"Bigger than the print bed", s:`${size.x.toFixed(0)} × ${size.z.toFixed(0)} × ${size.y.toFixed(0)} mm does not fit ${bed.join(" × ")} mm on the ${P.model}.` +
-      (state.base.type === "jigsaw" && state.base.jigsaw.holder === "tray" ? " The tray prints beside the puzzle: make the puzzle smaller, or switch the tray off and export it separately." : "") });
+      (state.base.type === "jigsaw" && state.base.jigsaw.holder === "tray" ? " The tray prints beside the puzzle: make the puzzle smaller, or switch the tray off and export it separately." : "") +
+      (state.base.type === "enclosure" && state.base.enclosure.split === "off" ? " The box can be made in parts that screw together: Make tab, Split into parts." : "") });
   else list.push({ k:"ok", t:"Fits the bed", s:`${P.model}, ${bed[0]} × ${bed[1]} mm` });
   // the paint switched off on the Paint tab is left out of the files too
   if (state.paint && state.paint.on === false && Array.isArray(state.paint.ops) && state.paint.ops.length)
@@ -9095,6 +9338,21 @@ function enclosureFields(p){
       }
     }
   }, true);
+  // Session 40: a box bigger than the bed is made in parts that screw together
+  const SP = I && I.split, bedNow = state.printer.bed || [256,256,256], mode = E.split === "off" || E.split === "parts" ? E.split : "bed";
+  group(p, "Split into parts", g => {
+    segField(g, [["bed","When it's bigger than the bed"],["parts","Always"],["off","Never"]], ()=>mode, v=>{ E.split = v; renderTab(); baseChanged(); });
+    const sw = I ? I.warn.filter(w => w.split) : [];
+    if (sw.length) note(g, sw.map(w => "⚠ " + esc(w.s)).join("<br>"));
+    if (mode === "parts") numField(g,{ label:"Number of parts", min:2,max:ENC_SPLIT.maxParts,step:1, get:()=>E.splitParts ?? 2, set:v=>E.splitParts=v, onChange:baseChanged });
+    if (SP){
+      selField(g, "Screws for the joins", Object.keys(SCREWS).map(k => [k, k]), ()=>encHas(SCREWS, E.splitScrew) ? E.splitScrew : "M3", v=>{ E.splitScrew = v; baseChanged(); });
+      note(g, `<b>Made in ${esc(SP.parts)}</b> ${esc(SP.join)}`);
+      note(g, `It prints on ${SP.plates.length} plate${SP.plates.length === 1 ? "" : "s"} of your ${bedNow[0]} × ${bedNow[1]} mm bed:<br>${SP.plates.map(esc).join("<br>")}<br>Press ⊞ above the model to see them laid out. The download has a file for each plate.`);
+    } else if (mode === "off") note(g, E.w > bedNow[0] || E.d > bedNow[1] ? `This box is bigger than your bed (${bedNow[0]} × ${bedNow[1]} mm). Pick “When it's bigger than the bed” to make it in parts that screw together.`
+      : "The box is always made in one piece.");
+    else if (mode === "bed") note(g, `The box fits your ${bedNow[0]} × ${bedNow[1]} mm bed, so it is made in one piece. Made bigger than the bed, it is cut into parts that screw together: flanges inside each join, with heat inserts on one side and screws from the other.`);
+  }, mode === "parts" || !!SP);
   if (E.lid !== "none") group(p, "Logo on the lid", g => {
     if (!E.logo) E.logo = JSON.parse(JSON.stringify(DEFAULTS().base.enclosure.logo));
     const LG = E.logo, item = state.items[state.active] || state.items[0];
@@ -12135,6 +12393,9 @@ function sanitizeProject(data){
     E.teardrop = (+data.v || 0) >= 5 ? E.teardrop === true : false; E.grow = E.grow !== false;
     E.lensSlot = Math.round(Math.min(MAX_SLOTS - 1, Math.max(0, cleanNum(E.lensSlot, 0))));
     E.boardRot = E.boardRot === true; E.test = E.test === true;
+    // split into parts (Session 40): a project from before it splits only when the box is bigger than the bed
+    E.split = one(E.split, ["bed","parts","off"]); E.splitParts = Math.round(Math.min(ENC_SPLIT.maxParts, Math.max(2, cleanNum(E.splitParts, 2))));
+    E.splitScrew = encHas(SCREWS, E.splitScrew) ? E.splitScrew : "M3";
     E.cut = (Array.isArray(E.cut) ? E.cut : []).slice(0, 80).filter(c => c && typeof c === "object").map(c => {
       const o = newOpening(c.kind, c.face);
       for (const k of ["u","v","w","h","r","dia","hw","hh","hd"]) if (k in o) o[k] = Math.min(400, Math.max(-400, cleanNum(c[k], o[k])));
@@ -12356,6 +12617,22 @@ async function buildZip(parts, title){
   const merged = C.mergeSolids(P.map(p=>({ pos:p.pos, idx:p.idx })));
   zip.file("stl/all-parts-merged.stl", new Uint8Array(C.makeSTL(merged)));
   zip.file("project.json", projectPayload());
+  // parts on several plates (a project box in parts, Session 40): a pair of 3mf files for each plate, each part as an
+  // STL of its own, and how they go together. The files above hold every plate side by side.
+  const onPlates = printedParts().filter(p => p.plate != null), nPlates = onPlates.length ? Math.max(...onPlates.map(p => p.plate)) + 1 : 0;
+  for (let i = 0; i < nPlates; i++){
+    const bySlot = new Map();
+    onPlates.filter(p => p.plate === i).forEach(p => { if (!bySlot.has(p.slot)) bySlot.set(p.slot, []); bySlot.get(p.slot).push(p); });
+    const merged = [...bySlot.entries()].sort((a, b) => a[0] - b[0]).map(([slot, list]) => { const m = C.mergeSolids(list); return { name:state.slots[slot].name, slot, pos:m.pos, idx:m.idx }; });
+    const { parts:PP } = C.prepareParts(merged), name = `${title} plate ${i + 1}`;
+    for (const [file, make] of [["prusa-orca", C.make3MF], ["bambu", C.make3MF_BBL]]){
+      const z = new JSZip(); Object.entries(make(PP, state.slots, name)).forEach(([k, v]) => z.file(k, v));
+      zip.file(`plates/plate-${i + 1}-${file}.3mf`, await z.generateAsync({ type:"uint8array", compression:"DEFLATE", compressionOptions:{level:6} }));
+    }
+  }
+  onPlates.forEach(p => { const { parts:[q] } = C.prepareParts([p]); zip.file(`plates/stl/${p.name.replace(/[^\w-]+/g, "_")}.stl`, new Uint8Array(C.makeSTL(q))); });
+  const splitText = encSplitReadme();
+  if (splitText) zip.file("how-it-goes-together.txt", splitText.join("\r\n"));
   if (state.base.type === "jigsaw" && jigsawInfo) zip.file("cad/puzzle-cut-lines.svg", C.jigsawSVG(jigsawInfo.cut, title));
   if (state.base.type === "tracer" && tracerInfo && tracerInfo.polys.length){
     zip.file("cad/outline.svg", C.outlineSVG(tracerInfo.polys, title));
@@ -12381,6 +12658,8 @@ async function buildZip(parts, title){
     (lastChecks.swaps || []).length > 1 ? "One filament at a time: colour-changes.txt says where to pause and swap the spool."
       : "One colour at a time: print stl/all-parts-merged.stl.",
     ...(cardNfcText(title) ? ["An NFC tag goes inside: nfc-tag.txt says where to pause and put it in."] : []),
+    ...(nPlates ? [`It prints on ${nPlates} plates: open plates/plate-1-prusa-orca.3mf (or -bambu.3mf) and so on, one plate at a time.`,
+      "  The model files above hold every plate side by side. how-it-goes-together.txt says how the parts join."] : []),
     ...(P.some(p => p.paint) ? ["Painted on the Paint tab: both 3mf files carry the paint, so the slicer shows it painted and",
       "  prints it without painting again. The OBJ groups faces by colour. The STL files have no colour."] : []), "",
     "Flat pieces print face down, no supports. project.json reopens this design in Maker Forge."

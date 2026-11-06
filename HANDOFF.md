@@ -1714,6 +1714,66 @@ takes an object, a list of values per setting or `auto`, and builds random combi
 - A keychain plate's interior holes (a letter counter bigger than the border, as in "Emma" at 3.2 mm) are kept, as before.
 - Still to check by hand: a printed tag with a magnet; the back text and credit on a real print.
 
+## Session 42: signs, plaques and photo frames (v0.36.0)
+
+The second section update on the road to v0.50.
+
+**Bug hunt**
+- **The Chromium fuzz harness:** signs, plaques and frames, 60 each at first, then 50 more each with the new options. None bad.
+- **The audit** of the frame, the plaque and the sign.
+- **The weak spot was what the frame lacked, not a bug:** it was a flat ring with a window, with nowhere to put a photo.
+
+**A frame for a photo** (`FRAME_PHOTOS`, `frameDims`, `buildPhotoFrame`, `unionHeadSlot`; settings `frame.photo` (a size key or
+"none"), `pw`, `ph`, `landscape`, `border`, `overlap`, `sheet`, `panelT`, `stand` ("leg"/"none"), `hang`)
+- **Sizes and the old frame.** `frameDims` gives every size: from the frame's own settings (the old frame, unchanged, still the
+  default and the **Photo frame** quick start) or from the photo:
+  - pocket = photo + 0.3; window = photo − 2 × overlap; outer = pocket + 2 × border;
+  - thickness = panel + (sheet + 0.6) + bevel + 1, where bevel = (pocket − window) / 2.
+  - Placing art on the border and its default width use `frameDims` too.
+- **Printed face up**, so artwork on the front works as on any frame.
+  - The frame is 0.2 mm slabs: the pocket open to the back; above `zb` its wall moves in 0.2 per 0.2 (45°) to the window, so the
+    window's edge is a bevel like a mount board's and the roof over the photo's edges needs no support.
+  - A half-disc notch on the pocket's bottom edge, 6 mm across at the back and shrinking 1 mm per mm (a 45° half cone), lifts the
+    panel out.
+- **The back panel:**
+  - 0.15 mm smaller all round than the pocket, printed photo side down, beside the frame (or behind it, if not beside);
+  - a socket block for the stand: a 3.2 × 12.2 mm slot, 6 mm deep, 45% of the way up;
+  - near the top corners, two keyhole blocks 7 mm high. The head hole is 9.5 mm; the slot 4.5 mm wide runs 9 mm up; the lip's
+    underside narrows from 9.5 to 4.5 mm in 0.25 mm steps over 2.5 mm, so it needs no support. An earlier flat lip read 60 mm².
+- **The stand (leg):** printed flat, its tab 2.9 × 11.9 × 5.8 mm. Its upright edge is as tall as the socket's height above the
+  frame's bottom edge, and its foot runs 45% of that behind. It is printed in the frame's window when it fits there, which keeps a
+  10 × 15 frame and its parts on a 256 mm bed. The first version laid it beside the panel: 297 mm.
+- When the frame and panel don't fit the bed together (A5 with a wide border), the panel says to split the print into objects in
+  the slicer.
+- **Quick start "Frame for a photo"** (10 × 15 cm, stand and keyholes); its Start picture is made with `ONLY=... node tools-thumbs.js`.
+
+**Stands** (`slotStand`, `standFor`; `board.stand`, `frame.standBase`, `sign.stand`)
+- A block 10 mm high, as deep as 3 × the piece's thickness + 26 mm (28 to 48), and 55% of the piece's width long (30 to 180).
+- The slot is the thickness + 0.3, 7 mm deep, leaning back 10°, with 2 mm 45° chamfers on the top edges.
+- It is printed on its side as an extrusion of its profile, so nothing overhangs more than 10°. It is laid in front of the piece.
+- **Where:** a plaque; a frame without a photo (`standBase`, kept apart from the photo frame's leg so the old frame's default stays
+  one part); a sign with a backing (the "Board" or "Sign" part, the slot sized to the back's thickness).
+
+**Card (carried over from v0.35):** fonts with capitals only (`capsOnly`) replace the **Name in capitals** switch with a note.
+
+**Tests** (`npm run test:frame`, new)
+- The old frame unchanged (size and volume).
+- A 10 × 15 frame:
+  - three closed parts on the bed;
+  - its outer size, the window open right through, the pocket behind the window's edge, the 45° bevel (2.0 mm in over 2 mm up);
+  - the panel 0.15 mm smaller, the notch, the stand in the window;
+  - no support, and it fits the bed.
+- Every photo size upright and sideways; your own size with no stand and no keyholes.
+- The stand's slot (5.40 mm across at 9 mm up for a 5 mm frame: 5.3 / cos 10°); a plaque and a desk sign with stands, needing no
+  support.
+- `test:project`: a hostile frame and plaque.
+
+**Not done**
+- Signs: wire paths along the back, letters spaced for a raceway, script fonts for neon (from Session 38).
+- Frames: a mat (a second, coloured border inside the window), several photos in one frame, a frame that splits for big photos.
+- Still to check by hand: a printed 10 × 15 frame with a real photo and sheet (the 0.15 mm press fit of the panel, the stand's angle
+  and grip, the keyholes on screws), the slot stand's 0.3 mm fit.
+
 ## Unfinished (in priority order)
 
 - **The next two builds** (the owner, 2026-11-05: "Mechanisms toolkit, model doctor, 3d relief from any photo, sign maker and fix it parts library should be done over the next two builds"; ideas 2, 3, 6, 8 and 10 of Session 36's list). Planned split:

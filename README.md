@@ -41,7 +41,7 @@ Every button in the **Start from** sidebar opens with a finished example, so you
 | **Plastic canvas, mosaics, pixel art** | A small picture | One square per stitch |
 | **Bobble heads** | A face | Printed spring neck |
 | **Tea lights and lanterns** | A silhouette or a photo | LED only |
-| **Photo frames, plaques, coasters, cylinders, spheres, vases** | A picture, or paint | Turned shapes: vase, egg, cone, dome, ring |
+| **Photo frames, plaques, coasters, cylinders, spheres, vases** | A picture, or paint | Frames for a photo (10 × 15 cm, A5 and others) with a back panel, stand and keyholes; stands for plaques and desk signs; turned shapes: vase, egg, cone, dome, ring |
 | **Project boxes and electronics enclosures** | Openings and a lid logo | About 75 openings: USB-C and charging boards, buttons, switches, fans, displays, pilot lights, the ESP32-CAM, motion and distance sensors, speaker grilles; labels; screw ears, hanging tabs, a DIN rail clip, strap loops, SKÅDIS hooks or pegboard pegs; Raspberry Pi case, power bank box, PSU box; fit test |
 | **Replacement parts from a photo** | A photo of a flat part on paper | Photo to 3D tracer, true circles for holes, SVG and DXF outlines |
 | **Your own model, painted** | An STL, OBJ, 3MF, GLB or glTF | Up to 8 colours, by hand, automatically or from a photo; text and pictures raised, engraved or inlaid; cut flat to stand |
@@ -181,7 +181,7 @@ node tools-smoke-test.js index.html              # every tab, button, quick star
 node tools-audit.js index.html                   # every control to both ends; flags controls that change nothing
 npm run test:project                             # saved projects come back unchanged; hostile files are tamed
 npm run test:paint && npm run test:photo         # the colour painter and colour from a photo
-npm run test:sharp                               # paint edges cut into the model
+npm run test:sharp && npm run test:frame         # paint edges cut into the model; frames for a photo
 npm run test:enclosure && npm run test:phonecase # project boxes and phone cases
 npm run test:jigsaw && npm run test:litho        # puzzles and lithophanes
 npm run test:tracer && npm run test:print        # traced parts against known sizes; printability

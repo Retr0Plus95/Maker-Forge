@@ -95,6 +95,7 @@ All the example pictures were drawn for Maker Forge and are free to use, like th
 | Lightbox | A backlit picture panel with a frame and stand | A photo or drawing |
 | Circuit board | A decorative board with raised copper | A schematic or PCB screenshot |
 | Photo frame | A frame with a picture on its border | A small picture or words |
+| Frame for a photo | A frame for a 10 × 15 cm photo, with a back panel, a stand and keyholes | Your photo, printed at 10 × 15 cm |
 | Jigsaw puzzle | A puzzle that prints in one go | A picture |
 | Kids' puzzle | Twelve chunky pieces in a tray | A bold picture |
 | Lithophane | A picture that appears when light shines through | A photo |
@@ -133,6 +134,14 @@ Some objects in brief:
   - **Credit on the back**: a short line of text on the back, such as your website or shop, for keychains you give away. It is mirrored, so it reads when the tag is turned over. **In a colour, flush** prints it in the first layers in a second filament, face down on the bed; **Engraved** cuts it into the bottom. It shrinks to fit inside the plate's edge and clear of the ring hole, and moves aside from the middle of the name if it fits better there; the slider says when it was made smaller. A double-sided tag has its name on the back, so it takes no credit.
   - **Something on the back too** (a double-sided tag): the name mirrored, or **your own text**, such as "If found, call…" or a second name, in the name's font. Either is set flush into the back in its own filament, so the tag lies flat. Your own text is as big as the name or smaller, until it fits 1.2 mm inside the edge.
   - **Magnet**: a round pocket in the back for a 5 to 12 mm neodymium magnet, so the name sticks to a fridge, a whiteboard or a toolbox. The pocket opens on the bottom, 0.3 mm wider and 0.2 mm deeper than the magnet: press it in after printing with a drop of glue. One or two magnets, placed where the plate is deepest, clear of the edge, the ring hole and any letters on the back. The panel says when the plate is too thin or too small for the one you picked.
+- **Photo frame.** A frame of your size with a picture on its border, or a frame **for a photo**: pick the photo's size (wallet, 9 × 13, 10 × 15, 13 × 18 cm, A6, A5, square or your own), upright or sideways.
+  - The frame is the photo plus the width you choose round it. The window shows the photo less the overlap you set (4 mm hides its edges).
+  - It prints face up. The photo and a clear sheet (1 mm acrylic or 0.5 mm PET, cut to the photo's size, or none) go in from the back, then the **back panel** presses in after them. The notch at the bottom of the pocket lets you lift the panel out with a fingernail.
+  - The window's edge is bevelled at 45°, like a mount board, which is also why nothing needs support.
+  - **A stand**: a leg that plugs into a socket on the back panel, printed in the frame's window. **Keyholes**: two raised blocks on the panel to hang it on two screws.
+  - A frame without a photo, a plaque and a sign on a board can each have **a stand to hold it up**: a low base with a slot their bottom edge slides into, leaning back 10°.
+
+  ![A frame for a 10 × 15 cm photo with its back panel and stand; a plaque and a desk sign, each with its stand](docs/images/frames-stands.jpg)
 - **Photo to 3D tracer.** Photograph a flat part on plain paper, shot from straight above. Give one real measurement, or let the sheet of paper be the ruler. Round holes become true circles. The outline also downloads as SVG and DXF.
 - **Lithophane.** Flat, curved or a cylinder, with a rectangle, arch, oval or heart outline. The **test strip** prints steps from 0.6 to 3.2 mm, so you can choose thicknesses for your filament.
 - **Jigsaw puzzle.** Choose the number of pieces, the style of the knobs and the gap. **Shuffle** draws a new cut. A frame or a tray can print with it. A strip of a picture's colour thinner than the nozzle takes the colour beside it, so it doesn't print as a sliver.

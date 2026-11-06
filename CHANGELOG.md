@@ -3,6 +3,22 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.36.0
+
+Signs, plaques and photo frames, updated: a real frame for a photo, and stands.
+
+- **A frame for a photo** (the **Frame for a photo** quick start, or **For a photo** on a photo frame):
+  - pick the photo's size (wallet, 9 × 13, 10 × 15, 13 × 18 cm, A6, A5, square or your own), upright or sideways, and how wide the frame is round it;
+  - the photo and a clear sheet go in from the back and a back panel presses in after them;
+  - the window's edge is bevelled at 45° like a mount board, so nothing needs support;
+  - a stand that plugs into the back, and keyholes to hang it on two screws.
+- **A stand to hold it up** for a plaque, a frame without a photo and a sign on a board (a desk sign): a low base with a slot, leaning it back 10°.
+
+![A frame for a 10 × 15 cm photo with its back panel and stand; a plaque and a desk sign, each with its stand](docs/images/frames-stands.jpg)
+
+**Fixed**
+- Nothing broken turned up in signs, plaques or frames this time (110 random builds of each, checked in a real browser).
+
 ## 0.35.0
 
 The name keychain, the double-sided tag and business cards, updated.

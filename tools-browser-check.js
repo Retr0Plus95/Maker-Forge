@@ -452,6 +452,47 @@ function pageCoverage() {
     if (!rl.depth || !rl.ai || rl.open || !rl.parts) findings.push({ where: "relief", what: JSON.stringify(rl) });
     notes.push(`relief from a photo: the depth model downloaded, checked and run in ${Math.round(rl.ms || 0)} ms; the relief rises with it${rl.open ? `, ${rl.open} open edges` : ", closed"}`);
   }
+  // ---------- a project box bigger than the bed, made in parts that screw together (Session 40) ----------
+  if (!ONLY || ONLY.includes("split") || ONLY.includes("enclosure")) {
+    const keepPrinter = await page.evaluate(() => JSON.stringify([window.MakerForge.state.printer, window.MakerForge.state.base.enclosure]));
+    const sp = await page.evaluate(async () => {
+      const MF = window.MakerForge, C = MF.core, sleep = ms => new Promise(q => setTimeout(q, ms));
+      const settle = async () => { const r0 = MF.rev; for (let i = 0; i < 40 && MF.rev === r0 && !MF.busy; i++) await sleep(30); for (let i = 0; i < 1200; i++){ if (!MF.busy){ await sleep(60); if (!MF.busy) break; } await sleep(25); } };
+      const sel = document.querySelector("#objectSel"); sel.value = "enclosure"; sel.dispatchEvent(new Event("change")); await settle();
+      Object.assign(MF.state.printer, { model:"Bambu X2D", bed:[256, 256, 260] });
+      const op = (k, f, o) => Object.assign(MF.newOpening(k, f), o);
+      MF.state.base.enclosure = Object.assign(JSON.parse(JSON.stringify(MF.defaults.enclosure)), { w:300, d:160, h:110, split:"bed", cut:[op("lcd1602", "front", { u:-70, v:70 }), op("pot", "front", { u:40, v:60, label:"SET" }), op("banana", "front", { u:90, v:30 }),
+        op("iec", "back", { u:90, v:70 }), op("fan", "back", { u:-50, v:45, size:60 }), op("vent", "left", { u:0, v:60, w:70, h:30 }), op("vent", "right", { u:0, v:60, w:70, h:30 }),
+        op("vent", "top", { u:-90, v:0, w:60, h:40 }), op("round", "bottom", { u:80, v:0, dia:8 })] });
+      const t0 = performance.now(); MF.rebuild(false); await settle(); const ms = performance.now() - t0;
+      const S = MF.enclosure.split, out = { ms, n:S && S.n, plates:S ? S.plates.length : 0, open:MF.parts.reduce((a, p) => a + C.checkMesh(p.solid).open, 0), warn:MF.enclosure.warn.map(w => w.t),
+        fits:MF.checks.list.some(r => r.t === "Fits the bed" && /plates/.test(r.s)) };
+      // the download: a pair of 3mf files per plate, each within the bed when read back, an STL per part, how it goes together
+      const zip = await MF.paint.buildZip(MF.exportParts(), "big box"), names = Object.keys(zip.files);
+      out.files = names.filter(f => /^plates\/|^how-it/.test(f)).length; out.sizes = [];
+      for (let i = 1; i <= out.plates; i++) for (const kind of ["prusa-orca", "bambu"]){
+        const f = zip.file(`plates/plate-${i}-${kind}.3mf`); if (!f){ out.sizes.push("missing"); continue; }
+        const inner = await JSZip.loadAsync(await f.async("uint8array")), model = await inner.file("3D/3dmodel.model").async("string");
+        const mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9], re = /<vertex x="([^"]+)" y="([^"]+)" z="([^"]+)"/g; let m;
+        while ((m = re.exec(model))) for (let k = 0; k < 3; k++){ const v = +m[k + 1]; mn[k] = Math.min(mn[k], v); mx[k] = Math.max(mx[k], v); }
+        out.sizes.push(mx.map((v, k) => +(v - mn[k]).toFixed(1)));
+      }
+      out.stls = names.filter(f => /^plates\/stl\/.*\.stl$/.test(f)).length;
+      out.howto = zip.file("how-it-goes-together.txt") ? await zip.file("how-it-goes-together.txt").async("string") : "";
+      out.readme = /prints on \d+ plates/.test(await zip.file("README.txt").async("string"));
+      return out;
+    });
+    await byText(page, "#tabs button", "make");
+    await page.evaluate(() => { const b = document.querySelector('#secrail button[data-title="Split into parts"]'); if (b) b.click(); }); await settle(page);
+    await shot(page, "split-assembled", `A 300 mm project box on a 256 mm bed, made in ${sp.n} parts that screw together`, await modelInfo(page, "split box"));
+    await page.click("#vLayout"); await settle(page);
+    await shot(page, "split-laid-out", `The same box laid out as it prints: ${sp.plates} plates`, {});
+    await page.click("#vLayout"); await settle(page);
+    await page.evaluate(p => { const [pr, en] = JSON.parse(p), MF = window.MakerForge; Object.assign(MF.state.printer, pr); MF.state.base.enclosure = en; MF.rebuild(false); }, keepPrinter); await settle(page);
+    const sizeOk = sp.sizes.length === 2 * sp.plates && sp.sizes.every(z => Array.isArray(z) && z[0] <= 256 && z[1] <= 256 && z[2] <= 260);
+    if (sp.n !== 2 || sp.open || sp.warn.length || !sp.fits || !sizeOk || sp.stls < 4 || !/heat inserts/.test(sp.howto) || !sp.readme) findings.push({ where: "split box", what: JSON.stringify(sp) });
+    notes.push(`a 300 mm box in parts: ${sp.n} parts on ${sp.plates} plates, built in ${Math.round(sp.ms)} ms; each plate's 3mf read back at ${sp.sizes.filter((_, i) => i % 2 === 0).map(z => Array.isArray(z) ? z.join(" × ") : z).join(", ")} mm; ${sp.stls} STL files and how-it-goes-together.txt in the download`);
+  }
   // ---------- the colour painter with a real mouse, and a painted 3mf opened again (Session 13) ----------
   {
     const s = await page.evaluate(async () => {

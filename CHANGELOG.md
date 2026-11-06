@@ -3,6 +3,22 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.34.0
+
+A project box bigger than your printer's bed is now made in parts that screw together.
+
+- **Split into parts** (Make tab, project box). A box longer than the bed is cut across its longer side into parts that each fit, and the lid with it.
+  - Inside each join both parts have a flange: heat inserts in one, clearance holes in the other, M3 screws (or M2, M2.5, M4) through from inside.
+  - With a screwed or magnet lid the flanges also take two more lid screws or magnets each side of every join, so each part of the lid holds down on its own.
+  - The joins move to keep clear of openings, labels, posts, standoffs, the board and the mounts (ears, tabs, loops, hooks). When one can't, the app names the opening in the way. Ears or loops that stick out count in each part's size.
+  - **When it's bigger than the bed** is the usual choice; **Always** splits even a box that fits, into 2 to 8 parts; **Never** keeps it in one piece.
+  - The page says how the parts go together, how many inserts and screws you need and how long the screws are, and what prints on each plate. **⊞** lays the parts out on their plates, and the download has a 3mf for each plate, an STL for each part and `how-it-goes-together.txt`.
+  - The parts need no more support than the one-piece box: the screw holes have pointed tops.
+- **Before you print** checks each plate of a box in parts against the bed. For a box bigger than the bed with splitting switched off, it says the box can be made in parts.
+
+**Fixed**
+- No bug fixes in this release.
+
 ## 0.33.0
 
 Many more openings for project boxes, and ways to mount them.

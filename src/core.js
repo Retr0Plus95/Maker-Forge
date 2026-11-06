@@ -1618,6 +1618,145 @@
     return { pos, idx, paint };
   }
 
+  /* A closed solid cut in two by a plane, each half closed again (Session 40: a project box split into parts that
+     screw together). axis 0, 1 or 2 (x, y, z), at: where along it. Returns { below, above }, null for an empty half.
+     Every triangle that crosses the plane is split; a new corner is made once per edge it lies on, so both halves
+     share it and stay watertight. The cut's outline is walked from the split triangles into loops, which are filled
+     with earcut: the loops turning the same way as the biggest are outlines, the rest holes in the smallest outline
+     round them. Works without Manifold (nothing to download) on any closed mesh, several shells at once, as long as
+     the shells do not overlap. A corner exactly on the plane counts as above it: callers keep the plane off corners
+     (planeClear). A painted solid keeps each triangle's paint; the cut faces are left unpainted. */
+  function splitSolid(s, axis, at) {
+    const P = s.pos, I = s.idx, nv = P.length / 3, d = new Float64Array(nv);
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < nv; i++) { d[i] = P[i * 3 + axis] - at; if (d[i] < lo) lo = d[i]; if (d[i] > hi) hi = d[i]; }
+    if (hi <= 1e-7) return { below: s, above: null };
+    if (lo >= -1e-7) return { below: null, above: s };
+    const pos = Array.from(P), cut = new Map(), tb = [], ta = [], pb = [], pa = [], seg = [], paint = s.paint || null;
+    const X = (a, b) => {                                // the corner where edge a-b crosses, made once per edge
+      if (a > b) { const t = a; a = b; b = t; }
+      const key = a * nv + b; let v = cut.get(key);
+      if (v === undefined) {
+        const t = d[a] / (d[a] - d[b]); v = pos.length / 3;
+        for (let k = 0; k < 3; k++) pos.push(k === axis ? at : P[a * 3 + k] + (P[b * 3 + k] - P[a * 3 + k]) * t);
+        cut.set(key, v);
+      }
+      return v;
+    };
+    for (let t = 0; t < I.length; t += 3) {
+      const v = [I[t], I[t + 1], I[t + 2]], up = v.map(i => d[i] >= 0), c = paint ? paint[t / 3] : 255;
+      if (up[0] === up[1] && up[1] === up[2]) { (up[0] ? ta : tb).push(v[0], v[1], v[2]); (up[0] ? pa : pb).push(c); continue; }
+      const r = up[0] !== up[1] && up[0] !== up[2] ? 0 : up[1] !== up[0] && up[1] !== up[2] ? 1 : 2;   // the corner alone on its side
+      const A = v[r], B = v[(r + 1) % 3], Cc = v[(r + 2) % 3], ab = X(A, B), ac = X(A, Cc);
+      const lone = up[r] ? ta : tb, pair = up[r] ? tb : ta;
+      lone.push(A, ab, ac); pair.push(ab, B, Cc, ab, Cc, ac);
+      (up[r] ? pa : pb).push(c); (up[r] ? pb : pa).push(c, c);
+      seg.push(up[r] ? [ac, ab] : [ab, ac]);           // the below half's edge along the cut, the way its triangle runs
+    }
+    // the cut's outline as loops (each edge the way the below half runs it; its cap runs them the other way)
+    const next = new Map(); seg.forEach(([p, q]) => next.set(p, q));
+    const loops = [], done = new Set(), u = (axis + 1) % 3, w = (axis + 2) % 3;
+    for (const [p] of seg) {
+      if (done.has(p)) continue;
+      const L = []; let c = p;
+      while (c !== undefined && !done.has(c)) { done.add(c); L.push(c); c = next.get(c); }
+      if (L.length > 2) loops.push(L);
+    }
+    const pt = i => [pos[i * 3 + u], pos[i * 3 + w]];
+    const ring = loops.map(L => { const R = L.map(pt); return { L, R, a: area2(R) }; }).filter(o => Math.abs(o.a) > 1e-12);
+    const capB = [], capA = [];
+    if (ring.length) {
+      const big = ring.reduce((m, o) => Math.abs(o.a) > Math.abs(m.a) ? o : m), outers = ring.filter(o => Math.sign(o.a) === Math.sign(big.a));
+      outers.forEach(o => { o.holes = []; o.inside = insideRing(o.R); });
+      ring.filter(o => Math.sign(o.a) !== Math.sign(big.a)).forEach(h => {
+        let best = null;
+        for (const o of outers) if ((!best || Math.abs(o.a) < Math.abs(best.a)) && o.inside(h.R[0][0], h.R[0][1])) best = o;
+        if (best) best.holes.push(h);
+      });
+      // A cut face's outline is full of points in a straight line (one wherever a triangle of a flat face crossed the
+      // plane), and earcut drops those when it gets stuck, leaving their edges unmatched. So earcut gets the corners
+      // only, and each triangle's edge along the outline takes back the points between its corners: as a fan from the
+      // opposite corner, or round a new point in the middle when two of its edges have some.
+      const key = (a, b) => (a < b ? a + ":" + b : b + ":" + a), extra = new Map();
+      const corners = L => {
+        const K = L.slice();
+        for (let again = true; again && K.length > 3;) {
+          again = false;
+          for (let i = 0; i < K.length && K.length > 3; i++) {
+            const a = pt(K[(i + K.length - 1) % K.length]), b = pt(K[i]), c = pt(K[(i + 1) % K.length]);
+            const dx = c[0] - a[0], dy = c[1] - a[1], len2 = dx * dx + dy * dy, along = (b[0] - a[0]) * dx + (b[1] - a[1]) * dy;
+            const off = len2 > 1e-24 ? Math.abs(dx * (b[1] - a[1]) - dy * (b[0] - a[0])) / Math.sqrt(len2) : Math.hypot(b[0] - a[0], b[1] - a[1]);
+            // a point a hair from its neighbour goes too, even a hair behind it: two edges of a mesh crossing the plane
+            // almost together, which earcut alone took for a zigzag of no width (a split box's floor, Session 40)
+            const twin = Math.hypot(b[0] - a[0], b[1] - a[1]) < 1e-6 || Math.hypot(c[0] - b[0], c[1] - b[1]) < 1e-6;
+            if (twin || (off < 1e-7 && along >= -1e-12 && along <= len2 + 1e-12)) { K.splice(i, 1); i--; again = true; }
+          }
+        }
+        const keep = new Set(K), n = L.length, start = L.findIndex(i => keep.has(i));
+        let prev = L[start], run = [];                   // the points dropped between each two corners, from the lower id
+        for (let s = 1; s <= n; s++) {
+          const i = L[(start + s) % n];
+          if (!keep.has(i)) { run.push(i); continue; }
+          if (run.length) extra.set(key(prev, i), prev < i ? run : run.reverse());
+          prev = i; run = [];
+        }
+        return K;
+      };
+      const side = (p, q) => { const e = extra.get(key(p, q)); return e ? (p < q ? e : e.slice().reverse()) : []; };
+      const put = (x, y, z) => { capB.push(x, y, z); capA.push(x, z, y); };   // counter-clockwise seen from +axis: the below half's cap faces +axis
+      for (const o of outers) {
+        const ids = [], flat = [], holeIdx = [];
+        [o.L, ...o.holes.map(h => h.L)].forEach((L, r) => { if (r) holeIdx.push(flat.length / 2); corners(L).forEach(i => { ids.push(i); flat.push(...pt(i)); }); });
+        const tri = global.earcut(flat, holeIdx.length ? holeIdx : null, 2);
+        for (let k = 0; k < tri.length; k += 3) {
+          let a = ids[tri[k]], b = ids[tri[k + 1]], c = ids[tri[k + 2]];
+          const A = pt(a), B = pt(b), Q = pt(c);
+          if ((B[0] - A[0]) * (Q[1] - A[1]) - (Q[0] - A[0]) * (B[1] - A[1]) < 0) { const t = b; b = c; c = t; }
+          const edges = [[a, b, c], [b, c, a], [c, a, b]].map(([p, q, r]) => ({ p, q, r, pts: side(p, q) })), busy = edges.filter(e => e.pts.length);
+          if (!busy.length) put(a, b, c);
+          else if (busy.length === 1) { const { p, q, r, pts } = busy[0], run = [p, ...pts, q]; for (let i = 0; i < run.length - 1; i++) put(run[i], run[i + 1], r); }
+          else {
+            const all = edges.flatMap(e => [e.p, ...e.pts]), m = pos.length / 3;
+            for (let j = 0; j < 3; j++) pos.push(j === axis ? at : (pos[a * 3 + j] + pos[b * 3 + j] + pos[c * 3 + j]) / 3);
+            for (let i = 0; i < all.length; i++) put(all[i], all[(i + 1) % all.length], m);
+          }
+        }
+      }
+    }
+    const half = (tris, cap, pnt) => {
+      const all = tris.concat(cap), map = new Map(), out = [], idx = new Uint32Array(all.length);
+      for (let k = 0; k < all.length; k++) {
+        let m = map.get(all[k]);
+        if (m === undefined) { m = out.length / 3; map.set(all[k], m); out.push(pos[all[k] * 3], pos[all[k] * 3 + 1], pos[all[k] * 3 + 2]); }
+        idx[k] = m;
+      }
+      const res = { pos: new Float32Array(out), idx };
+      if (paint) { const pp = new Uint8Array(all.length / 3).fill(255); pp.set(pnt); res.paint = pp; }
+      return res;
+    };
+    return { below: tb.length ? half(tb, capB, pb) : null, above: ta.length ? half(ta, capA, pa) : null };
+  }
+  // a solid in pieces between cuts sorted along axis: piece k lies between cuts[k - 1] and cuts[k] (null when empty)
+  function splitSolidAt(s, axis, cuts) {
+    const out = [];
+    let rest = s;
+    for (const c of cuts) {
+      if (!rest) { out.push(null); continue; }
+      const r = splitSolid(rest, axis, c); out.push(r.below); rest = r.above;
+    }
+    out.push(rest);
+    return out;
+  }
+  // the nearest place to `at`, in steps of `step`, with no corner of these solids closer than tol to it
+  function planeClear(solids, axis, at, step, tol) {
+    step = step || 0.013; tol = tol || 1e-3;
+    for (let k = 0; k < 60; k++) {
+      const p = at + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * step;
+      if (!solids.some(s => { if (!s) return false; const P = s.pos; for (let i = axis; i < P.length; i += 3) if (Math.abs(P[i] - p) < tol) return true; return false; })) return p;
+    }
+    return at;
+  }
+
   // dilate then erode: joins letters that nearly touch
   function closeMask(mask, w, h, r) { return r <= 0 ? Uint8Array.from(mask) : erodeMask(dilateMask(mask, w, h, r), w, h, r); }
   // Smoothing that tells noise from features. A close then an open with a disc of radius r rounds
@@ -5946,7 +6085,7 @@
   global.PRCore = {
     hexToRgb, rgbToHex, colorDist, luma, kmeans, buildCellMap, makeProjector, buildDecalSolids, weldSoup, parseSTL,
     prepareParts, make3MF, make3MF_BBL, makeSTL, makeOBJ, traceMask, groupLoops, rectUnion, triangulate, solidFromTris, buildVectorSolid,
-    makeWrapProjector, extrudePolys, extrudePolysAt, closeMask, smoothMask, revolve, revolveLoop, sweepTube, traceField, fieldToPolys, strokePolys, signedDistanceField, coverageField, blurMask, homography, applyH, warpQuad, quadCorners, refineQuad, fitDimensions, convexHull, outlineSVG, outlineDXF, transformSolid, mirrorSolid, solidBounds, mirrorMaskX, perforate, insideRing, snapToGrid, signedVolume, buildMaskSolid, maskOfSlot, dropCellBackground, dropSlivers, checkMesh, edt, dilateMask, erodeMask, labelMask, maskToPolys, ringCircle, ringRect, ringStar, ringPoly, ringHeart, mergeSolids, area2,
+    makeWrapProjector, extrudePolys, extrudePolysAt, closeMask, smoothMask, revolve, revolveLoop, sweepTube, traceField, fieldToPolys, strokePolys, signedDistanceField, coverageField, blurMask, homography, applyH, warpQuad, quadCorners, refineQuad, fitDimensions, convexHull, outlineSVG, outlineDXF, transformSolid, mirrorSolid, solidBounds, mirrorMaskX, perforate, insideRing, snapToGrid, signedVolume, buildMaskSolid, maskOfSlot, dropCellBackground, dropSlivers, checkMesh, edt, dilateMask, erodeMask, labelMask, maskToPolys, ringCircle, ringRect, ringStar, ringPoly, ringHeart, mergeSolids, splitSolid, splitSolidAt, planeClear, area2,
     affineSolid, mat3Mul, rotationDownTo, analyzePrint, analyzePrintSteps, bestOrientation, bestOrientationSteps, orientationScore, brimSolid, bedContact, sliceMask, gridOver, flattenParts,
     seededRandom, jigsawGrid, jigsawCut, jigsawEdge, jigsawPiece, jigsawSVG, jigsawCutLines, ringField, ringDistance, outlineBand, strokeText,
     gridAround, heightSheet,

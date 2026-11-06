@@ -60,6 +60,45 @@ function coreTests(C, M) {
   const two = C.mergeSolids([box, C.affineSolid(box, [1, 0, 0, 0, 1, 0, 0, 0, 1], [20, 0, 0])]), p2 = C.cutBase(M, two);
   check(p2 && p2.volume < 2 * vol - 1, "two pieces that overlap are joined into one before cutting", p2 && `${p2.volume.toFixed(0)} mm³, not ${(2 * vol).toFixed(0)}`);
   C.cutFree(p2); C.cutFree(prep);
+
+  // Session 40: a plane cut without Manifold (splitSolid), for a project box split into parts. Checked against
+  // Manifold's own flat cut on the same solids.
+  console.log("\nthe library: cut in two along a plane, without Manifold");
+  const closedOut = s => { const q = C.checkMesh(s); return q.open === 0 && C.signedVolume(s) > 0; };
+  const V = s => C.checkMesh(s).volume;
+  const holed = C.extrudePolys([{ outer: C.ringRect(40, 30, 3, 8), holes: [C.ringCircle(6, 40, true).map(([x, y]) => [x + 5, y])] }], 10), hv = V(holed);
+  const hp = C.cutBase(M, holed);
+  const s1 = C.splitSolid(holed, 1, 4.3), m1 = C.cutFlat(hp, 4.3).volume;   // across the hole: each cut face has a hole in it
+  check(closedOut(s1.below) && closedOut(s1.above), "cut across the hole: both halves closed and outward", `${C.checkMesh(s1.below).open} and ${C.checkMesh(s1.above).open} open edges`);
+  check(near(V(s1.above), m1, 1e-2) && near(V(s1.below) + V(s1.above), hv, 1e-2), "the part above is what Manifold's cut leaves, and the halves add up to the whole",
+    `${V(s1.above).toFixed(3)} vs ${m1.toFixed(3)} mm³`);
+  const bb1 = C.solidBounds(s1.below), ba1 = C.solidBounds(s1.above);
+  check(near(bb1.mx[1], 4.3, 1e-5) && near(ba1.mn[1], 4.3, 1e-5), "the cut faces lie on the plane", `${bb1.mx[1].toFixed(5)}, ${ba1.mn[1].toFixed(5)}`);
+  // along x through the hole: the cut face is two pieces, one each side of the hole (Manifold cuts the solid turned)
+  const s2 = C.splitSolid(holed, 0, 5.7), tp = C.cutBase(M, C.affineSolid(holed, [0, 1, 0, -1, 0, 0, 0, 0, 1], [0, 0, 0])), m2 = C.cutFlat(tp, -5.7).volume;
+  check(closedOut(s2.below) && closedOut(s2.above) && near(V(s2.below), m2, 1e-2), "cut through the hole the other way: closed, and the same as Manifold's", `${V(s2.below).toFixed(3)} vs ${m2.toFixed(3)} mm³`);
+  C.cutFree(tp); C.cutFree(hp);
+  const ball = C.revolveLoop(Array.from({ length: 25 }, (_, i) => { const a = -Math.PI / 2 + i / 24 * Math.PI; return [Math.max(0, 12 * Math.cos(a)), 12 * Math.sin(a)]; }), 48);
+  const s3 = C.splitSolid(ball, 2, 3.21);
+  check(closedOut(s3.below) && closedOut(s3.above) && near(V(s3.below) + V(s3.above), V(ball), 1e-2), "a ball cut off-centre: closed halves that add up",
+    `${V(s3.below).toFixed(1)} + ${V(s3.above).toFixed(1)} of ${V(ball).toFixed(1)} mm³`);
+  const s4 = C.splitSolid(C.mergeSolids([holed, C.affineSolid(holed, [1, 0, 0, 0, 1, 0, 0, 0, 1], [0, 0, 50])]), 0, -7.1);
+  check(closedOut(s4.below) && closedOut(s4.above) && near(V(s4.below) + V(s4.above), 2 * hv, 1e-2), "two separate pieces cut at once");
+  const pieces = C.splitSolidAt(holed, 0, [-10.3, 0.7, 12.9]);
+  check(pieces.length === 4 && pieces.every(closedOut) && near(pieces.reduce((a, q) => a + V(q), 0), hv, 1e-2), "cut in three places: four closed pieces that add up",
+    pieces.map(q => V(q).toFixed(0)).join(" + "));
+  const miss = C.splitSolid(holed, 0, 30);
+  check(miss.below === holed && miss.above === null, "a plane past the solid leaves it whole");
+  const s5 = C.splitSolid(Object.assign({}, holed, { paint: new Uint8Array(holed.idx.length / 3).fill(2) }), 0, 2.2), capTris = [...s5.below.paint].filter(v => v === 255).length;
+  check(capTris > 0 && [...s5.below.paint].every(v => v === 2 || v === 255), "a painted solid keeps its paint, the cut face unpainted", `${capTris} cap triangles`);
+  // a thin plate full of holes (like a box's lid in 0.2 mm slabs), cut a hair from a corner: the cut face's edges are
+  // rows of points in a straight line, which earcut alone dropped (Session 40: a lid part came out with open edges)
+  const plate = C.extrudePolys([{ outer: C.ringRect(236, 160, 4, 8), holes: [0, 1, 2, 3, 4, 5].map(i => C.ringCircle(1.7 + i * 0.2, 32, true).map(([x, y]) => [x - 100 + i * 37, y + (i % 2 ? 60 : -60)])) }], 0.2);
+  const near0 = plate.pos[3 * 40] + 2e-4, s6 = C.splitSolid(plate, 0, near0);
+  check(closedOut(s6.below) && closedOut(s6.above) && near(V(s6.below) + V(s6.above), V(plate), 1e-3), "a thin plate with holes, cut a hair from a corner: closed halves that add up",
+    `${C.checkMesh(s6.below).open} and ${C.checkMesh(s6.above).open} open edges`);
+  const moved = C.planeClear([holed], 0, 20 - 1e-6), kept = C.planeClear([holed], 0, 10.5);
+  check(Math.abs(moved - 20) > 1e-4 && kept === 10.5, "a plane is moved off a corner, and left alone where nothing is in the way", `${moved.toFixed(4)}, ${kept}`);
 }
 
 // ---------- the app ----------

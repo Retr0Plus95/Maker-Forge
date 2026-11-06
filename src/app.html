@@ -933,7 +933,7 @@ const DEFAULTS = () => ({
       mount:"none", earN:2, tabN:2, earHole:4.5, earT:3, strapW:12, strapT:2.5, strapDir:"across",
       labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
       split:"bed", splitParts:2, splitScrew:"M3",
-      board:"none", boardX:0, boardY:0, boardRot:false, standH:5, bw:60, bd:40, bsx:52, bsy:32, bscrew:"M3", boxSlot:1, lidSlot:1,
+      board:"none", boardX:0, boardY:0, boardRot:false, boardHold:"holes", more:[], standH:5, bw:60, bd:40, bsx:52, bsy:32, bscrew:"M3", boxSlot:1, lidSlot:1,
       // every key newOpening gives, so a saved box opens exactly as it was
       cut:[ { face:"front", kind:"usbc", u:-25, v:12, w:9.2, h:3.4, r:1.6, rot:false, label:"", labelPos:"below", top:"flat", notch:false },
             { face:"front", kind:"btn", u:0, v:18, dia:12.2, rot:false, label:"", labelPos:"below", top:"flat", notch:false },
@@ -1809,14 +1809,83 @@ const FAN_SPACING = { 25:20, 30:24, 40:32, 50:40, 60:50, 70:61.5, 80:71.5, 92:82
 const MAGNETS = { "5x2":{ d:5, t:2 }, "6x2":{ d:6, t:2 }, "6x3":{ d:6, t:3 }, "8x2":{ d:8, t:2 }, "8x3":{ d:8, t:3 }, "10x2":{ d:10, t:2 }, "10x3":{ d:10, t:3 }, "12x3":{ d:12, t:3 } };
 // stick-on rubber feet: recess diameter for the foot, and how deep it sits (the rest stands proud)
 const FEET = { "8":{ d:8, label:"8 mm (small bumpons)" }, "10":{ d:10, label:"10 mm" }, "12.7":{ d:12.7, label:"12.7 mm (half inch)" } };
-// mounting holes in mm from the board's lower-left corner (component side up)
+// Boards and modules for a box (Session 45 grew this from 6 to over 50). Sizes in mm, component side up; holes from the
+// board's lower-left corner. g: the group in the list; k: more words the search finds it by. A board with no holes here
+// (castellated boards, most small modules, and those whose holes differ between makers) is held by its edges instead:
+// a seat under each corner and an L-shaped fence round it (`encBoardList`, `encCradle`). check: sizes vary between makers.
+const BOARD_GROUPS = [["arduino","Arduino"],["pi","Raspberry Pi"],["esp","ESP32 and ESP8266"],["mcu","Other microcontrollers"],
+  ["power","Power: converters, chargers, supplies"],["motor","Motors and relays"],["module","Sensors and other modules"],["battery","Batteries and holders"]];
 const BOARDS = {
   none:{ label:"None" },
-  uno:{ label:"Arduino Uno", w:68.6, d:53.3, screw:"M3", holes:[[13.97,2.54],[15.24,50.8],[66.04,7.62],[66.04,35.56]] },
-  mega:{ label:"Arduino Mega", w:101.6, d:53.3, screw:"M3", holes:[[13.97,2.54],[15.24,50.8],[66.04,7.62],[66.04,35.56],[90.17,50.8],[96.52,2.54]] },
-  pi:{ label:"Raspberry Pi 5 / 4 / 3", w:85, d:56, screw:"M2.5", holes:[[3.5,3.5],[61.5,3.5],[3.5,52.5],[61.5,52.5]] },
-  pizero:{ label:"Raspberry Pi Zero", w:65, d:30, screw:"M2.5", holes:[[3.5,3.5],[61.5,3.5],[3.5,26.5],[61.5,26.5]] },
-  pico:{ label:"Raspberry Pi Pico", w:51, d:21, screw:"M2", holes:[[2,4.8],[49,4.8],[2,16.2],[49,16.2]] },
+  uno:{ g:"arduino", label:"Arduino Uno (R3, R4 Minima and WiFi)", k:"leonardo wemos d1 r32 seeeduino", w:68.6, d:53.3, screw:"M3", holes:[[13.97,2.54],[15.24,50.8],[66.04,7.62],[66.04,35.56]] },
+  leonardo:{ g:"arduino", label:"Arduino Leonardo", w:68.6, d:53.3, screw:"M3", holes:[[13.97,2.54],[15.24,50.8],[66.04,7.62],[66.04,35.56]] },
+  mega:{ g:"arduino", label:"Arduino Mega 2560", k:"due", w:101.6, d:53.3, screw:"M3", holes:[[13.97,2.54],[15.24,50.8],[66.04,7.62],[66.04,35.56],[90.17,50.8],[96.52,2.54]] },
+  due:{ g:"arduino", label:"Arduino Due", w:101.6, d:53.3, screw:"M3", holes:[[13.97,2.54],[15.24,50.8],[66.04,7.62],[66.04,35.56],[90.17,50.8],[96.52,2.54]] },
+  nano:{ g:"arduino", label:"Arduino Nano (classic, Every, 33, ESP32)", k:"nano every 33 iot ble", w:45, d:18 },
+  micro:{ g:"arduino", label:"Arduino Micro", w:48, d:18 },
+  promini:{ g:"arduino", label:"Arduino Pro Mini", w:33, d:18 },
+  mkr:{ g:"arduino", label:"Arduino MKR (WiFi 1010, Zero and others)", w:61.5, d:25 },
+  pi:{ g:"pi", label:"Raspberry Pi 5 / 4 / 3", k:"rpi 3b 4b", w:85, d:56, screw:"M2.5", holes:[[3.5,3.5],[61.5,3.5],[3.5,52.5],[61.5,52.5]] },
+  pi3a:{ g:"pi", label:"Raspberry Pi 3 A+", k:"rpi", w:65, d:56, screw:"M2.5", holes:[[3.5,3.5],[61.5,3.5],[3.5,52.5],[61.5,52.5]] },
+  pizero:{ g:"pi", label:"Raspberry Pi Zero / Zero 2 W", k:"rpi", w:65, d:30, screw:"M2.5", holes:[[3.5,3.5],[61.5,3.5],[3.5,26.5],[61.5,26.5]] },
+  pico:{ g:"pi", label:"Raspberry Pi Pico / Pico W / Pico 2", k:"rp2040 rp2350", w:51, d:21, screw:"M2", holes:[[2,4.8],[49,4.8],[2,16.2],[49,16.2]] },
+  esp32devkit:{ g:"esp", label:"ESP32 DevKit (38-pin, DevKitC)", k:"wroom", w:55, d:28, check:true },
+  esp32doit:{ g:"esp", label:"ESP32 DevKit V1 (30-pin, DOIT)", k:"wroom", w:51.5, d:28.5, check:true },
+  esp32s3:{ g:"esp", label:"ESP32-S3 DevKitC-1", w:63, d:26, check:true },
+  esp32c3mini:{ g:"esp", label:"ESP32-C3 SuperMini", w:22.5, d:18 },
+  esp32cam:{ g:"esp", label:"ESP32-CAM (camera board)", k:"ov2640 ai thinker", w:27, d:40.5 },
+  xiao:{ g:"esp", label:"Seeed XIAO (ESP32-C3, S3, RP2040, SAMD21)", k:"seeed studio", w:21, d:17.8 },
+  nodemcu2:{ g:"esp", label:"NodeMCU ESP8266 v2 (Amica)", k:"esp8266", w:48, d:26, check:true },
+  nodemcu3:{ g:"esp", label:"NodeMCU ESP8266 v3 (LoLin)", k:"esp8266", w:58, d:31, check:true },
+  d1mini:{ g:"esp", label:"Wemos D1 mini (ESP8266, ESP32 mini)", k:"lolin esp8266", w:34.2, d:25.6 },
+  tdisplay:{ g:"esp", label:"LilyGO T-Display (ESP32 with a screen)", k:"ttgo", w:51.5, d:25.5, check:true },
+  teensy40:{ g:"mcu", label:"Teensy 4.0", w:35.6, d:17.8 },
+  teensy41:{ g:"mcu", label:"Teensy 4.1", w:61, d:17.8 },
+  bluepill:{ g:"mcu", label:"STM32 Blue Pill", k:"stm32f103", w:53, d:22.5 },
+  blackpill:{ g:"mcu", label:"STM32 Black Pill", k:"stm32f401 f411", w:53, d:21 },
+  feather:{ g:"mcu", label:"Adafruit Feather (any)", w:50.8, d:22.9 },
+  itsybitsy:{ g:"mcu", label:"Adafruit ItsyBitsy / QT Py footprint", w:35.6, d:17.8 },
+  microbit:{ g:"mcu", label:"BBC micro:bit", w:51.6, d:42 },
+  buck2596:{ g:"power", label:"Buck converter LM2596 (blue module)", k:"step down dc-dc", w:43, d:21, check:true },
+  buck4015:{ g:"power", label:"Buck converter XL4015 (5 A)", k:"step down dc-dc", w:54, d:23, check:true },
+  mp1584:{ g:"power", label:"Mini buck converter MP1584", k:"step down", w:22, d:17 },
+  mt3608:{ g:"power", label:"Boost converter MT3608", k:"step up dc-dc", w:36, d:17 },
+  tp4056:{ g:"power", label:"Li-ion charger TP4056 (USB-C or micro-USB)", k:"lipo 18650 charging", w:25, d:19 },
+  ip5306:{ g:"power", label:"Power bank board IP5306 (charge and 5 V out)", k:"power bank", w:25, d:21, check:true },
+  bms3s:{ g:"power", label:"Battery protection board 3S / 4S", k:"bms", w:50, d:22, check:true },
+  lrs35:{ g:"power", label:"Mean Well LRS-35 / LRS-50 power supply", k:"meanwell psu 12v 24v", w:99, d:82, check:true },
+  lrs100:{ g:"power", label:"Mean Well LRS-100 power supply", k:"meanwell psu", w:129, d:97, check:true },
+  lrs150:{ g:"power", label:"Mean Well LRS-150 / LRS-200 power supply", k:"meanwell psu", w:159, d:97, check:true },
+  relay1:{ g:"motor", label:"Relay module, 1 channel", k:"srd-05vdc", w:50, d:26, check:true },
+  relay2:{ g:"motor", label:"Relay module, 2 channels", w:50, d:39, check:true },
+  relay4:{ g:"motor", label:"Relay module, 4 channels", w:75, d:55, check:true },
+  relay8:{ g:"motor", label:"Relay module, 8 channels", w:138, d:56, check:true },
+  l298n:{ g:"motor", label:"Motor driver L298N", k:"h-bridge dc motor stepper", w:43, d:43, screw:"M3", holes:[[3,3],[40,3],[3,40],[40,40]], check:true },
+  tb6612:{ g:"motor", label:"Motor driver TB6612FNG", w:21, d:20 },
+  drv8825:{ g:"motor", label:"Stepper driver A4988 / DRV8825 / TMC2208", k:"stepstick", w:20, d:15 },
+  mosfet:{ g:"motor", label:"MOSFET switch module (IRF520 / D4184)", w:34, d:20, check:true },
+  pca9685:{ g:"motor", label:"Servo driver PCA9685 (16 channels)", w:62, d:25.4, check:true },
+  hx711:{ g:"module", label:"Load cell amplifier HX711", k:"scale weight", w:34, d:20, check:true },
+  ds3231:{ g:"module", label:"Real-time clock DS3231", k:"rtc", w:38, d:22, check:true },
+  sdcard:{ g:"module", label:"SD card module", w:42, d:24, check:true },
+  rc522:{ g:"module", label:"RFID reader RC522", k:"nfc mifare", w:60, d:40, check:true },
+  pn532:{ g:"module", label:"NFC reader PN532", k:"rfid", w:43, d:41, check:true },
+  neo6m:{ g:"module", label:"GPS module NEO-6M (with its antenna)", k:"gnss ublox", w:25, d:35, check:true },
+  dfplayer:{ g:"module", label:"MP3 player DFPlayer Mini", k:"audio", w:21, d:21 },
+  max98357:{ g:"module", label:"I2S amplifier MAX98357", k:"audio speaker", w:18, d:18 },
+  pam8403:{ g:"module", label:"Stereo amplifier PAM8403", k:"audio speaker", w:21, d:18, check:true },
+  bme280:{ g:"module", label:"Weather sensor BME280 / BMP280", k:"temperature humidity pressure", w:13, d:10.5, check:true },
+  mpu6050:{ g:"module", label:"Motion sensor MPU-6050 (gyro)", k:"imu accelerometer", w:21, d:16 },
+  ads1115:{ g:"module", label:"ADC ADS1115", w:28, d:17.8 },
+  nrf24:{ g:"module", label:"Radio nRF24L01", k:"2.4ghz", w:29, d:15 },
+  lora:{ g:"module", label:"LoRa module SX1276 / RFM95 on a breakout", w:25, d:25, check:true },
+  sim800l:{ g:"module", label:"GSM module SIM800L", k:"sms", w:25, d:23, check:true },
+  bat18650x1:{ g:"battery", label:"18650 holder, 1 cell", k:"li-ion lithium", w:77, d:21, check:true },
+  bat18650x2:{ g:"battery", label:"18650 holder, 2 cells side by side", k:"li-ion lithium", w:77, d:41, check:true },
+  aax2:{ g:"battery", label:"AA holder, 2 cells", w:58, d:31, check:true },
+  aax4:{ g:"battery", label:"AA holder, 4 cells (2 × 2)", w:63, d:58, check:true },
+  bat9v:{ g:"battery", label:"9 V battery", w:48.5, d:26.5 },
+  lipo1000:{ g:"battery", label:"LiPo pouch 1000 mAh (about 50 × 34)", w:50, d:34, check:true },
   custom:{ label:"My own board" }
 };
 // openings: typical part sizes; the clearance setting is added to every one of them
@@ -1894,7 +1963,84 @@ const CUTOUTS = {
   buzzer:{ g:"sound", label:"Buzzer: a few small holes", kind:"grille", dia:10, hd:1.6 },
   fan:{ g:"air", label:"Fan: grille + 4 screws", kind:"fan", size:40, style:"rings" },
   vent:{ g:"air", label:"Vent: slots, honeycomb or holes", kind:"vent", w:50, h:20, style:"slots" },
+  // Session 45: many more, the most common first within each group. k: more words the search finds them by
+  usbb:{ g:"port", label:"USB-B port (Arduino Uno, printers)", k:"arduino uno", kind:"rect", w:12.2, h:11, r:0.5 },
+  usbmini:{ g:"port", label:"Mini-USB port", kind:"rect", w:7.8, h:4.2, r:0.5 },
+  usbcpanel:{ g:"port", label:"USB-C panel-mount socket, round (M12 thread)", k:"waterproof", kind:"round", dia:12.2 },
+  usba2:{ g:"port", label:"USB-A double (stacked)", kind:"rect", w:13.6, h:14.8, r:0.4 },
+  hdmimicro:{ g:"port", label:"Micro-HDMI port (Raspberry Pi 4 / 5)", kind:"rect", w:7.6, h:3.8, r:0.8 },
+  hdmimini:{ g:"port", label:"Mini-HDMI port (Pi Zero)", kind:"rect", w:11.6, h:4.2, r:0.8 },
+  sdfull:{ g:"port", label:"SD card slot (full size)", kind:"rect", w:26.5, h:3.5, r:0.6 },
+  keystone:{ g:"port", label:"Keystone jack (network, USB or HDMI insert)", k:"rj45 cat6 ethernet", kind:"rect", w:14.9, h:16.5, r:0 },
+  rj11:{ g:"port", label:"RJ11 / RJ12 (phone, 6P)", k:"telephone", kind:"rect", w:10.2, h:9.4, r:0.4 },
+  db9:{ g:"port", label:"D-sub 9 (serial, DE-9), 2 screws", k:"rs232 db9 com", kind:"dsub", w:19.3, h:10.4, hw:25, hd:3.2 },
+  db15:{ g:"port", label:"VGA (D-sub 15, DE-15), 2 screws", k:"vga monitor", kind:"dsub", w:19.3, h:10.4, hw:25, hd:3.2 },
+  db25:{ g:"port", label:"D-sub 25 (parallel), 2 screws", k:"printer lpt", kind:"dsub", w:41.3, h:10.4, hw:47, hd:3.2 },
+  xlr:{ g:"port", label:"XLR socket (Neutrik D size), 2 screws", k:"microphone audio dmx", kind:"xlr", dia:24, hw:19, hh:24, hd:3.2 },
+  jack635:{ g:"port", label:"Jack 6.35 mm (1/4-inch), panel mount", k:"guitar audio", kind:"round", dia:9.6 },
+  rca:{ g:"port", label:"RCA (phono) socket, panel mount (check yours)", k:"cinch audio", kind:"round", dia:6.6 },
+  bnc:{ g:"port", label:"BNC socket, panel mount", k:"coax", kind:"round", dia:9.7 },
+  fconn:{ g:"port", label:"F-connector (TV, satellite)", k:"coax", kind:"round", dia:9.7 },
+  ntype:{ g:"port", label:"N-type antenna socket", k:"lora coax", kind:"round", dia:16.2 },
+  gx12:{ g:"port", label:"GX12 aviation connector", k:"circular", kind:"round", dia:12.2 },
+  gx16:{ g:"port", label:"GX16 aviation connector", k:"circular", kind:"round", dia:16.2 },
+  m8conn:{ g:"port", label:"M8 sensor connector", kind:"round", dia:8.2 },
+  m12conn:{ g:"port", label:"M12 sensor connector", kind:"round", dia:12.2 },
+  fuse:{ g:"port", label:"Fuse holder 5 × 20 mm, panel mount", k:"fuse", kind:"round", dia:12.3 },
+  iecfused:{ g:"port", label:"IEC inlet with fuse and switch (check yours)", k:"mains power c14", kind:"rect", w:47.5, h:28, r:1 },
+  dc21:{ g:"port", label:"DC jack 2.1 mm, small panel mount", kind:"round", dia:11.2 },
+  btn19:{ g:"button", label:"Push button, 19 mm (latching or lit)", k:"illuminated", kind:"round", dia:19.2 },
+  btn25:{ g:"button", label:"Push button, 25 mm", kind:"round", dia:25.2 },
+  arcade24:{ g:"button", label:"Arcade button, 24 mm (Sanwa size)", k:"game", kind:"round", dia:24.2 },
+  tact12:{ g:"button", label:"Big tactile button 12 × 12 (hole for its cap)", kind:"round", dia:12.2 },
+  keyswitch:{ g:"button", label:"Key switch, 19 mm", k:"lock", kind:"round", dia:19.2 },
+  rotary:{ g:"button", label:"Rotary switch (3/8-inch thread)", kind:"round", dia:9.7 },
+  footswitch:{ g:"button", label:"Footswitch 3PDT, 12 mm (guitar pedal)", k:"stomp", kind:"round", dia:12.2 },
+  slide45:{ g:"button", label:"Slide potentiometer, 45 mm travel: its slot", k:"fader", kind:"rect", w:47, h:2.6, r:1.25 },
+  slide60:{ g:"button", label:"Slide potentiometer, 60 mm travel: its slot", k:"fader", kind:"rect", w:62, h:2.6, r:1.25 },
+  trimmer:{ g:"button", label:"Trimmer access (a screwdriver hole)", k:"trimpot adjust", kind:"round", dia:3.2 },
+  pinhole:{ g:"button", label:"Reset pinhole (a paper clip)", k:"reset", kind:"round", dia:1.6 },
+  ring12:{ g:"light", label:"LED ring, 12 LEDs (WS2812, 37 mm): its window", k:"neopixel", kind:"ledring", dia:37, hd:23 },
+  ring16:{ g:"light", label:"LED ring, 16 LEDs (44.5 mm): its window", k:"neopixel", kind:"ledring", dia:44.5, hd:31.8 },
+  ring24:{ g:"light", label:"LED ring, 24 LEDs (65.6 mm): its window", k:"neopixel", kind:"ledring", dia:65.6, hd:52.3 },
+  stick8:{ g:"light", label:"LED stick, 8 LEDs (WS2812): window", k:"neopixel", kind:"rect", w:51.5, h:10.4, r:1 },
+  ledstrip:{ g:"light", label:"LED strip window (my length)", k:"neopixel ws2812", kind:"rect", w:100, h:12, r:1 },
+  lightpipe:{ g:"light", label:"Light pipe for an SMD LED (3 mm rod)", kind:"round", dia:3.2 },
+  matrix832:{ g:"light", label:"LED matrix 8×32 (MAX7219 four in one): window", kind:"rect", w:129, h:32.6, r:0.3 },
+  epd154:{ g:"screen", label:"E-paper 1.54-inch: window", k:"eink waveshare", kind:"rect", w:27.6, h:27.6, r:0.3 },
+  epd213:{ g:"screen", label:"E-paper 2.13-inch: window", k:"eink waveshare", kind:"rect", w:48.6, h:23.8, r:0.3 },
+  epd29:{ g:"screen", label:"E-paper 2.9-inch: window", k:"eink waveshare", kind:"rect", w:67, h:29.2, r:0.3 },
+  epd42:{ g:"screen", label:"E-paper 4.2-inch: window", k:"eink waveshare", kind:"rect", w:84.8, h:63.6, r:0.3 },
+  tft13:{ g:"screen", label:"TFT 1.3-inch 240 × 240 (ST7789): window", kind:"rect", w:23.4, h:23.4, r:0.3 },
+  tft169:{ g:"screen", label:"TFT 1.69-inch (ST7789): window", kind:"rect", w:28, h:32.6, r:2 },
+  tft20:{ g:"screen", label:"TFT 2.0-inch (ST7789): window", kind:"rect", w:30.6, h:40.8, r:0.3 },
+  tft24:{ g:"screen", label:"TFT 2.4-inch (ILI9341): window", kind:"rect", w:37, h:49, r:0.3 },
+  tft35:{ g:"screen", label:"TFT 3.5-inch: window", k:"ili9488", kind:"rect", w:49, h:73.5, r:0.3 },
+  gc9a01:{ g:"screen", label:"Round TFT 1.28-inch (GC9A01): window", k:"round display watch", kind:"round", dia:32.4 },
+  lcd12864:{ g:"screen", label:"LCD 128 × 64 (ST7920): window + 4 screws (check yours)", kind:"display", w:72, h:40, hw:88, hh:65, hd:3.2 },
+  hdmi5:{ g:"screen", label:"HDMI screen 5-inch: window (check yours)", kind:"rect", w:108, h:65, r:0.5 },
+  pitouch7:{ g:"screen", label:"Raspberry Pi touch screen 7-inch: window", k:"official display", kind:"rect", w:155, h:86, r:0.5 },
+  mq:{ g:"sensor", label:"Gas sensor MQ-2 / MQ-135: its dome", k:"smoke air quality", kind:"round", dia:20.2 },
+  jsnsr04t:{ g:"sensor", label:"Waterproof distance sensor JSN-SR04T: its probe", k:"ultrasonic", kind:"round", dia:22.6 },
+  vl53:{ g:"sensor", label:"Laser distance sensor VL53L0X / L1X: window", k:"tof", kind:"rect", w:5, h:3.5, r:1 },
+  bh1750:{ g:"sensor", label:"Light / colour / gesture sensor window (BH1750, APDS-9960)", k:"lux", kind:"round", dia:5 },
+  memsmic:{ g:"sensor", label:"MEMS microphone (INMP441): sound hole", k:"i2s", kind:"round", dia:2.5 },
+  sensorvent:{ g:"sensor", label:"Sensor vent (BME280, SHT31): small holes", k:"temperature humidity", kind:"grille", dia:10, hd:1.6 },
+  spk40:{ g:"sound", label:"Speaker 40 mm: grille", kind:"grille", dia:34, hd:2 },
+  spk50:{ g:"sound", label:"Speaker 50 mm: grille", kind:"grille", dia:44, hd:2 },
+  spk57:{ g:"sound", label:"Speaker 57 mm: grille", kind:"grille", dia:50, hd:2.2 },
+  spk77:{ g:"sound", label:"Speaker 77 mm: grille", kind:"grille", dia:70, hd:2.4 },
+  piezo27:{ g:"sound", label:"Piezo disc 27 mm: grille", kind:"grille", dia:20, hd:1.6 },
   gland:{ g:"mount", label:"Cable gland PG7", kind:"round", dia:12.6 },
+  gland11:{ g:"mount", label:"Cable gland PG11", kind:"round", dia:18.8 },
+  gland135:{ g:"mount", label:"Cable gland PG13.5", kind:"round", dia:20.5 },
+  gland16:{ g:"mount", label:"Cable gland PG16", kind:"round", dia:22.7 },
+  glandm12:{ g:"mount", label:"Cable gland M12", kind:"round", dia:12.2 },
+  glandm16:{ g:"mount", label:"Cable gland M16", kind:"round", dia:16.2 },
+  glandm20:{ g:"mount", label:"Cable gland M20", kind:"round", dia:20.2 },
+  glandm25:{ g:"mount", label:"Cable gland M25", kind:"round", dia:25.2 },
+  grommet:{ g:"mount", label:"Rubber grommet (8 mm hole)", k:"cable", kind:"round", dia:8.2 },
+  ziptie:{ g:"mount", label:"Zip-tie slot", k:"cable tie", kind:"rect", w:5, h:2.5, r:0.5 },
   gland9:{ g:"mount", label:"Cable gland PG9", kind:"round", dia:15.4 },
   cable:{ g:"mount", label:"Cable pass-through (a plain wire hole)", kind:"round", dia:5.5 },
   keyhole:{ g:"mount", label:"Wall-mount keyhole", kind:"keyhole", dia:8 },
@@ -1980,6 +2126,28 @@ function openingRings(c, wall, E){
     case "round": out.push(encRound(Math.max(pos(c.dia), k.lensFor ? lensMinHole(k.lensFor) : 0) + cl, wall, tear)); break;
     case "rect": out.push(wall && tear ? encPortRect(pos(c.w) + cl, pos(c.h) + cl, Math.max(0, +c.r || 0), 6, !!c.rot)
       : C.ringRect(pos(c.w) + cl, pos(c.h) + cl, Math.max(0, +c.r || 0), 6)); break;
+    case "dsub": {                                   // a D-sub's D: the top 10° narrower each side, and its two screws
+      const w = pos(c.w) + cl, h = pos(c.h) + cl, inset = h*Math.tan(10*Math.PI/180), hw = +c.hw || 0, hd = pos(c.hd) + cl;
+      out.push([[-w/2 + inset, -h/2], [w/2 - inset, -h/2], [w/2, h/2], [-w/2, h/2]].map(q => [q[0], -q[1]]).reverse());
+      if (hw > 0) for (const sx of [-1, 1]) out.push(encRound(hd, wall, tear).map(q => [q[0] + sx*hw/2, q[1]]));
+      break;
+    }
+    case "xlr": {                                    // a round hole and two screws on the diagonal (Neutrik D size)
+      out.push(encRound(pos(c.dia) + cl, wall, tear));
+      const hd = pos(c.hd) + cl, hw = +c.hw || 19, hh = +c.hh || 24;
+      out.push(encRound(hd, wall, tear).map(q => [q[0] - hw/2, q[1] + hh/2]), encRound(hd, wall, tear).map(q => [q[0] + hw/2, q[1] - hh/2]));
+      break;
+    }
+    case "ledring": {                                // an LED ring's window: four arcs, so the middle stays joined to the wall
+      const ro = (pos(c.dia) + cl)/2, ri = Math.max(1, (pos(c.hd) - cl)/2), spoke = 1.6;
+      for (let q=0;q<4;q++){
+        const g = (spoke/2)/((ri + ro)/2), a0 = Math.PI/4 + q*Math.PI/2 + g, a1 = Math.PI/4 + (q+1)*Math.PI/2 - g, n = Math.max(6, Math.round((a1 - a0)*ro/1.2)), L = [];
+        for (let i=0;i<=n;i++){ const a = a0 + (a1 - a0)*i/n; L.push([Math.cos(a)*ro, Math.sin(a)*ro]); }
+        for (let i=n;i>=0;i--){ const a = a0 + (a1 - a0)*i/n; L.push([Math.cos(a)*ri, Math.sin(a)*ri]); }
+        out.push(L);
+      }
+      break;
+    }
     case "iec": { const w = pos(c.w) + cl, h = pos(c.h) + cl, ch = Math.min(3, h/3);
       out.push([[-w/2,-h/2],[w/2,-h/2],[w/2,h/2-ch],[w/2-ch,h/2],[-w/2+ch,h/2],[-w/2,h/2-ch]]); break; }
     case "display": {
@@ -2058,6 +2226,94 @@ function openingRings(c, wall, E){
 // openings whose top edge may be turned into a 45° point (ports and plain rectangles; parts that
 // snap into their cut-out, like rocker switches and IEC inlets, need the flat top edge to clip onto)
 const ENC_POINTABLE = new Set(["usbc","usbcboard","usba","micro","hdmi","rj45","sd","dcpcb","xt60","slide","dht11","dht22","rect"]);
+// Every board in the box (Session 45): the main one from "Board mounts" and up to 12 extra boards and modules. Each is
+// held on standoffs through its holes, or by its edges in a cradle when it has none here (or "By its edges" is picked).
+function encBoardList(E){
+  const out = [], add = (key, o, main) => {
+    if (!encHas(BOARDS, key) || key === "none") return;
+    let B = BOARDS[key];
+    if (key === "custom"){
+      if (!main) return;
+      const bw0 = clamp(+E.bw || 60, 5, 400), bd0 = clamp(+E.bd || 40, 5, 400), sx0 = clamp(+E.bsx || 50, 1, bw0), sy0 = clamp(+E.bsy || 30, 1, bd0);
+      B = { w:bw0, d:bd0, screw:E.bscrew, label:"Your board",
+        holes:[[(bw0 - sx0)/2, (bd0 - sy0)/2], [(bw0 + sx0)/2, (bd0 - sy0)/2], [(bw0 - sx0)/2, (bd0 + sy0)/2], [(bw0 + sx0)/2, (bd0 + sy0)/2]] };
+    }
+    if (!(B.w > 0 && B.d > 0)) return;
+    const holes = B.holes && o.hold !== "edges" ? B.holes : null;
+    out.push({ key, B, main, x:+o.x || 0, y:+o.y || 0, rot:o.rot === true, sh:+o.h || +E.standH || 5, holes, hold:holes ? "holes" : "edges" });
+  };
+  add(E.board, { x:E.boardX, y:E.boardY, rot:E.boardRot, h:E.standH, hold:E.boardHold }, true);
+  (Array.isArray(E.more) ? E.more : []).slice(0, 12).forEach(m => m && typeof m === "object" && add(m.kind, m, false));
+  return out;
+}
+// a board's own ports (Session 45), for "Add this board's ports": [edge, along, opening, up]. edge: the board's edge in its
+// own drawing (x0 left, x1 right, y0 front, y1 back, component side up); along: the port's middle along that edge from the
+// board's lower-left corner (mm); up: its middle above the board's top. Typical boards: check yours.
+const ESP_USB = d => [["x0", d/2, "micro", 1.6]];
+const BOARD_PORTS = {
+  uno:[["x0",37.5,"usbb",5.5],["x0",7.8,"dcpcb",5.6]], mega:[["x0",37.5,"usbb",5.5],["x0",7.8,"dcpcb",5.6]],
+  leonardo:[["x0",38,"micro",1.6],["x0",7.8,"dcpcb",5.6]],
+  pi:[["y0",11.2,"usbc",1.6],["y0",26,"hdmimicro",1.5],["y0",39.5,"hdmimicro",1.5],["y0",54,"jack35",3],["x1",9,"usba2",8],["x1",27,"usba2",8],["x1",45.75,"rj45",6.9]],
+  pi3a:[["y0",10.6,"micro",1.6],["y0",32,"hdmi",3.2],["y0",53.5,"jack35",3],["x1",31.5,"usba",3.5]],
+  pizero:[["y0",12.4,"hdmimini",1.7],["y0",41.4,"micro",1.6],["y0",54,"micro",1.6]],
+  pico:[["x0",10.5,"micro",1.6]], nano:[["x0",9,"usbmini",2]], micro:[["x0",9,"micro",1.6]],
+  esp32devkit:ESP_USB(28), esp32doit:ESP_USB(28.5), nodemcu2:ESP_USB(26), nodemcu3:ESP_USB(31), tdisplay:[["x0",12.75,"usbc",1.6]],
+  esp32s3:[["x0",13,"usbc",1.6]], esp32c3mini:[["x0",9,"usbc",1.6]], xiao:[["x0",8.9,"usbc",1.6]], d1mini:[["x0",12.8,"micro",1.6]],
+  teensy40:[["x0",8.9,"micro",1.6]], teensy41:[["x0",8.9,"micro",1.6]], bluepill:[["x0",11.25,"micro",1.6]], blackpill:[["x0",10.5,"usbc",1.6]],
+  feather:[["x0",11.45,"usbc",1.6]], tp4056:[["x0",9.5,"usbc",1.6]]
+};
+// the main board's ports as openings in the walls they face, at the height the board puts them; the board first slides
+// up to those walls (1 mm clear inside), so the ports reach the holes
+function encAddBoardPorts(){
+  const E = state.base.enclosure, list = encHas(BOARD_PORTS, E.board) ? BOARD_PORTS[E.board] : null;
+  let bd = encBoardList(E).find(b => b.main); if (!list || !bd) return;
+  buildEnclosure();
+  const I0 = enclosureInfo, iw = I0.inner[0], id = I0.inner[1], B = bd.B, bw = bd.rot ? B.d : B.w, bdp = bd.rot ? B.w : B.d;
+  const NORMAL = { x0:[-1,0], x1:[1,0], y0:[0,-1], y1:[0,1] }, faceOf = (nx, ny) => nx < 0 ? "left" : nx > 0 ? "right" : ny < 0 ? "front" : "back";
+  const turn = ([nx, ny]) => bd.rot ? [-ny, nx] : [nx, ny];
+  const faces = new Set(list.map(([edge]) => faceOf(...turn(NORMAL[edge]))));
+  if (faces.has("left")) E.boardX = +(-iw/2 + 1 + bw/2).toFixed(2); else if (faces.has("right")) E.boardX = +(iw/2 - 1 - bw/2).toFixed(2);
+  if (faces.has("front")) E.boardY = +(-id/2 + 1 + bdp/2).toFixed(2); else if (faces.has("back")) E.boardY = +(id/2 - 1 - bdp/2).toFixed(2);
+  buildEnclosure(); bd = encBoardList(E).find(b => b.main);
+  const top = enclosureInfo && enclosureInfo.board ? enclosureInfo.board.top : (+E.standH || 5) + 3.6, added = [];
+  E.cut = Array.isArray(E.cut) ? E.cut : [];
+  list.forEach(([edge, at, kind, up]) => {
+    const p = { x0:[0, at], x1:[B.w, at], y0:[at, 0], y1:[at, B.d] }[edge];
+    let lx = p[0] - B.w/2, ly = p[1] - B.d/2; if (bd.rot) [lx, ly] = [-ly, lx];
+    const px = bd.x + lx, py = bd.y + ly, face = faceOf(...turn(NORMAL[edge])), u = { front:px, back:-px, left:-py, right:py }[face];
+    const c = newOpening(kind, face); c.u = +u.toFixed(2); c.v = +(top + up).toFixed(2);
+    if (!E.cut.some(o => o.face === c.face && o.kind === c.kind && Math.abs((+o.u || 0) - c.u) < 1 && Math.abs((+o.v || 0) - c.v) < 1)){ E.cut.push(c); added.push(c); }
+  });
+  notify(added.length ? `${added.length} opening${added.length === 1 ? "" : "s"} for ${B.label}'s ports added, and the board moved against ${[...faces].map(f => "the " + ENC_FACE_NAME[f]).join(" and ")}. Check them against your board: makers move ports about.`
+    : "Its ports are already there.");
+  renderTab(); encBoardChanged(); pushHistory();
+}
+// a free spot on the floor for a board or module just added: beside the ones already there, along the width
+function encFreeBoardSpot(E, n){
+  const B = BOARDS[n.kind], w = n.rot ? B.d : B.w, d = n.rot ? B.w : B.d, I0 = enclosureInfo, used = (I0 && I0.boards || []).map(b => b.bb);
+  for (const k of [0, 1, -1, 2, -2, 3, -3, 4, -4]) for (const y of [0, (d + 4), -(d + 4)]){
+    const cx = Math.sign(k)*Math.abs(k)*(w + 4)/2;
+    const bb = [cx - w/2, y - d/2, cx + w/2, y + d/2];
+    if (!used.some(o => bb[0] < o[2] + 2 && o[0] < bb[2] + 2 && bb[1] < o[3] + 2 && o[1] < bb[3] + 2)){ n.y = y; return +cx.toFixed(1); }
+  }
+  return 0;
+}
+// a cradle that holds a board by its edges: a seat under each corner (the board rests on them at its standoff height)
+// and an L-shaped fence round each corner, 0.3 mm clear of the board and rising 1.2 mm above it. All of it upright, so
+// it prints without support; the board drops in (a dab of hot glue, or the lid, keeps it there)
+const ENC_CRADLE = { seat:4, arm:8, gap:0.3, fence:1.6, over:1.2 };
+function encCradle(x, y, w, d, fl, sh, fence){
+  const out = [], C2 = ENC_CRADLE, top = fl + sh + 1.6 + C2.over;
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]){
+    const cx = x + sx*w/2, cy = y + sy*d/2, at = (px, py) => [cx + sx*px, cy + sy*py];
+    const seat = [[0, 0], [-C2.seat, 0], [-C2.seat, -C2.seat], [0, -C2.seat]].map(q => at(q[0], q[1]));
+    out.push(C.extrudePolysAt([{ outer:encOrient(seat, true), holes:[] }], fl - 0.01, fl + sh));
+    const a = Math.min(C2.arm, w/3, d/3), g = C2.gap, f = fence;
+    const L = [[g, -a], [g + f, -a], [g + f, g + f], [-a, g + f], [-a, g], [g, g]].map(q => at(q[0], q[1]));
+    out.push(C.extrudePolysAt([{ outer:encOrient(L, true), holes:[] }], fl - 0.01, top));
+  }
+  return out;
+}
 function placedRings(c, E){
   let rings = openingRings(c, ENC_WALLS.has(c.face), E);
   if (c.rot) rings = rings.map(L => L.map(([x, y]) => [-y, x]));
@@ -2382,7 +2638,7 @@ function encSplitPlan(E, g){
   const obs = [];
   (axis === 0 ? ["front","back","top","bottom"] : ["left","right","top","bottom"]).forEach(f => g.taken[f].forEach(o => {
     const [lo, hi] = span(f, o.bb); obs.push({ lo, hi, what: o.n ? `Opening ${o.n}` : o.what || "a screw hole", n: o.n }); }));
-  if (g.boardRect){ const r = g.boardRect; obs.push(axis === 0 ? { lo:r[0], hi:r[2], what:"the board" } : { lo:-r[3], hi:-r[1], what:"the board" }); }
+  (g.boardRects || []).forEach(({ r, what }) => obs.push(axis === 0 ? { lo:r[0], hi:r[2], what } : { lo:-r[3], hi:-r[1], what }));
   const clash = s => obs.filter(o => o.lo < s + k && o.hi > s - k);
   // the end parts carry what sticks out past the box's ends, so they are measured from there
   const start = -Lc/2 - outLo, end = Lc/2 + outHi;
@@ -2595,25 +2851,24 @@ function buildEnclosure(){
   const mount = encMount(E, { W, D, H: Hs, R, t, fl, top: H + (lidOn && !slide ? lidT : 0) }, warn);
   mount.taken.forEach(([face, what, bb]) => taken[face].push({ n:0, what, bb }));
   holesOn.bottom.push(...mount.floorHoles);
-  // board standoffs, worked out before the openings so a floor opening cannot land under one
-  const standoffs = [];
-  let boardB = null;
-  if (encHas(BOARDS, E.board) && E.board !== "none"){
-    const custom = E.board === "custom", bw0 = clamp(+E.bw || 60, 5, 400), bd0 = clamp(+E.bd || 40, 5, 400);
-    const sx0 = clamp(+E.bsx || 50, 1, bw0), sy0 = clamp(+E.bsy || 30, 1, bd0);
-    boardB = custom ? { w:bw0, d:bd0, screw:E.bscrew, label:"Your board",
-      holes:[[(bw0 - sx0)/2, (bd0 - sy0)/2], [(bw0 + sx0)/2, (bd0 - sy0)/2], [(bw0 - sx0)/2, (bd0 + sy0)/2], [(bw0 + sx0)/2, (bd0 + sy0)/2]] } : BOARDS[E.board];
-    if (boardB && boardB.holes){
-      const bs = encHas(SCREWS, boardB.screw) ? SCREWS[boardB.screw] : SCREWS.M3, hole = E.fasten === "insert" ? bs.insert : bs.pilot, sr = Math.max(hole/2 + 1.4, 2.4);
-      const ox = +E.boardX || 0, oy = +E.boardY || 0;
-      boardB.holes.forEach(([hx, hy]) => {
-        let lx = hx - boardB.w/2, ly = hy - boardB.d/2;
-        if (E.boardRot) [lx, ly] = [-ly, lx];
-        standoffs.push({ x:ox + lx, y:oy + ly, r:sr, hole });
-        taken.bottom.push({ n:0, what:"a board standoff", bb:[ox + lx - sr, oy + ly - sr, ox + lx + sr, oy + ly + sr] });
+  // board standoffs and cradles, worked out before the openings so a floor opening cannot land under one. Every board
+  // in the box (Session 45): the main one and any extra boards and modules (encBoardList)
+  const standoffs = [], boardList = encBoardList(E);
+  boardList.forEach(bd => {
+    const B = bd.B, bw = bd.rot ? B.d : B.w, bdp = bd.rot ? B.w : B.d;
+    if (bd.holes){
+      const bs = encHas(SCREWS, B.screw) ? SCREWS[B.screw] : SCREWS.M3, hole = E.fasten === "insert" ? bs.insert : bs.pilot, sr = Math.max(hole/2 + 1.4, 2.4);
+      bd.holes.forEach(([hx, hy]) => {
+        let lx = hx - B.w/2, ly = hy - B.d/2;
+        if (bd.rot) [lx, ly] = [-ly, lx];
+        standoffs.push({ x:bd.x + lx, y:bd.y + ly, r:sr, hole, bd });
+        taken.bottom.push({ n:0, what:`${B.label}'s standoff`, bb:[bd.x + lx - sr, bd.y + ly - sr, bd.x + lx + sr, bd.y + ly + sr] });
       });
+    } else for (const sx of [-1, 1]) for (const sy of [-1, 1]){
+      const cx = bd.x + sx*bw/2, cy = bd.y + sy*bdp/2, a = ENC_CRADLE.arm + ENC_CRADLE.gap + ENC_CRADLE.fence;
+      taken.bottom.push({ n:0, what:`${B.label}'s corner`, bb:[Math.min(cx, cx - sx*a), Math.min(cy, cy - sy*a), Math.max(cx, cx - sx*a), Math.max(cy, cy - sy*a)].map((v, k) => v + (k < 2 ? -2 : 2)) });
     }
-  }
+  });
   const lipTop = lidOn && lipH > 0 ? H - lipH - 0.3 : Infinity, lipEdge = lidOn && lipH > 0 ? fit + lipW + 0.8 : 0.8, misfit = [];
   (Array.isArray(E.cut) ? E.cut : []).forEach((c, i) => {
     const face = encHas(holesOn, c.face) ? c.face : "front", wall = ENC_WALLS.has(face), lab = `Opening ${i+1} (${(encHas(CUTOUTS, c.kind) ? CUTOUTS[c.kind] : CUTOUTS.round).label})`;
@@ -2661,9 +2916,10 @@ function buildEnclosure(){
     labelsOn[face].push(...C.strokePolys(segs, lhalf, 0.04));
   });
   // split into parts (Session 40): planned once every opening and label is in place, so the joins keep clear of them
-  let boardRect = null;
-  if (boardB && boardB.holes){ const bw = E.boardRot ? boardB.d : boardB.w, bd = E.boardRot ? boardB.w : boardB.d, ox = +E.boardX || 0, oy = +E.boardY || 0; boardRect = [ox - bw/2, oy - bd/2, ox + bw/2, oy + bd/2]; }
-  const splitG = { W, D, H, t, fl, R, iw, id, slide, lidOn, lipH, magnet, pocketD, pocketH, bossR, bossHole, screw, bosses, taken, boardRect, warn, test: !!state.base.enclosure.test, mountSolids: mount.solids };
+  // every board's place on the floor (Session 45: all of them, not only one with holes), for the joins to keep clear of
+  const boardRects = boardList.map(bd => { const bw = bd.rot ? bd.B.d : bd.B.w, bdp = bd.rot ? bd.B.w : bd.B.d;
+    return { r:[bd.x - bw/2, bd.y - bdp/2, bd.x + bw/2, bd.y + bdp/2], what: bd.main ? "the board" : bd.B.label }; });
+  const splitG = { W, D, H, t, fl, R, iw, id, slide, lidOn, lipH, magnet, pocketD, pocketH, bossR, bossHole, screw, bosses, taken, boardRects, warn, test: !!state.base.enclosure.test, mountSolids: mount.solids };
   const split = encSplitPlan(E, splitG);
   const lidPins = split ? bosses.concat(split.pins) : bosses;
   if (split && lidOn) split.pins.forEach(([x, z]) => { const r = (magnet ? pocketD : screw.head)/2 + 0.5; taken.top.push({ n:0, what:"a screw hole", bb:[x - r, -z - r, x + r, -z + r] }); });
@@ -2727,25 +2983,33 @@ function buildEnclosure(){
     bosses.forEach(([x, z]) => { solids.push(post(x, -z, bossR, 0, fl, H - ph)); if (ph > 0) solids.push(post(x, -z, bossR, pocketD/2, H - ph, H)); });
   } else bosses.forEach(([x, z]) => solids.push(post(x, -z, bossR, bossHole/2, fl, H)));
   let board = null, boardNeed = null;
-  if (boardB && boardB.holes){
-    const B = boardB;
-    {
-      const sh = clamp(+E.standH || 5, 1, Math.max(1, H - fl - 1)), bw = E.boardRot ? B.d : B.w, bd = E.boardRot ? B.w : B.d;
-      const ox = +E.boardX || 0, oy = +E.boardY || 0;
-      board = { w:bw, d:bd, top: fl + sh + 1.6, label:B.label, screw:B.screw, hole:standoffs.length ? standoffs[0].hole : 0 };
-      const x0 = ox - bw/2, x1 = ox + bw/2, y0 = oy - bd/2, y1 = oy + bd/2;
-      // how big the box must be for the board where it is (used by "make it fit")
-      boardNeed = { w: bw + 1 + 2*Math.abs(ox) + 2*t, d: bd + 1 + 2*Math.abs(oy) + 2*t, h: board.top + 1 + lipH + 0.5 };
-      if (x0 < -iw/2 + 0.5 || x1 > iw/2 - 0.5 || y0 < -id/2 + 0.5 || y1 > id/2 - 0.5){
-        // its standoffs would stand outside the box: leave them out until it fits
-        warn.push({ t:`${B.label} does not fit`, s:`The board is ${bw.toFixed(1)} × ${bd.toFixed(1)} mm and the inside is ${iw.toFixed(1)} × ${id.toFixed(1)} mm, so its standoffs are left out. Make the box bigger (at least ${Math.ceil(boardNeed.w)} × ${Math.ceil(boardNeed.d)} mm outside) or move the board.` });
-        board.fits = false;
-      } else standoffs.forEach(so => solids.push(post(so.x, so.y, so.r, so.hole/2, fl, fl + sh)));
-      if (board.fits !== false && bosses.some(([x, z]) => x + bossR > x0 && x - bossR < x1 && -z + bossR > y0 && -z - bossR < y1))
-        warn.push({ t:`${B.label} sits on a screw post`, s:"A corner screw post is under the board. Move the board, or make the box bigger." });
-      if (board.top + 1 > H - lipH) warn.push({ t:"Not enough headroom", s:`The top of the board is ${board.top.toFixed(1)} mm up, too close to the lid. Make the box taller or the standoffs shorter.` });
-    }
-  }
+  const boardsInfo = [];
+  boardList.forEach((bd, n) => {
+    const B = bd.B, sh = clamp(bd.sh, 1, Math.max(1, H - fl - 1)), bw = bd.rot ? B.d : B.w, bdp = bd.rot ? B.w : B.d;
+    const info = { w:bw, d:bdp, top: fl + sh + 1.6, label:B.label, screw:B.screw, hold:bd.hold, main:bd.main, check:!!B.check,
+      hole: bd.holes ? standoffs.find(so => so.bd === bd).hole : 0 };
+    const x0 = bd.x - bw/2, x1 = bd.x + bw/2, y0 = bd.y - bdp/2, y1 = bd.y + bdp/2;
+    // how big the box must be for this board where it is (used by "make it fit"); a cradle's fences need a little more
+    const extra = bd.holes ? 1 : 2*(ENC_CRADLE.gap + 0.3);
+    const need = { w: bw + extra + 2*Math.abs(bd.x) + 2*t, d: bdp + extra + 2*Math.abs(bd.y) + 2*t, h: info.top + 1 + lipH + 0.5 + (bd.holes ? 0 : ENC_CRADLE.over) };
+    boardNeed = boardNeed ? { w:Math.max(boardNeed.w, need.w), d:Math.max(boardNeed.d, need.d), h:Math.max(boardNeed.h, need.h) } : need;
+    const m = bd.holes ? 0.5 : ENC_CRADLE.gap + 0.3;
+    if (x0 < -iw/2 + m || x1 > iw/2 - m || y0 < -id/2 + m || y1 > id/2 - m){
+      // it would stand outside the box: leave its mounts out until it fits
+      warn.push({ t:`${B.label} does not fit`, s:`${B.label} is ${bw.toFixed(1)} × ${bdp.toFixed(1)} mm and the inside is ${iw.toFixed(1)} × ${id.toFixed(1)} mm, so its ${bd.holes ? "standoffs are" : "cradle is"} left out. Make the box bigger (at least ${Math.ceil(need.w)} × ${Math.ceil(need.d)} mm outside) or move it.` });
+      info.fits = false;
+    } else if (bd.holes) standoffs.filter(so => so.bd === bd).forEach(so => solids.push(post(so.x, so.y, so.r, so.hole/2, fl, fl + sh)));
+    else solids.push(...encCradle(bd.x, bd.y, bw, bdp, fl, sh, Math.min(ENC_CRADLE.fence, t + 0.4)));
+    if (info.fits !== false && bosses.some(([x, z]) => x + bossR > x0 && x - bossR < x1 && -z + bossR > y0 && -z - bossR < y1))
+      warn.push({ t:`${B.label} sits on a screw post`, s:"A corner screw post is under it. Move it, or make the box bigger." });
+    if (info.top + 1 > H - lipH) warn.push({ t:"Not enough headroom", s:`The top of ${B.label} is ${info.top.toFixed(1)} mm up, too close to the lid. Make the box taller or its standoffs shorter.` });
+    // two boards on top of each other
+    boardsInfo.forEach(o => { if (o.fits !== false && info.fits !== false && x0 < o.bb[2] && o.bb[0] < x1 && y0 < o.bb[3] && o.bb[1] < y1)
+      warn.push({ t:`${B.label} overlaps ${o.label}`, s:`${B.label} and ${o.label} take the same place on the floor. Move one of them.` }); });
+    info.bb = [x0, y0, x1, y1]; info.at = [bd.x, bd.y]; info.rot = bd.rot; info.key = bd.key;
+    boardsInfo.push(info);
+    if (!board) board = info;
+  });
   solids.push(...mount.solids);
   const parts = [{ name:"Box", slot:clamp(+E.boxSlot || 0, 0, state.slots.length - 1), solid:C.mergeSolids(solids.filter(Boolean)) }];
   if (slide){
@@ -2889,7 +3153,7 @@ function buildEnclosure(){
     out = r.parts;
     splitInfo = Object.assign({}, split, { seams:r.seams, plates, flangeVolume:r.flangeVolume }, encSplitText(split, plates, lidOn, magnet));
   }
-  enclosureInfo = { test: !!state.base.enclosure.test, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boardNeed, fastenText, count:(E.cut || []).length - left.length,
+  enclosureInfo = { test: !!state.base.enclosure.test, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, count:(E.cut || []).length - left.length,
     split: splitInfo };
   return out;
 }
@@ -7869,6 +8133,30 @@ function selField(parent,label,options,get,set){
   sel.onchange = ()=>{ set(sel.value); pushHistory(); };
   parent.appendChild(w); return sel;
 }
+// a list to pick from with a search box above it (Session 45): typing narrows the list to the entries whose name, group
+// or search words (table[key].k) hold every word typed, in their groups. o.pick: choose the first match while typing
+// (for "add" lists, where choosing changes nothing until the button); o.hint: an example for the search box
+function searchSelField(parent, label, table, groups, get, set, o = {}){
+  const id = "q"+Math.random().toString(36).slice(2,8), w = document.createElement("div"); w.className = "field full";
+  w.innerHTML = `<label for="${id}">${label}</label><input type="search" class="txt srch" placeholder="Search, e.g. ${esc(o.hint || "esp32")}" aria-label="Search: ${esc(label)}" autocomplete="off" style="margin-bottom:4px"><select class="sel" id="${id}"></select><p class="hint srchCount" style="margin:2px 0 0"></p>`;
+  const inp = w.querySelector("input"), sel = w.querySelector("select"), cnt = w.querySelector("p"), gname = Object.fromEntries(groups);
+  const all = Object.entries(table).filter(([, v]) => v && v.label), opt = ([k, v]) => `<option value="${esc(k)}">${esc(v.label)}</option>`;
+  const hay = ([k, v]) => `${v.label} ${v.k || ""} ${gname[v.g] || ""} ${k}`.toLowerCase();
+  let first = null;
+  const fill = () => {
+    const words = inp.value.toLowerCase().split(/\s+/).filter(Boolean), hit = e => words.every(q => hay(e).includes(q)), cur = get();
+    let html = "", n = 0; first = null;
+    all.filter(e => !e[1].g && (!words.length || hit(e))).forEach(e => { html += opt(e); });
+    groups.forEach(([g, name]) => { const items = all.filter(e => e[1].g === g && hit(e)); if (items.length){ html += `<optgroup label="${esc(name)}">${items.map(opt).join("")}</optgroup>`; n += items.length; if (!first) first = items[0][0]; } });
+    sel.innerHTML = html;
+    if ([...sel.options].some(op => op.value === cur)) sel.value = cur; else if (cur && encHas(table, cur)){ sel.insertAdjacentHTML("afterbegin", opt([cur, table[cur]])); sel.value = cur; }
+    cnt.textContent = words.length ? (n ? `${n} found` : "Nothing found: try another word.") : `${n} to choose from`;
+  };
+  inp.oninput = () => { fill(); if (o.pick && first && inp.value.trim() && sel.value !== first){ set(first); fill(); } };
+  inp.onkeydown = e => { if (e.key === "Enter" && o.onEnter && first){ e.preventDefault(); o.onEnter(first); } };
+  sel.onchange = () => { set(sel.value); pushHistory(); };
+  fill(); parent.appendChild(w); return sel;
+}
 function segField(parent,options,get,set,cls){
   const w = document.createElement("div"); w.className = "seg"+(cls?" "+cls:"");
   w.innerHTML = options.map(([k,l])=>`<button data-k="${k}" aria-pressed="${get()===k}">${esc(l)}</button>`).join("");
@@ -9695,7 +9983,7 @@ function cardFields(p){
   if (I && I.warn.length) I.warn.forEach(w => p.insertAdjacentHTML("beforeend", `<div class="result warn"><span class="dot"></span><div><b>${esc(w.t)}</b><span class="s">${esc(w.s)}</span></div></div>`));
 }
 
-let encAdd = { kind:"usbc", face:"front" };
+let encAdd = { kind:"usbc", face:"front" }, encAddBoard = { kind:"relay1" };
 let renderedEncWarn = "";
 function enclosureFields(p){
   if (!state.base.enclosure) state.base.enclosure = DEFAULTS().base.enclosure;
@@ -9820,7 +10108,8 @@ function enclosureFields(p){
     } else note(g, "Hang the box on a wall, a cabinet rail or a pole. For hanging on screws through the back wall, add a Wall-mount keyhole opening on the back instead.");
   }, E.mount && E.mount !== "none");
   group(p, "Board mounts", g => {
-    selField(g, "Board", Object.entries(BOARDS).map(([k, v]) => [k, v.label]), ()=>E.board, v=>{ E.board = v; renderTab(); encBoardChanged(); });
+    searchSelField(g, "Board", BOARDS, BOARD_GROUPS, ()=>E.board, v=>{ E.board = v; renderTab(); encBoardChanged(); }, { hint:"uno, esp32, pi, relay" });
+    const BB = encHas(BOARDS, E.board) ? BOARDS[E.board] : null;
     if (E.board === "custom"){
       numField(g,{ label:"Board width (mm)", min:5,max:250,step:0.5, get:()=>E.bw, set:v=>E.bw=v, onChange:encBoardChanged });
       numField(g,{ label:"Board depth (mm)", min:5,max:250,step:0.5, get:()=>E.bd, set:v=>E.bd=v, onChange:encBoardChanged });
@@ -9828,14 +10117,41 @@ function enclosureFields(p){
       numField(g,{ label:"Holes apart, front to back (mm)", min:1,max:250,step:0.1, get:()=>E.bsy, set:v=>E.bsy=v, onChange:baseChanged });
       selField(g, "Board screws", Object.keys(SCREWS).map(k => [k, k]), ()=>E.bscrew, v=>{ E.bscrew = v; baseChanged(); });
     }
-    if (E.board !== "none"){
+    if (E.board !== "none" && BB){
+      if (BB.holes) segField(g, [["holes", `On its screw holes (${BB.screw || "M3"})`], ["edges", "By its edges"]], ()=>E.boardHold === "edges" ? "edges" : "holes", v=>{ E.boardHold = v; renderTab(); encBoardChanged(); }, "two");
+      note(g, (BB.holes && E.boardHold !== "edges") || E.board === "custom" ? `Standoffs with ${E.fasten === "insert" ? "holes for heat inserts" : "pilot holes for self-tapping screws"} under each of its holes.`
+        : `${BB.holes ? "" : "No holes listed for this one, so it"}${BB.holes ? "It" : ""} sits in a cradle: a seat under each corner and a low fence round it, 0.3 mm clear. Drop it in; a dab of hot glue keeps it.`
+        + (BB.check ? " Sizes differ between makers: measure yours and use My own board if it is not " + BB.w + " × " + BB.d + " mm." : ""));
       numField(g,{ label:"Board position, across (mm)", min:-120,max:120,step:0.5, get:()=>E.boardX, set:v=>E.boardX=v, onChange:baseChanged });
       numField(g,{ label:"Board position, front to back (mm)", min:-120,max:120,step:0.5, get:()=>E.boardY, set:v=>E.boardY=v, onChange:baseChanged });
       numField(g,{ label:"Standoff height (mm)", min:2,max:40,step:0.5, get:()=>E.standH, set:v=>E.standH=v, onChange:encBoardChanged,
         sub:()=>"Leave room under the board for solder joints: 4 to 6 mm." });
       checkField(g, "Turn the board 90°", ()=>E.boardRot, v=>{ E.boardRot = v; encBoardChanged(); });
       if (I && I.board) note(g, `The top of the board ends up ${mm(I.board.top)} above the bed. Openings for its ports go from there up.`);
-    } else note(g, "Pick a board to get standoffs with holes for its screws, in the right places.");
+      if (encHas(BOARD_PORTS, E.board)) buttonRow(g, [["Add this board's ports", ()=>encAddBoardPorts()]]);
+    } else note(g, "Pick a board to get standoffs with holes for its screws, in the right places, or a cradle for a board without holes.");
+    // more boards and modules (Session 45): a relay, a converter, a battery holder... each with its own mounts
+    const more = Array.isArray(E.more) ? E.more : (E.more = []);
+    more.forEach((m, i) => {
+      const B2 = encHas(BOARDS, m.kind) ? BOARDS[m.kind] : null; if (!B2) return;
+      const box = document.createElement("div"); box.style.cssText = "border-top:1px solid rgba(128,128,128,.35);margin-top:10px;padding-top:6px";
+      box.insertAdjacentHTML("beforeend", `<p class="hint" style="margin:0 0 4px"><b>${esc(B2.label)}</b> (${B2.w} × ${B2.d} mm${B2.check ? ", check yours" : ""})</p>`); g.appendChild(box);
+      const fitIt = I && I.boards && I.boards.find(b => !b.main && b.key === m.kind && b.at[0] === (+m.x || 0) && b.at[1] === (+m.y || 0));
+      if (fitIt && fitIt.fits === false) note(box, "⚠ It does not fit where it is: move it, or make the box bigger.");
+      if (B2.holes) segField(box, [["holes", "On its screw holes"], ["edges", "By its edges"]], ()=>m.hold === "edges" ? "edges" : "holes", v=>{ m.hold = v; renderTab(); encBoardChanged(); }, "two");
+      numField(box,{ label:"Position, across (mm)", min:-150,max:150,step:0.5, get:()=>m.x, set:v=>m.x=v, onChange:encBoardChanged });
+      numField(box,{ label:"Position, front to back (mm)", min:-150,max:150,step:0.5, get:()=>m.y, set:v=>m.y=v, onChange:encBoardChanged });
+      numField(box,{ label:"Height off the floor (mm)", min:1,max:40,step:0.5, get:()=>m.h, set:v=>m.h=v, onChange:encBoardChanged });
+      checkField(box, "Turn it 90°", ()=>m.rot === true, v=>{ m.rot = v; encBoardChanged(); });
+      buttonRow(box, [["Remove", ()=>{ more.splice(i, 1); renderTab(); baseChanged(); pushHistory(); }]]);
+    });
+    if (more.length < 12){
+      const add = document.createElement("div"); add.style.cssText = "margin-top:12px"; g.appendChild(add);
+      const addIt = k => { const n = { kind:k, x:0, y:0, h:3, rot:false, hold:"holes" }; n.x = encFreeBoardSpot(E, n); more.push(n); renderTab(); encBoardChanged(); pushHistory(); };
+      searchSelField(add, "Add another board or module", Object.fromEntries(Object.entries(BOARDS).filter(([k]) => k !== "none" && k !== "custom")), BOARD_GROUPS,
+        ()=>encAddBoard.kind, v=>{ encAddBoard.kind = v; }, { pick:true, hint:"relay, buck, 18650", onEnter:addIt });
+      buttonRow(add, [["Add it", ()=>addIt(encAddBoard.kind)]]);
+    }
   });
   group(p, "Openings", g => {
     const warn = I ? I.warn : [];
@@ -9876,6 +10192,23 @@ function enclosureFields(p){
         numField(box,{ label: k.kind === "display" ? "Window height (mm)" : "Height (mm)", min:1,max:200,step:0.1, get:()=>c.h, set:v=>c.h=v, onChange:sized });
       }
       if (k.kind === "rect") numField(box,{ label:"Corner radius (mm)", min:0,max:10,step:0.1, get:()=>c.r, set:v=>c.r=v, onChange:baseChanged });
+      if (k.kind === "dsub"){
+        numField(box,{ label:"Width of the D (mm)", min:5,max:80,step:0.1, get:()=>c.w, set:v=>c.w=v, onChange:sized });
+        numField(box,{ label:"Height of the D (mm)", min:3,max:30,step:0.1, get:()=>c.h, set:v=>c.h=v, onChange:sized });
+        numField(box,{ label:"Screws apart (mm)", min:0,max:100,step:0.1, get:()=>c.hw, set:v=>c.hw=v, onChange:sized });
+        numField(box,{ label:"Screw hole diameter (mm)", min:1,max:6,step:0.1, get:()=>c.hd, set:v=>c.hd=v, onChange:baseChanged });
+      }
+      if (k.kind === "xlr"){
+        numField(box,{ label:"Hole diameter (mm)", min:5,max:40,step:0.1, get:()=>c.dia, set:v=>c.dia=v, onChange:sized });
+        numField(box,{ label:"Screws apart, across (mm)", min:0,max:60,step:0.1, get:()=>c.hw, set:v=>c.hw=v, onChange:sized });
+        numField(box,{ label:"Screws apart, up (mm)", min:0,max:60,step:0.1, get:()=>c.hh, set:v=>c.hh=v, onChange:sized });
+        numField(box,{ label:"Screw hole diameter (mm)", min:1,max:6,step:0.1, get:()=>c.hd, set:v=>c.hd=v, onChange:baseChanged });
+      }
+      if (k.kind === "ledring"){
+        numField(box,{ label:"Ring outside diameter (mm)", min:10,max:200,step:0.1, get:()=>c.dia, set:v=>c.dia=v, onChange:sized });
+        numField(box,{ label:"Ring inside diameter (mm)", min:4,max:190,step:0.1, get:()=>c.hd, set:v=>c.hd=v, onChange:sized,
+          sub:()=>"The window is the ring between the two, in four arcs: the middle stays joined to the wall." });
+      }
       if (k.kind === "display"){
         numField(box,{ label:"Screw holes apart, across (mm)", min:0,max:200,step:0.1, get:()=>c.hw, set:v=>c.hw=v, onChange:sized });
         numField(box,{ label:"Screw holes apart, up (mm)", min:0,max:200,step:0.1, get:()=>c.hh, set:v=>c.hh=v, onChange:sized });
@@ -9903,12 +10236,13 @@ function enclosureFields(p){
       ]);
     });
     const add = document.createElement("div"); add.style.cssText = "margin-top:14px"; g.appendChild(add);
-    selField(add, "Add an opening", cutoutMenu(), ()=>encAdd.kind, v=>{ encAdd.kind = v; });
-    selField(add, "On", ENC_FACES, ()=>encAdd.face, v=>{ encAdd.face = v; });
-    buttonRow(add, [["Add opening", ()=>{
+    const addOpening = ()=>{
       const c = newOpening(encAdd.kind, encAdd.face);
       c.v = ENC_WALLS.has(c.face) ? Math.round(E.h/2) : 0; E.cut.push(c); c.u = freeSpot(E, c);
-      renderTab(); encOpeningChanged(E.cut.length - 1); pushHistory(); }]]);
+      renderTab(); encOpeningChanged(E.cut.length - 1); pushHistory(); };
+    searchSelField(add, "Add an opening", CUTOUTS, CUT_GROUPS, ()=>encAdd.kind, v=>{ encAdd.kind = v; }, { pick:true, hint:"usb-c, oled, gland", onEnter:k => { encAdd.kind = k; addOpening(); } });
+    selField(add, "On", ENC_FACES, ()=>encAdd.face, v=>{ encAdd.face = v; });
+    buttonRow(add, [["Add opening", addOpening]]);
     checkField(add, "Make the box bigger when an opening does not fit", ()=>E.grow !== false, v=>{ E.grow = v; });
     if (cuts.some(c => (CUTOUTS[c.kind] || {}).lensFor)){
       slotField(add, "Filament for the pilot light lenses", ()=>String(E.lensSlot || 0), v=>{ E.lensSlot = +v; baseChanged(); });
@@ -12861,6 +13195,11 @@ function sanitizeProject(data){
     E.teardrop = (+data.v || 0) >= 5 ? E.teardrop === true : false; E.grow = E.grow !== false;
     E.lensSlot = Math.round(Math.min(MAX_SLOTS - 1, Math.max(0, cleanNum(E.lensSlot, 0))));
     E.boardRot = E.boardRot === true; E.test = E.test === true;
+    // more boards and modules (Session 45): known ones only, up to 12, each number clamped
+    E.boardHold = E.boardHold === "edges" ? "edges" : "holes";
+    E.more = (Array.isArray(E.more) ? E.more : []).slice(0, 12).filter(m => m && typeof m === "object" && encHas(BOARDS, m.kind) && m.kind !== "none" && m.kind !== "custom").map(m => ({
+      kind:m.kind, x:Math.min(150, Math.max(-150, cleanNum(m.x, 0))), y:Math.min(150, Math.max(-150, cleanNum(m.y, 0))), h:Math.min(40, Math.max(1, cleanNum(m.h, 3))),
+      rot:m.rot === true, hold:m.hold === "edges" ? "edges" : "holes" }));
     // split into parts (Session 40): a project from before it splits only when the box is bigger than the bed
     E.split = one(E.split, ["bed","parts","off"]); E.splitParts = Math.round(Math.min(ENC_SPLIT.maxParts, Math.max(2, cleanNum(E.splitParts, 2))));
     E.splitScrew = encHas(SCREWS, E.splitScrew) ? E.splitScrew : "M3";
@@ -13447,7 +13786,7 @@ window.MakerForge = {
   examples: { list: EXAMPLES, forType: EXAMPLE_FOR_TYPE, art: EXAMPLE_ART, canvas: exampleCanvas, load: loadExample, drop: dropExamples },
   get tracer(){ return tracerInfo; },
   get enclosure(){ return enclosureInfo; },
-  get cutouts(){ return CUTOUTS; }, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
+  get cutouts(){ return CUTOUTS; }, get boards(){ return BOARDS; }, boardPorts:BOARD_PORTS, addBoardPorts:encAddBoardPorts, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
   get jigsaw(){ return jigsawInfo; },
   get lithophane(){ return lithoInfo; },
   get print(){ return printFresh() ? printInfo : null; },

@@ -48,8 +48,8 @@ async function settle() {
     if (k === "lcd2004" && face === "right") continue;            // wider than the side
     const wall = face === "front" || face === "right";
     const c = Object.assign(MF.newOpening(k, face), { u: 0, v: wall ? 70 : 0 });
-    const big = { w: 180, d: 140, h: 140, cut: [c] };
-    const idx = face === "top" ? 1 : 0, ref = refs[idx] ?? (refs[idx] = vol(direct({ w: 180, d: 140, h: 140, cut: [] })[idx]));
+    const big = { w: 220, d: 180, h: 140, cut: [c] };
+    const idx = face === "top" ? 1 : 0, ref = refs[idx] ?? (refs[idx] = vol(direct({ w: 220, d: 180, h: 140, cut: [] })[idx]));
     const Q2 = direct(big), v = vol(Q2[idx]);
     if (!closed(Q2) || !(v < ref - 0.5) || MF.enclosure.warn.length) bad.push(`${k}@${face}: ${closed(Q2) ? "" : "OPEN "}${(ref - v).toFixed(1)} mm³ ${MF.enclosure.warn.map(w => w.t).join(";")}`);
   }

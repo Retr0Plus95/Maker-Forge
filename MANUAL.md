@@ -174,6 +174,7 @@ Some objects in brief:
     - **Add a divider** splits the box (up to four), across or front to back. The plate slides into grooves on the walls and the floor and prints flat. It can hold a fan (40 to 140 mm) and have a notch for cables. It stands up to the lid, or under the lowest level.
     - **Zip-tie anchors** are little bridges on the floor for tying cables down, along the back, the sides or all round.
     - When it all doesn't fit one bed, each part goes on a plate of its own.
+  - **Printing without support** (new in 0.41): a port opening in a wall gets a pointed top by itself when its top edge would be a bridge longer than your printer's bridge limit (set on the Printer page): **Top: auto**, **Flat** or **Pointed** on each opening. Fan grilles in walls default to **Slots**, upright slots with pointed tops; **Honeycomb** in a wall uses flat-topped cells; vent slots have pointed tops. All of them print without support.
   - **Mounting** hangs the box up:
     - **Screw ears:** two or four tabs at floor level, each with a screw hole and a 45° fin each side.
     - **DIN rail:** a clip for 35 mm rail, as in a fuse box. It prints flat beside the box; screw it under the floor from inside with two M3 × 8 mm screws, and slide it onto the rail from one end.

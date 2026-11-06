@@ -3,6 +3,21 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.45.0
+
+Project boxes: every floor for mounting, batteries of all sizes, rooms, and cables between the floors.
+
+- **Floors 2 and 3:** the main board can go on a level too. Each level can have a grid of 3.2 mm mounting holes (every 10, 15 or 20 mm, wherever nothing else is), zip-tie anchors, and its own cable pass to the floor above: a slot at the back, front or a side, or a hole in each corner, small or large.
+- **Batteries:** 38 now, from tiny LiPo pouches to wide 5000 and 8000 mAh ones, RC packs (2S 1300 to 4S 5000), 18650 holders for 1 to 4 cells, 21700, 26650, AA, AAA, C, D, coin cells and lead-acid. Each lies in a **strap tray**: corner fences and slots for a hook-and-loop strap (or zip ties), on the floor or on a level.
+- **Cable channels up the walls:** C-shaped ducts on the inside of a wall from the floor to the top, the levels notched round them.
+- **Rooms:** two, three in a row or four in a cross in one go; dividers that cross slot into each other; a choice of cable notch (small, large, one at each end, or none).
+
+![The box with a battery tray, two cable channels and a divider; level 1 with mounting holes, zip-tie anchors and cradles](docs/images/floors.jpg)
+
+**Fixed**
+- A board on a level next to a wall had its cradle hanging over the level's edge, which needed support; the wall holds it there now.
+- **Arrange it for me** with a sliding lid could put a board's ports above the front wall, so their openings were left out; the box is now tall enough under the lid.
+
 ## 0.44.0
 
 Click to colour: fix or colour a model from its photo by clicking on the parts.

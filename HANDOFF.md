@@ -2176,6 +2176,52 @@ the 3D view itself (Segment Anything on the rendered view), for a model with no 
 (they paint whole triangles, like a box or lasso). **Still to check by hand**: the owner's CR7 figure and picture (not in the
 repository); a phone (the encoder's few seconds).
 
+## Session 51: project boxes, floors, rooms, batteries and cables (v0.45.0)
+
+Asked (the owner): "the ability to add mounting spaces to second and third floors, better dividing sections and tools, mounting
+for many different size batteries lipo the wide ones. And a cable management system between the floors and just extra extra work
+on the project boxes".
+
+**Batteries** (`BOARDS`, group "battery": 38 now, each with `tall`, its thickness): LiPo pouches by code (302030 to 1260100), RC
+packs (2S 1300 to 4S 5000), 18650 x1–x4, 21700 x1–x2, 26650, AA x1–x6, AAA x2–x4, C, D, 23A, CR2032/CR2450 holders, 12 V
+lead-acid 1.2 and 7 Ah. `encBoardList`: a battery's `hold` is "strap" unless "edges" (the panel's **Corner cradle**; stored as the
+existing `hold` values, so projects stay valid), `sh` 0 (it lies on the floor). `encStrapTray` (`ENC_TRAY`): L-shaped fences at the
+corners (`fh` 40% of its thickness, 4–12 mm) and slots 2.6 × 22 mm (a 20 mm strap; shorter, for zip ties, on a small battery; two
+straps on one over 90 mm) either side across the short side, through the floor (`holesOn.bottom`, worked out in the early board
+pass) or through its level's plate (`levelSlots`).
+
+**Floors** (`encLevels`): `pass` (back, front, left, right, corners, none; `cable:false` from before is "none") and `passSize`, a
+mounting grid `grid` (0, 10, 15, 20 mm: 3.2 mm holes, skipping the plate's edge, posts, passes, air slots, strap slots, the mounts
+of boards on it, corner notches, the anchors and the channel notches), `anchors` (0–8 zip-tie anchors along its back edge, decided
+before the grid). The main board's floor `E.boardLvl` (the panel's **On**); `encArrange` packs the main board on its floor.
+Mounts on a level are trimmed to the plate (`encClip`, `plateB`): **found while testing** (a support check over 120 boxes), a board
+arranged 1 mm from a wall on a level had its cradle fence 1.5 mm over the plate's edge (it was so before this release too; on the
+floor the wall takes the fence). Anchors stood over a channel notch: they keep clear of notches now.
+
+**Cable channels** (`ENC_DUCT`, `encDucts`, `E.ducts`: up to four, `{face, at}`): two 1.6 mm sides 9 mm deep, 10 mm apart, with
+3 mm lips (a 4 mm opening), from the floor to under the lid, printed with the box (upright: no support). The level outlines are
+notched round them (`encNotch`: a step into the straight edge on that side; a channel on a corner is left out and said so).
+Warnings: a board on a channel, an opening behind one. `encArrange` counts a wall with a channel as 10 mm thicker.
+
+**Rooms** (`encDividers`, `encPlateOutline`): `notch` (small, large, ends, none; `cable:false` from before is "none"); where an
+across and a front-to-back divider cross, the across one has a slot from the top and the other from the bottom, each half the
+lower one's height (a half-lap), the floor rails broken there, a cable notch over the joint dropped. **Make rooms in one go**: two
+(front and back, side by side), three in a row (a third each), four in a cross.
+
+**Also**: `encArrange` with a sliding lid now keeps the main board's ports under the front wall, which ends under the lid
+(`underLid`); the random-set test found it once the battery list grew (a Pi Zero's mini-HDMI left out).
+
+**Tests**: new `tools-floors-test.js` (in `test:enclosure`): every battery in a tray and in a cradle, closed, no warnings; a
+LiPo's tray measured (on the floor, fences, slots through the floor); an RC pack on a level; the main board on a level with Arrange in
+this box; mounting holes every 10 and 20 mm and none under a board's mounts; every cable pass and size; anchors on a level; two
+channels measured (sides, lips, opening) and the levels notched; a channel in a corner, an opening behind one; crossing dividers
+(each loses half the joint), notches, nine rooms, the presets on the panel; a hostile project. A support sweep over 96 boxes (main
+boards and batteries on levels, grids, anchors, channels, passes): none needs support. The doc picture: `docs/images/floors.jpg`.
+
+**Not done, next**: dividers standing on a level; **Arrange** inside rooms (it warns when a divider crosses a board); a battery
+compartment with a door; a custom battery size; strap loops instead of floor slots (a 22 mm bridge needs a gable).
+**Still to check by hand**: a printed strap tray with a real LiPo and strap; the half-lap fit (0.4 mm gap).
+
 ## Unfinished (in priority order)
 
 - **0.44: colour from a photo, with more AI, for the CR7 figure** (click to colour done in Session 50; the rest below is next) (the owner, Session 49: "fix the auto painter function from a pic,

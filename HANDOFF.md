@@ -1798,6 +1798,24 @@ The second section update on the road to v0.50.
     extrude or cut; holes (plain, countersunk, for heat inserts, threaded with `threadSolid`); hollow with drain holes, shell and
     thicken; mirror, align, measure (distance, angle, wall thickness). Rounded edges on a mesh are the hard part: chamfers, or an
     honest "rounded, roughly".
+- **After 0.50: 1.0 and 2.0** (the owner, Session 42: "Let's keep manifold for now and use version 2.0 as a full 3d cad software
+  we will find a way to keep it small fast and easy to use"; before that: "Should the version 1.0 be a fully parametric cad addon? The
+  ability to connect to a local agent and get help with modelling").
+  - **0.5x, the agent bridge.** A small, documented command set on the page (add or change a feature, set a size, measure, list
+    parts, run the print check, take a screenshot), every command checked like a loaded project (`sanitizeProject`'s rules) and
+    undoable. A local script (`maker-forge-mcp.js`, an MCP server) relays an agent (Claude Code, Claude Desktop, any MCP client)
+    to the open page over localhost (a WebSocket the page connects to when asked; newer Chrome asks the user before a page reaches
+    the local network). Nothing leaves the machine but what the agent sends.
+  - **1.0, parametric modelling on Manifold** (mesh, not B-rep; still one file): the 0.46 modelling list grown into a feature
+    history edited by numbers; sketches with sizes and simple constraints; holes, patterns, variables used across features
+    ("wall = 2 mm"); the agent working through the same history. No true fillets or STEP: chamfers, or "rounded, roughly".
+  - **2.0, full 3D CAD**: true solids (B-rep: fillets, shells, STEP in and out), kept small, fast and easy to use. How is open:
+    OpenCascade (opencascade.js, LGPL, loaded separately like Manifold) is 10-15 MB and slow to start, so look for a slimmer
+    build or another kernel first. Decide before starting 2.0, not now.
+- **Basics missing** (asked for in Session 42: "improve basic things that are missing"; one or two each release from 0.37):
+  several different objects on one plate (part of 0.45-0.49: modelling needs it); imported models kept by the autosave, the
+  recent list and share links (now the file must be opened again: keep it in IndexedDB); move/rotate/scale handles with typed
+  sizes (0.45); a proper icon set for the rail; a check in Firefox, Safari and on touch screens.
 - **The next builds: expand and fix** (the owner, Session 39: "After 0.32 and all current features I think we need to work on
   expanding and fixing all the other current features and parts of the app, more accurate painting art placement and everything
   else"). Planned order, each a release:

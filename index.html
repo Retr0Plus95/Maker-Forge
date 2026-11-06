@@ -11295,7 +11295,8 @@ function buildEnclosure(){
   boardList.forEach((bd, n) => {
     if (bd.lvl > levels.length) bd.lvl = levels.length;
     const B = bd.B, base = levelTop(bd.lvl), dst = bd.lvl ? levelSolids[bd.lvl - 1] : solids;
-    const sh = clamp(bd.sh, 1, Math.max(1, H - base - 1)), bw = bd.rot ? B.d : B.w, bdp = bd.rot ? B.w : B.d;
+    // a battery in a strap tray lies on the floor itself (Session 51); everything else on standoffs or a cradle's seats
+    const sh = bd.hold === "strap" ? 0 : clamp(bd.sh, 1, Math.max(1, H - base - 1)), bw = bd.rot ? B.d : B.w, bdp = bd.rot ? B.w : B.d;
     const info = { w:bw, d:bdp, top: base + sh + 1.6, base, lvl:bd.lvl, label:B.label, screw:B.screw, hold:bd.hold, main:bd.main, check:!!B.check,
       hole: bd.holes ? standoffs.find(so => so.bd === bd).hole : 0 };
     const x0 = bd.x - bw/2, x1 = bd.x + bw/2, y0 = bd.y - bdp/2, y1 = bd.y + bdp/2;

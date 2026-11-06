@@ -9690,8 +9690,8 @@ function encArrange(keepSize){
   if (!list.length) return { ok:false, why:"There are no boards to arrange: pick one in Board mounts first." };
   const t = +E.wall || 2, fl = +E.floor || 2, bed = state.printer.bed || [256, 256, 256], gap = 3;
   buildEnclosure();
-  const I0 = enclosureInfo, posts = E.lid !== "press" && E.lid !== "slide" && E.lid !== "none" || E.lid === "magnet";
-  const corner = (E.fasten !== "none" && posts) || E.lid === "magnet" ? 9 : 1;       // a corner post and its clearance
+  // corner posts: the same rule as the box's own (bossesOn): a magnet lid, or screws unless the lid presses or slides in
+  const corner = E.lid === "magnet" || (E.fasten !== "none" && E.lid !== "press" && E.lid !== "slide") ? 9 : 1;
   const nLv = Array.isArray(E.levels) ? E.levels.length : 0, main = list.find(b => b.main);
   const portFaces = main && encHas(BOARD_PORTS, main.key) ? new Set(BOARD_PORTS[main.key].map(pt => boardPortPlace(Object.assign({}, main, { x:0, y:0 }), pt).face)) : new Set();
   const dims = (b, rot) => { const w = b.B.w, d = b.B.d; return rot ? [d, w] : [w, d]; };

@@ -2319,6 +2319,11 @@ clear of `taken.bottom`, floor boards (+4), names, full-height lid posts, the fi
 **Extras** (in front of the box, packed like the levels): `E.ductCover` (a 13.2 mm strip, 1.2 thick, the channel's height, with
 a tongue 0.2 mm wider than the 4 mm gap between the lips), `E.spacers` (0–16, `spacerH`, `spacerScrew`: tubes the clearance hole
 + 3.2 mm across), `E.tieMounts` (0–16: a 12 × 18 × 1.6 base with an M3 hole, a 3.5 mm bridge for a tie).
+**Snap catches** (`E.snap`, a press-fit lid only; `SN`): two 45° ridges (10 mm long, 0.5 mm out, 1.6 mm tall) on the outside of
+the lip's front and back at `xs` (half the inner width from the middle, at least 12 mm from the ends and clear of a finger pull),
+at the lip's middle height; grooves 12 × 2.4 mm, 0.7 mm deep, cut into the inside of the front and back walls (a slab from local
+y 0, in the walls' slab system) at the same places, `zc = H - lipH/2`. Not with a lip under 3 mm or walls under 1.6 mm (a
+warning). `enclosureInfo.snap`.
 **Your own battery** (`BOARDS.batcustom`; `E.batW/batD/batT` for the main one, `bw/bd/bt` on an extra one, kept only on that kind).
 **Airflow hint**: a converter, supply, Pi, amplifier or motor driver in a box with no air opening (group "air", or a fan, vent,
 grille) and no divider fan.

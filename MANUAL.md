@@ -206,6 +206,7 @@ Some objects in brief:
     - **Covers for the cable channels:** a strip for each channel with a tongue that presses between its lips, printed flat.
     - **Spacers** (printed tubes, any height, for M2 to M4 screws) and **zip-tie mounts** that screw down, printed flat in front of the box.
   - **A finger pull** (on the Lid page): a notch in the top of the front wall, so a press-fit or magnet lid lifts off easily. The lid's lip has a gap over it.
+  - **Snap catches** (a press-fit lid, on the Lid page): four small 45° bumps on the lid's lip click into grooves inside the front and back walls, so the lid holds without screws. They need a lip at least 3 mm tall.
   - **My own battery or pack** (in the battery list): type its length, width and thickness and it gets a strap tray or a cradle like the others.
   - **What you'll need**: a list of the screws (with their lengths), heat inserts, magnets, rubber feet, straps, fans and boards the box takes, worked out from the box as it is. **Copy the list** puts it on the clipboard for your shopping list.
   - A board that gets warm (a power supply, a converter, a Raspberry Pi, a motor driver) in a box with no vent or fan gets a hint to add one.

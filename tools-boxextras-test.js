@@ -49,6 +49,19 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
     q = MF.buildEnclosure(); check(closed(q) && !MF.enclosure.warn.length && MF.enclosure.floorGrid > 5, "the floor grid keeps clear of the posts, a channel, a divider and the anchors", MF.enclosure.warn.map(w => w.t).join("; ") || `${MF.enclosure.floorGrid} holes`);
   }
 
+  console.log("\nsnap catches");
+  {
+    fresh({ w:120, d:80, h:40, lid:"press", snap:true }); const q = MF.buildEnclosure(), box = part(q, /^Box$/), lid = part(q, /^Lid$/), I = MF.enclosure;
+    const plain = (() => { fresh({ w:120, d:80, h:40, lid:"press" }); return MF.buildEnclosure(); })();
+    const xb = Math.min(Math.max(8, (58 - 0.2)/2), 58 - 0.2 - 12), zc = 40 - 3/2, dB = vol(part(plain, /^Box$/)) - vol(box), dL = vol(lid) - vol(part(plain, /^Lid$/));
+    check(I.snap && closed(q) && !I.warn.length && !solidAt(box, xb, -38 - 0.35, zc) && solidAt(box, xb + 9, -38 - 0.35, zc) && solidAt(box, xb, -38 - 1.5, zc) && Math.abs(dB - 4*12*2.4*0.7) < 1 && Math.abs(dL - 4*10*0.5*1.6/2) < 0.5,
+      "snap catches: four 45° bumps on the lid's lip, four grooves 0.7 mm into the front and back walls where they meet", `box −${dB.toFixed(1)}, lid +${dL.toFixed(1)} mm³`);
+    fresh({ w:120, d:80, h:40, lid:"press", snap:true, lipH:2 }); MF.buildEnclosure();
+    check(!MF.enclosure.snap && MF.enclosure.warn.some(w => /No snap catches/.test(w.t)), "a lip under 3 mm gets none, and says so");
+    const s0 = await support({ w:120, d:80, h:40, lid:"press", snap:true, pull:true });
+    check(s0 === 0, "snap catches need no support", `${s0} mm²`);
+  }
+
   console.log("\nchannel covers, spacers and tie mounts");
   {
     fresh({ w:120, d:80, h:50, lid:"press", ducts:[{ face:"back", at:0 }, { face:"left", at:0 }], ductCover:true }); let q = MF.buildEnclosure(); const cv = part(q, /^Cable channel covers/);

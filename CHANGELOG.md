@@ -11,6 +11,7 @@ Project boxes: a parts list, a floor to screw things to, names on the floor, and
 - **Mounting holes in the floor:** a grid of 3.2 mm holes wherever nothing else is, for whatever you add later.
 - **Board names on the floor:** each board's name engraved beside it, so they go back in the right place.
 - **Printed extras:** snap-in covers for the cable channels, spacers of any height, and zip-tie mounts that screw down.
+- **Snap catches** for a press-fit lid: bumps on its lip click into grooves in the walls.
 - **A finger pull** to lift a press-fit or magnet lid, and **your own battery size** for a pack that isn't in the list.
 - A hint when a warm part (a power supply, a converter, a Raspberry Pi) is in a box without a vent or a fan.
 

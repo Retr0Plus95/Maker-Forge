@@ -942,7 +942,7 @@ const DEFAULTS = () => ({
     box:{ w:90, d:70, h:4 }, cyl:{ dia:70, h:90 }, hex:{ dia:80, h:6 }, sphere:{ dia:70 },
     stl:{ name:"", scale:100, flat:0 },
     enclosure:{ w:100, d:64, h:36, wall:2, floor:2, radius:4, lid:"screw", lidThick:2.4, lipH:3, lipW:1.2, fit:0.2,
-      fasten:"insert", screw:"M3", head:"sink", postStyle:"full", teardrop:false, grow:true, lensSlot:0, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
+      fasten:"insert", screw:"M3", head:"sink", postStyle:"full", snap:false, teardrop:false, grow:true, lensSlot:0, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
       mount:"none", earN:2, tabN:2, earHole:4.5, earT:3, strapW:12, strapT:2.5, strapDir:"across",
       labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
       split:"bed", splitParts:2, splitScrew:"M3",
@@ -3995,6 +3995,15 @@ function buildEnclosure(){
   const split = encSplitPlan(E, splitG);
   if (split) for (const f of ["front","back","left","right","bottom"]) if (artOn[f].length){
     warn.push({ t:`Art on the ${ENC_FACE_NAME[f]} left out`, s:"A box made in parts takes art on the lid only, for now." }); artOn[f] = []; }
+  // snap catches (Session 55): on a press-fit lid, two 45° bumps on the front and back of its lip click into grooves inside
+  // those walls. xs: the bumps' middles along the lid (the walls' grooves at the same places), zc: their height on the box
+  const SN = { len:10, out:0.5, h:1.6, gDepth:0.7, gLen:12, gH:2.4 };
+  let snap = null;
+  if (E.snap === true && E.lid === "press"){
+    const a = iw/2 - fit, xb = Math.min(Math.max(8, a/2), a - 12);
+    if (lipH < 3 || t < 1.6 || xb - SN.gLen/2 < (E.pull === true ? 10 : 2)) warn.push({ t:"No snap catches", s:lipH < 3 ? "They need a lip at least 3 mm tall (Lid page)." : t < 1.6 ? "They need walls at least 1.6 mm thick." : "The box is too narrow for them: make it wider." });
+    else snap = { xs:[-xb, xb], zc:H - lipH/2 };
+  }
   const ART_FACE = { front:"Front", back:"Back", left:"Left side", right:"Right side", top:"Lid", bottom:"Floor" };
   const artParts = [], artName = (face, slot) => `${ART_FACE[face]} art (${(state.slots[slot] || state.slots[0]).name})`;
   const lidPins = split ? bosses.concat(split.pins) : bosses;
@@ -4014,10 +4023,12 @@ function buildEnclosure(){
     const wc = [];
     if (labs.length && t >= 0.8) wc.push({ depth: labDepth(t), holes: labHoles(labs), islands: labIslands(labs) });
     artOn[face].filter(x => x.finish !== "raised").forEach(x => wc.push({ depth: x.depth, holes: labHoles(x.union), islands: labIslands(x.union) }));
-    if (wc.length){
-      const zs = [...new Set([0, t, ...wc.map(c => +(t - c.depth).toFixed(4))])].filter(z => z >= 0 && z <= t).sort((a, b) => a - b), pcs = [];
-      for (let k=0;k<zs.length-1;k++){ const on = wc.filter(c => t - c.depth <= zs[k] + 1e-6);
-        pcs.push(C.extrudePolysAt([{ outer: outer.slice(), holes: [...open, ...on.flatMap(c => c.holes)] }, ...on.flatMap(c => c.islands)], zs[k], zs[k+1])); }
+    // the snap catches' grooves (Session 55), cut into the inside of the front and back walls (local y from 0)
+    const ic = snap && (face === "front" || face === "back") ? snap.xs.map(x => encOrient(encRect(x - SN.gLen/2, snap.zc - SN.gH/2, x + SN.gLen/2, snap.zc + SN.gH/2), false)) : [];
+    if (wc.length || ic.length){
+      const zs = [...new Set([0, t, ...wc.map(c => +(t - c.depth).toFixed(4)), ...(ic.length ? [SN.gDepth] : [])])].filter(z => z >= 0 && z <= t).sort((a, b) => a - b), pcs = [];
+      for (let k=0;k<zs.length-1;k++){ const on = wc.filter(c => t - c.depth <= zs[k] + 1e-6), inner = zs[k + 1] <= SN.gDepth + 1e-6 ? ic : [];
+        pcs.push(C.extrudePolysAt([{ outer: outer.slice(), holes: [...open, ...inner, ...on.flatMap(c => c.holes)] }, ...on.flatMap(c => c.islands)], zs[k], zs[k+1])); }
       solids.push(C.affineSolid(C.mergeSolids(pcs), F.M, F.T));
     } else solids.push(C.affineSolid(C.extrudePolysAt([{ outer, holes: open }], 0, t), F.M, F.T));
     // inlaid art fills its pocket flush; raised art stands on the outside (in the box's filament, or a part of its own)
@@ -4475,6 +4486,14 @@ function buildEnclosure(){
       } else lid.push(C.extrudePolysAt([{ outer: encOrient(C.ringRect(2*a, 2*b, Math.max(0, ri - fit), seg), true),
         holes:[encOrient(C.ringRect(2*a - 2*lipW, 2*b - 2*lipW, Math.max(0, ri - fit - lipW), seg), false)] }], lidT, lidT + lipH));
     }
+    // the snap bumps on the outside of the lip's front and back (the lid prints face down, lip up): a 45° ridge each
+    if (snap){
+      const b = id/2 - fit, zc = lidT + lipH/2, Mx = [0,1,0, 0,0,-1, -1,0,0];
+      for (const sy of [-1, 1]) for (const x of snap.xs){
+        const prof = [[sy*(b - 0.01), zc - SN.h/2], [sy*(b + SN.out), zc], [sy*(b - 0.01), zc + SN.h/2]];
+        lid.push(C.affineSolid(C.extrudePolysAt([{ outer:encOrient(prof, true), holes:[] }], x - SN.len/2, x + SN.len/2), Mx, [0, 0, 0]));
+      }
+    }
     const bed = state.printer.bed || [256,256,256], behind = W*2 + 10 + 2*mount.out > bed[0] && D*2 + 10 <= bed[1];
     const beside = behind ? [0, 0, -(D + 10)] : [W + 10 + mount.out, 0, 0];
     lidShift = beside;
@@ -4488,7 +4507,7 @@ function buildEnclosure(){
   }
   parts.push(...insideParts);
   const fastenText = slide ? "Sliding lid: it slides in from the front along 45° grooves in the side walls, no screws needed." : magnet ? `Magnet lid: pockets for eight ${mg.d} × ${mg.t} mm magnets (${pocketD.toFixed(1)} mm wide, ${pocketH.toFixed(1)} mm deep), four in the posts and four in the lid.`
-    : !bossesOn ? (E.lid === "press" ? "Press-fit lid, no screws." : "No screws.")
+    : !bossesOn ? (E.lid === "press" ? (snap ? "Press-fit lid with snap catches: four bumps on its lip click into grooves inside the front and back walls." : "Press-fit lid, no screws.") : "No screws.")
     : E.fasten === "insert" ? `Corner posts for ${E.screw} heat inserts (${screw.insert} mm holes, at least ${screw.insertDepth} mm deep).`
     : `Corner posts for ${E.screw} self-tapping screws (${screw.pilot} mm pilot holes).`;
   // printed pilot lights: a faceted jewel lens per opening, printed flange down in front of the box. It
@@ -4555,7 +4574,7 @@ function buildEnclosure(){
     if (split) nAdd(split.pins ? split.pins.length : 0, `${E.splitScrew || "M3"} screws and heat inserts for the joins`);
     const parts2 = {}; boardList.forEach(bd => { parts2[bd.B.label] = (parts2[bd.B.label] || 0) + 1; }); Object.entries(parts2).forEach(([k, n]) => nAdd(n, k));
   }
-  enclosureInfo = { test: !!state.base.enclosure.test, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR }, anchors:anchorsMade, ducts:ductInfo.length, count:(E.cut || []).length - left.length,
+  enclosureInfo = { test: !!state.base.enclosure.test, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, snap:!!snap, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR }, anchors:anchorsMade, ducts:ductInfo.length, count:(E.cut || []).length - left.length,
     split: splitInfo };
   return out;
 }
@@ -11571,6 +11590,8 @@ function enclosureFields(p){
       numField(g,{ label:"Lip thickness (mm)", min:0.8,max:4,step:0.1, get:()=>E.lipW, set:v=>E.lipW=v, onChange:baseChanged });
       numField(g,{ label:"Gap between lip and walls (mm)", min:0,max:0.8,step:0.05, get:()=>E.fit, set:v=>E.fit=v, onChange:baseChanged,
         sub:()=> E.lid === "press" ? "0.1 grips tight, 0.2 slides in. Print a test lid first." : "0.2 slides in easily." });
+      if (E.lid === "press"){ checkField(g, "Snap catches (the lid clicks in)", ()=>E.snap === true, v=>{ E.snap = v; renderTab(); baseChanged(); });
+        if (E.snap) note(g, "Four small 45° bumps on the lid's lip click into grooves inside the front and back walls. With a 0.2 mm gap they hold firmly and still come off with a fingernail (add a finger pull)."); }
     }
     if (E.lid === "magnet"){
       selField(g, "Magnet size (diameter × thickness)", Object.keys(MAGNETS).map(k => [k, `${MAGNETS[k].d} × ${MAGNETS[k].t} mm`]), ()=>encHas(MAGNETS, E.magnet) ? E.magnet : "6x2", v=>{ E.magnet = v; baseChanged(); });
@@ -15045,7 +15066,7 @@ function sanitizeProject(data){
   if (st.base && "card" in st.base) st.base.card = cleanCard(st.base.card);
   if (st.base && st.base.enclosure && typeof st.base.enclosure === "object"){
     const E = st.base.enclosure, one = (v, list) => list.includes(v) ? v : list[0];
-    E.lid = one(E.lid, ["screw","press","magnet","slide","none"]); E.postStyle = one(E.postStyle, ["full","hang"]); E.fasten = one(E.fasten, ["insert","screw","none"]); E.head = one(E.head, ["sink","bore","plain"]);
+    E.lid = one(E.lid, ["screw","press","magnet","slide","none"]); E.postStyle = one(E.postStyle, ["full","hang"]); E.snap = E.snap === true; E.fasten = one(E.fasten, ["insert","screw","none"]); E.head = one(E.head, ["sink","bore","plain"]);
     E.magnet = encHas(MAGNETS, E.magnet) ? E.magnet : "6x2"; E.feet = one(E.feet, ["none","recess"]); E.mount = one(E.mount, ["none","ears","tabs","din","straps","skadis","pegboard"], "none"); E.tabN = E.tabN === 1 ? 1 : 2;
     E.earN = E.earN === 4 ? 4 : 2; E.strapDir = one(E.strapDir, ["across","up"], "across"); E.footSize = encHas(FEET, E.footSize) ? String(E.footSize) : "8";
     const L0 = E.logo && typeof E.logo === "object" ? E.logo : {};

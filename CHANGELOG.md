@@ -3,6 +3,22 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.43.0
+
+Move freely while you paint, a multicolour icon maker, and project boxes filled in from a description, with optional AI help.
+
+- **Moving while you paint:** no more switching to Turn view. Drag beside the model to turn it, right-drag or hold **Space** to turn it anywhere, drag with the middle button to slide it. On a touch screen one finger beside the model turns it, two fingers zoom and slide, and the new **✋ Move** button in the view frees it until pressed again.
+- **Make an icon** on the Art tab: up to four of 54 simple icons on a badge (circle, rounded square, hexagon, shield or none), each in its own filament, with an optional ring and a word underneath. Ready-made ideas, a searchable grid, and a gap that keeps a small icon on a big one readable. On a project box it is inlaid into the lid.
+- **Describe your project** on a project box's Make tab: type what goes in it and the boards are arranged in the smallest box that fits your bed, the box grows for its openings, and each opening goes on a sensible face. Five ready-made descriptions to start from.
+- **AI help (optional)** in Settings: your own Claude API key, or a free model on your computer with Ollama. **Plan it with AI** also picks faces, levels and a lid icon; **Design it with AI** makes an icon from a description. The AI answers only with names from the app's lists, and everything is checked before use. Only the words you type are sent.
+
+![The icon maker: a fan with a snowflake on a hexagon badge, inlaid into a project box's lid](docs/images/icon-maker.jpg)
+
+**Fixed**
+- A brush stroke started straight after turning the view slid under the brush while the view glided to a stop; the view now stops the moment you start painting.
+- Two fingers on a touch screen painted a dab before zooming; a stroke just begun is now taken back when the second finger lands.
+- **Arrange it for me** could make a long, thin box (65 × 152 mm) to save a little floor; it now prefers squarer boxes.
+
 ## 0.42.0
 
 Project boxes: **Arrange it for me**.

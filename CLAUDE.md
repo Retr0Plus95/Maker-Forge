@@ -90,6 +90,9 @@ Plus, depending on what changed:
   the model doctor (`meshReport`, `repairMesh`, `simplifyMesh` in `src/core.js`, `doctor*` in `src/app.html`) → `npm run test:doctor`
   (`CORE=1` for the core only)
 - `tools-after-squash.js` or `.github/workflows/after-squash.yml` → `npm run test:squash`
+- the icon maker (`ICONS`, `iconCanvas`, `cleanIcon`, `iconPanel`), AI help (`AI`, `aiAsk`, `aiFromWords`, `aiCleanPlan`) or "Describe your project" (`encApplyPlan`,
+  `encPlaceOpening`, `encLogoSpot`) → `npm run test:iconai` (no key needed: the AI and `fetch` are stand-ins) and `npm run test:enclosure`;
+  moving the view while painting (`paintControls`, `stopGlide`, `cancelStroke`) → `node tools-paintmove-check.js index.html` (Chromium; part of `check:browser`)
 - a change a user would notice → update `MANUAL.md` and `CHANGELOG.md`
 
 Smoke test options: `QUICK=1`, `ONLY=tracer,board`, `PAGES=0-3`, `VERBOSE=1`. Lithophane and jigsaw

@@ -2222,6 +2222,49 @@ boards and batteries on levels, grids, anchors, channels, passes): none needs su
 compartment with a door; a custom battery size; strap loops instead of floor slots (a 22 mm bridge needs a gable).
 **Still to check by hand**: a printed strap tray with a real LiPo and strap; the half-lap fit (0.4 mm gap).
 
+## Session 52: project boxes, screw mounts you can move and neater holders (v0.46.0)
+
+Asked (the owner): "The ability to change the position of the screw mounts to take advantage of as much space as possible on
+the bottom floor", and "The mounting slots some boards and batteries looks a little strange? The four square corners". Also
+asked, for the releases after this one: all the other box improvements "and even 20 more", and "make it easy to add art and
+icons and engravings" (next: 0.47).
+
+**Holders** (`encRim`, `ENC_RIM`): a cradle (`encCradle`) and a strap tray (`encStrapTray`) are one rim now, built from convex
+pieces (an outer strip to the corners, an inner strip stopping `relief` (0.8 mm) short of the part's corners, a quarter disc for
+each rounded outer corner), so each is trimmed to a level's plate as before (`encClip`). Gaps: a finger gap (`encFingerGap`,
+8–20 mm) in the middle of a cradle's long sides; a tray's gaps are where each strap passes (the slots are just outside them).
+The cradle's seats are L-shaped (2.5 mm under the board's edge, `ENC_CRADLE.seat`) and reach the rim.
+
+**Short lid posts** (`E.postStyle` "full"/"hang", the Lid page, `encPostStyleField`): `postLen` (screw insert depth + 5 or the
+magnet pocket + 5, at least 10) at the top, over a cone (`encLoft`, 0.4 mm to the post's radius over `bossR - 0.4`: 45°). The
+floor is free up to `postFree`; full posts when the box is too shallow (a warning). Without hanging posts nothing changes. Floor
+openings may go under them; a level notches round them only when it reaches up into them (`notchOf`); the board warning "sits
+on a screw post" only when the board's parts reach `postFree`; `encArrange` drops the 9 mm corner margin.
+
+**Levels** (`L.hold` "posts"/"brackets"/"custom"/"ledges", `L.at` up to six `{x, y}`; the panel's **It is held by**):
+`postPlan` (worked out before the plates) gives each level's screw positions. Corner posts: level k's at `lvW/2 - 7 - 9k`, so
+a level above stands its posts on the level under it, printed on that plate (`levelSolids[k-1]`, added while that plate is
+made), clear of its screws. **Found while planning it** (a bug since Session 46): every level's posts stood on the floor at the
+same spots, so level 2's ran through level 1's plate. Brackets (`BRK`): a D-shaped boss on each side wall (7 mm, M3 hole) over a
+45° wedge (`encLoft` from the D squeezed to the wall, 8.5 mm), at the corner posts' front/back positions; a level too low for
+them (15.5 mm above the one under it) stands on corner posts, with a warning. Custom posts: where they are put (clamped 4 mm in).
+Warnings: a board under a post (on the floor or level it stands on), a post on a screw of the level under it, a board under a
+bracket (by its parts' height), a bracket on a cable channel. Also new: a board on the floor under a level's post was never
+checked before. `encArrange` (`bands(k)`): the posts a level stands on in the corners, and wall brackets, widen the band along
+the side walls (`cX`) and the clearance from the front and back in it (`cY`) for that floor; `corner` was one number before.
+`enclosureInfo.levels[k]` has `hold` (what it got), `posts`, `onPosts`; `enclosureInfo.lidPosts` `{n, hang, free, r}`.
+
+**Tests**: new `tools-mounts-test.js` (in `test:enclosure`): the rim all round with finger gaps, the corner pockets, the seats;
+a tray's strap gaps; short posts (nothing under them, too shallow, a board under one); brackets (the floor free, the boss, the
+plate's holes, too low); posts where you put them; two levels on posts (9 mm from the screws under them, nothing through level
+1); support for all of them (none); a board under a post and wall brackets instead; Arrange with brackets and 18 random sets
+with a level on corner posts; a hostile project; the panel. The doc picture: `docs/images/mounts.jpg`, rendered alone in a
+plain scene (scratchpad `shot46.js`, the parts by name).
+
+**Not done, next**: posts dragged in the 3D view (they are typed in); Arrange placing boards round posts where you put them (it
+warns); brackets on the front and back walls. Next release (0.47): art, icons, engravings and labels on any face of the box.
+**Still to check by hand**: a printed wall bracket and short post with a screw in; a board dropped into the new rim.
+
 ## Unfinished (in priority order)
 
 - **0.44: colour from a photo, with more AI, for the CR7 figure** (click to colour done in Session 50; the rest below is next) (the owner, Session 49: "fix the auto painter function from a pic,

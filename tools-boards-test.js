@@ -51,13 +51,13 @@ function insideMesh(s, p) {
   {
     const B = BOARDS.esp32devkit, q = direct({ w: 90, d: 60, h: 30, board: "esp32devkit", standH: 5, lid: "none", cut: [], radius: 0 }), box = q[0].solid, I = MF.enclosure, fl = 2;
     const top = fl + 5;        // the seats' top: the board's underside
-    // a seat under each corner (solid 1 mm in from the corner, just under the board), the fence just outside the corner,
-    // rising over the board's top; clear between the fences along the edges' middles, and over the board
+    // a seat under each corner (an L: solid 5 mm along the edge from the corner, just under the board), the rim (Session 52)
+    // just outside the edge, rising over the board's top; a finger gap in the middle of the long side, and clear over the board
     const cx = B.w / 2, cy = B.d / 2, at = (x, y, h) => [x, h, -y];
-    const seat = insideMesh(box, at(cx - 1, cy - 1, top - 0.5)), fence = insideMesh(box, at(cx + 0.3 + 0.8, cy - 2, top + 1.6 + 0.6));
+    const seat = insideMesh(box, at(cx - 5, cy - 1, top - 0.5)), fence = insideMesh(box, at(cx + 0.3 + 0.8, cy - 2, top + 1.6 + 0.6));
     const clearIn = !insideMesh(box, at(cx - 1, cy - 1, top + 0.8)), clearMid = !insideMesh(box, at(0, cy + 1.1, top + 1)), board = I.board;
     check(closed(q) && board.hold === "edges" && seat && fence && clearIn && clearMid && near(board.top, fl + 5 + 1.6, 1e-6),
-      "a seat under each corner at the standoff height, an L-shaped fence round it 0.3 mm clear and over the board's top, open between", `seat ${seat}, fence ${fence}, board top ${board.top} mm`);
+      "a seat under each corner at the standoff height, a rim round it 0.3 mm clear and over the board's top, a finger gap in the long side", `seat ${seat}, fence ${fence}, board top ${board.top} mm`);
     // printed upright: no support
     fresh({ w: 90, d: 60, h: 30, board: "esp32devkit", lid: "none", cut: [] }); MF.rebuild(false); await settle(); await MF.printNow();
     for (let i = 0; i < 200 && !MF.print; i++) await sleep(30);

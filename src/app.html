@@ -434,7 +434,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.36.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.37.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -709,6 +709,8 @@ const PRESETS = {
     slots:[{ hex:"#0f5132", name:"Solder mask" },{ hex:"#e8c26a", name:"Copper" },{ hex:"#f2f4f3", name:"Silkscreen" }],
     tip:"Drop in a screenshot of a schematic or a PCB layout: the dark lines become raised copper." },
   "Photo frame":{ base:{ type:"frame" }, item:{ mode:"flat", height:1, quality:"high" }, tip:"The window goes all the way through." },
+  "Frame for a photo":{ base:{ type:"frame", frame:{ photo:"10x15", stand:"leg", hang:true } }, item:{ mode:"flat", height:1, quality:"high" },
+    tip:"For a 10 × 15 cm photo: it goes in from the back with a clear sheet, then the back panel presses in. The stand plugs into the back; the keyholes hang it on two screws." },
   "Jigsaw puzzle":{ base:{ type:"jigsaw" },
     tip:"Your picture, cut into pieces that print together. Shuffle the cut until you like it; snap the pieces apart after printing." },
   "Kids' puzzle":{ base:{ type:"jigsaw", jigsaw:{ pieces:12, size:120, thick:4, style:"round", knob:1.2, gap:0.3, holder:"tray" } },
@@ -868,7 +870,7 @@ const DEFAULTS = () => ({
           { hex:"#d1495b", name:"Red", mat:"PLA", price:22 }, { hex:"#edae49", name:"Gold", mat:"PLA", price:22 } ],
   base:{
     type:"nameplate", slot:0,
-    board:{ shape:"rect", w:70, h:50, r:8, thick:1.2, hole:false, holeDia:4, holeX:0, holeY:19 },
+    board:{ shape:"rect", w:70, h:50, r:8, thick:1.2, hole:false, holeDia:4, holeX:0, holeY:19, stand:false },
     nameplate:{ text:"Emma", batch:false, names:"Emma\nNoah\nOlivia\nLiam", font:0, letterHeight:22, spacing:0, lineGap:1.1, arc:0, style:"traced", border:3.2, join:0.6,
       thick:2.4, hole:"left", holeDia:4, rim:2.6, dot:"heart", dotScale:1.6, end:"none", endScale:1,
       sym:{ glyph:"♥", glyph2:"★", side:"both", size:1 },
@@ -880,7 +882,7 @@ const DEFAULTS = () => ({
     fit:{ gap:0.25 },
     relief:{ source:"ai", shape:"rect", width:100, base:2, height:5, subject:true, boost:1, flatten:0.15, contrast:1, smooth:1, invert:false, cell:0.3, border:3, rim:0.6, hole:false, holeDia:4 },
     sign:{ style:"channel", text:"BAR", font:Math.max(0, FONTS.findIndex(f => f.n === "Anton")), letterH:100, depth:25, wall:1.6, back:2,
-      diffuser:1, diffuserSlot:0, wallSlot:0, strip:6, backing:"none", margin:10, mount:"keyhole", holes:true },
+      diffuser:1, diffuserSlot:0, wallSlot:0, strip:6, backing:"none", margin:10, mount:"keyhole", holes:true, stand:false },
     mech:{ kind:"gears",
       gears:{ teeth1:24, teeth2:12, module:1.5, thick:6, bore:5, boreShape:"d", hub:true, hubDia:12, hubH:4, layout:"apart", angle:20 },
       bolt:{ size:"M10", dia:10, pitch:1.5, af:16, length:25, head:"hex", headH:6.5, nut:true, nutH:8.4 },
@@ -920,7 +922,8 @@ const DEFAULTS = () => ({
       holes:true, holeDia:3.2, holeInset:4.5, fingers:false, fingerCount:8, fingerW:2.4, fingerLen:9,
       hatch:false, hatchPitch:2.6, hatchWidth:0.9, hatchAngle:45, hatchH:0.3 },
     turned:{ shape:"vase", dia:60, h:90, wall:2.2, belly:1.3, neck:0.72, hollow:true },
-    frame:{ w:120, h:160, r:6, winW:85, winH:115, thick:5 },
+    frame:{ w:120, h:160, r:6, winW:85, winH:115, thick:5,
+      photo:"none", pw:102, ph:152, landscape:false, border:14, overlap:4, sheet:1, panelT:2, stand:"leg", hang:true, standBase:false },
     shell:{ shape:"round", dia:70, w:70, d:70, h:80, wall:0.8, floor:2 },
     box:{ w:90, d:70, h:4 }, cyl:{ dia:70, h:90 }, hex:{ dia:80, h:6 }, sphere:{ dia:70 },
     stl:{ name:"", scale:100, flat:0 },
@@ -1327,8 +1330,8 @@ function defaultPlace(){
     case "jigsaw": return { c:[0,b.jigsaw.thick,0], n:[0,1,0] };
     case "lithophane": return { c:[0,0,0], n:[0,0,1] };
     case "frame": {                                  // on the bottom border: the middle is the window
-      const f = b.frame, win = Math.min(f.winH, f.h - 4);
-      return { c:[0, f.thick, (win/2 + f.h/2)/2], n:[0,1,0] };
+      const D = frameDims(b.frame);
+      return { c:[0, D.thick, (D.winH/2 + D.h/2)/2], n:[0,1,0] };
     }
     case "shell": return { c:[0,b.shell.h/2,0], n:[0,0,1] };
     case "turned": return { c:[0,b.turned.h*0.55,0], n:[0,0,1] };
@@ -1341,8 +1344,8 @@ function defaultPlace(){
 }
 function defaultWidth(aspect){
   if (state.base.type === "frame"){                // fits the bottom border, with a little margin
-    const f = state.base.frame, band = Math.max(2, (f.h - Math.min(f.winH, f.h - 4))/2 - 6);
-    return clamp(Math.round(Math.min(f.w - 10, band*aspect)), 5, 250);
+    const D = frameDims(state.base.frame), band = Math.max(2, (D.h - D.winH)/2 - 6);
+    return clamp(Math.round(Math.min(D.w - 10, band*aspect)), 5, 250);
   }
   if (!baseGeom) return 60;
   baseGeom.computeBoundingBox();
@@ -1350,6 +1353,120 @@ function defaultWidth(aspect){
   const flat = !!FLAT[state.base.type];
   const a = flat ? s.x : Math.max(s.x,s.z), b = flat ? s.z : s.y;
   return clamp(Math.round(Math.min(a, b*aspect)*0.72), 5, 250);
+}
+/* A frame for a photo (Session 43). Printed face up, so artwork on its front works as on any frame. The photo and a
+   clear sheet go in from the back into a pocket 0.3 mm bigger than the photo; the window's edge is bevelled at 45°,
+   like a mount board, which is also what lets the frame print with no support over the photo's edges. A back
+   panel press-fits into the pocket behind them; a 45° notch in the bottom of the pocket gives a fingernail to lift
+   it out. On the panel's back: a socket for a stand (a separate leg, printed flat) and raised blocks with keyholes
+   for hanging on two screws. */
+const FRAME_PHOTOS = { "6x9":[64, 89, "Wallet, 6.4 × 8.9 cm"], "9x13":[89, 127, "9 × 13 cm (3.5 × 5 inch)"], "10x15":[102, 152, "10 × 15 cm (4 × 6 inch)"],
+  "13x18":[127, 178, "13 × 18 cm (5 × 7 inch)"], "a6":[105, 148, "A6, 10.5 × 14.8 cm"], "a5":[148, 210, "A5, 14.8 × 21 cm"], "10x10":[100, 100, "Square, 10 × 10 cm"],
+  "custom":[0, 0, "My own size"] };
+// the frame's sizes, from its own settings or from the photo it holds
+function frameDims(f){
+  if (!f.photo || f.photo === "none" || !encHas(FRAME_PHOTOS, f.photo)){
+    const w = clamp(+f.w || 120, 30, 400), h = clamp(+f.h || 160, 30, 400);
+    return { w, h, winW: Math.min(clamp(+f.winW || 85, 5, 400), w - 4), winH: Math.min(clamp(+f.winH || 115, 5, 400), h - 4), thick: clamp(+f.thick || 5, 0.6, 60), photo:null };
+  }
+  let [pw, ph] = f.photo === "custom" ? [clamp(+f.pw || 102, 30, 300), clamp(+f.ph || 152, 30, 300)] : FRAME_PHOTOS[f.photo];
+  if (f.landscape ? pw < ph : pw > ph) [pw, ph] = [ph, pw];
+  const border = clamp(+f.border || 14, 6, 40), overlap = clamp(+f.overlap || 4, 2, 10), sheet = clamp(+f.sheet || 0, 0, 3), panelT = clamp(+f.panelT || 2, 1.2, 4);
+  const pocketW = pw + 0.3, pocketH = ph + 0.3, winW = pw - 2*overlap, winH = ph - 2*overlap;
+  const stack = sheet + 0.6, zb = panelT + stack, bevel = (pocketW - winW)/2;
+  return { photo:[pw, ph], border, overlap, sheet, panelT, pocketW, pocketH, winW, winH, w: pocketW + 2*border, h: pocketH + 2*border, stack, zb, bevel, thick: zb + bevel + 1 };
+}
+function buildPhotoFrame(f, D, slot){
+  const parts = [], R = clamp(+f.r || 0, 0, Math.min(D.w, D.h)/2 - 1), outer = encOrient(C.ringRect(D.w, D.h, R, 10), true);
+  // the pocket at height z: the photo's size up to zb, then 45° in to the window; the notch, a half disc on the
+  // bottom edge, 6 mm across at the back face and shrinking 1 mm per mm up (45°)
+  const hole = z => {
+    const s = Math.max(0, Math.min(D.bevel, z - D.zb)), w = D.pocketW - 2*s, h = D.pocketH - 2*s, rn = 6 - z, L = [[-w/2, -h/2]];
+    if (rn > 0.3){ L.push([-rn, -h/2]); for (let i=1;i<16;i++){ const a = Math.PI + i/16*Math.PI; L.push([rn*Math.cos(a), -h/2 + rn*Math.sin(a)]); } L.push([rn, -h/2]); }
+    L.push([w/2, -h/2], [w/2, h/2], [-w/2, h/2]);
+    return encOrient(L, false);
+  };
+  const top = D.zb + D.bevel, zEnd = Math.max(6, top), layers = [];
+  let z = 0;
+  while (z < zEnd - 1e-6){
+    const z1 = Math.min(zEnd, z + 0.2), zm = (z + z1)/2;
+    layers.push(C.extrudePolysAt([{ outer: outer.slice(), holes:[hole(zm)] }], z ? z - 0.01 : 0, Math.min(z1, D.thick)));
+    z = z1;
+  }
+  if (zEnd < D.thick) layers.push(C.extrudePolysAt([{ outer: outer.slice(), holes:[encOrient(C.ringRect(D.winW, D.winH, 0, 4), false)] }], zEnd - 0.01, D.thick));
+  parts.push({ name:"Frame", slot, solid:C.mergeSolids(layers) });
+  // the back panel: 0.15 mm smaller all round than the pocket, printed photo side down, beside the frame
+  const g = 0.15, pw = D.pocketW - 2*g, ph = D.pocketH - 2*g, T = D.panelT, bits = [C.extrudePolysAt([{ outer: encOrient(C.ringRect(pw, ph, 0.5, 4), true), holes:[] }], 0, T)];
+  const block = (x0, y0, x1, y1, z0, z1, holes) => C.extrudePolysAt([{ outer: encOrient([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], true), holes: holes || [] }], z0, z1);
+  const info = { stand:false, hang:false };
+  if (f.stand === "leg"){
+    // a socket for the leg: a block with a slot 3.2 × 12.2 mm, 6 mm deep, 45% of the way up the panel
+    const ys = -ph/2 + 0.45*ph;
+    bits.push(block(-6, ys - 10, 6, ys + 10, T - 0.01, T + 6, [encOrient([[-1.6, ys - 6.1], [1.6, ys - 6.1], [1.6, ys + 6.1], [-1.6, ys + 6.1]], false)]));
+    info.stand = { ys, legV: ys + ph/2 + g + D.border };
+  }
+  if (f.hang !== false){
+    // a keyhole in a raised block near each top corner: the screw head goes in the round hole, the frame drops onto
+    // the narrow slot above it, the head held behind the lip. The lip's underside steps in at 45°, so it needs no support
+    const bx = pw/2 - Math.max(9, Math.min(D.border, 14)), by = ph/2 - 16;
+    if (bx > 12) for (const sx of [-1, 1]){
+      const x = sx*bx, head = (r, y) => C.ringCircle(r, 32).map(([u, v]) => [u + x, v + y]);
+      const slotOutline = (w2, y0, y1) => encOrient([[x - w2, y0], [x + w2, y0], [x + w2, y1], [x - w2, y1]], false);
+      const outer = () => encOrient([[x - 7, by - 9], [x + 7, by - 9], [x + 7, by + 15], [x - 7, by + 15]], true);
+      bits.push(block(x - 7, by - 9, x + 7, by + 15, T - 0.01, T + 1));
+      bits.push(C.extrudePolysAt([{ outer: outer(), holes:[encOrient(unionHeadSlot(x, by, 4.75, 4.75, 9), false)] }], T + 1 - 0.01, T + 3.5));
+      for (let k=0;k<10;k++){                         // the slot narrows from 4.75 to 2.25 mm a side over 2.5 mm
+        const z0 = T + 3.5 + k*0.25, w2 = 4.75 - (k + 1)*0.25;
+        bits.push(C.extrudePolysAt([{ outer: outer(), holes:[encOrient(unionHeadSlot(x, by, 4.75, w2, 9), false)] }], z0 - 0.01, z0 + 0.25));
+      }
+      bits.push(C.extrudePolysAt([{ outer: outer(), holes:[encOrient(unionHeadSlot(x, by, 4.75, 2.25, 9), false)] }], T + 6 - 0.01, T + 7));
+    }
+    info.hang = bx > 12;
+  }
+  const bed = state.printer.bed || [256, 256, 256], beside = D.w + 10 + pw <= bed[0];
+  const offP = beside ? [D.w/2 + 10 + pw/2, 0, 0] : [0, 0, -(D.h/2 + 10 + ph/2)];
+  parts.push({ name:"Back panel", slot, solid:C.affineSolid(C.mergeSolids(bits), [1,0,0, 0,1,0, 0,0,1], offP) });
+  if (info.stand){
+    // the leg, printed flat: its upright edge against the socket block, its foot on the table 45% of its height
+    // behind; the tab (2.9 mm thick, 11.9 mm tall, 5.8 mm long) goes into the socket
+    const V = info.stand.legV, Dh = 0.45*V, t = 2.9;
+    const legPoly = encOrient([[0, 0], [Dh, 0], [8, V + 6], [0, V + 6], [0, V + 5.95], [-5.8, V + 5.95], [-5.8, V - 5.95], [0, V - 5.95]], true);
+    const leg = C.extrudePolysAt([{ outer: legPoly, holes:[] }], 0, t);
+    const lb = C.solidBounds(leg), lw = lb.mx[0] - lb.mn[0], ld = lb.mx[2] - lb.mn[2];
+    // in the frame's window if it fits there (the window is empty on the bed), else beside the panel
+    const inWin = lw + 6 <= D.winW && ld + 6 <= D.winH;
+    const at = inWin ? [-(lb.mn[0] + lb.mx[0])/2, 0, -(lb.mn[2] + lb.mx[2])/2] : [offP[0] + pw/2 + 12 - lb.mn[0], 0, offP[2] - (lb.mn[2] + lb.mx[2])/2];
+    parts.push({ name:"Stand", slot, solid:C.affineSolid(leg, [1,0,0, 0,1,0, 0,0,1], at) });
+  }
+  frameInfo = Object.assign({ dims:D }, info);
+  return parts;
+}
+// the stand, laid in front of the piece on the bed (towards +z), its slot sized to the piece
+function standFor(solid, thick, slot){
+  const b = C.solidBounds(solid), st = slotStand(b.mx[0] - b.mn[0], thick), sb = C.solidBounds(st);
+  return [{ name:"Stand", slot, solid:C.affineSolid(st, [1,0,0, 0,1,0, 0,0,1], [(b.mn[0] + b.mx[0])/2, 0, b.mx[2] + 10 - sb.mn[2]]) }];
+}
+// a keyhole's outline: a round hole of radius rh at (x, y) and a slot w2 either side of x running up len mm from it
+function unionHeadSlot(x, y, rh, w2, len){
+  const L = [], a0 = Math.asin(Math.min(1, w2/rh));
+  // up the slot's right side, round the hole from the slot's right edge the long way to its left edge, up the left side
+  L.push([x + w2, y + len]);
+  for (let i=0;i<=28;i++){ const a = Math.PI/2 - a0 - i/28*(2*Math.PI - 2*a0); L.push([x + rh*Math.cos(a), y + rh*Math.sin(a)]); }
+  L.push([x - w2, y + len]);
+  return L;
+}
+let frameInfo = null;
+// A stand for something flat (Session 43: a plaque, a frame): a low block with a slot the piece's bottom edge slides
+// into, leaning back 10°. Printed on its side as an extrusion of its profile, so the slot's walls lean 10° and the top
+// edges are chamfered at 45°: nothing needs support. width: the piece's width; thick: its thickness. Returns the solid,
+// centred on x, its front at z = 0 (the side the piece leans away from).
+function slotStand(width, thick){
+  const L = clamp(width*0.55, 30, 180), tw = (thick + 0.3)/Math.cos(10*Math.PI/180), d = 7*Math.tan(10*Math.PI/180), Hb = 10;
+  const Dp = clamp(thick*3 + 26, 28, 48), a = Dp*0.4 - tw/2, c = 2;
+  const prof = [[0, 0], [Dp, 0], [Dp, Hb - c], [Dp - c, Hb], [a + tw + d/2, Hb], [a + tw - d/2, Hb - 7], [a - d/2, Hb - 7], [a + d/2, Hb], [c, Hb], [0, Hb - c]];
+  // (u: front to back, v: up) extruded along x: world (x, v, -u)... laid with its front towards +z
+  const sol = C.extrudePolysAt([{ outer: encOrient(prof, true), holes:[] }], -L/2, L/2);
+  return C.affineSolid(sol, [0,1,0, 0,0,-1, -1,0,0], [0, 0, 0]);
 }
 function boardOutline(bd){
   switch (bd.shape){
@@ -1366,12 +1483,16 @@ function buildSimpleObject(){
   const b = state.base, slot = clamp(b.slot,0,state.slots.length-1);
   if (b.type === "board"){
     const bd = b.board, holes = bd.hole ? [C.ringCircle(bd.holeDia/2,48).map(p=>[p[0]+bd.holeX,p[1]+bd.holeY])] : [];
-    return wrap(C.extrudePolys([{ outer:boardOutline(bd), holes }], bd.thick), "Object", slot);
+    const out = wrap(C.extrudePolys([{ outer:boardOutline(bd), holes }], bd.thick), "Object", slot);
+    if (bd.stand && out.length) out.push(...standFor(out[0].solid, bd.thick, slot));
+    return out;
   }
   if (b.type === "frame"){
-    const f = b.frame;
-    return wrap(C.extrudePolys([{ outer:C.ringRect(f.w,f.h,f.r,10),
-      holes:[C.ringRect(Math.min(f.winW,f.w-4), Math.min(f.winH,f.h-4), Math.min(f.r,4), 10)] }], f.thick), "Frame", slot);
+    const f = b.frame, D = frameDims(f);
+    if (D.photo) return buildPhotoFrame(f, D, slot);
+    const out = wrap(C.extrudePolys([{ outer:C.ringRect(D.w,D.h,f.r,10), holes:[C.ringRect(D.winW, D.winH, Math.min(f.r,4), 10)] }], D.thick), "Frame", slot);
+    if (f.standBase === true && out.length) out.push(...standFor(out[0].solid, D.thick, slot));
+    return out;
   }
   if (b.type === "shell"){
     const s = b.shell, round = s.shape === "round";
@@ -4792,6 +4913,11 @@ async function buildSign(){
   info.strip = strip;
   const bed = state.printer.bed || [256, 256, 256];
   if (info.size[0] > bed[0] || info.size[1] > bed[1]) say(`At ${info.size[0].toFixed(0)} × ${info.size[1].toFixed(0)} mm it is bigger than your bed: make the letters smaller, or print separate letters without a board.`);
+  // a stand for a desk or a shelf (Session 43): the board's bottom edge slides into its slot
+  if (S.stand === true && S.backing !== "none"){
+    const bp = parts.find(q => q.name === "Board" || q.name === "Sign");
+    if (bp){ parts.push(...standFor(bp.solid, back, bp.slot)); say("The stand prints beside the sign: slide the board's bottom edge into its slot."); }
+  }
   return fitRow([{ parts }], 0);
 }
 // mounts on the back: keyholes (the screw head goes in through the round part and slides up), plain screw holes, or
@@ -4873,6 +4999,7 @@ function signFields(p){
     if (!mopts.some(([k]) => k === S.mount)) S.mount = mopts[0][0];
     selField(g2, "Mounts", mopts, ()=>S.mount, v=>{ S.mount = v; renderTab(); baseChanged(); });
     if (S.style !== "solid") checkField(g2, S.style === "neon" ? "Holes for the strip to pass to the back" : "A hole in each letter for the wires", ()=>S.holes, v=>{ S.holes = v; baseChanged(); });
+    if (S.backing !== "none") checkField(g2, "A stand for a desk or a shelf", ()=>S.stand === true, v=>{ S.stand = v; baseChanged(); });
   }, true);
   const inf = document.createElement("div"); inf.className = "field full";
   const fill = () => { inf.innerHTML = signInfo && signInfo.lines.length ? `<div class="card">${signInfo.lines.map(t => `<p class="hint" style="margin:4px 0">${esc(t)}</p>`).join("")}</div>` : ""; };
@@ -9777,6 +9904,8 @@ function boardFields(p){
     sub:()=>bd.thick<0.8?"Under 0.8 mm is fragile unless you print in TPU.":"" });
   group(p,"Corners and hanging hole", g2 => {
     if (bd.shape === "rect") numField(g2,{ label:"Corner radius (mm)", min:0,max:40,step:0.5, get:()=>bd.r, set:v=>bd.r=v, onChange:baseChanged });
+    checkField(g2,"A stand to hold it up",()=>bd.stand === true, v=>{ bd.stand = v; renderTab(); baseChanged(); });
+    if (bd.stand) note(g2, "A low base with a slot, printed beside it: the plaque's bottom edge slides in and it leans back 10°. The slot is the plaque's thickness plus 0.3 mm.");
     checkField(g2,"Hole for a keyring or ribbon",()=>bd.hole, v=>{ bd.hole = v; renderTab(); baseChanged(); });
     if (bd.hole){
       numField(g2,{ label:"Hole diameter (mm)", min:1.5,max:12,step:0.5, get:()=>bd.holeDia, set:v=>bd.holeDia=v, onChange:baseChanged });
@@ -9787,12 +9916,36 @@ function boardFields(p){
 }
 function frameFields(p){
   const f = state.base.frame;
+  selField(p, "For a photo", [["none","No photo: a frame of my size"], ...Object.entries(FRAME_PHOTOS).map(([k, v]) => [k, v[2]])], ()=>f.photo || "none", v=>{ f.photo = v; renderTab(); baseChanged(); });
+  if (f.photo && f.photo !== "none" && encHas(FRAME_PHOTOS, f.photo)){
+    const D = frameDims(f);
+    if (f.photo === "custom"){
+      numField(p,{ label:"Photo width (mm)", min:30,max:300,step:1, get:()=>f.pw, set:v=>f.pw=v, onChange:baseChanged });
+      numField(p,{ label:"Photo height (mm)", min:30,max:300,step:1, get:()=>f.ph, set:v=>f.ph=v, onChange:baseChanged });
+    }
+    segField(p, [["portrait","Upright"],["landscape","Sideways"]], ()=>f.landscape ? "landscape" : "portrait", v=>{ f.landscape = v === "landscape"; baseChanged(); }, "two");
+    numField(p,{ label:"Frame width round the photo (mm)", min:6,max:40,step:0.5, get:()=>f.border, set:v=>f.border=v, onChange:baseChanged });
+    numField(p,{ label:"Window overlaps the photo by (mm)", min:2,max:10,step:0.5, get:()=>f.overlap, set:v=>f.overlap=v, onChange:baseChanged,
+      sub:()=>`The frame is ${D.w.toFixed(0)} × ${D.h.toFixed(0)} × ${D.thick.toFixed(1)} mm; the window ${D.winW.toFixed(0)} × ${D.winH.toFixed(0)} mm.` });
+    group(p,"Back, stand and hanging", g2 => {
+      numField(g2,{ label:"Clear sheet in front of the photo (mm)", min:0,max:3,step:0.1, get:()=>f.sheet, set:v=>f.sheet=v, onChange:baseChanged,
+        sub:()=>"0 for none. A 1 mm acrylic or 0.5 mm PET sheet cut to the photo's size keeps it clean." });
+      numField(g2,{ label:"Back panel thickness (mm)", min:1.2,max:4,step:0.1, get:()=>f.panelT, set:v=>f.panelT=v, onChange:baseChanged });
+      checkField(g2, "A stand (a leg that plugs into the back)", ()=>f.stand === "leg", v=>{ f.stand = v ? "leg" : "none"; baseChanged(); });
+      checkField(g2, "Keyholes to hang it on two screws", ()=>f.hang !== false, v=>{ f.hang = v; baseChanged(); });
+      note(g2, "The frame prints face up; the photo and the clear sheet go in from the back, then the back panel presses in after them. The notch at the bottom of the pocket lifts the panel out again. Nothing needs support: the window's edge is bevelled at 45°.");
+      const bed = state.printer.bed || [256, 256, 256], pw = D.pocketW - 0.3, ph = D.pocketH - 0.3;
+      if (D.w + 10 + pw > bed[0] && D.h + 10 + ph > bed[1]) note(g2, `Together the frame and its back panel are bigger than your bed (${bed[0]} × ${bed[1]} mm): in the slicer, split the print into objects (Bambu Studio and OrcaSlicer: right-click, Split, To objects) and print the frame and the panel one at a time.`);
+    }, true);
+    return;
+  }
   numField(p,{ label:"Outer width (mm)", min:30,max:250,step:1, get:()=>f.w, set:v=>f.w=v, onChange:baseChanged });
   numField(p,{ label:"Outer height (mm)", min:30,max:250,step:1, get:()=>f.h, set:v=>f.h=v, onChange:baseChanged });
   group(p,"Window and thickness", g2 => {
     numField(g2,{ label:"Window width (mm)", min:10,max:240,step:1, get:()=>f.winW, set:v=>f.winW=v, onChange:baseChanged });
     numField(g2,{ label:"Window height (mm)", min:10,max:240,step:1, get:()=>f.winH, set:v=>f.winH=v, onChange:baseChanged });
     numField(g2,{ label:"Thickness (mm)", min:1,max:30,step:0.5, get:()=>f.thick, set:v=>f.thick=v, onChange:baseChanged });
+    checkField(g2,"A stand to hold it up",()=>f.standBase === true, v=>{ f.standBase = v; baseChanged(); });
   }, true);
 }
 function shellFields(p){
@@ -12585,7 +12738,7 @@ function sanitizeProject(data){
     if (st.base.sign && typeof st.base.sign === "object" && !Array.isArray(st.base.sign)){
       const sg = st.base.sign = Object.assign(DEFAULTS().base.sign, st.base.sign);
       sg.style = pick(sg.style, ["solid","channel","neon"], "channel"); sg.backing = pick(sg.backing, ["none","rail","board","outline"], "none");
-      sg.mount = pick(sg.mount, ["keyhole","screw","pins","none"], "keyhole"); sg.holes = sg.holes === true; sg.text = cleanStr(sg.text, 200, "");
+      sg.mount = pick(sg.mount, ["keyhole","screw","pins","none"], "keyhole"); sg.holes = sg.holes === true; sg.stand = sg.stand === true; sg.text = cleanStr(sg.text, 200, "");
       for (const f of ["font","diffuserSlot","wallSlot"]) sg[f] = Math.max(0, Math.min(f === "font" ? FONTS.length-1 : 7, Math.round(+sg[f] || 0)));
       for (const [f, dv] of Object.entries(D0.sign)) if (typeof dv === "number" && !isFinite(+sg[f])) sg[f] = dv; else if (typeof dv === "number") sg[f] = +sg[f];
       for (const f of Object.keys(sg)) if (!(f in D0.sign)) delete sg[f];
@@ -12609,6 +12762,14 @@ function sanitizeProject(data){
       for (const kk of Object.keys(o)) if (!(kk in d0)) delete o[kk];
     }
   }
+  if (st.base && st.base.frame && typeof st.base.frame === "object"){
+    const f = st.base.frame;
+    f.photo = f.photo === "none" || encHas(FRAME_PHOTOS, f.photo) ? String(f.photo || "none") : "none"; f.landscape = f.landscape === true;
+    f.stand = f.stand === "leg" ? "leg" : "none"; f.hang = f.hang !== false; f.standBase = f.standBase === true;
+    for (const [k, lo, hi, d] of [["pw", 30, 300, 102], ["ph", 30, 300, 152], ["border", 6, 40, 14], ["overlap", 2, 10, 4], ["sheet", 0, 3, 1], ["panelT", 1.2, 4, 2]])
+      f[k] = Math.min(hi, Math.max(lo, cleanNum(f[k], d)));
+  }
+  if (st.base && st.base.board && typeof st.base.board === "object") st.base.board.stand = st.base.board.stand === true;
   if (st.base && st.base.nameplate){
     const np = st.base.nameplate;
     np.text = cleanStr(np.text, 200, "Name"); np.batch = np.batch === true; np.names = cleanStr(np.names, 4000, "");
@@ -13137,7 +13298,7 @@ window.MakerForge = {
   phone: { spec: phoneSpec, get info(){ return phoneInfo; }, list: PHONES },
   // business cards (Session 33): what was built, and what each QR code says
   // parts that fit (Session 37): what the last mechanism or fix-it part said, and the name plate's last build
-  get fit(){ return fitInfo; }, get plate(){ return plateInfo; }, get sign(){ return signInfo; }, get relief(){ return reliefInfo; }, doctor: { check: doctorCheck, run: doctorRun, back: doctorBack, get last(){ return doctorLast; } }, depth: { hooks: depthHooks, of: depthOf, field: depthField, state: depthState },
+  get fit(){ return fitInfo; }, get plate(){ return plateInfo; }, get frame(){ return frameInfo; }, get sign(){ return signInfo; }, get relief(){ return reliefInfo; }, doctor: { check: doctorCheck, run: doctorRun, back: doctorBack, get last(){ return doctorLast; } }, depth: { hooks: depthHooks, of: depthOf, field: depthField, state: depthState },
   card: { get info(){ return cardInfo; }, contact: cardContact, qrText: cardQRText, lineKind: cardLineKind, clean: cleanCard, sizes: CARD_SIZES, tags: CARD_TAGS, nfcText: cardNfcText },
   get overlay(){ return overlay.children.length; },
   rebuild: rebuildAll,

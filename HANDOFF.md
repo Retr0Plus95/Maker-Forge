@@ -1758,6 +1758,66 @@ takes an object, a list of values per setting or `auto`, and builds random combi
 - A keychain plate's interior holes (a letter counter bigger than the border, as in "Emma" at 3.2 mm) are kept, as before.
 - Still to check by hand: a printed tag with a magnet; the back text and credit on a real print.
 
+## Session 43: signs, plaques and photo frames (v0.37.0)
+
+The second section update on the road to v0.50.
+
+**Bug hunt**
+- **The Chromium fuzz harness:** signs, plaques and frames, 60 each at first, then 50 more each with the new options. None bad.
+- **The audit** of the frame, the plaque and the sign.
+- **The weak spot was what the frame lacked, not a bug:** it was a flat ring with a window, with nowhere to put a photo.
+
+**A frame for a photo** (`FRAME_PHOTOS`, `frameDims`, `buildPhotoFrame`, `unionHeadSlot`; settings `frame.photo` (a size key or
+"none"), `pw`, `ph`, `landscape`, `border`, `overlap`, `sheet`, `panelT`, `stand` ("leg"/"none"), `hang`)
+- **Sizes and the old frame.** `frameDims` gives every size: from the frame's own settings (the old frame, unchanged, still the
+  default and the **Photo frame** quick start) or from the photo:
+  - pocket = photo + 0.3; window = photo − 2 × overlap; outer = pocket + 2 × border;
+  - thickness = panel + (sheet + 0.6) + bevel + 1, where bevel = (pocket − window) / 2.
+  - Placing art on the border and its default width use `frameDims` too.
+- **Printed face up**, so artwork on the front works as on any frame.
+  - The frame is 0.2 mm slabs: the pocket open to the back; above `zb` its wall moves in 0.2 per 0.2 (45°) to the window, so the
+    window's edge is a bevel like a mount board's and the roof over the photo's edges needs no support.
+  - A half-disc notch on the pocket's bottom edge, 6 mm across at the back and shrinking 1 mm per mm (a 45° half cone), lifts the
+    panel out.
+- **The back panel:**
+  - 0.15 mm smaller all round than the pocket, printed photo side down, beside the frame (or behind it, if not beside);
+  - a socket block for the stand: a 3.2 × 12.2 mm slot, 6 mm deep, 45% of the way up;
+  - near the top corners, two keyhole blocks 7 mm high. The head hole is 9.5 mm; the slot 4.5 mm wide runs 9 mm up; the lip's
+    underside narrows from 9.5 to 4.5 mm in 0.25 mm steps over 2.5 mm, so it needs no support. An earlier flat lip read 60 mm².
+- **The stand (leg):** printed flat, its tab 2.9 × 11.9 × 5.8 mm. Its upright edge is as tall as the socket's height above the
+  frame's bottom edge, and its foot runs 45% of that behind. It is printed in the frame's window when it fits there, which keeps a
+  10 × 15 frame and its parts on a 256 mm bed. The first version laid it beside the panel: 297 mm.
+- When the frame and panel don't fit the bed together (A5 with a wide border), the panel says to split the print into objects in
+  the slicer.
+- **Quick start "Frame for a photo"** (10 × 15 cm, stand and keyholes); its Start picture is made with `ONLY=... node tools-thumbs.js`.
+
+**Stands** (`slotStand`, `standFor`; `board.stand`, `frame.standBase`, `sign.stand`)
+- A block 10 mm high, as deep as 3 × the piece's thickness + 26 mm (28 to 48), and 55% of the piece's width long (30 to 180).
+- The slot is the thickness + 0.3, 7 mm deep, leaning back 10°, with 2 mm 45° chamfers on the top edges.
+- It is printed on its side as an extrusion of its profile, so nothing overhangs more than 10°. It is laid in front of the piece.
+- **Where:** a plaque; a frame without a photo (`standBase`, kept apart from the photo frame's leg so the old frame's default stays
+  one part); a sign with a backing (the "Board" or "Sign" part, the slot sized to the back's thickness).
+
+**Card (carried over from v0.35):** fonts with capitals only (`capsOnly`) replace the **Name in capitals** switch with a note.
+
+**Tests** (`npm run test:frame`, new)
+- The old frame unchanged (size and volume).
+- A 10 × 15 frame:
+  - three closed parts on the bed;
+  - its outer size, the window open right through, the pocket behind the window's edge, the 45° bevel (2.0 mm in over 2 mm up);
+  - the panel 0.15 mm smaller, the notch, the stand in the window;
+  - no support, and it fits the bed.
+- Every photo size upright and sideways; your own size with no stand and no keyholes.
+- The stand's slot (5.40 mm across at 9 mm up for a 5 mm frame: 5.3 / cos 10°); a plaque and a desk sign with stands, needing no
+  support.
+- `test:project`: a hostile frame and plaque.
+
+**Not done**
+- Signs: wire paths along the back, letters spaced for a raceway, script fonts for neon (from Session 38).
+- Frames: a mat (a second, coloured border inside the window), several photos in one frame, a frame that splits for big photos.
+- Still to check by hand: a printed 10 × 15 frame with a real photo and sheet (the 0.15 mm press fit of the panel, the stand's angle
+  and grip, the keyholes on screws), the slot stand's 0.3 mm fit.
+
 ## Unfinished (in priority order)
 
 - **The next two builds** (the owner, 2026-11-05: "Mechanisms toolkit, model doctor, 3d relief from any photo, sign maker and fix it parts library should be done over the next two builds"; ideas 2, 3, 6, 8 and 10 of Session 36's list). Planned split:
@@ -1783,6 +1843,24 @@ takes an object, a list of values per setting or `auto`, and builds random combi
     extrude or cut; holes (plain, countersunk, for heat inserts, threaded with `threadSolid`); hollow with drain holes, shell and
     thicken; mirror, align, measure (distance, angle, wall thickness). Rounded edges on a mesh are the hard part: chamfers, or an
     honest "rounded, roughly".
+- **After 0.50: 1.0 and 2.0** (the owner, Session 43: "Let's keep manifold for now and use version 2.0 as a full 3d cad software
+  we will find a way to keep it small fast and easy to use"; before that: "Should the version 1.0 be a fully parametric cad addon? The
+  ability to connect to a local agent and get help with modelling").
+  - **0.5x, the agent bridge.** A small, documented command set on the page (add or change a feature, set a size, measure, list
+    parts, run the print check, take a screenshot), every command checked like a loaded project (`sanitizeProject`'s rules) and
+    undoable. A local script (`maker-forge-mcp.js`, an MCP server) relays an agent (Claude Code, Claude Desktop, any MCP client)
+    to the open page over localhost (a WebSocket the page connects to when asked; newer Chrome asks the user before a page reaches
+    the local network). Nothing leaves the machine but what the agent sends.
+  - **1.0, parametric modelling on Manifold** (mesh, not B-rep; still one file): the 0.46 modelling list grown into a feature
+    history edited by numbers; sketches with sizes and simple constraints; holes, patterns, variables used across features
+    ("wall = 2 mm"); the agent working through the same history. No true fillets or STEP: chamfers, or "rounded, roughly".
+  - **2.0, full 3D CAD**: true solids (B-rep: fillets, shells, STEP in and out), kept small, fast and easy to use. How is open:
+    OpenCascade (opencascade.js, LGPL, loaded separately like Manifold) is 10-15 MB and slow to start, so look for a slimmer
+    build or another kernel first. Decide before starting 2.0, not now.
+- **Basics missing** (asked for in Session 43: "improve basic things that are missing"; one or two each release from 0.37):
+  several different objects on one plate (part of 0.45-0.49: modelling needs it); imported models kept by the autosave, the
+  recent list and share links (now the file must be opened again: keep it in IndexedDB); move/rotate/scale handles with typed
+  sizes (0.45); a proper icon set for the rail; a check in Firefox, Safari and on touch screens.
 - **The next builds: expand and fix** (the owner, Session 39: "After 0.32 and all current features I think we need to work on
   expanding and fixing all the other current features and parts of the app, more accurate painting art placement and everything
   else"). Planned order, each a release:

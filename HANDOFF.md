@@ -1887,6 +1887,56 @@ are missing").
 - Still to check by hand: a printed traced part with a bottom chamfer (does it cancel the slicer's own elephant-foot
   compensation, or add to it?), countersinks with real screws, a coloured relief in a slicer.
 
+## Session 45: project boxes, many more parts (v0.39.0)
+
+Asked: "add 100 new components the most common ones first and then the rest of the boards modules arduino add ons with a
+search function too" and "go back and work on project boxes, flesh them out for real, add any missing features add many missing
+components openings and boards". This session also landed v0.35-v0.38 on `main` (see Session 44's end) and planned the
+rest of the box work (Unfinished, "Asked for next").
+
+**Boards and modules** (`BOARDS` with `BOARD_GROUPS`; 69 against 6 before)
+- Each: `g` (its group), `label`, `k` (more search words), `w` × `d` (component side up), and `holes` + `screw` only where
+  the holes are the same on every maker's board (Arduino Uno/Leonardo/Mega/Due, Raspberry Pi 5/4/3, 3 A+, Zero, Pico, the
+  L298N). `check:true` marks sizes that differ between makers; the panel says to measure.
+- **Cradles** (`encCradle`, `ENC_CRADLE`): a board with no holes listed, or with **By its edges** (`boardHold`), sits on a
+  4 mm seat under each corner at the standoff height, inside an L-shaped fence 1.6 mm thick (at most the wall + 0.4), 0.3 mm
+  clear of the board and 1.2 mm over its top. All upright extrusions: no support (measured 0 mm²).
+- **Several boards** (`E.more`, up to 12: `{ kind, x, y, h, rot, hold }`; `encBoardList` gives the main board and these):
+  each has its own standoffs or cradle, fit check and headroom check; two that overlap on the floor are named; the box's
+  "grow to fit" (`boardNeed`) takes the biggest need; the split planner keeps its joins clear of every board (it took only
+  the main board with holes before). `encFreeBoardSpot` puts a new one beside the others.
+- **Add this board's ports** (`BOARD_PORTS`, `encAddBoardPorts`): `[edge, along, opening, up]` per port in the board's own
+  drawing. The board slides 1 mm from the walls its ports face, then each port becomes an opening on that wall: `u` from
+  the wall's own direction (front: x; back: −x; left: −plan y; right: plan y, worked out by probing a built box), `v` the
+  board's top + `up`. Pressing it again adds nothing twice.
+  - Known: a Raspberry Pi slid into a corner sits on the corner screw post (the warning says so); the Pi 5 swaps its
+    network and USB ports compared with the Pi 4 the table follows.
+
+**Openings** (`CUTOUTS`: 152, 76 new) with `k` search words; new kinds `dsub` (the D narrowing 10° each side, two screws),
+`xlr` (a round hole and two screws on the diagonal) and `ledring` (four arcs, so the ring's middle stays joined to the wall).
+Their size fields are on the opening's page. The "every kind on every face" test box grew to 220 × 180 × 140 mm (the Pi 7-inch
+screen is wider than the old one's side).
+
+**Search** (`searchSelField`): a search box over a grouped list; every word typed must be in the entry's label, `k`, group
+name or key. "Add" lists pick the first match while typing and add it on Enter. Used for the board, the extra boards and the
+openings.
+
+**Tests**
+- New `tools-boards-test.js` (in `npm run test:enclosure`): all 69 boards alone in a box (closed, standoffs or a cradle);
+  the cradle measured by ray casts (seat, fence, clear between) and needing no support; By its edges; four boards with the
+  overlaps named, then moved apart with no warnings; a supply too big, with the size it needs; Add this board's ports for an
+  Uno, a Pi, a turned Pi and an ESP32 (every port's middle inside its opening, the board against its walls, no second set);
+  the search (relay, esp8266, gland m20, nothing found); a hostile file (100 extra boards of nonsense, numbers that are
+  words).
+- Fuzz in Chromium: 120 random boxes with boards, holds, modules, new openings, lids, splits and mounts: none bad.
+
+**Not done**
+- The parts are not drawn inside the box yet (0.40), so a port's body, a tall capacitor or a fan's depth is not checked.
+- Holes for most modules: they differ between makers, so cradles are used; a "my module's holes" entry per extra board
+  would let people type them.
+- Still to check by hand: a printed cradle with a real ESP32 DevKit (the 0.3 mm clearance), the Uno's and the Pi's port
+  openings against real boards.
+
 ## Unfinished (in priority order)
 
 - **The next two builds** (the owner, 2026-11-05: "Mechanisms toolkit, model doctor, 3d relief from any photo, sign maker and fix it parts library should be done over the next two builds"; ideas 2, 3, 6, 8 and 10 of Session 36's list). Planned split:

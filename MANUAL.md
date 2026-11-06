@@ -128,7 +128,7 @@ An imported model has its own **Scale (%)** on the Make tab. Changing it is inst
 
 Some objects in brief:
 
-- **Name plate and keychain.** 34 lettering fonts, charms (♥ ★ and any emoji) on either side, a picture beside the name, raised or engraved letters, a top layer in a second colour, and a mirrored back for double-sided tags. **A keychain for every name** on the Export tab makes one per name from a list.
+- **Name plate and keychain.** 34 lettering fonts, charms (♥ ★ and any emoji) on either side, a picture beside the name, raised or engraved letters, a top layer in a second colour, and a mirrored name set flush into the back for double-sided tags (it prints in the first layers in its own filament, so the tag lies flat). **A keychain for every name** on the Export tab makes one per name from a list.
   - **Second line**: a surname (or anything) under the name, smaller. Set its size as a share of the name's, and the gap between the lines. In **A list of names**, write `Emma | Svensson` to give that name a second line.
   - **Credit on the back**: a short line of text on the back, such as your website or shop, for keychains you give away. It is mirrored, so it reads when the tag is turned over. **In a colour, flush** prints it in the first layers in a second filament, face down on the bed; **Engraved** cuts it into the bottom. It shrinks to fit inside the plate's edge and clear of the ring hole; the slider says when it was made smaller. A double-sided tag has its name on the back, so it takes no credit.
 - **Photo to 3D tracer.** Photograph a flat part on plain paper, shot from straight above. Give one real measurement, or let the sheet of paper be the ruler. Round holes become true circles. The outline also downloads as SVG and DXF.
@@ -337,7 +337,10 @@ GLB files are measured in metres; the app turns them into millimetres. A model t
 
 Keys **1** to **8** pick a filament, **[** and **]** make the brush smaller or bigger. **Mirror** paints both sides at once, **Repeat round the middle** copies each stroke 2 to 12 times round the model, and the **smart brush** stops at sharp edges.
 
-**Paint list** shows every step in order; a later step paints over an earlier one. **◉** hides a step for now: it is left out of the model and the print until you press **◌** to show it again, and the Export tab reminds you. **✎** gives a step a name, such as "Eyes" or "Hair"; press Enter to keep it or Escape to leave it as it was. **Layers and colour changes** counts how many times the printer swaps colour, how much filament that flushes away and how long it takes, and can cut the model open at any layer. **Paint detail** decides how finely the model is split: finer follows small shapes better but makes bigger files.
+**Paint list** shows every step in order; a later step paints over an earlier one. **◉** hides a step for now: it is left out of the model and the print until you press **◌** to show it again, and the Export tab reminds you. **✎** gives a step a name, such as "Eyes" or "Hair"; press Enter to keep it or Escape to leave it as it was. **Layers and colour changes** counts how many times the printer swaps colour, how much filament that flushes away and how long it takes, and can cut the model open at any layer. **Paint detail** decides how finely the model is split: finer follows small shapes better but makes bigger files. **Sharp edges** (on unless you turn it off) cuts each brush stroke, eraser stroke and painted picture into the model, so a colour ends exactly where you painted it rather than at the nearest triangle: a round dab prints round and a picture's colour edges run where the picture's do, even with coarse detail. A big model is cut a moment after you stop painting, and always before a download; until then it shows the triangles painted as before.
+
+![The same strokes on coarse triangles: jagged on the left, smooth with Sharp edges on the right](docs/images/paint-sharp.jpg)
+
 
 The paint goes into the 3mf files as slicer paint, so there is nothing to paint again in Bambu Studio, OrcaSlicer or PrusaSlicer.
 

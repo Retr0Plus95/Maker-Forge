@@ -1610,6 +1610,99 @@ Asked from the bench supply's session (repository FOUR-CHANNEL-PSU): add a "spli
 - The bench supply's case (FOUR-CHANNEL-PSU, `case/make-case.js`) could now be one 300 mm box: for that repository's session.
 
 **Still to check by hand**: a printed join (an M3 insert in its 4.0 mm hole with a pointed top, the flanges flat against each other, the lid parts meeting over the join), and the per-plate files in Bambu Studio, OrcaSlicer and PrusaSlicer.
+## Session 41: sharp paint edges (v0.35.0)
+
+Asked for (the owner, after v0.33.0's plan): "Go for it": the first of the "expand and fix" builds, painting and art placement
+accuracy. The website README pictures went in as Website#2 the same day, and FOUR-CHANNEL-PSU turned out to be filled in already,
+with its own README and pictures: its case script was run against this branch and builds with no warnings.
+
+**The problem:** the brush, the eraser, the box and lasso tool, and pictures painted on a model all coloured **whole triangles**. A
+colour's edge was therefore as jagged as the paint detail: on Normal (1.2 mm triangles) a stroke's edge was about 0.2 mm off on
+average and up to half a millimetre, and on Coarse a round dab printed as a cog. The old idea "sub-triangle paint export" (painting
+part of a triangle in the 3mf's paint codes) needs a slicer check of the codes. Instead, the mesh itself is now **cut along every
+painted edge**, which every slicer reads.
+
+**Core** (`src/core.js`)
+- `meshEditor().cutField(fn, box)`: cuts the surface where `fn(x, y, z)` crosses 0, like `cut()` for a plane.
+  - Each crossing is found on its edge by six steps of false position (the field need not be straight).
+  - A crossing within 5% of an end is left uncut, so no sliver is made.
+  - With `box`, only the edges filed near it are looked at. The editor keeps a lazy grid of edge middles (`edgesIn`, cell 3 × the
+    mean edge), and splits add their new edges to it. A stroke across a 488 000-triangle ball is cut in about 150 ms.
+- `strokeField(pts, r)`: the stroke as the set of points within r of the polyline through its points (a single point: a ball).
+  `f` is the distance less r. Its segments are filed in a grid padded by a cell, so answers near the edge are exact.
+- `strokeTris` / `paintStroke`: the triangles whose middles are inside that shape, facing the camera when asked. The smart brush's
+  fold limit still floods from under the stroke. Long jumps between points are probed along the segment, so a fast stroke no longer
+  leaves gaps. This replaces `paintBrush`'s per-point discs in `runPaintOps`; the live stroke and the preview still use `brushTris`.
+- `pictureUV(dir, box)` and `pictureWrapUV(o)`: where a point lands on a projected or wrapped picture (factored out of the painters).
+- `pictureFields(pic)`: the picture's colours as shapes.
+  - For each colour (and −1, "none", which also covers everything off the picture): a signed distance in pixels from the edge of its
+    patches, from two `edt`s on a grid padded by a pixel, read bilinearly between pixel middles.
+  - `which(fu, fv)` gives the colour the point is deepest in.
+  - `paintPicture` and `paintPictureWrap` take it as an optional last argument, to colour by shape rather than by the pixel under the
+    middle (they must, on a mesh cut along those shapes).
+- `areaField(M, poly)`: the box or lasso outline as a shape: the point's distance on the screen from the outline, below 0 inside.
+
+**App** (`applyPaint`, `sharpenPart`, `sharpKey`, `scheduleSharpen`, `flushSharpen`, `picFields`)
+- `state.paint.sharp` (default true; a project saved before it opens with it on; anything but `false` reads as on).
+- The cut mesh is built **on top of** the refined one (the `pc` before: refine and plane cuts) as `pc.sharp`:
+  `{ key, solid, topo, src (to the original model), base: pc, srcBase (to pc's triangles) }`. Its key holds the strokes, boxes and
+  lassos and the pictures' settings only, so other steps (height bands, a fade, a fill) don't recut.
+- `runPaintOps` works on the cut mesh. The slow steps are worked out once on `base` and each piece of a cut triangle takes its
+  triangle's answer (`of(arr, t)`): curvature, colour from a photo (and its helper-thread job) and the model's own colours. The area
+  tool is asked of the cut mesh itself, so pieces inside the outline are taken and those outside not.
+- **When it is cut:**
+  - models under 60 000 triangles (`SHARP_NOW_TRIS`): at once;
+  - bigger ones: 500 ms after painting stops (`scheduleSharpen`, put off while a build or a stroke is under way). Until then the
+    model shows its triangles painted as before;
+  - before a download (`flushSharpen` in `exportZip`).
+- A painted picture is read at 240 pixels across with Sharp edges on (160 before), since its colour edges now follow its pixels.
+- **Paint detail** page: a **Sharp edges** checkbox and a note on what it does.
+
+**Measured** (`npm run test:sharp`, new)
+- **A stroke on a plate at Normal detail:** the paint's edge on average 0.011 mm from the stroke's true edge (0.208 on the triangles
+  alone; worst 0.42 against 0.47: the uncut 5% near corners). The plate stays closed with its volume.
+- **A 12 mm dab on 2.5 mm triangles:** its disc's area within 1%.
+- **A cut in a corner** changes nothing away from it.
+- **A picture (two halves and a disc) on a wall:**
+  - the straight edge between the halves is 0.003 mm off (0.136 before);
+  - the circle is 0.144 mm off (0.328 before). It is drawn in 0.8 mm pixels, so a quarter pixel is the floor;
+  - each colour's area is within 0.4%.
+- **A 7-sided lasso on the plate:** its area within 0.5%, only on the top face, its edge 0.007 mm off (0.435 before).
+- **In the app, on the vase (209 000 triangles):**
+  - a dab is cut in (closed) and its area matches its disc within 6% on the curved side;
+  - the download has the cut model;
+  - the eraser's edge is cut too;
+  - a new stroke waits, then is cut by itself;
+  - off puts the plain triangles back;
+  - an old project opens with it on, and a hostile value reads as on.
+- `tools-paint-test.js`: "the brush preview lights up exactly the triangles the stroke paints" now runs with Sharp edges off (with
+  them on, the stroke is then cut in).
+
+**Bugs found along the way** (a new scratch harness builds an object in real Chromium, with real fonts, from random combinations of
+its settings and checks every part: closed, outward, not NaN, on the bed, no page error; 120 name keychains, then 80 more)
+- **A double-sided tag's back name stood 0.8 mm (up to 4) below the plate** (`extrudePolysAt(backPolys, -backH, 0.3)`), so the plate
+  printed in the air round the letters. Every double-sided case in the harness failed "below the bed". It is now set flush into
+  the bottom like the credit (`bottomPolys`, the plate cut away under it, `Name (back)` from 0 to the depth). `backH` is now the depth,
+  0.2 to 1.2 mm and at most 40% of the plate; the field is **Back letter depth**.
+- **The print check read it as needing no support**: `analyzePrintSteps` took y = 0 as the bed even when a part reached lower, so the
+  plate's underside counted as lying on the bed. It now checks from the lowest point, as a slicer drops the print (`res.sunk`). A plate on
+  a post 0.8 mm below the bed now reads 764 mm². The print survey is unchanged for every other object, so nothing else had parts below
+  the bed.
+- **Slivers of plate between letters set into the back**: with the name flush in the bottom, the survey found a 0.37 mm wall in the
+  first layers (inside a script name's loops; the credit had the same). `fillNarrow` closes the letters' mask by 0.55 × the nozzle, so
+  gaps narrower than about a nozzle print in the letters' colour. The tag now has no thin walls and needs no support.
+- Tests: `test:fit` has the tag flush and cut, needing no support, and the print check on a part below the bed.
+- Checked and already fixed: HANDOFF's Known bugs still said the keychain's picture used a flood fill; it has used the colour cut-out
+  since Session 34.
+
+**Not done**
+- The brush preview still lights up whole triangles (the cut comes after the stroke). A ring the brush's size is drawn as before.
+- Colour from a photo, curvature, the model's own colours and fills still colour whole triangles: their edges come from per-triangle
+  answers, not shapes.
+- Cutting on the helper thread (a 500 000-triangle model takes about a second, after a pause).
+- A picture's colour edges follow its pixels, smoothed; following the picture's own anti-aliased edges would be smoother still.
+- Still to check: a cut model's 3mf in Bambu Studio, OrcaSlicer and PrusaSlicer (it is an ordinary closed mesh with more triangles,
+  so no surprise is expected).
 
 ## Unfinished (in priority order)
 
@@ -1618,15 +1711,33 @@ Asked from the bench supply's session (repository FOUR-CHANNEL-PSU): add a "spli
   - **v0.32.0: models and pictures.** (Done in Session 38, but for the model doctor's split, hollowing and thickening: see Session 38's Not done.) The model doctor (repair with Manifold, thicken, hollow with drain holes, simplify, split for the bed with pins: this takes in Cutting next's split), the 3D relief from any photo (an AI depth model), and the sign maker (channel letters with LED channels, diffusers and mounts).
   - Watch for: the depth model is bigger than jsDelivr's 20 MB per-file limit (Depth Anything V2 Small is about 50 MB in fp16, 27 MB in int8), so it needs splitting into parts, or another host, before it can join `AI_FIGURE`; its licence (Apache-2.0 for Small only) goes in `models/LICENSE.md`; the owner's website hosts its own copy of every file in `AI_FIGURE`, so the new model must keep that `name:{ urls, sha256 }` form.
 
+- **The road to v0.50** (the owner, Session 41: "Should we start adding modelling and more CAD features for imported models / Make it
+  into the big 0.50 release and update the current sections in between"). The plan agreed (reorder if the owner asks):
+  - (Numbers moved up by one when the project box split from the bench supply's session took 0.34.0: sharp paint edges are 0.35.0.)
+  - **0.36-0.45, every section updated, about two a release:** 0.36 name keychain, double-sided tag, business cards; 0.37 signs,
+    plaque, frame; 0.38 tracer, photo relief; 0.39 lithophane, jigsaw; 0.40 cookie cutter, circuit-board art; 0.41 lightbox, plastic
+    canvas; 0.42 bobble head, tea light, turned shapes; 0.43 project box (the PSU box's 600 mm² of support, honeycomb roofs, snap-fit
+    and hinged lids, a snap-on DIN clip); 0.44 phone case; 0.45 mechanisms, fix-it parts. Each: its audit, print-survey warnings, its
+    Known bugs and Not done, and what it lacks against similar tools.
+  - **0.46-0.49, the groundwork for modelling:** 0.46 move, rotate and scale handles in the 3D view with mm entry and snapping, the
+    basic shapes as primitives; 0.47 a modelling list for an imported model (like the paint list: steps replayed on the original,
+    saved, each editable and hideable); 0.48 the painter's leftovers (photo colour and curvature with exact edges, the preview),
+    builds on the helper thread and the import pipeline (units, the doctor's repairs, split for the bed with pins, a keyring hole:
+    Cutting next); 0.49 a shake-down (slicer checks, a browser pass, the bug list).
+  - **0.50, the model workshop** for imported models (mesh modelling with Manifold, not parametric CAD): add, subtract or intersect
+    boxes, cylinders, cones, spheres, text and other models; sketch on a face (lines, arcs, circles, rectangles, with sizes) and
+    extrude or cut; holes (plain, countersunk, for heat inserts, threaded with `threadSolid`); hollow with drain holes, shell and
+    thicken; mirror, align, measure (distance, angle, wall thickness). Rounded edges on a mesh are the hard part: chamfers, or an
+    honest "rounded, roughly".
 - **The next builds: expand and fix** (the owner, Session 39: "After 0.32 and all current features I think we need to work on
   expanding and fixing all the other current features and parts of the app, more accurate painting art placement and everything
   else"). Planned order, each a release:
-  1. **Painting and art placement accuracy.**
+  1. **Painting and art placement accuracy.** (Session 41: sharp paint edges for the brush, eraser, box and lasso, and pictures. Open
+     from this item: a placement aid in mm for pictures on curved faces.)
      - The painter: brush edges follow triangle edges, so a stroke on a coarse model is jagged. Split the triangles under a stroke's
        edge (sub-triangle paint, which needs a slicer check of the export).
      - Pictures on objects: placement by the picture's real size on curved faces (`makeWrapProjector`), snapping to the face's middle,
        numeric placement in mm.
-     - The keychain's "picture beside the name" still uses the flood-fill `cutoutCanvas` (Known bugs): move it to the colour key.
   2. **Every object, one by one** (P7 in this list): each generator's audit, print-survey warnings and its own Known bugs.
      - The PSU box's 600 mm² of support.
      - Honeycomb grilles' 30° roofs.
@@ -1639,7 +1750,7 @@ Asked from the bench supply's session (repository FOUR-CHANNEL-PSU): add a "spli
 - **P6**: done in Session 19: example images for every start. Still open: picking several pictures for use in other sections (the `enabled` flag is the start of this); traceable pictures on keychains (silhouette mode exists via "Print it in its own colours" off).
 - **P7**: all section improvements (Double-Sided Name rename and mirrored back plate, iron-on patch shapes and military badges and premade patches, Christmas ornaments, caricature bobble head, name/letter lightbox and more box styles, photo frame back panel and clear front and relief panel, tea light egg/round shapes and picture positioning and candle ring and wagon-lantern cover and separate walls, plastic canvas fitting, functional PCB with conductive filament and copper-sheet workflow and Gerber import, car badge shapes and two-sided car keychain).
 - **P8**: done in Session 13 (phone cases). Next: button covers, camera guard ring, MagSafe recess, exact positions from the makers' design guidelines (ideas 16 to 23 above).
-- Painter next steps: done in Session 18: box select (7), radial symmetry (8), the smart brush (9), curvature (10), the eyedropper and recolour (14), a wrapped picture (2), a layer preview with colour changes and waste (4, 5). AI-model textures (1) were done in Session 20. A BVH (12) came in Session 22; pauses for one-filament printers (6), named and hidden steps (11) and mirror-safe paint (13) in Session 30. Still open: sub-triangle export (3). Opening painted exports in Bambu Studio, OrcaSlicer and PrusaSlicer is still to be done by hand.
+- Painter next steps: done in Session 18: box select (7), radial symmetry (8), the smart brush (9), curvature (10), the eyedropper and recolour (14), a wrapped picture (2), a layer preview with colour changes and waste (4, 5). AI-model textures (1) were done in Session 20. A BVH (12) came in Session 22; pauses for one-filament printers (6), named and hidden steps (11) and mirror-safe paint (13) in Session 30. Sub-triangle export (3) was done another way in Session 41: the mesh is cut along each stroke (Sharp edges). Opening painted exports in Bambu Studio, OrcaSlicer and PrusaSlicer is still to be done by hand.
 - Asked for in Session 18, still next in line (the manual and the examples were done in Session 19; the AI cut-out, GLB and OBJ colours and the hand-fixed outline in Session 20; a BVH, drawing on change and a first helper thread in Session 22; close-up photos in Sessions 23 and 24; Manifold engraving, inlays and cutting flat in Session 32): moving the builds to the helper thread (see Session 22); sub-triangle paint export if it can be checked against a slicer.
 - **Business cards next** (Session 33): see Session 33's Not done; and a real print to set the defaults (inlay depth, square size, NFC pocket clearance).
 - **Cutting next** (Session 32): split a model in two at a height, with holes for filament pins (the top half laid beside the bottom; pictures and paint crossing the cut split too; the holes placed on the cut face by its distance field); a keyring hole through an imported model; cutting on the helper thread (the worker would need Manifold too: its code turned into a classic script, as a module cannot be loaded there everywhere); a relief carved in.
@@ -1682,7 +1793,7 @@ Asked from the bench supply's session (repository FOUR-CHANNEL-PSU): add a "spli
 - Since Session 12 `traceField(…, closeEdges)` closes a region that reaches the grid's edge along that edge; the tracer and the name plate ask for it. Everything else keeps the old behaviour: open chains closed by straight chords, and a region covering the whole border (a picture's background) traced to no outline, which the picture decals rely on. Since Session 34 the picture decals ask for it too: their background is left out in the cell map instead (`dropCellBackground`), so other colours reach the edge. The tracer still refuses a mask that covers over half the picture's border, as "the background was picked".
 - `fitDimensions` treats a very gently bowed side (bow under about half a photo pixel) as flat, so its "edge to edge" size is the mean of the bow, not the peak.
 - The tracer test photos are hard-edged renders; real camera photos have soft edges, so real-world numbers still need a check against calipers.
-- The keychain's "picture beside the name" still uses the flood-fill `cutoutCanvas`, which can leak into photos with noisy, low-contrast subjects. The tracer's colour key is a candidate replacement.
+- The keychain's "picture beside the name" uses `cutoutCanvas`, which since Session 34 is `cutoutByColour` (the colour cut-out), not a flood fill (checked in Session 41).
 - `jsdom` cannot run JSZip's async zip generation in-realm, so zip contents are verified separately in Node.
 - Printability is a heuristic, not a slicer: the overhang limit is one angle for the whole model, bridges are judged by anchors on two sides (not by bridge direction or cooling), thin walls are found in up to 7 slices per part at a resolution of `max(nozzle/4, extent/1200)` (coarser than nozzle/2.5 on parts over about 130 mm), and support area is the area of the faces, not the support volume. Models over 800k triangles are not checked.
 - The problem-area overlay and the brim preview are hidden while Explode or Layout moves parts away from their print positions.

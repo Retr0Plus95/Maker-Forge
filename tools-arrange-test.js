@@ -71,7 +71,7 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
     let ok = 0, refused = 0;
     for (let n = 0; n < 60; n++) {
       const main = keys[Math.floor(rnd() * keys.length)], more = Array.from({ length: 1 + Math.floor(rnd() * 5) }, () => ({ kind: keys[Math.floor(rnd() * keys.length)], hold: rnd() < 0.3 ? "edges" : "holes" }));
-      fresh({ board: main, more, lid: ["screw", "press", "magnet", "slide"][Math.floor(rnd() * 4)] });
+      fresh({ board: main, more, lid: ["screw", "press", "magnet", "slide", "none"][Math.floor(rnd() * 5)], fasten: rnd() < 0.2 ? "none" : "insert" });
       const r = MF.arrange(false);
       if (!r.ok) { refused++; continue; }
       const q = MF.buildEnclosure(), I = MF.enclosure;

@@ -2133,10 +2133,12 @@ session's call (the owner, Session 30); the app says so when the request is bloc
   apply paint ... I still want to paint the Cristiano Ronaldo from imagine without much extra manual painting"). The plan given:
   (1) the depth model (already loaded for reliefs) to line up each part (an arm in front of the body is a depth step, not an
   outline) and to find the camera angle better; (2) a small human-parsing model (hair, face, skin, upper and lower clothes, shoes),
-  whose regions do not change with the light, so a shaded shirt stays the shirt's colour; candidate SegFormer B2 clothes (its
-  licence is listed as MIT and as WTFPL, and its ATR training data may be research-only: check before adding); (3) **click to
-  colour**: a small Segment Anything (SlimSAM-77, Apache-2.0, int8) on the photo: click the shirt, it is outlined, pick a filament,
-  it goes onto the model. Each model in `AI_FIGURE`'s `name:{ urls, sha256 }` form so the website hosts its own copy.
+  whose regions do not change with the light, so a shaded shirt stays the shirt's colour. **Not SegFormer B2 clothes**: its card
+  says "other" and points at NVIDIA's SegFormer licence (non-commercial), so it cannot ship with an MIT app (checked in Session 49);
+  look at MediaPipe's multiclass selfie segmenter (Apache-2.0; background, hair, body skin, face skin, clothes, other; 256 × 256,
+  a TFLite file to convert to ONNX and host in `models/`); (3) **click to colour**: a small Segment Anything (SlimSAM-77,
+  Apache-2.0; Xenova's int8 `vision_encoder_quantized.onnx` 8.9 MB + `prompt_encoder_mask_decoder_quantized.onnx` 4.9 MB) on the
+  photo: click the shirt, it is outlined, pick a filament, it goes onto the model. Each model in `AI_FIGURE`'s `name:{ urls, sha256 }` form so the website hosts its own copy.
 
 - **The next two builds** (the owner, 2026-11-05: "Mechanisms toolkit, model doctor, 3d relief from any photo, sign maker and fix it parts library should be done over the next two builds"; ideas 2, 3, 6, 8 and 10 of Session 36's list). Planned split:
   - **v0.31.0: parts that fit.** (Done in Session 37, but for pins on their own.) The mechanisms toolkit (threads, gears, hinges, snap-fits, pins, each with a fit-test coupon) and the fix-it parts library built on it (knobs, shelf pins, feet, battery covers, clips, caps from a few caliper measurements). They share the clearances and the fit tests. The keychain's surname line and credit on the back (asked for just before) ride along, being small.

@@ -1,6 +1,6 @@
 {
   "name": "maker-forge",
-  "version": "0.36.0",
+  "version": "0.37.0",
   "private": true,
   "description": "Free, open-source multi-colour (multi-color) 3D print designer that runs in the browser: name keychains, patches, phone cases, lithophanes, jigsaw puzzles, cookie cutters, lightboxes, project boxes and painted models, exported as 3MF for Bambu Studio, OrcaSlicer and PrusaSlicer. This package.json only lists the test dependencies.",
   "keywords": [
@@ -52,7 +52,7 @@
   "scripts": {
     "build": "python3 build.py",
     "fonts": "node tools-fonts.js",
-    "test:tracer": "node tools-tracer-test.js index.html && node tools-tracer-paper-test.js index.html && node tools-tracer-logo-test.js index.html && node tools-tracer-plate-test.js index.html",
+    "test:tracer": "node tools-tracer-test.js index.html && node tools-tracer-paper-test.js index.html && node tools-tracer-logo-test.js index.html && node tools-tracer-plate-test.js index.html && node tools-tracer-edge-test.js index.html",
     "test:smoke": "node tools-smoke-test.js index.html",
     "test:audit": "node tools-audit.js index.html",
     "test:print": "node tools-printability-test.js index.html && node tools-printability-app-test.js index.html",

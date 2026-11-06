@@ -101,6 +101,27 @@ async function appTests() {
   check(/brightness/.test(MF.relief.lines.join(" ")) && C.checkMesh(MF.parts[0].solid).open === 0, "Brightness instead: built from the picture's light and dark");
   Object.assign(R(), { source: "ai", boost: 1, subject: true }); MF.rebuild(false); await settle();
   check(C.checkMesh(MF.parts[0].solid).open === 0 && MF.relief.usingAI, "carved (the jumps tamed) and with the subject given the whole height: still closed");
+  // the photo's colours (Session 43): the face painted with the filaments nearest the photo, the border, sides and back
+  // left in the relief's own; and a stand whose slot takes the bottom edge
+  Object.assign(R(), { colour: "photo", stand: true, border: 3, rim: 0.6, shape: "rect" }); MF.rebuild(false); await settle();
+  { const rp = MF.parts.find(p => p.name === "Relief"), st = MF.parts.find(p => p.name === "Stand"), ip = rp && rp.importPaint;
+    const used = ip ? new Set([...ip].filter(v => v > 0)) : new Set(), sp = rp.solid.pos, si = rp.solid.idx, rb = C.solidBounds(rp.solid);
+    let edgePainted = 0, backPainted = 0;
+    for (let t = 0; t < si.length / 3; t++) {
+      const a = si[3 * t] * 3, b = si[3 * t + 1] * 3, c = si[3 * t + 2] * 3, x = (sp[a] + sp[b] + sp[c]) / 3, y = (sp[a + 1] + sp[b + 1] + sp[c + 1]) / 3, z = (sp[a + 2] + sp[b + 2] + sp[c + 2]) / 3;
+      if (ip[t] && (x < rb.mn[0] + 2 || x > rb.mx[0] - 2 || z < rb.mn[2] + 2 || z > rb.mx[2] - 2)) edgePainted++;
+      if (ip[t] && y < 0.01) backPainted++;
+    }
+    check(used.size >= 2 && MF.relief.colours.length === used.size && !edgePainted && !backPainted && /photo's colours/.test(MF.relief.lines.join(" ")),
+      "in the photo's colours: the face takes the nearest filaments; the border and the back stay in the relief's own", `${used.size} filaments, ${[...ip].filter(v => v > 0).length} of ${ip.length} triangles`);
+    const sb = st && C.solidBounds(st.solid);
+    check(st && C.checkMesh(st.solid).open === 0 && near(sb.mn[1], 0, 1e-3) && near(MF.relief.standFor, 2 + 5 * 0.6, 0.6), "a stand whose slot takes the relief's bottom edge (the border, 2 + 0.6 × 5 mm)", MF.relief.standFor && MF.relief.standFor.toFixed(2) + " mm");
+    MF.state.items[0].skip = MF.state.slots.map((_, i) => i); MF.rebuild(false); await settle();
+    const ip2 = MF.parts.find(p => p.name === "Relief").importPaint;
+    check(ip2 && ip2.every(v => v === 0) && /None of the photo's colours/.test(MF.relief.lines.join(" ")), "every colour turned off on the Art tab: all in the relief's own filament, and it says so");
+    MF.state.items[0].skip = []; }
+  Object.assign(R(), { colour: "one", stand: false }); MF.rebuild(false); await settle();
+  check(!MF.parts[0].importPaint && MF.parts.length === 1, "one colour and no stand: the relief alone, unpainted");
   // saved and opened again, the depth comes back from the project, not from the model
   Object.assign(R(), { source: "ai" });
   const payload = MF.projectPayload(true), parsed = JSON.parse(payload);

@@ -3,6 +3,23 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.37.0
+
+The tracer and the photo relief, updated, and imported models kept in your browser.
+
+- **Edges on a traced part** (step 5, **Shape it for printing**):
+  - a **chamfered** or **rounded** top edge, so the part is nicer to hold;
+  - a **bottom chamfer** (0.3–0.5 mm): the first layer's squish (elephant's foot) no longer makes a part traced to fit too big;
+  - **Countersink the round holes**, so flat screw heads sit flush. A clearance hole for an M2 to M4 screw takes that screw's head.
+- **A photo relief in the photo's colours**: its face is painted with the loaded filaments nearest the photo, and the border, sides and back stay in the relief's own filament.
+- **A stand for a photo relief**, to put it on a desk.
+- **Imported models are kept in this browser**: a model comes back with your saved work and from the recent list, instead of asking for the file again. The last four are kept, up to 300 MB, and never leave your computer. **Clear saved work in this browser** forgets them.
+
+![A traced bracket with a rounded edge and countersunk holes; a photo relief in the photo's colours on its stand](docs/images/tracer-relief.jpg)
+
+**Fixed**
+- Opening your saved work, or a project from the recent list, made with an imported model asked you to open the model's file again. It now comes back by itself (in the same browser).
+
 ## 0.36.0
 
 Signs, plaques and photo frames, updated: a real frame for a photo, and stands.

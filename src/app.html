@@ -434,7 +434,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.36.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.37.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -880,7 +880,7 @@ const DEFAULTS = () => ({
       line2:"", line2Size:0.5, line2Gap:2.5,
       credit:{ on:false, text:"", size:3.5, depth:0.4, inlay:true, slot:1, font:Math.max(0, FONTS.findIndex(f => f.n === "Nunito")) } },
     fit:{ gap:0.25 },
-    relief:{ source:"ai", shape:"rect", width:100, base:2, height:5, subject:true, boost:1, flatten:0.15, contrast:1, smooth:1, invert:false, cell:0.3, border:3, rim:0.6, hole:false, holeDia:4 },
+    relief:{ source:"ai", shape:"rect", width:100, base:2, height:5, subject:true, boost:1, flatten:0.15, contrast:1, smooth:1, invert:false, cell:0.3, border:3, rim:0.6, hole:false, holeDia:4, colour:"one", stand:false },
     sign:{ style:"channel", text:"BAR", font:Math.max(0, FONTS.findIndex(f => f.n === "Anton")), letterH:100, depth:25, wall:1.6, back:2,
       diffuser:1, diffuserSlot:0, wallSlot:0, strip:6, backing:"none", margin:10, mount:"keyhole", holes:true, stand:false },
     mech:{ kind:"gears",
@@ -911,7 +911,8 @@ const DEFAULTS = () => ({
       snap:0.5, holeClear:0.2, mirror:false, workRes:900,
       scaleFrom:"measure", paper:"A4", paperRes:1500, strokes:[], brushMode:"off", brushSize:2, minLine:0, colours:"one", colourH:0.6,
       plateHole:"none", plateHoleDia:4, plateScrew:"M3", plateSink:true,
-      extra:"none", sizeOf:"part", plateShape:"outline", plateMargin:3, plateThick:2, plateRadius:4, plateMode:"raised", inlay:0.6, plateSlot:1, wall:1.6, cap:1.2 },
+      extra:"none", sizeOf:"part", plateShape:"outline", plateMargin:3, plateThick:2, plateRadius:4, plateMode:"raised", inlay:0.6, plateSlot:1, wall:1.6, cap:1.2,
+      edgeTop:"square", edgeSize:1, edgeBottom:0, sink:false },
     lightbox:{ mode:"backlit", width:170, frame:10, frameThick:3, panelThick:0.8, colourH:0.8, lightAware:true,
       layers:4, layerGap:2.4, layerThick:1.2, spread:0.75,
       led:true, ledW:11, ledH:5, stand:true, standDepth:36, standH:20, hang:false, hangDia:5,
@@ -979,7 +980,44 @@ function rememberModel(name, data, paint, colour){
   openedModels.delete(name); openedModels.set(name, { data, paint, colour:colour || null });
   let bytes = 0; for (const m of openedModels.values()) bytes += m.data.byteLength;
   for (const [k, m] of openedModels){ if (bytes <= 150e6 || k === name) break; bytes -= m.data.byteLength; openedModels.delete(k); }
+  keepModel(name, data, paint, colour);
 }
+/* Imported models kept in this browser (Session 43): the autosave, the recent list and share links leave a model out
+   (it can be tens of megabytes), so it is kept in IndexedDB under its name (the file's name and its triangle count),
+   and a project opened without its model takes it from there. The newest four, at most 300 MB; never when "Save my
+   work in this browser" is off; cleared with the saved work. Nothing leaves the browser. */
+const MODEL_DB = { name:"makerforge", store:"models", keep:4, bytes:300e6 };
+function modelDB(){
+  return new Promise((res, rej) => {
+    if (typeof indexedDB === "undefined") return rej(new Error("no IndexedDB"));
+    const rq = indexedDB.open(MODEL_DB.name, 1);
+    rq.onupgradeneeded = () => rq.result.createObjectStore(MODEL_DB.store);
+    rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error || new Error("IndexedDB"));
+  });
+}
+const idbDone = tx => new Promise((res, rej) => { tx.oncomplete = () => res(); tx.onerror = tx.onabort = () => rej(tx.error || new Error("IndexedDB")); });
+async function keepModel(name, data, paint, colour){
+  if (!name || !data || (state.view && state.view.autosave === false)) return;
+  try {
+    const db = await modelDB(), tx = db.transaction(MODEL_DB.store, "readwrite"), st = tx.objectStore(MODEL_DB.store);
+    st.put({ name, data, paint:paint || null, colour:colour || null, at:Date.now(), bytes:data.byteLength }, name);
+    await idbDone(tx);
+    // the oldest go first, past four models or 300 MB
+    const tx2 = db.transaction(MODEL_DB.store, "readwrite"), st2 = tx2.objectStore(MODEL_DB.store), all = [];
+    st2.openCursor().onsuccess = e => { const c = e.target.result; if (c){ all.push({ key:c.key, at:c.value.at || 0, bytes:c.value.bytes || 0 }); c.continue(); }
+      else { all.sort((a, b) => b.at - a.at); let n = 0, total = 0; for (const m of all){ n++; total += m.bytes; if (m.key !== name && (n > MODEL_DB.keep || total > MODEL_DB.bytes)) st2.delete(m.key); } } };
+    await idbDone(tx2); db.close();
+  } catch(e){}
+}
+async function keptModel(name){
+  try {
+    const db = await modelDB(), tx = db.transaction(MODEL_DB.store, "readonly"), rq = tx.objectStore(MODEL_DB.store).get(name);
+    const m = await new Promise((res, rej) => { rq.onsuccess = () => res(rq.result || null); rq.onerror = () => rej(rq.error); });
+    db.close();
+    return m && m.name === name && m.data instanceof Float32Array && m.data.length % 9 === 0 ? m : null;
+  } catch(e){ return null; }
+}
+async function forgetModels(){ try { const db = await modelDB(), tx = db.transaction(MODEL_DB.store, "readwrite"); tx.objectStore(MODEL_DB.store).clear(); await idbDone(tx); db.close(); } catch(e){} }
 let viewOpts = { explode:0, wire:false, layout:false, showPrint:false, rulers:true, measure:false, section:false, cut:50, flip:false };
 
 function newItem(name, canvas, extra){
@@ -2697,6 +2735,61 @@ function freeSpot(E, c){
   return 0;
 }
 
+/* The traced part's edges (Session 43), built as slabs like the photo frame: in the top `eT` mm the outline steps in
+   (45° for a chamfer, a quarter circle for a rounded edge), in the bottom `eB` mm it steps in at 45° (taking off the
+   first layer's squish, the "elephant's foot", so the part fits), and countersunk round holes widen at 45° towards the
+   top to a screw head's size (from SCREWS when the hole is a screw's clearance, else twice the hole). Each slab is
+   the outline's distance field at its own inset, its round holes kept true circles. Returns null when all are off. */
+function tracerEdges(T, mask, w, h, mmPerPx, polys, holes){
+  const th = T.thick, kind = T.edgeTop === "chamfer" || T.edgeTop === "round" ? T.edgeTop : "square";
+  const eT = kind === "square" ? 0 : Math.min(clamp(+T.edgeSize || 1, 0.2, 5), th*0.45);
+  const eB = Math.min(clamp(+T.edgeBottom || 0, 0, 1), th*0.3);
+  const sinks = T.sink ? holes.filter(q => q.round).map(q => {
+    let best = null; for (const [k, sc] of Object.entries(SCREWS)){ const dd = Math.abs(sc.clear - q.made); if (dd <= 0.6 && (!best || dd < best.dd)) best = { k, sc, dd }; }
+    const head = best ? best.sc.head + 0.4 : q.made*2, d = Math.max(0, Math.min((head - q.made)/2, th - eB - 0.6));
+    return { x:q.x, y:q.y, r:q.made/2, d, head:q.made + 2*d, screw:best ? best.k : null };
+  }).filter(q => q.d > 0.05) : [];
+  if (!eT && !eB && !sinks.length) return null;
+  const pxPerMm = 1/mmPerPx, offPx = (+T.offset || 0)*pxPerMm, sdf = (eT || eB) ? C.signedDistanceField(mask, w, h) : null;
+  const opt = { mmPerPx, iso:0, eps:mmPerPx*0.3, minSeg:mmPerPx*0.4, closeEdges:true };
+  const round = holes.filter(q => q.round);
+  const ringAt = (x, y, r) => C.ringCircle(r, Math.max(32, Math.round(r*12)), true).map(q => [q[0] + x, q[1] + y]);
+  // the outline at an inset (mm) and height z: round holes as circles, grown by the inset or the countersink
+  const at = (inset, z) => {
+    let P;
+    if (inset <= 1e-6) P = polys.map(p => ({ outer:p.outer.slice(), holes:p.holes.slice() }));
+    else {
+      // the field counts from pixel centres: a level t lies t/2 px inside the outline below 1 px, t - 0.4 px beyond
+      const d = inset*pxPerMm, ip = d <= 0.45 ? d/0.45 : d + 0.4, F = new Float32Array(sdf.length);
+      for (let i=0;i<F.length;i++) F[i] = sdf[i] + offPx - ip;
+      P = C.fieldToPolys(F, w, h, opt);
+    }
+    P.forEach(p => { p.holes = p.holes.map(hl => {
+      let cx = 0, cy = 0; hl.forEach(q => { cx += q[0]; cy += q[1]; }); cx /= hl.length; cy /= hl.length;
+      const q = round.find(o => Math.hypot(o.x - cx, o.y - cy) < o.made/2 + inset + 0.5); if (!q) return hl;
+      const sk = sinks.find(o => o.x === q.x && o.y === q.y), grow = Math.max(inset, sk ? clamp(z - (th - sk.d), 0, sk.d) : 0);
+      return ringAt(q.x, q.y, q.made/2 + grow);
+    }); });
+    return P;
+  };
+  const insetAt = z => {
+    let v = 0;
+    if (z < eB) v = eB - z;
+    const dz = z - (th - eT);
+    if (eT && dz > 0) v = Math.max(v, kind === "chamfer" ? dz : eT - Math.sqrt(Math.max(0, eT*eT - dz*dz)));
+    return v;
+  };
+  const zTop = th - Math.max(eT, ...sinks.map(q => q.d), 0), layers = [], slabs = (z0, z1, step) => {
+    let z = z0;
+    while (z < z1 - 1e-6){ const zb = Math.min(z1, z + step), zm = (z + zb)/2, P = at(insetAt(zm), zm); if (P.length) layers.push(C.extrudePolysAt(P, z > 0 ? z - 0.01 : 0, zb)); z = zb; }
+  };
+  slabs(0, eB, 0.1);
+  if (zTop > eB) layers.push(C.extrudePolysAt(polys, eB > 0 ? eB - 0.01 : 0, zTop));
+  slabs(Math.max(eB, zTop), th, 0.2);
+  const solid = C.mergeSolids(layers);
+  return solid ? { solid, info:{ top:kind, eT, eB, sinks:sinks.map(q => ({ dia:+(2*q.r).toFixed(2), head:+q.head.toFixed(2), depth:+q.d.toFixed(2), screw:q.screw })) } } : null;
+}
+
 /* Tracer extras: a back plate under the traced shape (raised, flush inlay or engraved), or a hollow
    cover (closed face on the bed, walls following the outline). Plates are built as distance fields
    on the tracer's own pixel grid, padded so a margin can grow past the picture's edge. */
@@ -3085,7 +3178,10 @@ async function buildTracer(){
       return hl;
     });
   });
-  const solid = polys.length ? C.extrudePolys(polys, T.thick) : null;
+  let solid = polys.length ? C.extrudePolys(polys, T.thick) : null, edges = null;
+  // a chamfered or rounded top edge, a chamfer at the bottom against the first layer's squish, countersunk holes
+  // (Session 43): for the shape on its own in one colour
+  if (solid && (!T.extra || T.extra === "none") && T.colours !== "keep"){ edges = tracerEdges(T, mask, w, h, mmPerPx, polys, holeReport); if (edges) solid = edges.solid; }
   if (!solid){
     // say why instead of showing an empty bed: usually the background was picked as the part
     let edgeOn = 0, edgeN = 0;
@@ -3131,7 +3227,7 @@ async function buildTracer(){
     }
   }
   tracerInfo = { w, h, img:shown, transparent:!!alpha, leftOut, finished:extra.size, rough, mask, polys, mmPerPx, thrUsed, polarity, outerW, outerH, dims, holes:holeReport, src:src0,
-    thickened: thickened*mmPerPx*mmPerPx, colours: colourCount, plateHoles,
+    thickened: thickened*mmPerPx*mmPerPx, colours: colourCount, plateHoles, edges: edges && edges.info,
     paper: paperMmPerPx ? T.paper : null, quad: paperQuad };
   return extra.parts;
 }
@@ -4920,11 +5016,44 @@ function buildRelief(){
   const solid = C.heightSheet({ gx, gy, u0, v0, c, cv:c, thick, sdf, map:(u, v, w) => [u, w, -v], back:"flat" });
   if (!solid){ say("The relief came out empty: make it bigger."); return []; }
   info.W = W; info.H = H; info.c = c; info.hole = hole;
+  const slot = clamp(state.base.slot, 0, state.slots.length-1);
+  // the photo's own colours (Session 43): each triangle of the face takes the filament nearest the photo under it; the
+  // border, the sides and the back stay in the relief's own filament. Painted like a model with its own colours
+  let importPaint = null;
+  if (R.colour === "photo"){
+    const cw = Math.max(2, Math.min(800, Math.round(W/c))), ch = Math.max(2, Math.round(cw*H/W)), img = resample(src, cw, ch, d.mirror);
+    const cm = C.buildCellMap(img, state.slots.map(sl => C.hexToRgb(sl.hex)), state.slots.map((_, i) => (d.skip || []).includes(i)), 1);
+    const P = solid.pos, I = solid.idx, nT = I.length/3, used = new Map(); importPaint = new Uint8Array(nT);
+    for (let t=0;t<nT;t++){
+      const a = I[3*t]*3, q = I[3*t+1]*3, r = I[3*t+2]*3;
+      const ux = P[q]-P[a], uy = P[q+1]-P[a+1], uz = P[q+2]-P[a+2], vx = P[r]-P[a], vy = P[r+1]-P[a+1], vz = P[r+2]-P[a+2];
+      const nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx;
+      if (ny <= 0.02*Math.hypot(nx, ny, nz)) continue;                  // the back and the outline's walls
+      const u = (P[a] + P[q] + P[r])/3, v = -(P[a+2] + P[q+2] + P[r+2])/3;
+      const gi = clamp(Math.round((u - u0)/c), 0, gx-1), gj = clamp(Math.round((v - v0)/c), 0, gy-1);
+      if (inside[gj*gx + gi] < (b > 0 ? b : 0)) continue;              // the border
+      const px = clamp(Math.floor((u + W/2)/W*cw), 0, cw-1), py = clamp(Math.floor((H/2 - v)/H*ch), 0, ch-1), k = cm.idx[py*cw + px];
+      if (k >= 0){ importPaint[t] = k + 1; used.set(k, (used.get(k) || 0) + 1); }
+    }
+    info.colours = [...used.keys()].sort((x, y) => x - y);
+  }
+  const parts = [{ name:"Relief", slot, solid, importPaint }];
+  // a stand (Session 43): its slot as wide as the relief is thick along its bottom edge
+  if (R.stand){
+    let vmin = Infinity; for (let j=0;j<gy;j++) for (let i=0;i<gx;i++) if (inside[j*gx+i] > 0){ vmin = Math.min(vmin, v0 + j*c); break; }
+    let edgeT = base; for (let j=0;j<gy;j++){ const v = v0 + j*c; if (v > vmin + 3) break; for (let i=0;i<gx;i++) if (inside[j*gx+i] > 0) edgeT = Math.max(edgeT, thick[j*gx+i]); }
+    parts.push(...standFor(solid, edgeT, slot)); info.standFor = edgeT;
+  }
   if (R.source === "ai" && !depth) say("Showing the relief from brightness: press the button above to work out the real depth with AI.");
   else if (depth) say("Rising with the AI's depth: nearer parts stand higher. Raise Keep the background flat to leave the far background as a plain base.");
   else say("Rising with brightness: light parts stand higher (Invert for dark).");
   say(`${W.toFixed(0)} × ${H.toFixed(0)} mm, ${base} mm base and up to ${rise} mm of relief. It prints face up, with no supports; fine layers (0.12 mm) show the detail best.`);
-  return [{ name:"Relief", slot:clamp(state.base.slot, 0, state.slots.length-1), solid }];
+  if (info.colours){
+    if (info.colours.length) say(`In the photo's colours: ${info.colours.map(k => state.slots[k].name).join(", ")}. Change the filaments on the Art tab to change them; the border, sides and back are in the relief's own filament.`);
+    else say("None of the photo's colours is left to print: every one is turned off on the Art tab.");
+  }
+  if (info.standFor) say(`The stand's slot takes the relief's bottom edge, ${info.standFor.toFixed(1)} mm thick.`);
+  return parts;
 }
 function reliefFields(p){
   const R = state.base.relief, d = state.items[state.active] || state.items[0];
@@ -4939,6 +5068,8 @@ function reliefFields(p){
   }
   numField(p,{ label:"Width (mm)", min:20,max:300,step:1, get:()=>R.width, set:v=>R.width=v, onChange:baseChanged });
   segField(p, [["rect","Rectangle"],["round","Round"],["arch","Arch"],["heart","Heart"]], ()=>R.shape, v=>{ R.shape = v; baseChanged(); }, "four");
+  segField(p, [["one","One colour"],["photo","The photo's colours"]], ()=>R.colour || "one", v=>{ R.colour = v; baseChanged(); }, "two");
+  checkField(p, "A stand to put it on a desk", ()=>R.stand === true, v=>{ R.stand = v; baseChanged(); });
   numField(p,{ label:"Relief height (mm)", min:0.3,max:40,step:0.1, get:()=>R.height, set:v=>R.height=v, onChange:baseChanged, sub:()=>"How far the nearest part stands above the base." });
   numField(p,{ label:"Base (mm)", min:0.6,max:20,step:0.1, get:()=>R.base, set:v=>R.base=v, onChange:baseChanged });
   group(p, "Shaping", g2 => {
@@ -9724,7 +9855,7 @@ function sphereFields(p){
 }
 function stlFields(p){
   const missing = missingModel();
-  if (missing) note(p, `This project was made with <b>${esc(missing)}</b>, which is not saved with it (the autosave, the recent list and share links leave models out; a saved project file keeps it). Open that file again and its paint and settings come back.`);
+  if (missing) note(p, `This project was made with <b>${esc(missing)}</b>, which is not saved with it and not kept in this browser (the autosave, the recent list and share links leave models out; a saved project file keeps it). Open that file again and its paint and settings come back.`);
   buttonRow(p, [[stlData?"Open a different model":missing?"Open "+missing+" again":"Choose a model file", ()=>$("#stlInput").click()]]);
   note(p, stlData ? esc(state.base.stl.name) + (stlColour ? " · with its own colours" : "") : "STL, OBJ, 3MF, GLB or glTF. Models from AI model makers keep their colours (GLB, or an OBJ chosen together with its MTL file and pictures). 3mf files from Bambu Studio or PrusaSlicer keep their painting.");
   if (stlData) note(p, "Colour it on the <b>Paint</b> tab: by height, by face, from a picture, or with a brush.");
@@ -10163,6 +10294,17 @@ function tracerFields(p){
         sub:()=>"Printed holes come out slightly small. 0.2 mm lets an M5 bolt through a 5 mm hole." });
       numField(c,{ label:"How round counts as round", min:0.6,max:0.98,step:0.01, get:()=>T.circularity, set:v=>T.circularity=v, onChange:baseChanged });
     }
+    if ((!T.extra || T.extra === "none") && T.colours !== "keep"){
+      segField(c, [["square","Square top edge"],["chamfer","Chamfered"],["round","Rounded"]], ()=>T.edgeTop || "square", v=>{ T.edgeTop = v; renderTab(); baseChanged(); });
+      if (T.edgeTop === "chamfer" || T.edgeTop === "round") numField(c,{ label:"Edge size (mm)", min:0.2,max:5,step:0.1, get:()=>T.edgeSize ?? 1, set:v=>T.edgeSize=v, onChange:baseChanged,
+        sub:()=>{ const e = tracerInfo && tracerInfo.edges; return e && e.eT < (T.edgeSize ?? 1) - 0.01 ? `Kept to ${e.eT.toFixed(1)} mm: under half the part's thickness.` : "Softens the top edge so the part is nicer to hold. Prints with no support."; } });
+      numField(c,{ label:"Bottom chamfer (mm)", min:0,max:1,step:0.05, get:()=>T.edgeBottom || 0, set:v=>T.edgeBottom=v, onChange:baseChanged,
+        sub:()=>(T.edgeBottom || 0) > 0 ? "The bottom edge steps in at 45°: the first layer's squish (elephant's foot) no longer makes the part too big to fit." : "0 is off. 0.3–0.5 mm stops the first layer's squish making a fitted part too big." });
+      if (T.roundHoles) checkField(c, "Countersink the round holes (screw heads sit flush)", ()=>T.sink === true, v=>{ T.sink = v; renderTab(); baseChanged(); });
+      const sk = tracerInfo && tracerInfo.edges && tracerInfo.edges.sinks;
+      if (T.sink && T.roundHoles) note(c, sk && sk.length ? sk.map(q => `${q.screw ? q.screw + " " : ""}hole ${q.dia} mm: countersunk to ${q.head} mm, ${q.depth} mm deep`).join("; ") + ". Countersinks open at the top: print the part this way up."
+        : "No round hole to countersink, or the part is too thin for one.");
+    } else note(c, T.colours === "keep" ? "Chamfered edges and countersinks are for a part in one colour." : "Chamfered edges and countersinks are for the shape on its own (no back plate or cover).");
     checkField(c, "Mirror (if you photographed the back of the part)", ()=>T.mirror, v=>{ T.mirror = v; baseChanged(); });
   });
   tracerExtraStep(step, T);
@@ -11895,7 +12037,7 @@ $("#settingsBtn").onclick = ()=>openModal("Settings", b => {
   checkField(b, "Save my work in this browser automatically", ()=>state.view.autosave !== false, v=>{ state.view.autosave = v; });
   numField(b, { label:"Maximum preview detail (cells)", min:200, max:900, step:50, get:()=>state.view.maxCells||700,
     set:v=>state.view.maxCells=v, onChange:()=>{ dirty(); }, sub:()=>"Lower it if the app feels slow on this computer." });
-  buttonRow(b, [["Clear saved work in this browser", ()=>{ try { localStorage.removeItem("makerforge.project"); localStorage.removeItem("makerforge.recent"); notify("Saved work cleared."); } catch(e){} }]]);
+  buttonRow(b, [["Clear saved work in this browser", ()=>{ try { localStorage.removeItem("makerforge.project"); localStorage.removeItem("makerforge.recent"); forgetModels(); notify("Saved work cleared."); } catch(e){} }]]);
 });
 // the user manual: the whole of MANUAL.md, with its contents list jumping within the window
 $("#helpBtn").onclick = ()=>openModal("User manual", b => {
@@ -12172,7 +12314,7 @@ const LIMITS_AT = { "sym.size":[0.4,3], "pic.size":[0.4,3], "outline.width":[0.2
   "clip.cable":[1,40], "clip.count":[1,8], "clip.width":[4,40], "clip.screw":[1.5,8], "spacer.od":[3,120], "spacer.id":[0,110], "spacer.h":[0.4,100], "fit.gap":[0,1],
   "sign.letterH":[15,400], "sign.depth":[2,80], "sign.wall":[0.8,6], "sign.back":[0.8,10], "sign.diffuser":[0.6,3], "sign.strip":[3,20], "sign.margin":[2,60],
   "relief.width":[20,300], "relief.base":[0.6,20], "relief.height":[0.3,40], "relief.flatten":[0,0.9], "relief.contrast":[0.3,3], "relief.smooth":[0,6], "relief.cell":[0.15,1.5],
-  "relief.border":[0,20], "relief.rim":[0,1.5], "relief.holeDia":[2,12], "relief.boost":[0,2] };
+  "tracer.edgeSize":[0.2,5], "tracer.edgeBottom":[0,1], "relief.border":[0,20], "relief.rim":[0,1.5], "relief.holeDia":[2,12], "relief.boost":[0,2] };
 // a print orientation must be a real rotation: nine numbers, orthonormal, no mirror
 function cleanRotation(m){
   if (!Array.isArray(m) || m.length !== 9 || !m.every(v => typeof v === "number" && isFinite(v))) return null;
@@ -12414,6 +12556,7 @@ function sanitizeProject(data){
     T.plateShape = one(T.plateShape, ["outline","circle","rect"]); T.plateMode = one(T.plateMode, ["raised","flush","engraved"]);
     T.colours = one(T.colours, ["one","keep"]); T.scaleFrom = one(T.scaleFrom, ["measure","paper","file"]);
     T.plateHole = one(T.plateHole, ["none","hang","loop","screws2","screws4"]); T.plateScrew = encHas(SCREWS, T.plateScrew) ? T.plateScrew : "M3"; T.plateSink = T.plateSink !== false;
+    T.edgeTop = one(T.edgeTop, ["square","chamfer","round"]); T.sink = T.sink === true;
   }
   if (st.base && "stl" in st.base){                 // the imported model's name and scale (the model itself is data.model)
     const L = st.base.stl && typeof st.base.stl === "object" ? st.base.stl : {};
@@ -12471,6 +12614,7 @@ function sanitizeProject(data){
     if (st.base.relief && typeof st.base.relief === "object" && !Array.isArray(st.base.relief)){
       const rl = st.base.relief = Object.assign(DEFAULTS().base.relief, st.base.relief);
       rl.source = pick(rl.source, ["ai","light"], "ai"); rl.shape = pick(rl.shape, ["rect","round","arch","heart"], "rect"); rl.invert = rl.invert === true; rl.hole = rl.hole === true; rl.subject = rl.subject !== false;
+      rl.colour = pick(rl.colour, ["one","photo"], "one"); rl.stand = rl.stand === true;
       for (const [f, dv] of Object.entries(D0.relief)) if (typeof dv === "number") rl[f] = isFinite(+rl[f]) ? +rl[f] : dv;
       for (const f of Object.keys(rl)) if (!(f in D0.relief)) delete rl[f];
     } else if ("relief" in st.base) delete st.base.relief;
@@ -12581,6 +12725,17 @@ async function loadProject(data){
   Object.keys(assets).forEach(k=>delete assets[k]);
   for (const [id,url] of Object.entries(data.assets||{})){
     try { assets[id] = { dataURL:url, canvas:await dataURLToCanvas(url) }; } catch(e){}
+  }
+  // opened without its model (the autosave, the recent list, a share link): the copy kept in this browser, if any.
+  // Its pictures (a GLB's colours) come with the project; without them (a share link) it keeps its plain colours
+  if (!stlData && state.base.type === "stl" && state.base.stl && state.base.stl.name){
+    const m = openedModels.get(state.base.stl.name) || await keptModel(state.base.stl.name);
+    if (m){
+      let col = m.colour || null;
+      if (col && col.tex && col.tex.some(id => id && !assets[id])) col = col.cc ? { cc:col.cc, uv:null, texOf:null, tex:[] } : null;
+      stlData = m.data; stlPaint = m.paint || null; stlColour = col; stlName = state.base.stl.name;
+      openedModels.delete(stlName); openedModels.set(stlName, { data:m.data, paint:stlPaint, colour:stlColour });
+    }
   }
   uid = Math.max(1, ...state.items.map(i=>i.id||0)) + 1;
   state.items.forEach(it=>{

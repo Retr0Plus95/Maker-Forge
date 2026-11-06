@@ -3,6 +3,21 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.39.0
+
+Project boxes: many more parts, and boards held the way they need.
+
+- **Over 60 boards and modules** in **Board mounts**: Arduino, Raspberry Pi, ESP32 and ESP8266 boards, Teensy, STM32, Feather, micro:bit; converters, chargers and Mean Well supplies; relays and motor drivers; sensors, readers, radios and amplifiers; battery holders.
+  - A board with holes sits on standoffs. One without holes sits in a **cradle**: a seat under each corner and a low fence round it, so it drops in. **By its edges** uses a cradle for any board.
+- **Several boards in one box**: **Add another board or module** (up to 12), each with its own place, height and mounts. Two that overlap are named.
+- **Add this board's ports**: the board slides against the walls its ports face, and an opening goes in for each port at the right height (Arduino, Raspberry Pi, ESP32 and ESP8266 boards, XIAO, Teensy and others).
+- **76 more openings** (about 150 in all): USB-B, micro- and mini-HDMI, keystone jacks, D-sub and XLR with their screws, antenna and aviation connectors, fuse holders; more buttons, slide-pot slots, a footswitch; LED rings, sticks and strips; e-paper and more TFT screens, the Pi 7-inch touch screen; gas, distance and light sensors; speakers from 40 to 77 mm; cable glands.
+- **A search box** over both lists: type "esp8266", "neopixel" or "gland m20"; Enter adds the first match.
+
+![A box with an Arduino Uno and its ports, a relay and a buck converter in cradles, and an L298N on standoffs](docs/images/boards.jpg)
+
+**Fixed**
+- No bug fixes in this release: 120 random boxes with the new boards, modules and openings, built in a real browser, came out clean.
 ## 0.38.0
 
 The tracer and the photo relief, updated, and imported models kept in your browser.

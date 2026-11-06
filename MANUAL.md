@@ -147,15 +147,27 @@ Some objects in brief:
 - **Lithophane.** Flat, curved or a cylinder, with a rectangle, arch, oval or heart outline. The **test strip** prints steps from 0.6 to 3.2 mm, so you can choose thicknesses for your filament.
 - **Jigsaw puzzle.** Choose the number of pieces, the style of the knobs and the gap. **Shuffle** draws a new cut. A frame or a tray can print with it. A strip of a picture's colour thinner than the nozzle takes the colour beside it, so it doesn't print as a sliver.
 - **Project box.** Openings for USB, buttons, switches, fans, displays and pilot lights, each with an optional engraved label. Screwed, magnet or sliding lids. **Fit test** prints a small box with one of each opening, to try before the real thing.
-  - **Add an opening** lists about 75 parts in groups: ports and power, buttons and switches, lights, screens and meters, sensors and cameras, sound, fans and vents, and mounting and your own sizes. Among them:
+  - **Add an opening** lists about 150 parts in groups: ports and power, buttons and switches, lights, screens and meters, sensors and cameras, sound, fans and vents, and mounting and your own sizes. **Type in the search box above it** to find one: every word you type must match its name, its group or a word it's known by ("esp8266", "neopixel", "gland m20"). Enter adds the first match. Among them:
     - an ESP32-CAM or XIAO ESP32-S3 Sense camera lens, and a Raspberry Pi camera with its four screws;
     - motion sensors: the HC-SR501 dome with its two screws, and the small AM312 / HC-SR505;
     - the HC-SR04 distance sensor's two eyes;
     - a USB-C charging board's port (TP4056 and IP5306 type), a DC jack on a board, XT60, a 3.5 mm audio jack and an SMA antenna socket;
     - slide switches, rotary encoders, key switches, a thumb joystick, big arcade buttons and M12 toggles;
     - small OLEDs, TFT screens, an 8×8 LED matrix, 4-digit displays and a volt and amp meter;
-    - light, IR, temperature and microphone holes, and a speaker or buzzer grille of small round holes.
+    - light, IR, temperature and microphone holes, and a speaker or buzzer grille of small round holes;
+    - (new in 0.39) USB-B, mini-USB, micro- and mini-HDMI, stacked USB-A, full-size SD, keystone jacks, RJ11, D-sub 9, 15 and 25 and XLR with their screws, 6.35 mm jacks, RCA, BNC, F and N antenna sockets, GX12/GX16 and M8/M12 connectors, fuse holders and an IEC inlet with fuse and switch;
+    - 19 and 25 mm buttons, a 24 mm arcade button, key and rotary switches, a guitar-pedal footswitch, slide-potentiometer slots, a trimmer screwdriver hole and a reset pinhole;
+    - WS2812 LED rings (12, 16 and 24 LEDs, a window in four arcs so the middle stays joined), an LED stick, an LED strip window, light pipes and an 8×32 LED matrix;
+    - e-paper (1.54 to 4.2-inch), small ST7789 and ILI9341 TFTs, a round GC9A01, a 3.5-inch TFT, a 128×64 LCD, a 5-inch HDMI screen and the Raspberry Pi 7-inch touch screen;
+    - gas, waterproof distance, laser distance, light and gesture sensors, a MEMS microphone hole and a sensor vent; speakers from 40 to 77 mm and a piezo disc;
+    - PG and metric cable glands, a grommet and zip-tie slots.
   - Sizes are for typical parts, and the clearance on the Print and colours page is added on top. Modules differ between makers, so measure yours with calipers; the screens marked "check yours" vary most. A microwave radar sensor (RCWL-0516) needs no hole: it sees through plastic.
+  - **Board mounts** holds the electronics (new in 0.39: over 60 boards and modules, with a search like the openings):
+    - Arduino (Uno, Leonardo, Mega, Due, Nano, Micro, Pro Mini, MKR), Raspberry Pi (5/4/3, 3 A+, Zero, Pico), ESP32 and ESP8266 boards (DevKits, S3, C3 SuperMini, ESP32-CAM, XIAO, NodeMCU, D1 mini, T-Display), Teensy, STM32 pills, Feather, ItsyBitsy and micro:bit;
+    - modules: buck and boost converters, TP4056 and power-bank boards, battery protection boards, Mean Well LRS power supplies, relay modules (1 to 8 channels), L298N, TB6612, stepper drivers, MOSFET and servo drivers, HX711, RTC, SD card, RFID and NFC readers, GPS, MP3 player, amplifiers, sensors, radios; and battery holders (18650, AA, 9 V, a LiPo pouch).
+    - A board with holes sits on **standoffs** under them. One without holes (most small modules, and boards whose holes differ between makers) sits in a **cradle**: a seat under each corner and a low L-shaped fence round it, 0.3 mm clear, so it drops in. **By its edges** uses a cradle for a board with holes too. Those marked "check yours" vary between makers: measure yours, and use **My own board** if it differs.
+    - **Add another board or module** puts more in the same box (up to 12), each with its own position, height and standoffs or cradle. Two that take the same place are named.
+    - **Add this board's ports** (Arduino Uno, Leonardo, Mega, Raspberry Pi 5/4/3, 3 A+, Zero, Pico, Nano, ESP32 and ESP8266 boards, XIAO, Teensy, STM32, Feather, TP4056) slides the board against the walls its ports face and adds an opening for each port, at the height the board puts it. Check them against your board: makers move ports about.
   - **Mounting** hangs the box up:
     - **Screw ears:** two or four tabs at floor level, each with a screw hole and a 45° fin each side.
     - **DIN rail:** a clip for 35 mm rail, as in a fuse box. It prints flat beside the box; screw it under the floor from inside with two M3 × 8 mm screws, and slide it onto the rail from one end.

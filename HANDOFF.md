@@ -1887,6 +1887,56 @@ are missing").
 - Still to check by hand: a printed traced part with a bottom chamfer (does it cancel the slicer's own elephant-foot
   compensation, or add to it?), countersinks with real screws, a coloured relief in a slicer.
 
+## Session 45: project boxes, many more parts (v0.39.0)
+
+Asked: "add 100 new components the most common ones first and then the rest of the boards modules arduino add ons with a
+search function too" and "go back and work on project boxes, flesh them out for real, add any missing features add many missing
+components openings and boards". This session also landed v0.35-v0.38 on `main` (see Session 44's end) and planned the
+rest of the box work (Unfinished, "Asked for next").
+
+**Boards and modules** (`BOARDS` with `BOARD_GROUPS`; 69 against 6 before)
+- Each: `g` (its group), `label`, `k` (more search words), `w` × `d` (component side up), and `holes` + `screw` only where
+  the holes are the same on every maker's board (Arduino Uno/Leonardo/Mega/Due, Raspberry Pi 5/4/3, 3 A+, Zero, Pico, the
+  L298N). `check:true` marks sizes that differ between makers; the panel says to measure.
+- **Cradles** (`encCradle`, `ENC_CRADLE`): a board with no holes listed, or with **By its edges** (`boardHold`), sits on a
+  4 mm seat under each corner at the standoff height, inside an L-shaped fence 1.6 mm thick (at most the wall + 0.4), 0.3 mm
+  clear of the board and 1.2 mm over its top. All upright extrusions: no support (measured 0 mm²).
+- **Several boards** (`E.more`, up to 12: `{ kind, x, y, h, rot, hold }`; `encBoardList` gives the main board and these):
+  each has its own standoffs or cradle, fit check and headroom check; two that overlap on the floor are named; the box's
+  "grow to fit" (`boardNeed`) takes the biggest need; the split planner keeps its joins clear of every board (it took only
+  the main board with holes before). `encFreeBoardSpot` puts a new one beside the others.
+- **Add this board's ports** (`BOARD_PORTS`, `encAddBoardPorts`): `[edge, along, opening, up]` per port in the board's own
+  drawing. The board slides 1 mm from the walls its ports face, then each port becomes an opening on that wall: `u` from
+  the wall's own direction (front: x; back: −x; left: −plan y; right: plan y, worked out by probing a built box), `v` the
+  board's top + `up`. Pressing it again adds nothing twice.
+  - Known: a Raspberry Pi slid into a corner sits on the corner screw post (the warning says so); the Pi 5 swaps its
+    network and USB ports compared with the Pi 4 the table follows.
+
+**Openings** (`CUTOUTS`: 152, 76 new) with `k` search words; new kinds `dsub` (the D narrowing 10° each side, two screws),
+`xlr` (a round hole and two screws on the diagonal) and `ledring` (four arcs, so the ring's middle stays joined to the wall).
+Their size fields are on the opening's page. The "every kind on every face" test box grew to 220 × 180 × 140 mm (the Pi 7-inch
+screen is wider than the old one's side).
+
+**Search** (`searchSelField`): a search box over a grouped list; every word typed must be in the entry's label, `k`, group
+name or key. "Add" lists pick the first match while typing and add it on Enter. Used for the board, the extra boards and the
+openings.
+
+**Tests**
+- New `tools-boards-test.js` (in `npm run test:enclosure`): all 69 boards alone in a box (closed, standoffs or a cradle);
+  the cradle measured by ray casts (seat, fence, clear between) and needing no support; By its edges; four boards with the
+  overlaps named, then moved apart with no warnings; a supply too big, with the size it needs; Add this board's ports for an
+  Uno, a Pi, a turned Pi and an ESP32 (every port's middle inside its opening, the board against its walls, no second set);
+  the search (relay, esp8266, gland m20, nothing found); a hostile file (100 extra boards of nonsense, numbers that are
+  words).
+- Fuzz in Chromium: 120 random boxes with boards, holds, modules, new openings, lids, splits and mounts: none bad.
+
+**Not done**
+- The parts are not drawn inside the box yet (0.40), so a port's body, a tall capacitor or a fan's depth is not checked.
+- Holes for most modules: they differ between makers, so cradles are used; a "my module's holes" entry per extra board
+  would let people type them.
+- Still to check by hand: a printed cradle with a real ESP32 DevKit (the 0.3 mm clearance), the Uno's and the Pi's port
+  openings against real boards.
+
 ## Unfinished (in priority order)
 
 - **The next two builds** (the owner, 2026-11-05: "Mechanisms toolkit, model doctor, 3d relief from any photo, sign maker and fix it parts library should be done over the next two builds"; ideas 2, 3, 6, 8 and 10 of Session 36's list). Planned split:
@@ -1921,6 +1971,36 @@ are missing").
     Repo, fetched only when asked, with their licences kept), several icons combined into a new one, in several colours, for the
     lid or a label.
   - **More than the basics**: each section also gets medium-sized useful features, not only missing basics.
+  - **Project boxes, "the one and be all"** (the owner, Session 45): many more components and boards (done in 0.39), missing
+    features, the icon maker with AI help. Then: "Maybe a small local model too / Maybe a second floor for multipurpose boxes /
+    ... if we use a 120mm fan inside a project box there will be a lot of empty space and we should have different levels and
+    shapes inside the box too plus the ai to help design after specific needs and parts chosen / Add as many options as you can
+    think of without being overwhelming / Is there a way to enhance the engine behind the box generator further?"
+    Plan (0.40-0.43, reorder if asked):
+    - **0.40, the inside of the box:** the parts shown inside as see-through blocks (boards with their port bodies, modules,
+      fans, batteries), so you see what fits; checks in 3D (a port clear of the wall, a part under the lid, a fan's airflow).
+      Levels: a second floor (or more) at a height, printed flat as its own plate, resting on 45° ledges on the walls or on
+      posts, with its own boards, a cable pass-through and air holes. Dividers that slide into grooves (compartments, a
+      battery bay with its own door). An internal fan wall for a 120 mm fan with a duct towards the vents. Cable channels,
+      zip-tie anchors, standoff towers.
+    - **0.41, lids, mounts and print fixes:** snap-fit and hinged lids, a snap-on DIN clip, pointed tops added by themselves
+      to wall openings wider than a bridge (the PSU box's 600 mm², the 23 mm² of an Uno's USB-B), honeycomb roofs, artwork on
+      walls.
+    - **0.42, arrange it for me:** a layout solver that packs the chosen parts (on levels when they do not fit one floor),
+      keeps each board's ports on a wall, leaves cable room, and sizes the box; "make it smaller" and "make it printable on my
+      bed" as goals.
+    - **0.43, the icon maker and AI help** (the owner chose "Both": the owner's own API key in the browser now, the local
+      agent later). Describe the project ("ESP32, a relay, 12 V supply, a 120 mm fan, an OLED, two buttons, on a wall"): the AI
+      answers with a parts list and settings in the project's own format, every value checked by `sanitizeProject`, and the
+      solver lays them out, so the AI never makes geometry. **A small local model too:** Ollama on the owner's PC (its
+      OpenAI-style API on localhost; the site's address added to OLLAMA_ORIGINS), or, opt-in, a small model in the browser
+      (WebGPU, a few hundred MB, checked by SHA-256 like the others). Without any model: recipes and keyword search.
+    - **Options without overwhelm:** every new group closed until opened; recipes ("ESP32 sensor box", "bench supply",
+      "fan-cooled amp") that fill in sensible choices; the AI and the solver choose, the person adjusts.
+    - **The engine:** the box is now extrusions joined as overlapping closed shells. Next: (1) the parts catalogue with 3D
+      bodies (above) so every check is in 3D; (2) the body built with Manifold (already loaded for cutting): one clean solid,
+      exact volumes, rounded inside corners and edges by offsets, any inside shape unioned cleanly; (3) builds on the helper
+      thread; (4) design rules applied by themselves (bridges, wall thickness, screw bosses near edges).
 - **After 0.50: 1.0 and 2.0** (the owner, Session 43: "Let's keep manifold for now and use version 2.0 as a full 3d cad software
   we will find a way to keep it small fast and easy to use"; before that: "Should the version 1.0 be a fully parametric cad addon? The
   ability to connect to a local agent and get help with modelling").

@@ -2661,7 +2661,11 @@ function encArrange(keepSize){
   };
   const floors = Array.from({ length:nLv + 1 }, (_, k) => list.filter(b => Math.min(nLv, b.lvl || 0) === k));
   const mainLvl = main ? Math.min(nLv, main.lvl || 0) : -1;           // the main board may be on a level (Session 51)
-  const tryWidth = iw => { const res = floors.map((items, k) => items.length ? packFloor(items, iw, k === mainLvl) : { placed:[], need:0 }); if (res.some(r => !r)) return null;
+  // a wall with a cable channel on it is that much thicker for packing (Session 51)
+  const duct = f => encDucts(E).some(u => u.face === f) ? ENC_DUCT.depth + 1 : 0, mL = duct("left"), mR = duct("right"), mF = duct("front"), mB = duct("back");
+  const packShifted = (items, iw, withMain) => { const r = packFloor(items, iw - mL - mR, withMain); if (!r) return null;
+    r.placed.forEach(p => { p.x += mL; p.y += mF; }); r.need += mF + mB; return r; };
+  const tryWidth = iw => { const res = floors.map((items, k) => items.length ? packShifted(items, iw, k === mainLvl) : { placed:[], need:0 }); if (res.some(r => !r)) return null;
     return { iw, id: Math.max(20, ...res.map(r => r.need)), res }; };
   let pick = null;
   if (keepSize) pick = tryWidth((+E.w || 100) - 2*t);
@@ -2679,7 +2683,7 @@ function encArrange(keepSize){
   const iw = pick.iw, id = keepSize ? (+E.d || 60) - 2*t : pick.id, before = [E.w, E.d, E.h];
   // apply: positions are from the front-left inner corner; the plan's middle is the box's middle
   pick.res.forEach(r => r.placed.forEach(p => {
-    let y = p.y; if (p.back) y = id - 1 - p.d;
+    let y = p.y; if (p.back) y = id - 1 - p.d - mB;
     const x = +(p.x + p.w/2 - iw/2).toFixed(1), yy = +(y + p.d/2 - id/2).toFixed(1);
     if (p.b.main){ E.boardX = x; E.boardY = yy; E.boardRot = p.rot; }
     else { const m = (E.more || []).find(o => o === p.b.src); if (m){ m.x = x; m.y = yy; m.rot = p.rot; } }

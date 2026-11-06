@@ -45,7 +45,7 @@ Maker Forge works on phones and tablets too. On a narrower screen, or with bigge
 - The less-used buttons in the top bar (Redo, **Aa**, light or dark, Settings, the manual and About) move into the **⋯** menu.
 - The seven view buttons fold into one, **◱▾**.
 - On a phone held upright, the model sits at the top and the settings scroll below it. The page icons run in a row between the two. **‹** hides the settings so the model gets the whole screen; tap any page icon to bring them back. Turn the phone on its side and the settings sit beside the model instead.
-- In the 3D view, drag with one finger to turn the model and use two fingers to zoom and move it. While you paint, one finger paints and two fingers zoom; choose **Move the view** to turn the model.
+- In the 3D view, drag with one finger to turn the model and use two fingers to zoom and move it. While you paint, one finger on the model paints and one finger beside it turns the model; two fingers zoom and move it, and **✋ Move** (bottom left of the view) frees the view until you press it again.
 
 A computer is still the easiest place for detailed work, but every setting, and **Download files**, is within reach on a phone.
 
@@ -147,6 +147,9 @@ Some objects in brief:
 - **Lithophane.** Flat, curved or a cylinder, with a rectangle, arch, oval or heart outline. The **test strip** prints steps from 0.6 to 3.2 mm, so you can choose thicknesses for your filament.
 - **Jigsaw puzzle.** Choose the number of pieces, the style of the knobs and the gap. **Shuffle** draws a new cut. A frame or a tray can print with it. A strip of a picture's colour thinner than the nozzle takes the colour beside it, so it doesn't print as a sliver.
 - **Project box.** Openings for USB, buttons, switches, fans, displays and pilot lights, each with an optional engraved label. Screwed, magnet or sliding lids. **Fit test** prints a small box with one of each opening, to try before the real thing.
+  - **Describe your project** (new in 0.43) fills the box in from a few words: type what goes in it ("ESP32, a 4-channel relay, LM2596 buck converter, OLED, two buttons, 60 mm fan, cable gland") and press **Fill it in from the words**. Each part is matched to a board, module or opening; the boards are arranged in the smallest box that fits your bed, the box grows for its openings, and each opening goes on a sensible face (screens in the lid, where they print without support; fans and vents on a side; sockets and glands at the back; the rest on the front), moving to the next face when one is full. It says what it found and what it didn't recognise. The ready-made buttons (**ESP32 sensor box**, **Relay controller**, **Fan-cooled box**, **Battery LED controller**, **Bench power supply**) fill the words in for you. With **AI help** set up (see [AI help](#ai-help)), **Plan it with AI** also picks faces, levels and a lid icon. It starts the box's boards and openings again; Undo puts them back.
+
+    ![Describe your project: a box filled in from one line of words](docs/images/describe-box.jpg)
   - **Add an opening** lists about 150 parts in groups: ports and power, buttons and switches, lights, screens and meters, sensors and cameras, sound, fans and vents, and mounting and your own sizes. **Type in the search box above it** to find one: every word you type must match its name, its group or a word it's known by ("esp8266", "neopixel", "gland m20"). Enter adds the first match. Among them:
     - an ESP32-CAM or XIAO ESP32-S3 Sense camera lens, and a Raspberry Pi camera with its four screws;
     - motion sensors: the HC-SR501 dome with its two screws, and the small AM312 / HC-SR505;
@@ -274,6 +277,9 @@ The **Art** tab puts pictures and words on the object.
 
 - **Add a logo or photo**: click the box or drop files on it. PNG, JPG, SVG and WebP all work. SVG files keep their real size.
 - **Add text**: words in any of the fonts. The text is trimmed to its letters, so its width and height are the letters' own.
+- **Make an icon** (new in 0.43): a multicolour icon from up to four of 54 simple icons (power, bolt, USB, Wi-Fi, fan, thermometer, drop, sun, warning, chip, gear and more) on a badge (circle, rounded square, hexagon, shield or none), with an optional ring and a word underneath. Start from an idea (**Power box**, **Cooling**, **Weather station**, **Smart home**…), or pick each icon from the grid (with a search box), its filament, size, place and turn. **A gap round icons laid over others** keeps a small icon on a big one readable. Each part prints in the filament you pick, and the icon follows your filaments if you change their colours. On a project box it goes on the lid as the lid logo (**Put it on the lid**). With **AI help** set up, **Design it with AI** puts one together from a description such as "a fan with a small snowflake, blue and white".
+
+  ![The icon maker: a fan with a snowflake on a hexagon badge, inlaid into a project box's lid](docs/images/icon-maker.jpg)
 - The list shows every picture. Click one to select it; the buttons below duplicate, reorder, rename or remove it. When you add a new picture, the earlier ones are switched off so they do not land on top of each other; click a thumbnail to switch one back on.
 
 **The preview** has three modes: **Photo** (the picture as it is), **Colours** (the picture split into your filaments, as it prints) and **Split** (half and half). Click a colour in the preview to leave it out of the print. The picture's background, the colour round most of its edge, is left out by itself and shows as a checked pattern; every other colour prints, right up to the picture's edge. A picture whose edge is already partly see-through (a cut-out, a PNG logo with clear corners, text) has nothing left out. A picture all in one colour is all background, and the Art tab says so.
@@ -367,7 +373,9 @@ GLB files are measured in metres; the app turns them into millimetres. A model t
 | Pick colour | I | Takes a colour from the model. |
 | Recolour | R | Changes every part of one colour into another. |
 | Box or lasso | A | Paints everything inside a box or a loop you draw: the side you see, or right through. |
-| Move the view | V | Drag turns the model instead of painting. |
+| Move the view | V | Drag turns the model instead of painting. The **✋ Move** button in the view does the same and takes you back to your brush. |
+
+**Moving while you paint** (new in 0.43): you don't need to switch tools. Drag **beside the model** to turn it, **right-drag** to turn it too, **hold Space** and drag anywhere, drag with the **middle button** to slide it, and **scroll** to zoom. On a touch screen, one finger beside the model turns it and two fingers zoom and slide; a stroke you started just before putting the second finger down is taken back. The view stops gliding the moment you start painting, so a stroke made straight after turning lands where you put it.
 
 Keys **1** to **8** pick a filament, **[** and **]** make the brush smaller or bigger. **Mirror** paints both sides at once, **Repeat round the middle** copies each stroke 2 to 12 times round the model, and the **smart brush** stops at sharp edges.
 
@@ -508,6 +516,16 @@ On a Mac, use Cmd instead of Ctrl.
 
 ## 14. Privacy
 
-Maker Forge runs entirely on your computer. Your pictures, photos, models and projects are never uploaded. The page loads three code libraries from jsDelivr, a public service for open-source code, so that service sees the page was opened; the fonts are built in. The AI figure finder and the cutting tool download only when you ask for them, and run on your computer too. There are no accounts, no tracking and no adverts.
+Maker Forge runs entirely on your computer. Your pictures, photos, models and projects are never uploaded. The page loads three code libraries from jsDelivr, a public service for open-source code, so that service sees the page was opened; the fonts are built in. The AI figure finder and the cutting tool download only when you ask for them, and run on your computer too. There are no accounts, no tracking and no adverts. **AI help** is off unless you set it up: then the words you type for it go to Anthropic (with your own key) or to Ollama on your own computer (below).
 
 Maker Forge is open source under the MIT licence.
+
+### AI help
+
+Optional, and off until you set it up in **Settings (⚙) → AI help**. It powers **Plan it with AI** for project boxes and **Design it with AI** in the icon maker. Without it, both still work from the words you type and the ready-made ideas.
+
+- **Claude (your API key):** paste a key from console.anthropic.com. Using it is billed to your Anthropic account. The key goes only from this page to Anthropic; it is never put in a project, a share link or an exported file. It is forgotten when you close the page unless you tick **Remember the key in this browser**. **Model** is `claude-opus-5-5` unless you change it.
+- **On this computer (Ollama):** free and offline. Install Ollama from ollama.com, run `ollama pull llama3.2` (or another model, named under **Model**), and let this page talk to it: set the `OLLAMA_ORIGINS` setting to this page's address (shown in Settings) and restart Ollama. Small models make more mistakes.
+- **Test it** asks for a one-line hello, to check it works.
+- What is sent: the words you type, the lists of board, opening and icon names, and your filament colours. Never pictures, models or projects. The AI never makes the shape itself: it answers with names from the app's lists, every value is checked like a project file, and the app lays everything out.
+- On a website with strict security settings the AI may be blocked; the downloaded file always works.

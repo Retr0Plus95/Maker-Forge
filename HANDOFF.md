@@ -2051,7 +2051,94 @@ fastenings (nothing overlapping, on a post or outside the box; the few too big f
 - It does not add levels by itself when the parts don't fit one floor on the bed; it says so. Next with the AI help.
 - Cable room between boards is the 3 mm gap only; openings other than the main board's ports stay where they are.
 
+## Session 49: move while painting, the icon maker, Describe your project, AI help (v0.43.0)
+
+Asked (the owner, during 0.42): "I hate that I can't move as much when painting and instead I have to switch to select all the
+time", and from the box plan: "the icon maker with ai help of course" (the owner chose "Both": their own API key in the browser
+now, a local model later; "Maybe a small local model too").
+
+**Moving while painting** (`paintControls`, a capture-phase `pointerdown` and `touchstart` on `#view`, `stopGlide`, `cancelStroke`).
+Before: while painting, the left button and one finger only painted; turning the view meant the Turn view tool. Now each press
+decides: on the model it paints, beside it (brush, eraser, fill, pick, recolour) it turns the view (`controls.mouseButtons.LEFT`
+/ `touches.ONE` set per press, before OrbitControls' own handlers; touch events can come before pointer events, so `touchstart`
+decides again). The middle button slides (the wheel zooms), the right button turns, Space held frees the view (`paintHold`), and
+a floating **✋ Move** button (bottom left of the view, Paint tab only) toggles the Turn view tool and back to what was in hand.
+A second finger during a stroke cancels it (taken back when under half a second old or at most four dabs, `cancelStroke`), so a
+pinch no longer leaves a dab. **Found while testing:** OrbitControls' damping glide went on during a stroke started straight
+after a turn, so the model slid under the brush; `stopGlide` (damping off, `update()`, the camera put back, damping on) stops it
+on a paint press. Test: `tools-paintmove-check.js` in real Chromium (part of `npm run check:browser`): mouse beside and on the
+model, Space, middle and right buttons, the Move button, and touch through CDP (`Input.dispatchTouchEvent`): one finger beside /
+on the model, and a second finger straight after the first. The paint test and the smoke test pass.
+
+**The icon maker** (`ICONS` (54, drawn for Maker Forge on a 24-unit grid), `ICON_GROUPS`, `ICON_SHAPES`, `ICON_IDEAS`,
+`newIconRecipe`, `cleanIcon`, `iconCanvas`, `iconSrc`, `iconSVG`, `iconPanel`, `iconGrid`, `addIconItem` in `src/app.html`). An Art
+item with `icon` (a recipe: `badge {shape, slot, ring, ringSlot}`, `gap`, up to four `layers {icon, slot, size, x, y, rot}`, `label
+{text, slot}`) is drawn from the recipe like text (no asset): `iconSrc` redraws it when the recipe or any filament colour changes
+(`_iconSig`, a runtime key), called from `sourceCanvas` and the build loop, so the lid logo and decals follow. Shapes are paths
+(M L H V C S Q Z), circles, arcs and rounded rectangles, each a 2-unit line, a fill or a hole (`destination-out`), drawn by
+`iconPathOn` (no `Path2D`: the tests' canvas has none). Icons laid over others get a halo in the badge's colour (or cut through
+when there is no badge). Colours are the filaments' own, so `buildCellMap` maps them exactly. Projects keep the recipe
+(`sanitizeProject` → `cleanIcon`: shapes from the list, unknown icons dropped, four layers, numbers clamped, the word stripped of
+`<>` and control characters, 16 letters); share links keep icon items (no picture to leave out).
+
+**AI help** (`AI`, `aiAsk`, `aiSave`, `aiSettings` in Settings). Off by default. **Claude:** a plain `fetch` to the Messages API
+with the person's key (`x-api-key`, `anthropic-version: 2023-06-01`, `anthropic-dangerous-direct-browser-access: true`),
+`output_config: { effort:"low", format:{ type:"json_schema", schema } }`, `max_tokens` 8000, the model `claude-opus-5-5` by default
+(changeable), and the server-side fallback for a declined answer (`fallbacks:"default"` with `anthropic-beta:
+server-side-fallback-2026-07-01`) on the models that take it; `stop_reason: "refusal"`, 401 and 429 said plainly. No SDK: the app
+is one file with no build step, and the SDK would be another library to load and to self-host on the website. **Ollama:**
+`POST {address}/api/chat` with `format: schema`, `stream:false`, temperature 0. The key lives in memory, or in `localStorage`
+(`makerforge.ai`) only with Remember ticked; never in a project, link or export (tested). What is sent: the words typed, the lists
+of names, the filament colours. The AI never makes geometry: it returns names from the lists (enums in the schema), checked by
+`aiCleanPlan` / `aiIconToRecipe` → `cleanIcon`.
+
+**Describe your project** (`encDescribe`, `aiFromWords`, `aiCleanPlan`, `encApplyPlan`, `encPlaceOpening`, `encLogoSpot`,
+`ENC_RECIPES`). Without AI the words are split into parts (commas, "and", "with", "plus"); each part's count ("two", "4 x"; 1 to 20,
+so "18650" is no count), fan size ("60 mm") and words (sizes in mm removed, hyphens split, plurals matched, a size in mm counted as a
+hint so "5 mm LED" is the 5 mm one) are scored against every board and opening name. The main controller is the first
+Arduino/Pi/ESP/MCU board. Faces: screens in the lid (a wide window in a wall needs support; the lid prints face down), fans and
+vents on a side, sockets and glands at the back, the rest on the front. `encApplyPlan`: boards → `encArrange(false)` (levels
+placed just above the tallest part under them, the box tall enough), each face grown for its biggest opening, `encArrange(true)`,
+then every opening placed by `encPlaceOpening` (its face, then the next faces; rows at mid height and up and down; along the face
+from the middle; a cheap check of the flat area, the lip and the other openings), the real build checked, and the faces of
+anything still left out grown by 12 mm (up to five rounds). An AI icon goes on the lid at `encLogoSpot` (the free spot nearest the
+middle, smaller when it must be). `encArrange` now prefers squarer boxes (a 25% cost per unit of aspect over 1.3): the doc
+screenshot came out 65 × 152 mm; it is 127 × 84 now. The five recipes: no warnings; support 0 to 100 mm² (what is left is under
+snap-in parts and buttons, as in Session 47).
+
+**Tests**: new `tools-iconai-test.js` (`npm run test:iconai`): all 54 icons draw, each only in its colour; an idea's colours; the
+word; an icon on a plate from the Art tab button, an idea, the grid's search, its colour pieces, a filament's colour change; the
+project and share link; a hostile icon; the icon inlaid into a box's lid; the words matched part by part; a box filled in clean;
+all five recipes clean; words with no parts; an AI plan cleaned (unknown names, counts, levels, faces, notes) and applied with a
+level and a lid icon; the requests to Claude and Ollama checked against a stand-in `fetch` (headers, schema, fallback, a refusal,
+a wrong key); the key in no project, link or storage; the box's Plan it with AI, the Art tab's Design it with AI, and Settings,
+with a stand-in AI (`MF.ai.state.hooks.ask`). The lid icon's orientation was checked against a lid opening in the printed lid.
+
+**For the website**: `AI_FIGURE`, the runtime's address line and `<script id="prcore">` are unchanged. But the forge site's
+security policy (`connect-src 'self'`) blocks the AI: it needs `https://api.anthropic.com` (Claude) and, for Ollama, the
+person's own `http://localhost:11434` added to `connect-src`, or AI help works only in the downloaded file. That is the Website
+session's call (the owner, Session 30); the app says so when the request is blocked.
+
+**Not done, next**
+- A local model in the browser (WebGPU) instead of Ollama: a few hundred MB, checked like the others; not started.
+- Icons from an online library (Iconify's open sets) or SVG Repo: not added (licences vary, and the site's security policy).
+- The icon on a box's walls (artwork on walls is still in the plan).
+- **Still to check by hand**: a real Claude key and a real Ollama (only stand-ins here); an inlaid icon printed; painting on a
+  real phone and tablet.
+
 ## Unfinished (in priority order)
+
+- **0.44: colour from a photo, with more AI, for the CR7 figure** (the owner, Session 49: "fix the auto painter function from a pic,
+  can we use the depth ai and maybe add another small model and combine all of them to get an even more accurate image and trace to
+  apply paint ... I still want to paint the Cristiano Ronaldo from imagine without much extra manual painting"). The plan given:
+  (1) the depth model (already loaded for reliefs) to line up each part (an arm in front of the body is a depth step, not an
+  outline) and to find the camera angle better; (2) a small human-parsing model (hair, face, skin, upper and lower clothes, shoes),
+  whose regions do not change with the light, so a shaded shirt stays the shirt's colour. **Not SegFormer B2 clothes**: its card
+  says "other" and points at NVIDIA's SegFormer licence (non-commercial), so it cannot ship with an MIT app (checked in Session 49);
+  look at MediaPipe's multiclass selfie segmenter (Apache-2.0; background, hair, body skin, face skin, clothes, other; 256 × 256,
+  a TFLite file to convert to ONNX and host in `models/`); (3) **click to colour**: a small Segment Anything (SlimSAM-77,
+  Apache-2.0; Xenova's int8 `vision_encoder_quantized.onnx` 8.9 MB + `prompt_encoder_mask_decoder_quantized.onnx` 4.9 MB) on the
+  photo: click the shirt, it is outlined, pick a filament, it goes onto the model. Each model in `AI_FIGURE`'s `name:{ urls, sha256 }` form so the website hosts its own copy.
 
 - **The next two builds** (the owner, 2026-11-05: "Mechanisms toolkit, model doctor, 3d relief from any photo, sign maker and fix it parts library should be done over the next two builds"; ideas 2, 3, 6, 8 and 10 of Session 36's list). Planned split:
   - **v0.31.0: parts that fit.** (Done in Session 37, but for pins on their own.) The mechanisms toolkit (threads, gears, hinges, snap-fits, pins, each with a fit-test coupon) and the fix-it parts library built on it (knobs, shelf pins, feet, battery covers, clips, caps from a few caliper measurements). They share the clearances and the fit tests. The keychain's surname line and credit on the back (asked for just before) ride along, being small.
@@ -2103,7 +2190,7 @@ fastenings (nothing overlapping, on a post or outside the box; the few too big f
     - **0.42, arrange it for me** (done in Session 48, but for levels added by themselves): a layout solver that packs the chosen parts (on levels when they do not fit one floor),
       keeps each board's ports on a wall, leaves cable room, and sizes the box; "make it smaller" and "make it printable on my
       bed" as goals.
-    - **0.43, the icon maker and AI help** (the owner chose "Both": the owner's own API key in the browser now, the local
+    - **0.43, the icon maker and AI help** (done in Session 49, but for the in-browser model; the owner chose "Both": the owner's own API key in the browser now, the local
       agent later). Describe the project ("ESP32, a relay, 12 V supply, a 120 mm fan, an OLED, two buttons, on a wall"): the AI
       answers with a parts list and settings in the project's own format, every value checked by `sanitizeProject`, and the
       solver lays them out, so the AI never makes geometry. **A small local model too:** Ollama on the owner's PC (its

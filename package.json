@@ -1,6 +1,6 @@
 {
   "name": "maker-forge",
-  "version": "0.42.0",
+  "version": "0.43.0",
   "private": true,
   "description": "Free, open-source multi-colour (multi-color) 3D print designer that runs in the browser: name keychains, patches, phone cases, lithophanes, jigsaw puzzles, cookie cutters, lightboxes, project boxes and painted models, exported as 3MF for Bambu Studio, OrcaSlicer and PrusaSlicer. This package.json only lists the test dependencies.",
   "keywords": [
@@ -60,8 +60,9 @@
     "test:jigsaw": "node tools-jigsaw-test.js index.html",
     "test:litho": "node tools-lithophane-test.js index.html",
     "test:enclosure": "node tools-enclosure-test.js index.html && node tools-boards-test.js index.html && node tools-inside-test.js index.html && node tools-boxprint-test.js index.html && node tools-arrange-test.js index.html",
+    "test:iconai": "node tools-iconai-test.js index.html",
     "test:size": "node tools-size-check.js index.html",
-    "check:browser": "node tools-browser-check.js index.html",
+    "check:browser": "node tools-browser-check.js index.html && node tools-paintmove-check.js index.html",
     "test:paint": "node tools-paint-test.js index.html",
     "test:phonecase": "node tools-phonecase-test.js index.html",
     "test:art": "node tools-art-test.js index.html",

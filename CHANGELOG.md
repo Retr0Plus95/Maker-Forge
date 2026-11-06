@@ -3,6 +3,19 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.44.0
+
+Click to colour: fix or colour a model from its photo by clicking on the parts.
+
+- **✨ Click to colour** on the Paint tab's photo card: click a part of the photo (the shirt, the hair, a boot) and an AI (Segment Anything, 14 MB, downloaded once, running on your computer) outlines it. Click more of it to add, or leave a bit out; then **Paint it** in a filament and that part of the model takes it.
+- **Right through** paints the back of that part as well, as seen from straight behind: a shirt from a front photo, front and back.
+- Each outline is a step on the Paint list, kept with the project (it opens offline), and it follows the photo when the photo is lined up again.
+
+![Two clicks on the shirt in the photo, and the shirt painted on the model](docs/images/click-colour.jpg)
+
+**Fixed**
+- No bug fixes in this release: the new tool was tested on the photo test's figure with the real AI, in Node and in Chromium.
+
 ## 0.43.0
 
 Move freely while you paint, a multicolour icon maker, and project boxes filled in from a description, with optional AI help.

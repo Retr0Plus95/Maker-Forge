@@ -2126,9 +2126,59 @@ session's call (the owner, Session 30); the app says so when the request is bloc
 - **Still to check by hand**: a real Claude key and a real Ollama (only stand-ins here); an inlaid icon printed; painting on a
   real phone and tablet.
 
+## Session 50: click to colour (v0.44.0)
+
+Asked (the owner, Session 49): "fix the auto painter function from a pic, can we use the depth ai and maybe add another small
+model and combine all of them ... can we build a special tool or are there solutions, I still want to paint the Cristiano Ronaldo
+from imagine without much extra manual painting". The special tool first: a click on a part of the photo outlines it, and the
+outline is painted onto the model. It fixes what the automatic colours got wrong in a click or two, and colours a model part by
+part when the photo is hard.
+
+**The model**: SlimSAM-77 (Apache 2.0; a Segment Anything slimmed to 77% fewer weights), Xenova's int8 ONNX at revision
+`5850ab45…`: `vision_encoder_quantized.onnx` (8.9 MB: 1 × 3 × 1024 × 1024 in, `image_embeddings` and
+`image_positional_embeddings` 1 × 256 × 64 × 64 out) and `prompt_encoder_mask_decoder_quantized.onnx` (4.9 MB: `input_points`
+1 × 1 × n × 2 in the 1024 pixels, `input_labels` int64 1/0, the embeddings; `pred_masks` 1 × 1 × 3 × 256 × 256 logits over the
+padded square and `iou_scores`). In `AI_FIGURE.sam` / `.samDecoder` (`models/` first, then Hugging Face at that revision, each
+checked by SHA-256; the website's importer handles that form), `samMB` 14. Not in the repository (`.gitignore`), like the
+depth model; the tests use copies in `models/` when they are there. **Not SegFormer** (NVIDIA's non-commercial licence, Session 49).
+
+**Engine** (`src/core.js`): `samInput` (the longer side to 1024, bilinear, ImageNet normalised, zero padding),
+`samPrompt` (clicks [x, y, on] in parts of the photo), `samMask` (the best-scored of the three masks, cropped to the photo's
+part of the padded square, bilinear to any size, logit > 0, only the pieces a positive click is in), `maskRLE` / `maskFromRLE`
+(runs in base 36), `photoMaskTris` (each triangle's middle through the photo's camera and fit: in the mask, and at the depth
+of what is seen there, within 1.5% of the model's depth + 0.3 mm; with `through`, also at the depth of the farthest surface
+there, the back of the same part as a camera behind would see it, not what lies between). **Found while testing:** a face seen
+edge on (the base's top under the boots) is nearer than the recorded depth and its middles fall on the next pixel row; the
+check is now |depth − z| ≤ tol, not depth − z ≤ tol (boots 55% → 91% right). "Right through" first took every triangle behind
+the outline (the insides of the arms: 69% shirt); front and back only: 94%.
+
+**App** (`samLoad`, `samEmbed` (the last three photos kept), `samSelect`, `photoViewOf`, `photoAreaTris`): a paint step
+`{ k:"photoarea", asset, w, h, rle, slot, through }`: the mask in the photo's own coordinates (its longer side `SAM_MASK`, 360),
+applied through the photo's current fit and camera (and its bend, `photoBendApply` on the mask), cached per paint part. So it
+opens offline, follows the photo when it is lined up again, and paints nothing (its text says "its photo is gone") when the photo
+is removed. `cleanPaint`: the asset an id, sizes 8 to 1024, runs only `[0-9a-z.]` up to 300 000 characters. The photo card: a
+fourth tool **✨ Click to colour** (`photoClick`, `photoClickAdd`, `drawPhotoClicks`, `photoClickPanel`): click adds, Alt-click,
+the right button or **Click leaves out** take away (up to 12 clicks), the outline in pink with the clicks as dots, **Paint it in**
+(filament chips), **Right through**, **Paint it**, **Undo the last click**, **Start again**.
+
+**Measured** on the photo test's footballer (`npm run test:clickcolour`, the real model in Node): one click on the shirt: 81% of
+the true shirt outlined, 99.9% of what it paints right; the base 97% / 99.7%; the hair 86% / 97.7%; two clicks on the boots
+95% / 90.8%. Reading the photo 11–12 s in Node (single thread), 15 s in Chromium with the download; a click 0.15–0.4 s.
+In the app: one click on the shirt painted 18 077 triangles, 97.8% shirt, none at the back; right through 91.7% shirt with its
+back. `tools-clickcolour-check.js` (Chromium, part of `check:browser`): the files fetched and checked, two mouse clicks, 6.1%
+of the photo outlined at 96%, Paint it, no page errors.
+
+**Not done, next** (still the 0.44 plan): (1) the depth model to line up each part (an arm in front of the body) and find the
+camera better; (2) automatic regions: a grid of clicks over the figure with the same model, so each region takes one colour
+(a shaded shirt stays the shirt's): measure it on a real photo first (the test figure's flat colours already score 98.5% on
+the product photo, Session 35); MediaPipe's multiclass segmenter (Apache 2.0, TFLite) is the other way; (3) click to colour on
+the 3D view itself (Segment Anything on the rendered view), for a model with no photo; (4) sharp edges for clicked outlines
+(they paint whole triangles, like a box or lasso). **Still to check by hand**: the owner's CR7 figure and picture (not in the
+repository); a phone (the encoder's few seconds).
+
 ## Unfinished (in priority order)
 
-- **0.44: colour from a photo, with more AI, for the CR7 figure** (the owner, Session 49: "fix the auto painter function from a pic,
+- **0.44: colour from a photo, with more AI, for the CR7 figure** (click to colour done in Session 50; the rest below is next) (the owner, Session 49: "fix the auto painter function from a pic,
   can we use the depth ai and maybe add another small model and combine all of them to get an even more accurate image and trace to
   apply paint ... I still want to paint the Cristiano Ronaldo from imagine without much extra manual painting"). The plan given:
   (1) the depth model (already loaded for reliefs) to line up each part (an arm in front of the body is a depth step, not an

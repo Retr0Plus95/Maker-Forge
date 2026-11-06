@@ -446,7 +446,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.43.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.44.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -13135,7 +13135,7 @@ function drawPhotoClicks(cv, v){
   const pc = photoPrevCache.get(cv); if (!pc || !pc.img || photoClick.asset !== v.asset) return;
   const x = cv.getContext("2d"), W = cv.width, H = cv.height, r = photoClick.res;
   if (r){
-    const img = x.getImageData(0, 0, W, H), d = img.data, edge = [];
+    const img = x.createImageData(W, H), d = img.data; d.set(pc.img.data);              // the preview as drawn, no read back
     for (let y = 0; y < H; y++) for (let i0 = 0; i0 < W; i0++){
       const m = r.mask[Math.min(r.h - 1, Math.floor(y / H * r.h)) * r.w + Math.min(r.w - 1, Math.floor(i0 / W * r.w))], i = 4*(y*W + i0);
       if (m){ d[i] = d[i]*0.45 + 255*0.55; d[i+1] = d[i+1]*0.45 + 60*0.55; d[i+2] = d[i+2]*0.45 + 200*0.55; }

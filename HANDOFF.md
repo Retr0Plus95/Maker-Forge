@@ -1937,6 +1937,55 @@ openings.
 - Still to check by hand: a printed cradle with a real ESP32 DevKit (the 0.3 mm clearance), the Uno's and the Pi's port
   openings against real boards.
 
+## Session 46: the inside of a project box (v0.40.0)
+
+Asked: "Maybe a second floor for multipurpose boxes / ... if we use a 120mm fan inside a project box there will be a lot of
+empty space and we should have different levels and shapes inside the box too ... Add as many options as you can think of
+without being overwhelming". All of it under one closed page, **Inside: levels and dividers**.
+
+**See-through parts** (`enclosureInfo.ghosts`: `ghostBox(x0, y0, z0, x1, y1, z1, kind, label)` in plan coordinates, z up)
+- Each board: its plate (1.6 mm), the room its parts take (`BOARD_TALL`, typical tallest part: a USB-B 13 mm, a relay 19, an
+  L298N's heatsink 27; supplies and battery holders are all body), and the main board's ports (`boardPortPlace`, shared with
+  Add this board's ports). Levels and dividers in place; a divider's fan as a 25 mm block.
+- Drawn in `refreshScene` as see-through boxes in the model group (not in the size, the camera framing or clicks; hidden in
+  the Start pictures); only for a box in one piece and not with Explode or the layout. **Show the parts inside** turns them off.
+- **Checks from them**: a board whose parts reach the lid, the top or the level above (a warning, with how much); a port of the
+  main board with no opening in front of it when the board is within 15 mm of that wall (`enclosureInfo.hints`, shown under
+  Board mounts, not a warning: a port may be meant to stay inside).
+
+**Levels** (`E.levels`, up to 3: `{ z, t, hold:"posts"|"ledges", cable, vent }`; `encLevels`)
+- The plate: the inside less 0.4 mm all round, square notches round the corner posts; a 24 × 8 mm cable slot at the back, air
+  slots in the middle. Printed flat in front of the box, its boards' mounts on it (`levelSolids`).
+- **Posts**: four 3.5 mm posts with a 2.5 mm pilot hole, 7 mm in from the plate's sides (further from the corners when there are
+  corner posts); the plate has 3.4 mm holes over them. **Ledges**: along the side walls, 0.2 mm out for each 0.25 mm up to 3 mm
+  under the plate. The first ledges reached 0.4 mm into the wall, and the print check counted the hidden underside of their
+  lowest step as 124 mm² of support: they now start at the wall's face.
+- A board on a level (`E.more[i].lvl`) stands on the level's top; boards on different levels are not "overlapping"; the floor
+  under a level is free for floor openings.
+
+**Dividers** (`E.walls`, up to 4: `{ axis, at, height, fan, cable }`; `encDividers`; `height`, not `h`, which the general
+LIMITS clamp to 1 mm and so lost "0: up to the lid")
+- Grooves: a 1.2 mm rib each side of a 2.4 mm slot up both walls it meets and along the floor (1.6 mm). The plate: the span
+  less 0.8 mm, up to the lid (or under the lowest level), 2 mm thick, printed flat, a 14 × 8 mm cable notch, a fan's rings and
+  screw holes (`openingRings` with a fan) when it fits. A divider outside the box is left out; one across a floor board named.
+
+**Zip-tie anchors** (`E.anchors = { n, where }`): two 2 × 2 × 5 mm posts and a 1.2 mm bar over a 3.5 mm gap, 4 mm in from the
+back, the sides or all walls, skipping boards, standoffs and corner posts (a hint says how many were left out).
+
+**Plates**: when the parts don't fit one bed as laid out, `encPackPlates` (the box split's packer) puts each on a plate; the
+lid's logo goes with the lid (`role`/`sec`). A split box packs its levels and dividers with its own parts, uncut.
+
+**Tests**: new `tools-inside-test.js` (in `test:enclosure`): a level on posts (size, posts with pilot holes, clearance holes, no
+support), on ledges (the slope by ray casts, no support), boards on a level and the checks (too tall under the lid and under a
+level, the Uno's ports named until Add this board's ports), a divider with a 120 mm fan (size, grooves by ray casts, under a
+level it no longer fits, outside the box, across a board), zip-tie anchors (the bar and gap, no support, left out under a
+board), plates, the panel and a hostile file.
+
+**Not done**
+- Ducts from a fan to the vents; a battery bay door; dividers that are part of the box (glued or printed in).
+- A level's boards are not checked against the posts under it, nor a level's cable slot against a board above it.
+- Still to check by hand: a printed level on posts and on ledges, a divider in its grooves (the 0.4 mm play), a fan in a divider.
+
 ## Unfinished (in priority order)
 
 - **The next two builds** (the owner, 2026-11-05: "Mechanisms toolkit, model doctor, 3d relief from any photo, sign maker and fix it parts library should be done over the next two builds"; ideas 2, 3, 6, 8 and 10 of Session 36's list). Planned split:

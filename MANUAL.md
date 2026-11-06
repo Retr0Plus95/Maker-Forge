@@ -168,6 +168,12 @@ Some objects in brief:
     - A board with holes sits on **standoffs** under them. One without holes (most small modules, and boards whose holes differ between makers) sits in a **cradle**: a seat under each corner and a low L-shaped fence round it, 0.3 mm clear, so it drops in. **By its edges** uses a cradle for a board with holes too. Those marked "check yours" vary between makers: measure yours, and use **My own board** if it differs.
     - **Add another board or module** puts more in the same box (up to 12), each with its own position, height and standoffs or cradle. Two that take the same place are named.
     - **Add this board's ports** (Arduino Uno, Leonardo, Mega, Raspberry Pi 5/4/3, 3 A+, Zero, Pico, Nano, ESP32 and ESP8266 boards, XIAO, Teensy, STM32, Feather, TP4056) slides the board against the walls its ports face and adds an opening for each port, at the height the board puts it. Check them against your board: makers move ports about.
+  - **Inside: levels and dividers** (new in 0.40):
+    - **Show the parts inside** draws each board, the room its parts take (a relay's cube, a heatsink, a USB socket) and its ports see-through in the box. They aren't printed. The box warns when parts reach the lid or the level above, and names a port with no opening in front of it.
+    - **Add a level** puts in a second floor (up to three): a shelf at the height you set, printed flat as its own plate, on four posts it screws to (M3 self-tapping) or on ledges along the side walls. It can have a slot for cables and air slots. Put extra boards on it with **On** in Board mounts.
+    - **Add a divider** splits the box (up to four), across or front to back. The plate slides into grooves on the walls and the floor and prints flat. It can hold a fan (40 to 140 mm) and have a notch for cables. It stands up to the lid, or under the lowest level.
+    - **Zip-tie anchors** are little bridges on the floor for tying cables down, along the back, the sides or all round.
+    - When it all doesn't fit one bed, each part goes on a plate of its own.
   - **Mounting** hangs the box up:
     - **Screw ears:** two or four tabs at floor level, each with a screw hole and a 45° fin each side.
     - **DIN rail:** a clip for 35 mm rail, as in a fuse box. It prints flat beside the box; screw it under the floor from inside with two M3 × 8 mm screws, and slide it onto the rail from one end.

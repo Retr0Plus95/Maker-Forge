@@ -3,6 +3,19 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.42.0
+
+Project boxes: **Arrange it for me**.
+
+- **Arrange it for me (smallest box)** in **Board mounts** packs every board and module on its floor (or its level), 3 mm apart, each turned whichever way packs best, and makes the box as small as that allows while still fitting your printer's bed. The main board goes against the walls its ports face, and its port openings move with it. The height follows the tallest part.
+- **Arrange in this box** does the same without changing the box's size, or says it is too small and suggests the first button.
+- Boards stay clear of the corner screw posts. Undo puts everything back.
+
+![Five boards on top of each other, then arranged in a 130 × 101 mm box with the Arduino's ports against the left wall](docs/images/arrange.jpg)
+
+**Fixed**
+- No bug fixes in this release: 60 random sets of boards were arranged and built with nothing overlapping, on a post or outside the box.
+
 ## 0.41.0
 
 Project boxes that print without support.

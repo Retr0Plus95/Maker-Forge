@@ -40,6 +40,7 @@ const EXPECTED_DEAD = [
   [/^Remove specks below|small marks and labels/, "the test picture has no specks or small marks"],
   [/contrast|saturation/i, "the two-colour test picture does not change with colour adjustments"],
   [/^Preview zoom/, "only zooms the picture preview on the Art tab"],
+  [/^A card for each name in a list/, "the list of names is empty (the card says so)", () => !String(win.MakerForge.state.base.card.names || "").trim()],
   [/^Clean up specks/, "the test picture has no specks, and a cutter's silhouette ignores colour boundaries", () => win.MakerForge.state.base.type === "cutter"],
 ];
 async function settle() {

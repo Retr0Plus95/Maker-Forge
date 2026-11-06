@@ -15,6 +15,7 @@ The name keychain, the double-sided tag and business cards, updated.
 
 **Fixed**
 - The credit on the back of a keychain was left out ("too big to fit") on many names, script names especially. It was only ever tried at the middle of the name's outline, which is often a narrow neck or a gap. It now goes where it fits, nearest the middle.
+- On a business card in a font with capitals only (Bebas Neue, the default, or Bungee), **Name in capitals** did nothing. The switch is replaced by a note with those fonts.
 
 ## 0.34.0
 

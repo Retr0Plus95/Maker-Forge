@@ -1676,6 +1676,11 @@ takes an object, a list of values per setting or `auto`, and builds random combi
   `plateInfo.credit.moved` says how far it went. The test is a name with a gap in its middle ("Ab          Cd", no bridging): the credit
   moves aside at its full size.
 
+- `tools-audit.js index.html nameplate,card` found two card controls that change nothing. **Name in capitals** really did
+  nothing on the default card: its font, Bebas Neue, has capitals only (as Bungee does). Those fonts are marked `capsOnly` in
+  `FONTS`, and the switch is a note with them. **A card for each name in a list** does nothing with an empty list (the card says
+  so); it is in the audit's expected list for that case.
+
 **New**
 - **Its own text on a double-sided tag's back** (`nameplate.backText`, ≤ 40): drawn in the name's font through the same `backFit`,
   from 0.8 × the letter height down to 2 mm, 1.2 mm inside the edge, flush like the mirrored name. `plateInfo.back.size` (0 when it

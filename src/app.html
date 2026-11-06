@@ -554,7 +554,7 @@ const FONTS = [
   { n:"Chewy", w:400 },
   { n:"Luckiest Guy", w:400 },
   { n:"Titan One", w:400 },
-  { n:"Bungee", w:400 },
+  { n:"Bungee", w:400, capsOnly:true },
   { n:"Righteous", w:400 },
   { n:"Baloo 2", w:800 },
   { n:"Fredoka", w:600 },
@@ -566,7 +566,7 @@ const FONTS = [
   { n:"Alfa Slab One", w:400 },
   { n:"Anton", w:400 },
   { n:"Oswald", w:700 },
-  { n:"Bebas Neue", w:400 },
+  { n:"Bebas Neue", w:400, capsOnly:true },
   { n:"Secular One", w:400 },
   { n:"Playfair Display", w:700 },
   { n:"Cinzel", w:700 },
@@ -9000,7 +9000,9 @@ function cardFields(p){
   group(p, "Fonts and sizes", g => {
     fontField(g, () => K.nameFont, v => { K.nameFont = v; re(); }, K.name || "Name", "Font for the name");
     fontField(g, () => K.textFont, v => { K.textFont = v; re(); }, K.title || "Details", "Font for the rest");
-    checkField(g, "Name in capitals", () => K.caps === true, v => { K.caps = v; baseChanged(); });
+    // a font with capitals only draws them either way (Session 41: the switch looked dead on the default card, in Bebas Neue)
+    if ((FONTS[clamp(K.nameFont | 0, 0, FONTS.length - 1)] || {}).capsOnly) note(g, `${FONTS[clamp(K.nameFont | 0, 0, FONTS.length - 1)].n} has capitals only, so the name is in capitals whatever you type.`);
+    else checkField(g, "Name in capitals", () => K.caps === true, v => { K.caps = v; baseChanged(); });
     numField(g,{ label:"Name letter height (mm)", min:2.5, max:14, step:0.1, get:()=>K.nameSize, set:v=>K.nameSize=v, onChange:baseChanged, sub:()=>"The height of a capital letter." });
     numField(g,{ label:"Title and company height (mm)", min:1.5, max:8, step:0.1, get:()=>K.titleSize, set:v=>K.titleSize=v, onChange:baseChanged });
     numField(g,{ label:"Details height (mm)", min:1.5, max:6, step:0.1, get:()=>K.textSize, set:v=>K.textSize=v, onChange:baseChanged,

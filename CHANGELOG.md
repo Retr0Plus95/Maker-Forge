@@ -3,6 +3,20 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.36.0
+
+The name keychain, the double-sided tag and business cards, updated.
+
+- **A magnet in the back** of a name keychain or tag (**Magnet** page): a pocket for a 5 to 12 mm round magnet, so the name sticks to a fridge, a whiteboard or a toolbox. One or two, placed where the plate is deepest; the magnet is glued in after printing.
+- **Your own text on the back** of a double-sided tag, such as "If found, call…" or a second name, instead of the mirrored name. It is set flush into the back and sized to fit.
+- **A tagline** on business cards, under the title.
+
+![Two tags seen from below: one with its own text on the back, one with two magnet pockets and a credit](docs/images/tag-backs.jpg)
+
+**Fixed**
+- The credit on the back of a keychain was left out ("too big to fit") on many names, script names especially. It was only ever tried at the middle of the name's outline, which is often a narrow neck or a gap. It now goes where it fits, nearest the middle.
+- On a business card in a font with capitals only (Bebas Neue, the default, or Bungee), **Name in capitals** did nothing. The switch is replaced by a note with those fonts.
+
 ## 0.35.0
 
 Paint that ends exactly where you painted it.

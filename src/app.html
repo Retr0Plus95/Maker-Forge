@@ -434,7 +434,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.35.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.36.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -554,7 +554,7 @@ const FONTS = [
   { n:"Chewy", w:400 },
   { n:"Luckiest Guy", w:400 },
   { n:"Titan One", w:400 },
-  { n:"Bungee", w:400 },
+  { n:"Bungee", w:400, capsOnly:true },
   { n:"Righteous", w:400 },
   { n:"Baloo 2", w:800 },
   { n:"Fredoka", w:600 },
@@ -566,7 +566,7 @@ const FONTS = [
   { n:"Alfa Slab One", w:400 },
   { n:"Anton", w:400 },
   { n:"Oswald", w:700 },
-  { n:"Bebas Neue", w:400 },
+  { n:"Bebas Neue", w:400, capsOnly:true },
   { n:"Secular One", w:400 },
   { n:"Playfair Display", w:700 },
   { n:"Cinzel", w:700 },
@@ -874,7 +874,7 @@ const DEFAULTS = () => ({
       sym:{ glyph:"♥", glyph2:"★", side:"both", size:1 },
       pic:{ on:false, item:0, side:"left", size:1.1, colour:true, gap:2 },
       engrave:false, nameH:1.2, nameSlot:1, accent:true, accentInset:0.9, accentH:0.6, accentSlot:3,
-      doubleSided:false, backH:0.8, backSlot:1,
+      doubleSided:false, backH:0.8, backSlot:1, backText:"", magnet:"none", magnets:1,
       line2:"", line2Size:0.5, line2Gap:2.5,
       credit:{ on:false, text:"", size:3.5, depth:0.4, inlay:true, slot:1, font:Math.max(0, FONTS.findIndex(f => f.n === "Nunito")) } },
     fit:{ gap:0.25 },
@@ -940,7 +940,7 @@ const DEFAULTS = () => ({
       camMargin:0.8, buttons:"each", port:"port", portW:13, logo:{ on:false, mode:"inlay", width:40, x:0, y:-10, depth:0.6 } },
     card:{ size:"credit", w:85.6, h:53.98, portrait:false, corner:"round", radius:3.18, thick:1.6, margin:4.5,
       face:"down", frontFinish:"flush", backFinish:"flush", depth:0.6, backDepth:0.6, mono:false, layout:"left", align:"auto",
-      name:"Alex Morgan", title:"Designer & maker", company:"Forge Studio", lines:"+46 70 123 45 67\nalex@forgestudio.se\nforgestudio.se",
+      name:"Alex Morgan", title:"Designer & maker", tagline:"", company:"Forge Studio", lines:"+46 70 123 45 67\nalex@forgestudio.se\nforgestudio.se",
       nameFont:28, textFont:23, nameSize:6, titleSize:3, textSize:2.8, caps:true, spacing:0.06, lineGap:1.65, icons:true, divider:"short",
       nameSlot:1, titleSlot:2, companySlot:1, textSlot:1, iconSlot:2, dividerSlot:3, textMove:{ x:0, y:0 },
       // logo.from, not src: "src" is a working key that saving leaves out (runtimeKeys)
@@ -4073,35 +4073,56 @@ async function buildNamePlate(){
   // a small line of text on the back (a credit: your website, shop or name), mirrored so it reads with the tag turned
   // over, cut into the bottom face, and filled flush in a second colour or left engraved (Session 37). It shrinks
   // until it sits 0.8 mm inside the plate's edge and clear of the keyring hole
-  const cr = np.credit || {}, crText = cr.on && !np.doubleSided ? String(cr.text || "").replace(/\s+/g, " ").trim().slice(0, 40) : "";
-  let creditPolys = [];
-  if (crText){
-    const cf = FONTS[clamp(cr.font|0, 0, FONTS.length-1)];
+  // Text for the back, mirrored about the name's middle, made 12% smaller at a time (from h0 mm, down to hMin)
+  // until every pixel is `margin` mm inside the plate's edge (so also clear of the ring hole). Returns its field
+  // (gaps under a nozzle filled) and the height used, or null. Used by the credit and a double-sided tag's own text.
+  const backFit = async (text, cf, h0, hMin, margin) => {
     await document.fonts.load(`${cf.w} 120px "${cf.n}"`);
     const outside = new Uint8Array(W*H);
     for (let i=0;i<outside.length;i++) outside[i] = plateField[i] > 0 ? 0 : 1;
-    const dEdge = C.edt(outside, W, H), nb = maskBounds(coverage, W, H), margin = 0.8*PLATE_PX;
-    const cxp = (nb.minX + nb.maxX)/2, cyp = (nb.minY + nb.maxY)/2;
+    const dEdge = C.edt(outside, W, H), nb = maskBounds(coverage, W, H), mpx = margin*PLATE_PX;
+    const cxp = Math.round((nb.minX + nb.maxX)/2), cyp = Math.round((nb.minY + nb.maxY)/2);
     const cc = document.createElement("canvas"); cc.width = W; cc.height = H;
     const cctx = cc.getContext("2d", { willReadFrequently:true });
-    let h = clamp(cr.size || 3.5, 1.5, 8), done = null;
-    for (let tries = 0; tries < 12 && h >= 1.5 && !done; tries++, h *= 0.88){
-      cctx.clearRect(0, 0, W, H);
+    const drawAt = (px, x, y) => {
+      cctx.clearRect(0, 0, W, H); cctx.font = `${cf.w} ${px}px "${cf.n}", sans-serif`;
+      const m1 = cctx.measureText(text), asc = m1.actualBoundingBoxAscent || px*0.7, desc = m1.actualBoundingBoxDescent || 0;
+      cctx.save(); cctx.translate(x, y); cctx.scale(-1, 1); cctx.fillStyle = "#000"; cctx.textBaseline = "alphabetic";
+      cctx.fillText(text, -m1.width/2, (asc - desc)/2); cctx.restore();
+      return cctx.getImageData(0, 0, W, H).data;
+    };
+    // where it may go: every spot of the plate, nearest the name's middle first (Session 42: it was only ever tried at
+    // the middle, which on a script name is often a narrow neck or a gap, so in a browser it never fitted)
+    const step = Math.max(2, Math.round(PLATE_PX*0.5)), spots = [];
+    for (let y=0;y<H;y+=step) for (let x=0;x<W;x+=step) if (dEdge[y*W + x] >= mpx) spots.push([x, y, (x - cxp)**2 + 4*(y - cyp)**2]);
+    spots.sort((a, b) => a[2] - b[2]);
+    let h = h0;
+    for (let tries = 0; tries < 16 && h >= hMin; tries++, h *= 0.88){
       cctx.font = `${cf.w} 200px "${cf.n}", sans-serif`;
-      const m0 = cctx.measureText(crText), ink = (m0.actualBoundingBoxAscent + m0.actualBoundingBoxDescent) || 140;
+      const m0 = cctx.measureText(text), ink = (m0.actualBoundingBoxAscent + m0.actualBoundingBoxDescent) || 140;
       const px = 200*h*PLATE_PX/ink;
-      cctx.font = `${cf.w} ${px}px "${cf.n}", sans-serif`;
-      const m1 = cctx.measureText(crText), asc = m1.actualBoundingBoxAscent || px*0.7, desc = m1.actualBoundingBoxDescent || 0;
-      cctx.save(); cctx.translate(cxp, cyp); cctx.scale(-1, 1); cctx.fillStyle = "#000"; cctx.textBaseline = "alphabetic";
-      cctx.fillText(crText, -m1.width/2, (asc - desc)/2);
-      cctx.restore();
-      const d = cctx.getImageData(0, 0, W, H).data; let ok = true, any = false;
-      for (let i=0;i<W*H && ok;i++) if (d[i*4+3] >= 128){ any = true; if (dEdge[i] < margin) ok = false; }
-      if (ok && any) done = { field:C.coverageField(d, W, H), h };
+      let d = drawAt(px, cxp, cyp);
+      const pts = []; for (let i=0;i<W*H;i++) if (d[i*4+3] >= 128) pts.push([i % W - cxp, Math.floor(i / W) - cyp]);
+      if (!pts.length) continue;
+      // a few hundred of its pixels are tested at each spot; a spot that passes is then checked pixel by pixel
+      const sample = pts.length > 600 ? pts.filter((_, k) => k % Math.ceil(pts.length/600) === 0) : pts;
+      const fits = (ox, oy, list) => list.every(([u, v]) => { const x = ox + u, y = oy + v; return x >= 0 && y >= 0 && x < W && y < H && dEdge[y*W + x] >= mpx; });
+      for (const [x, y] of spots){
+        if (!fits(x, y, sample) || !fits(x, y, pts)) continue;
+        d = (x === cxp && y === cyp) ? d : drawAt(px, x, y);
+        return { field:fillNarrow(C.coverageField(d, W, H)), h, moved: Math.hypot(x - cxp, y - cyp)/PLATE_PX };
+      }
     }
+    return null;
+  };
+  const cr = np.credit || {}, crText = cr.on && !np.doubleSided ? String(cr.text || "").replace(/\s+/g, " ").trim().slice(0, 40) : "";
+  let creditPolys = [], backRaster = null;
+  if (crText){
+    const done = await backFit(crText, FONTS[clamp(cr.font|0, 0, FONTS.length-1)], clamp(cr.size || 3.5, 1.5, 8), 1.5, 0.8);
     if (done){
-      creditPolys = traceIn(fillNarrow(done.field), maskBounds(done.field, W, H), 2, fopt);
-      plateInfo.credit = { size:done.h, smaller: done.h < clamp(cr.size || 3.5, 1.5, 8) - 0.01 };
+      backRaster = done.field;
+      creditPolys = traceIn(done.field, maskBounds(done.field, W, H), 2, fopt);
+      plateInfo.credit = { size:done.h, smaller: done.h < clamp(cr.size || 3.5, 1.5, 8) - 0.01, moved:+done.moved.toFixed(1) };
     } else plateInfo.credit = { size:0, smaller:true };
   }
   // the plate with letters cut out of a layer of it; a letter's own holes (the middle of an o) stay as islands
@@ -4109,24 +4130,64 @@ async function buildNamePlate(){
   const cutOut = (polys, cut) => withHoles(polys, cut.map(n => n.outer)).concat(...cut.map(n => n.holes.map(hl => ({ outer:hl, holes:[] }))));
   // a double-sided tag: the name mirrored, flush in the bottom face in its own filament, like the credit (Session 41;
   // it used to stand below the plate, so the plate printed in the air round the letters)
+  // Its own text instead (Session 42: a phone number, "If found, call…", a second name), in the name's font, as big as
+  // the name or smaller until it fits 1.2 mm inside the edge
   let backPolys = [];
-  if (np.doubleSided){
+  const backText = np.doubleSided ? String(np.backText || "").replace(/\s+/g, " ").trim().slice(0, 40) : "";
+  if (np.doubleSided && backText){
+    const done = await backFit(backText, f, clamp(np.letterHeight*0.8, 3, 40), 2, 1.2);
+    if (done){ backRaster = done.field; backPolys = traceIn(done.field, maskBounds(done.field, W, H), 2, fopt); plateInfo.back = { size:done.h }; }
+    else plateInfo.back = { size:0 };
+  } else if (np.doubleSided){
     const mirrored = new Float32Array(coverage.length);
     for (let y=0;y<H;y++) for (let x=0;x<W;x++) mirrored[y*W+x] = coverage[y*W + (W-1-x)];
     const filled = fillNarrow(mirrored);
+    backRaster = filled;
     backPolys = traceIn(filled, maskBounds(filled, W, H), 2, fopt);
   }
   const bottomPolys = backPolys.length ? backPolys : creditPolys;
   const credD = bottomPolys.length ? clamp(backPolys.length ? np.backH || 0.8 : cr.depth || 0.4, 0.2, Math.min(1.2, np.thick*0.4)) : 0;
+  // A magnet pocket in the back (Session 42: a name for the fridge, idea 39): open to the bed, so the magnet is glued
+  // in after printing, and placed where the plate is deepest, clear of its edge, the ring hole and letters set into
+  // the back. Two magnets go in the left and right halves.
+  const mag = MAGNETS[np.magnet];
+  let pocketPolys = [], pocketD = 0;
+  if (mag){
+    const r = (mag.d + 0.3)/2, pd = mag.t + 0.2;
+    if (np.thick - pd < 0.8) plateInfo.magnet = { ok:false, why:"thick", need:+(pd + 0.8).toFixed(1) };
+    else {
+      const blocked = new Uint8Array(W*H);
+      for (let i=0;i<W*H;i++) blocked[i] = plateField[i] > 0 && !(backRaster && backRaster[i] >= 0.5) ? 0 : 1;
+      const d = C.edt(blocked, W, H), need = (r + 0.8)*PLATE_PX, two = np.magnets === 2;
+      const midX = (bounds.minX + bounds.maxX)/2, spots = [];
+      for (const half of two ? [[0, midX], [midX, W]] : [[0, W]]){
+        let best = -1, bi = -1;
+        for (let y=0, i=0;y<H;y++) for (let x=0;x<W;x++, i++) if (x >= half[0] && x < half[1] && d[i] > best){ best = d[i]; bi = i; }
+        if (best >= need) spots.push([bi % W, Math.floor(bi / W)]);
+      }
+      if (spots.length < (two ? 2 : 1)) plateInfo.magnet = { ok:false, why:"small", need:+(mag.d + 1.9).toFixed(1) };
+      else {
+        pocketD = pd;
+        pocketPolys = spots.map(([x, y]) => ({ outer:C.ringCircle(r, 48).map(([u, v]) => [u + (x + 0.5 - W/2)*mmPerPx, v + (H/2 - (y + 0.5))*mmPerPx]), holes:[] }));
+        plateInfo.magnet = { ok:true, n:spots.length, d:mag.d, t:mag.t, at:spots.map(([x, y]) => [+((x + 0.5 - W/2)*mmPerPx).toFixed(2), +(-(H/2 - (y + 0.5))*mmPerPx).toFixed(2)]) };
+      }
+    }
+  }
+  // the plate in slabs: letters set into the back in the bottom credD mm, the magnet pockets in the bottom pocketD mm,
+  // an engraved name in the top of it
   const plateLayers = [];
-  if (credD) plateLayers.push(C.extrudePolysAt(cutOut(platePolys, bottomPolys), 0, credD + 0.01));
-
+  const engD = np.engrave ? clamp(np.nameH, 0.2, np.thick - 0.4 - Math.max(credD, pocketD)) : 0;
+  const zs = [...new Set([0, credD, pocketD, np.engrave ? np.thick - engD : 0, np.thick].map(v => +v.toFixed(4)))].filter(v => v >= 0 && v <= np.thick).sort((a, b) => a - b);
+  for (let k=0;k<zs.length-1;k++){
+    const a = zs[k], b = zs[k+1], cuts = [];
+    if (credD && b <= credD + 1e-6) cuts.push(...bottomPolys);
+    if (pocketD && b <= pocketD + 1e-6) cuts.push(...pocketPolys);
+    if (engD && a >= np.thick - engD - 1e-6) cuts.push(...namePolys);
+    plateLayers.push(C.extrudePolysAt(cuts.length ? cutOut(platePolys, cuts) : platePolys, Math.max(0, a - (k ? 0.01 : 0)), b));
+  }
   if (np.engrave){
-    const depth = clamp(np.nameH, 0.2, np.thick - 0.4 - credD);
-    plateLayers.push(C.extrudePolysAt(platePolys, credD, np.thick-depth), C.extrudePolysAt(cutOut(platePolys, namePolys), np.thick-depth-0.01, np.thick));
     parts.push({ name:"Plate", slot:plateSlot, solid:C.mergeSolids(plateLayers) });
   } else {
-    plateLayers.push(C.extrudePolysAt(platePolys, credD, np.thick));
     parts.push({ name:"Plate", slot:plateSlot, solid:plateLayers.length > 1 ? C.mergeSolids(plateLayers) : plateLayers[0] });
     parts.push({ name:"Name", slot:clamp(np.nameSlot,0,state.slots.length-1),
       solid:C.extrudePolysAt(namePolys, Math.max(0,np.thick-0.3), np.thick+np.nameH) });
@@ -8692,6 +8753,8 @@ async function cardFace(K, side, G, who, warn, info, ol){
   const build = () => {
     rows.name = showName && name.trim() ? cardRow(G, K.caps ? name.toUpperCase() : name, nameF, capOf(K.nameSize), sp) : null;
     rows.title = showName && title.trim() ? cardRow(G, title, textF, capOf(K.titleSize), 0) : null;
+    // a tagline under the title (Session 42), a little smaller, on the front only
+    rows.tagline = front && showName && String(K.tagline || "").trim() ? cardRow(G, String(K.tagline).trim().slice(0, 80), textF, capOf(K.titleSize)*0.85, 0) : null;
     // in the font of the rest: at this size the name's font (often condensed, like Bebas Neue) has strokes about as thin as the nozzle
     rows.company = (front ? !minimal : minimal) && String(K.company || "").trim() ? cardRow(G, String(K.company).slice(0, 60), textF, capOf(K.titleSize)*1.05, sp*0.6) : null;
     rows.lines = showDetails ? details.map(l => Object.assign(cardRow(G, l, textF, capOf(K.textSize), 0), { kind: K.icons !== false ? cardLineKind(l) : "" })) : [];
@@ -8702,11 +8765,12 @@ async function cardFace(K, side, G, who, warn, info, ol){
   const gap = Math.max(2.2, m*0.55), logoSize = clamp(cleanNum(Lg.size, 14), 4, Math.min(W, H) - 2*m);
   const pitchOf = () => capOf(K.textSize)*clamp(cleanNum(K.lineGap, 1.7), 1.2, 3);
   const divOn = front && K.divider && K.divider !== "none" && !minimal;
-  const mainH = () => (rows.name ? rows.name.cap : 0) + (rows.title ? (rows.name ? rows.name.cap*0.55 : 0) + rows.title.cap : 0) + (divOn && (rows.name || rows.title) ? 2.6 : 0);
+  const mainH = () => (rows.name ? rows.name.cap : 0) + (rows.title ? (rows.name ? rows.name.cap*0.55 : 0) + rows.title.cap : 0)
+    + (rows.tagline ? (rows.name || rows.title ? rows.tagline.cap*0.7 : 0) + rows.tagline.cap : 0) + (divOn && (rows.name || rows.title) ? 2.6 : 0);
   const linesH = () => rows.lines.length ? (rows.lines.length - 1)*pitchOf() + rows.lines[0].cap : 0;
   const off = (o, k) => clamp(cleanNum(o && o[k], 0), -100, 100);
   let col = { x0: -W/2 + m, x1: W/2 - m, y0: -H/2 + m, y1: H/2 - m }, align = "centre", qrBox = null, logoBox = null;
-  const place = { head:null, name:null, title:null, divider:null, lines:[], back:null, caption:null };
+  const place = { head:null, name:null, title:null, tagline:null, divider:null, lines:[], back:null, caption:null };
   const shrink = (need, room) => { if (need > room && room > 2 && sc > 0.5){ sc = Math.max(0.5, sc*room/need*0.98); build(); return true; } return false; };
   let made = false;
   if (front){
@@ -8755,6 +8819,7 @@ async function cardFace(K, side, G, who, warn, info, ol){
     let yy = y + Math.max(0, (foot - (linesH() ? gap : 0) - y - mainH())/2);
     if (rows.name){ place.name = { r: rows.name, base: yy + rows.name.cap }; yy += rows.name.cap + (rows.title ? rows.name.cap*0.55 : 0); }
     if (rows.title){ place.title = { r: rows.title, base: yy + rows.title.cap }; yy += rows.title.cap; }
+    if (rows.tagline){ if (rows.name || rows.title) yy += rows.tagline.cap*0.7; place.tagline = { r: rows.tagline, base: yy + rows.tagline.cap }; yy += rows.tagline.cap; }
     if (divOn && (rows.name || rows.title)) place.divider = { y: yy + 1.6 };
     rows.lines.forEach((r, i) => place.lines.push({ r, base: foot + r.cap + i*pitchOf() }));
   } else {
@@ -8776,7 +8841,8 @@ async function cardFace(K, side, G, who, warn, info, ol){
     if (rows.company){ place.head = { r: rows.company, base: y + rows.company.cap }; y += rows.company.cap + gap; }
     if (rows.name){ place.name = { r: rows.name, base: y + rows.name.cap }; y += rows.name.cap + (rows.title ? rows.name.cap*0.55 : 0); }
     if (rows.title){ place.title = { r: rows.title, base: y + rows.title.cap }; y += rows.title.cap; }
-    if (rows.name || rows.title) y += gap;
+    if (rows.tagline){ if (rows.name || rows.title) y += rows.tagline.cap*0.7; place.tagline = { r: rows.tagline, base: y + rows.tagline.cap }; y += rows.tagline.cap; }
+    if (rows.name || rows.title || rows.tagline) y += gap;
     if (rows.back){ place.back = { r: rows.back, base: y + rows.back.cap }; y += rows.back.cap + gap; }
     rows.lines.forEach((r, i) => place.lines.push({ r, base: y + r.cap + i*pitchOf() }));
   }
@@ -8784,15 +8850,15 @@ async function cardFace(K, side, G, who, warn, info, ol){
   // each line no wider than its column
   const shrunk = [], width = colW();
   const fit = (r, extra) => { if (!r) return r; const k = (width - (extra || 0))/r.w; if (k >= 1) return r; shrunk.push(r.text); return Object.assign(cardRow(G, r.text, r.f, r.cap*k, r.spx/(r.cap*G.PX) || 0), { kind:r.kind }); };
-  for (const k of ["name","title","back","caption"]) if (place[k]) place[k].r = fit(place[k].r);
+  for (const k of ["name","title","tagline","back","caption"]) if (place[k]) place[k].r = fit(place[k].r);
   if (place.head && !front) place.head.r = fit(place.head.r);
   place.lines.forEach(p => { p.r = fit(p.r, p.r.kind ? p.r.cap*1.9 : 0); });
   if (shrunk.length) warn.push({ t:`${shrunk.length === 1 ? `“${shrunk[0]}” was` : `${shrunk.length} lines were`} made narrower to fit`, s:"Its letters are smaller there. A shorter line, a narrower font or a smaller code gives it room." });
-  const small = Math.min(...[place.title, place.back, place.caption, place.head, ...place.lines].filter(Boolean).map(p => p.r.cap));
+  const small = Math.min(...[place.title, place.tagline, place.back, place.caption, place.head, ...place.lines].filter(Boolean).map(p => p.r.cap));
   if (small < noz*6.5) warn.push({ t:`Small letters on the ${side}`, s:`The smallest are ${small.toFixed(1)} mm tall. With a ${noz} mm nozzle, ${(noz*6.5).toFixed(1)} mm or more prints crisply: make them bigger, or print with a 0.2 mm nozzle.` });
   // lined up, then nudged
   const tx = off(K.textMove, "x"), ty = off(K.textMove, "y"), X = ax();
-  for (const p of [place.name, place.title, place.back, ...place.lines]) if (p){ p.x = X + tx; p.base += ty; }
+  for (const p of [place.name, place.title, place.tagline, place.back, ...place.lines]) if (p){ p.x = X + tx; p.base += ty; }
   if (place.caption){ place.caption.x = (qrBox ? qrBox.x + qrBox.s/2 : X) + tx; place.caption.base += ty; place.caption.align = "centre"; }
   if (place.head){ if (place.head.x == null) place.head.x = X; place.head.x += tx; place.head.base += ty; }
   if (place.divider){ const len = K.divider === "full" ? width : Math.min(width, 14), t = Math.max(noz*1.5, 0.6);
@@ -8833,7 +8899,7 @@ async function cardFace(K, side, G, who, warn, info, ol){
   // the words and icons, each filament in one drawing
   const draw = (slot, list) => { if (list.length) add(60, slot, cardDraw(G, x => list.forEach(p => cardDrawRow(x, G, p.r, p.x, p.base, p.align || align))), { content:true }); };
   draw(K.nameSlot, place.name ? [place.name] : []);
-  draw(K.titleSlot, place.title ? [place.title] : []);
+  draw(K.titleSlot, [place.title, place.tagline].filter(Boolean));
   draw(K.companySlot, place.head ? [place.head] : []);
   draw(Bk.slot ?? K.textSlot, [place.back, place.caption].filter(Boolean));
   const icons = [];
@@ -9166,6 +9232,7 @@ function cardFields(p){
   group(p, "Name and details", g => {
     textField(g, "Name", () => K.name, v => K.name = v, { max:60, onChange:baseChanged, placeholder:"Alex Morgan" });
     textField(g, "Title or job", () => K.title, v => K.title = v, { max:80, onChange:baseChanged, placeholder:"Designer & maker" });
+    textField(g, "Tagline (a line under the title)", () => K.tagline || "", v => K.tagline = v, { max:80, onChange:baseChanged, placeholder:"Prints that fit, first time" });
     textField(g, "Company", () => K.company, v => K.company = v, { max:60, onChange:baseChanged, placeholder:"Forge Studio" });
     cardTextArea(g, "Details, one a line", () => K.lines, v => K.lines = v, 4, "+46 70 123 45 67\nalex@example.com\nexample.com\nStorgatan 1, Stockholm", 600);
     note(g, "Up to 8 lines. Each gets an icon from what it looks like: a phone number, an email address, a web address, an @handle or an address. The QR code's contact card is made from them too.");
@@ -9176,7 +9243,9 @@ function cardFields(p){
   group(p, "Fonts and sizes", g => {
     fontField(g, () => K.nameFont, v => { K.nameFont = v; re(); }, K.name || "Name", "Font for the name");
     fontField(g, () => K.textFont, v => { K.textFont = v; re(); }, K.title || "Details", "Font for the rest");
-    checkField(g, "Name in capitals", () => K.caps === true, v => { K.caps = v; baseChanged(); });
+    // a font with capitals only draws them either way (Session 42: the switch looked dead on the default card, in Bebas Neue)
+    if ((FONTS[clamp(K.nameFont | 0, 0, FONTS.length - 1)] || {}).capsOnly) note(g, `${FONTS[clamp(K.nameFont | 0, 0, FONTS.length - 1)].n} has capitals only, so the name is in capitals whatever you type.`);
+    else checkField(g, "Name in capitals", () => K.caps === true, v => { K.caps = v; baseChanged(); });
     numField(g,{ label:"Name letter height (mm)", min:2.5, max:14, step:0.1, get:()=>K.nameSize, set:v=>K.nameSize=v, onChange:baseChanged, sub:()=>"The height of a capital letter." });
     numField(g,{ label:"Title and company height (mm)", min:1.5, max:8, step:0.1, get:()=>K.titleSize, set:v=>K.titleSize=v, onChange:baseChanged });
     numField(g,{ label:"Details height (mm)", min:1.5, max:6, step:0.1, get:()=>K.textSize, set:v=>K.textSize=v, onChange:baseChanged,
@@ -9976,14 +10045,29 @@ function nameplateFields(p){
       : "It is cut into the bottom face (the bed side), mirrored here so it reads when the tag is turned over. Bold fonts read best at this size.");
   }, np.credit && np.credit.on);
   group(p,"Both sides", g2 => {
-    checkField(g2,"Mirrored name on the back",()=>np.doubleSided, v=>{ np.doubleSided = v; renderTab(); baseChanged(); });
+    checkField(g2,"Something on the back too",()=>np.doubleSided, v=>{ np.doubleSided = v; renderTab(); baseChanged(); });
     if (np.doubleSided){
+      textField(g2, "Text on the back (empty: the name, mirrored)", ()=>np.backText || "", v=>{ np.backText = v; }, { max:40, placeholder:"e.g. If found, call 070-123 45 67", onChange:baseChanged });
+      if (String(np.backText || "").trim() && plateInfo && plateInfo.back){
+        if (!plateInfo.back.size) note(g2, "That text does not fit on the back even at 2 mm tall. Make it shorter, or the tag longer.");
+        else note(g2, `On the back at ${plateInfo.back.size.toFixed(1)} mm tall, in the name's font.`);
+      }
       numField(g2,{ label:"Back letter depth (mm)", min:0.2,max:1.2,step:0.05, get:()=>np.backH, set:v=>np.backH=v, onChange:baseChanged,
         sub:()=>np.backH > np.thick*0.4 + 1e-6 ? `At most ${(np.thick*0.4).toFixed(2)} mm in a ${np.thick} mm plate.` : "" });
       slotField(g2, "Back filament", ()=>String(np.backSlot), v=>{ np.backSlot = +v; baseChanged(); });
-      note(g2, "The back name prints in the first layers, face down on the bed and flush with the back, mirrored so it reads when the tag is turned over. The tag lies flat and needs no support.");
+      note(g2, "The back prints in the first layers, face down on the bed and flush with the back, mirrored so it reads when the tag is turned over. The tag lies flat and needs no support.");
     }
   }, np.doubleSided);
+  group(p,"Magnet", g2 => {
+    selField(g2, "Magnet pocket in the back", [["none","None"], ...Object.keys(MAGNETS).map(k => [k, `${MAGNETS[k].d} × ${MAGNETS[k].t} mm round magnet`])], ()=>np.magnet || "none", v=>{ np.magnet = v; renderTab(); baseChanged(); });
+    if (MAGNETS[np.magnet]){
+      segField(g2, [["1","One magnet"],["2","Two magnets"]], ()=>String(np.magnets === 2 ? 2 : 1), v=>{ np.magnets = +v; baseChanged(); }, "two");
+      const mi = plateInfo && plateInfo.magnet;
+      if (mi && !mi.ok) note(g2, mi.why === "thick" ? `The plate is too thin for this magnet: make it ${mi.need} mm thick or more, or pick a thinner magnet.`
+        : `There is no room for ${np.magnets === 2 ? "two pockets" : "the pocket"}: the plate needs a spot ${mi.need} mm across clear of its edge, the ring hole and any letters on the back. Make the letters bigger or the border wider, or pick a smaller magnet.`);
+      note(g2, `A round pocket opens on the bottom, 0.3 mm wider and 0.2 mm deeper than the magnet. Press the magnet in after printing with a drop of glue: for the fridge, a whiteboard or a toolbox.${MAGNETS[np.magnet].d + 0.3 > (state.printer.bridge ?? 10) ? ` Its roof is a ${(MAGNETS[np.magnet].d + 0.3).toFixed(1)} mm bridge, over your bridge limit (${state.printer.bridge ?? 10} mm), so the check asks for support; most printers bridge it fine.` : ""}`);
+    } else note(g2, "Turn the tag into a fridge magnet: a pocket in the back for a round neodymium magnet.");
+  }, MAGNETS[np.magnet] ? true : false);
   group(p,"Fine tuning", g2 => {
     numField(g2,{ label:"Letter spacing (mm)", min:-1,max:6,step:0.1, get:()=>np.spacing, set:v=>np.spacing=v, onChange:baseChanged,
       sub:()=>FONTS[np.font].joined?"Spacing breaks the joins in a handwriting font.":"" });
@@ -12119,7 +12203,7 @@ function cleanCard(K0){
     margin: num(K.margin, 1.5, 15, d.margin), face: one(K.face, ["down","up"], d.face), frontFinish: one(K.frontFinish, ["flush","raised","engraved"], d.frontFinish),
     backFinish: one(K.backFinish, ["flush","raised","engraved"], d.backFinish), depth: num(K.depth, 0.2, 2, d.depth), backDepth: num(K.backDepth, 0.2, 2, d.backDepth), mono: bool(K.mono, d.mono),
     layout: one(K.layout, CARD_LAYOUTS.map(l => l[0]), d.layout), align: one(K.align, ["auto","left","centre","right"], d.align),
-    name: str(K.name, 60, d.name), title: str(K.title, 80, d.title), company: str(K.company, 60, d.company), lines: str(K.lines, 600, d.lines),
+    name: str(K.name, 60, d.name), title: str(K.title, 80, d.title), tagline: str(K.tagline, 80, ""), company: str(K.company, 60, d.company), lines: str(K.lines, 600, d.lines),
     nameFont: int(K.nameFont, 0, FONTS.length - 1, d.nameFont), textFont: int(K.textFont, 0, FONTS.length - 1, d.textFont),
     nameSize: num(K.nameSize, 2.5, 14, d.nameSize), titleSize: num(K.titleSize, 1.5, 8, d.titleSize), textSize: num(K.textSize, 1.5, 6, d.textSize),
     caps: bool(K.caps, d.caps), spacing: num(K.spacing, -0.1, 0.8, d.spacing), lineGap: num(K.lineGap, 1.2, 3, d.lineGap), icons: bool(K.icons, d.icons),
@@ -12530,6 +12614,7 @@ function sanitizeProject(data){
     np.text = cleanStr(np.text, 200, "Name"); np.batch = np.batch === true; np.names = cleanStr(np.names, 4000, "");
     if (np.sym){ np.sym.glyph = cleanStr(np.sym.glyph, 8, ""); np.sym.glyph2 = cleanStr(np.sym.glyph2, 8, ""); }
     np.line2 = cleanStr(np.line2, 60, "");
+    np.backText = cleanStr(np.backText, 40, ""); np.magnet = encHas(MAGNETS, np.magnet) ? String(np.magnet) : "none"; np.magnets = np.magnets === 2 ? 2 : 1;
     if (np.credit && typeof np.credit === "object" && !Array.isArray(np.credit)){
       const c = np.credit = Object.assign(DEFAULTS().base.nameplate.credit, np.credit); c.on = c.on === true; c.inlay = c.inlay !== false; c.text = cleanStr(c.text, 40, "");
       c.slot = Math.max(0, Math.min(7, Math.round(+c.slot || 0))); c.font = Math.max(0, Math.min(FONTS.length-1, Math.round(+c.font || 0)));

@@ -2268,7 +2268,7 @@ function encBoardList(E){
     }
     if (!(B.w > 0 && B.d > 0)) return;
     const holes = B.holes && o.hold !== "edges" ? B.holes : null;
-    out.push({ key, B, main, x:+o.x || 0, y:+o.y || 0, rot:o.rot === true, sh:+o.h || +E.standH || 5, holes, hold:holes ? "holes" : "edges", lvl:main ? 0 : Math.max(0, Math.round(+o.lvl || 0)) });
+    out.push({ key, B, main, src:o, x:+o.x || 0, y:+o.y || 0, rot:o.rot === true, sh:+o.h || +E.standH || 5, holes, hold:holes ? "holes" : "edges", lvl:main ? 0 : Math.max(0, Math.round(+o.lvl || 0)) });
   };
   add(E.board, { x:E.boardX, y:E.boardY, rot:E.boardRot, h:E.standH, hold:E.boardHold }, true);
   (Array.isArray(E.more) ? E.more : []).slice(0, 12).forEach(m => m && typeof m === "object" && add(m.kind, m, false));
@@ -2302,7 +2302,7 @@ const BOARD_PORTS = {
 };
 // the main board's ports as openings in the walls they face, at the height the board puts them; the board first slides
 // up to those walls (1 mm clear inside), so the ports reach the holes
-function encAddBoardPorts(){
+function encAddBoardPorts(quiet){
   const E = state.base.enclosure, list = encHas(BOARD_PORTS, E.board) ? BOARD_PORTS[E.board] : null;
   let bd = encBoardList(E).find(b => b.main); if (!list || !bd) return;
   buildEnclosure();
@@ -2310,8 +2310,10 @@ function encAddBoardPorts(){
   const NORMAL = { x0:[-1,0], x1:[1,0], y0:[0,-1], y1:[0,1] }, faceOf = (nx, ny) => nx < 0 ? "left" : nx > 0 ? "right" : ny < 0 ? "front" : "back";
   const turn = ([nx, ny]) => bd.rot ? [-ny, nx] : [nx, ny];
   const faces = new Set(list.map(([edge]) => faceOf(...turn(NORMAL[edge]))));
-  if (faces.has("left")) E.boardX = +(-iw/2 + 1 + bw/2).toFixed(2); else if (faces.has("right")) E.boardX = +(iw/2 - 1 - bw/2).toFixed(2);
-  if (faces.has("front")) E.boardY = +(-id/2 + 1 + bdp/2).toFixed(2); else if (faces.has("back")) E.boardY = +(id/2 - 1 - bdp/2).toFixed(2);
+  if (!quiet){                                            // (the arranger has placed the board already)
+    if (faces.has("left")) E.boardX = +(-iw/2 + 1 + bw/2).toFixed(2); else if (faces.has("right")) E.boardX = +(iw/2 - 1 - bw/2).toFixed(2);
+    if (faces.has("front")) E.boardY = +(-id/2 + 1 + bdp/2).toFixed(2); else if (faces.has("back")) E.boardY = +(id/2 - 1 - bdp/2).toFixed(2);
+  }
   buildEnclosure(); bd = encBoardList(E).find(b => b.main);
   const top = enclosureInfo && enclosureInfo.board ? enclosureInfo.board.top : (+E.standH || 5) + 3.6, added = [];
   E.cut = Array.isArray(E.cut) ? E.cut : [];
@@ -2319,12 +2321,122 @@ function encAddBoardPorts(){
     const p = { x0:[0, at], x1:[B.w, at], y0:[at, 0], y1:[at, B.d] }[edge];
     let lx = p[0] - B.w/2, ly = p[1] - B.d/2; if (bd.rot) [lx, ly] = [-ly, lx];
     const px = bd.x + lx, py = bd.y + ly, face = faceOf(...turn(NORMAL[edge])), u = { front:px, back:-px, left:-py, right:py }[face];
-    const c = newOpening(kind, face); c.u = +u.toFixed(2); c.v = +(top + up).toFixed(2);
+    const c = newOpening(kind, face); c.u = +u.toFixed(2); c.v = +(top + up).toFixed(2); c.auto = "ports";
     if (!E.cut.some(o => o.face === c.face && o.kind === c.kind && Math.abs((+o.u || 0) - c.u) < 1 && Math.abs((+o.v || 0) - c.v) < 1)){ E.cut.push(c); added.push(c); }
   });
+  if (quiet) return added.length;
   notify(added.length ? `${added.length} opening${added.length === 1 ? "" : "s"} for ${B.label}'s ports added, and the board moved against ${[...faces].map(f => "the " + ENC_FACE_NAME[f]).join(" and ")}. Check them against your board: makers move ports about.`
     : "Its ports are already there.");
   renderTab(); encBoardChanged(); pushHistory();
+}
+/* Arrange it for me (Session 48): every board and module packed on its floor (or level) in the smallest box that holds
+   them and fits the bed, or inside the box as it is. The main board goes first, against the walls its ports face (1 mm in)
+   and clear of the corner posts; the rest are packed bottom-left (a skyline), 3 mm apart, each turned whichever way packs
+   lower; the height follows the tallest parts. The main board's port openings ("Add this board's ports") are put back
+   where the board ends up. Returns what it did, or why not. */
+function encArrange(keepSize){
+  const E = state.base.enclosure, list = encBoardList(E);
+  if (!list.length) return { ok:false, why:"There are no boards to arrange: pick one in Board mounts first." };
+  const t = +E.wall || 2, fl = +E.floor || 2, bed = state.printer.bed || [256, 256, 256], gap = 3;
+  buildEnclosure();
+  const I0 = enclosureInfo, posts = E.lid !== "press" && E.lid !== "slide" && E.lid !== "none" || E.lid === "magnet";
+  const corner = (E.fasten !== "none" && posts) || E.lid === "magnet" ? 9 : 1;       // a corner post and its clearance
+  const nLv = Array.isArray(E.levels) ? E.levels.length : 0, main = list.find(b => b.main);
+  const portFaces = main && encHas(BOARD_PORTS, main.key) ? new Set(BOARD_PORTS[main.key].map(pt => boardPortPlace(Object.assign({}, main, { x:0, y:0 }), pt).face)) : new Set();
+  const dims = (b, rot) => { const w = b.B.w, d = b.B.d; return rot ? [d, w] : [w, d]; };
+  const pad = 2.2;                                            // from a wall: a cradle's fence (1.6) and its gap, with room to spare
+  // one floor at inner width iw: positions from the front-left inner corner, and the depth it needs
+  const packFloor = (items, iw, withMain) => {
+    const placed = [], sky = [{ x:0, w:iw, y:0 }];
+    let need = 0;
+    if (withMain){
+      const [bw, bd] = dims(main, main.rot), L = portFaces.has("left"), Rr = portFaces.has("right"), F = portFaces.has("front"), Bk = portFaces.has("back");
+      if (bw > iw - 2) return null;
+      // against the walls its ports face (1 mm in); along a wall, clear of the corner posts; in a corner (ports on two walls),
+      // off the post along the wall with fewer ports
+      const nOn = f => main && encHas(BOARD_PORTS, main.key) ? BOARD_PORTS[main.key].filter(pt => boardPortPlace(Object.assign({}, main, { x:0, y:0 }), pt).face === f).length : 0;
+      let x = Rr ? iw - 1 - bw : L ? 1 : corner, y = F ? 1 : corner;
+      if ((L || Rr) && (F || Bk) && corner > 1){
+        const sideN = nOn(L ? "left" : "right"), frontN = nOn(F ? "front" : "back");
+        if (sideN <= frontN) x = Rr ? iw - corner - bw : corner; else y = corner;
+      }
+      if (!L && !Rr && !F && !Bk){ x = corner; y = corner; }
+      // clear of the front corner posts: along the front wall when its ports are there, else further back
+      if (corner > 1 && y < corner){
+        if (x < corner) { if (F) x = corner; else y = corner; }
+        if (y < corner && x + bw > iw - corner){ if (F) x = Math.min(x, iw - corner - bw); else y = corner; }
+        if (y < corner && (x < corner - 1e-6 || x + bw > iw - corner + 1e-6)) return null;
+      }
+      if (x < (L ? 1 : Math.min(pad, corner)) - 1e-6 || x + bw > iw - (Rr ? 1 : Math.min(pad, corner)) + 1e-6) return null;      // too narrow for it where it must go
+      placed.push({ b:main, x, y, rot:main.rot, w:bw, d:bd, back:Bk });
+      need = Math.max(need, y + bd + (x < corner || x + bw > iw - corner ? corner : pad));
+      // the skyline steps up over the main board (and its gap)
+      const x0 = Math.max(0, x - gap), x1 = Math.min(iw, x + bw + gap), top = y + bd + gap;
+      sky.splice(0, sky.length, ...[{ x:0, w:x0, y:0 }, { x:x0, w:x1 - x0, y:top }, { x:x1, w:iw - x1, y:0 }].filter(sg => sg.w > 0));
+    }
+    const rest = items.filter(b => b !== main || !withMain).sort((a, b) => b.B.w*b.B.d - a.B.w*a.B.d);
+    for (const b of rest){
+      let best = null;
+      for (const rot of [false, true]){
+        const [w, d] = dims(b, rot);
+        for (let i=0;i<sky.length;i++){
+          let x = Math.max(sky[i].x, pad), wsum = 0, y = 0, j = i;
+          while (wsum < w && j < sky.length){ y = Math.max(y, sky[j].y); wsum += sky[j].w - (j === i ? x - sky[i].x : 0); j++; }
+          if (wsum < w - 1e-6 || x + w > iw - pad) continue;
+          const yy = Math.max(y, pad, (x < corner || x + w > iw - corner) ? corner : 0);
+          if (!best || yy + d < best.y + best.d - 1e-6 || (Math.abs(yy + d - best.y - best.d) < 1e-6 && x < best.x)) best = { b, x, y:yy, rot, w, d };
+        }
+      }
+      if (!best) return null;
+      placed.push(best); need = Math.max(need, best.y + best.d + (best.x < corner || best.x + best.w > iw - corner ? corner : pad));
+      // raise the skyline over it
+      const x0 = best.x, x1 = best.x + best.w + gap, top = best.y + best.d + gap, ns = [];
+      sky.forEach(sg => { const a = sg.x, z = sg.x + sg.w;
+        if (z <= x0 || a >= x1){ ns.push(sg); return; }
+        if (a < x0) ns.push({ x:a, w:x0 - a, y:sg.y });
+        if (z > x1) ns.push({ x:x1, w:z - x1, y:sg.y }); });
+      ns.push({ x:x0, w:Math.min(x1, iw) - x0, y:top }); ns.sort((p, q) => p.x - q.x);
+      sky.splice(0, sky.length, ...ns.filter(sg => sg.w > 0.01));
+    }
+    // a board whose ports face the back goes against the back wall: worked out once the depth is known
+    return { placed, need };
+  };
+  const floors = Array.from({ length:nLv + 1 }, (_, k) => list.filter(b => (b.lvl || 0) === k));
+  const tryWidth = iw => { const res = floors.map((items, k) => items.length ? packFloor(items, iw, k === 0 && !!main) : { placed:[], need:0 }); if (res.some(r => !r)) return null;
+    return { iw, id: Math.max(20, ...res.map(r => r.need)), res }; };
+  let pick = null;
+  if (keepSize) pick = tryWidth((+E.w || 100) - 2*t);
+  else {
+    const minW = Math.max(20, ...list.map(b => Math.min(b.B.w, b.B.d) + 2)), maxW = Math.min(bed[0], 400) - 2*t;
+    for (let iw = Math.ceil(minW); iw <= maxW; iw += 2){
+      const r = tryWidth(iw); if (!r || r.id + 2*t > Math.min(bed[1], 400)) continue;
+      if (!pick || r.iw*r.id < pick.iw*pick.id - 1) pick = r;
+    }
+  }
+  if (!pick) return { ok:false, why: keepSize ? "They do not all fit in the box as it is: try Smallest box, or add a level and put some On it." : "They do not fit one floor on your bed: add a level and put some boards On it, then arrange again." };
+  if (keepSize && pick.id > (+E.d || 60) - 2*t) return { ok:false, why:`They need ${Math.ceil(pick.id + 2*t)} mm front to back and the box is ${E.d} mm: try Smallest box.` };
+  const iw = pick.iw, id = keepSize ? (+E.d || 60) - 2*t : pick.id, before = [E.w, E.d, E.h];
+  // apply: positions are from the front-left inner corner; the plan's middle is the box's middle
+  pick.res.forEach(r => r.placed.forEach(p => {
+    let y = p.y; if (p.back) y = id - 1 - p.d;
+    const x = +(p.x + p.w/2 - iw/2).toFixed(1), yy = +(y + p.d/2 - id/2).toFixed(1);
+    if (p.b.main){ E.boardX = x; E.boardY = yy; E.boardRot = p.rot; }
+    else { const m = (E.more || []).find(o => o === p.b.src); if (m){ m.x = x; m.y = yy; m.rot = p.rot; } }
+  }));
+  if (!keepSize){
+    E.w = Math.ceil(iw + 2*t); E.d = Math.ceil(id + 2*t);
+    const lipH = E.lid === "none" || E.lid === "slide" ? 0 : (+E.lipH || 0);
+    const tallest = Math.max(0, ...list.filter(b => !b.lvl).map(b => (+b.sh || 5) + 1.6 + boardTall(b.key, b.B)));
+    // the highest port opening's top (with the clearance) must stay under the lid's lip
+    // (a wide port's pointed top, Session 47, reaches half its width higher)
+    const portTop = main && encHas(BOARD_PORTS, main.key) ? Math.max(0, ...BOARD_PORTS[main.key].map(([, , kind, up]) => { const k = CUTOUTS[kind] || {}, cl = +E.clear || 0, w = (k.w || k.dia || 4) + cl;
+      return (+main.sh || 5) + 1.6 + up + ((k.h || k.dia || 4) + cl)/2 + (ENC_POINTABLE.has(kind) && w > (state.printer.bridge ?? 10) ? w/2 : 0); })) : 0;
+    if (!nLv) E.h = Math.ceil(Math.max(20, fl + tallest + lipH + 3, fl + portTop + lipH + 2));
+  }
+  // the main board's port openings, where it is now
+  let ports = 0;
+  if (main && encHas(BOARD_PORTS, main.key)){ E.cut = (E.cut || []).filter(c => c.auto !== "ports"); encAddBoardPorts(true); ports = (E.cut || []).filter(c => c.auto === "ports").length; }
+  return { ok:true, before, after:[E.w, E.d, E.h], n:list.length, ports };
 }
 // a free spot on the floor for a board or module just added: beside the ones already there, along the width
 function encFreeBoardSpot(E, n){
@@ -10351,6 +10463,16 @@ function enclosureFields(p){
       if (nl) selField(box, "On", [["0","The floor"], ...Array.from({ length:nl }, (_, k) => [String(k + 1), `Level ${k + 1}`])], ()=>String(Math.min(nl, +m.lvl || 0)), v=>{ m.lvl = +v; encBoardChanged(); });
       buttonRow(box, [["Remove", ()=>{ more.splice(i, 1); renderTab(); baseChanged(); pushHistory(); }]]);
     });
+    // arrange it for me (Session 48)
+    if (encBoardList(E).length){
+      const ar = document.createElement("div"); ar.style.cssText = "margin-top:12px"; g.appendChild(ar);
+      const go = keep => { const r = encArrange(keep);
+        if (!r.ok){ notify(r.why); return; }
+        notify(`${r.n} board${r.n === 1 ? "" : "s"} arranged${keep ? " in the box" : `, the box ${r.before.join(" × ")} → ${r.after.join(" × ")} mm`}${r.ports ? `, ${r.ports} port opening${r.ports === 1 ? "" : "s"} put where the board is` : ""}. Undo puts it back.`);
+        renderTab(); baseChanged(); pushHistory(); };
+      buttonRow(ar, [["Arrange it for me (smallest box)", ()=>go(false)], ["Arrange in this box", ()=>go(true)]]);
+      note(ar, "Packs every board and module on its floor or level, 3 mm apart, the main board against the walls its ports face, clear of the corner posts; the smallest box also fits your printer's bed.");
+    }
     if (more.length < 12){
       const add = document.createElement("div"); add.style.cssText = "margin-top:12px"; g.appendChild(add);
       const addIt = k => { const n = { kind:k, x:0, y:0, h:3, rot:false, hold:"holes" }; n.x = encFreeBoardSpot(E, n); more.push(n); renderTab(); encBoardChanged(); pushHistory(); };
@@ -14042,7 +14164,7 @@ window.MakerForge = {
   examples: { list: EXAMPLES, forType: EXAMPLE_FOR_TYPE, art: EXAMPLE_ART, canvas: exampleCanvas, load: loadExample, drop: dropExamples },
   get tracer(){ return tracerInfo; },
   get enclosure(){ return enclosureInfo; },
-  get cutouts(){ return CUTOUTS; }, get boards(){ return BOARDS; }, boardPorts:BOARD_PORTS, addBoardPorts:encAddBoardPorts, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
+  get cutouts(){ return CUTOUTS; }, get boards(){ return BOARDS; }, boardPorts:BOARD_PORTS, addBoardPorts:encAddBoardPorts, arrange:encArrange, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
   get jigsaw(){ return jigsawInfo; },
   get lithophane(){ return lithoInfo; },
   get print(){ return printFresh() ? printInfo : null; },

@@ -11827,12 +11827,13 @@ function buildEnclosure(){
     insideParts.push({ inside:true, name:"Spacers and tie mounts", slot:exSlot, solid:C.affineSolid(C.mergeSolids(pcs), [1,0,0, 0,1,0, 0,0,1], [0, 0, frontZ + step/2]) });
     frontZ += depth + 10; extraInfo.spacers = spN; extraInfo.mounts = zmN;
   }
-  // a warm part in a closed box (Session 54): a hint to let the air out
+  // a warm part in a closed box (Session 54): advice to let the air out (its own line: hints are things to fix)
+  let airHint = "";
   {
     const warmRe = /^(lrs|buck|boost|xl4015|lm2596|xl6009|mp1584|pi$|pi5|l298|drv8825|a4988|tb6600|mosfet|amp)/;
     const warm = boardsInfo.filter(b => b.fits !== false && (warmRe.test(b.key) || (BOARDS[b.key] && /power supply|converter|amplifier|motor driver/i.test(BOARDS[b.key].label))));
     const air = (E.cut || []).some((c, i) => !left.includes(i) && encHas(CUTOUTS, c.kind) && (CUTOUTS[c.kind].g === "air" || /fan|vent|grille|honeycomb/i.test(c.kind + " " + CUTOUTS[c.kind].label))) || encDividers(E).some(d => d.fan);
-    if (warm.length && !air) hints.push(`${warm.map(b => b.label.replace(/\s*\(.*$/, "")).slice(0, 2).join(" and ")} ${warm.length === 1 ? "gets" : "get"} warm: add a vent or a fan (Openings), so the heat gets out.`);
+    if (warm.length && !air) airHint = (`${warm.map(b => b.label.replace(/\s*\(.*$/, "")).slice(0, 2).join(" and ")} ${warm.length === 1 ? "gets" : "get"} warm: add a vent or a fan (Openings), so the heat gets out.`);
   }
   solids.push(...mount.solids);
   const parts = [{ name:"Box", slot:clamp(+E.boxSlot || 0, 0, state.slots.length - 1), solid:C.mergeSolids(solids.filter(Boolean)) }, ...artParts];
@@ -12023,7 +12024,7 @@ function buildEnclosure(){
     if (split) nAdd(split.pins ? split.pins.length : 0, `${E.splitScrew || "M3"} screws and heat inserts for the joins`);
     const parts2 = {}; boardList.forEach(bd => { parts2[bd.B.label] = (parts2[bd.B.label] || 0) + 1; }); Object.entries(parts2).forEach(([k, n]) => nAdd(n, k));
   }
-  enclosureInfo = { test: !!state.base.enclosure.test, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, snap:!!snap, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR }, anchors:anchorsMade, ducts:ductInfo.length, count:(E.cut || []).length - left.length,
+  enclosureInfo = { test: !!state.base.enclosure.test, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, snap:!!snap, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR }, anchors:anchorsMade, ducts:ductInfo.length, count:(E.cut || []).length - left.length,
     split: splitInfo };
   return out;
 }
@@ -19220,6 +19221,7 @@ function enclosureFields(p){
       if (I && I.board) note(g, `The top of the board ends up ${mm(I.board.top)} above the bed. Openings for its ports go from there up.`);
       if (encHas(BOARD_PORTS, E.board)) buttonRow(g, [["Add this board's ports", ()=>encAddBoardPorts()]]);
       if (I && I.hints && I.hints.length) note(g, I.hints.map(h => "• " + esc(h)).join("<br>") + (encHas(BOARD_PORTS, E.board) ? "<br>Add this board's ports puts them in." : ""));
+      if (I && I.air) note(g, "🌡 " + esc(I.air));
     } else note(g, "Pick a board to get standoffs with holes for its screws, in the right places, or a cradle for a board without holes.");
     // more boards and modules (Session 45): a relay, a converter, a battery holder... each with its own mounts
     const more = Array.isArray(E.more) ? E.more : (E.more = []);

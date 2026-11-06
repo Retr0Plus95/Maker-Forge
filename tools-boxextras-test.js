@@ -81,9 +81,9 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
     check(b && /Your battery \(72 × 31 × 14\)/.test(b.label) && Math.abs(b.w - 72) < 0.01 && Math.abs(b.d - 31) < 0.01 && b.hold === "strap" && closed(q) && !MF.enclosure.warn.length, "your own battery: its size typed in, in a strap tray", b && `${b.label}, ${b.w} × ${b.d}`);
     fresh({ w:140, d:100, h:40, lid:"press", more:[{ kind:"batcustom", x:0, y:0, h:3, rot:true, hold:"holes", lvl:0, bw:50, bd:20, bt:8 }] }); MF.buildEnclosure(); const b2 = MF.enclosure.boards[0];
     check(b2 && Math.abs(b2.w - 20) < 0.01 && Math.abs(b2.d - 50) < 0.01, "an extra one turned 90°", b2 && `${b2.w} × ${b2.d}`);
-    fresh({ w:200, d:120, h:60, lid:"screw", cut:[], board:"lrs35" in MF.boards ? "lrs35" : "buck2596" }); MF.buildEnclosure(); const hot = MF.enclosure.hints.some(h => /warm/.test(h));
+    fresh({ w:200, d:120, h:60, lid:"screw", cut:[], board:"lrs35" in MF.boards ? "lrs35" : "buck2596" }); MF.buildEnclosure(); const hot = /warm/.test(MF.enclosure.air);
     fresh({ w:200, d:120, h:60, lid:"screw", cut:[{ face:"left", kind:"fan", u:0, v:30, size:40, style:"slots", rot:false, label:"", labelPos:"below", top:"flat", notch:false }], board:"lrs35" in MF.boards ? "lrs35" : "buck2596" }); MF.buildEnclosure();
-    check(hot && !MF.enclosure.hints.some(h => /warm/.test(h)), "a power supply in a closed box gets a hint to add a vent or a fan; with a fan, none");
+    check(hot && !MF.enclosure.air && !MF.enclosure.hints.some(h => /warm/.test(h)), "a power supply in a closed box gets a hint to add a vent or a fan; with a fan, none");
     fresh({ w:160, d:120, h:60, lid:"screw", fasten:"insert", screw:"M3", feet:"recess", mount:"din", board:"uno", boardX:-30, boardY:15, more:[{ kind:"lipo603450", x:40, y:-25, h:3, rot:false, hold:"holes", lvl:0 }],
       levels:[{ z:30, t:2, hold:"posts", pass:"back" }], cut:[{ face:"left", kind:"fan", u:0, v:30, size:40, style:"slots", rot:false, label:"", labelPos:"below", top:"flat", notch:false }] });
     MF.buildEnclosure(); const N = needOf().join(" | ");

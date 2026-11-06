@@ -2326,7 +2326,8 @@ y 0, in the walls' slab system) at the same places, `zc = H - lipH/2`. Not with 
 warning). `enclosureInfo.snap`.
 **Your own battery** (`BOARDS.batcustom`; `E.batW/batD/batT` for the main one, `bw/bd/bt` on an extra one, kept only on that kind).
 **Airflow hint**: a converter, supply, Pi, amplifier or motor driver in a box with no air opening (group "air", or a fan, vent,
-grille) and no divider fan.
+grille) and no divider fan. It is `enclosureInfo.air`, shown under Board mounts with a 🌡, not in `hints` (those are things to fix:
+**found while testing**, the arrange test expects none for a good layout).
 
 **Tests**: new `tools-boxextras-test.js` (in `test:enclosure`). The doc picture: `docs/images/box-extras.jpg`.
 

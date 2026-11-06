@@ -93,6 +93,13 @@ async function settle() {
       "a back text 140 letters long, a magnet that does not exist and nine of them: 40 letters, no magnet, one");
     await host("card", b => { b.card.tagline = "<script>alert(8)</script>".repeat(10); },
       b => b.card.tagline.length === 80 || b.card.tagline.length, "a card tagline 250 letters long is cut to 80");
+    // Session 43: frames for a photo and stands
+    await host("frame", b => { b.frame = Object.assign(b.frame, { photo: "__proto__", pw: 1e9, ph: -5, border: "wide", overlap: 99, sheet: -1, panelT: 1e9, stand: "<b>", hang: "no", standBase: "yes", landscape: 1 }); },
+      b => b.frame.photo === "none" && b.frame.pw === 300 && b.frame.ph === 30 && b.frame.border === 14 && b.frame.overlap === 10 && b.frame.sheet === 0 && b.frame.panelT === 4 && b.frame.stand === "none" && b.frame.hang === true && b.frame.standBase === false && b.frame.landscape === false
+        || JSON.stringify(b.frame), "a frame with a photo size that does not exist and silly sizes: no photo, each size clamped, no stand");
+    await host("frame", b => { b.frame = Object.assign(b.frame, { photo: "a5", border: 40, overlap: 2, sheet: 3, panelT: 4, stand: "leg", hang: true }); },
+      b => b.frame.photo === "a5" || b.frame.photo, "the biggest frame for a photo (A5, 40 mm round it) builds in time");
+    await host("board", b => { b.board.stand = "yes"; }, b => b.board.stand === false || b.board.stand, "a plaque's stand that is not true/false: none");
     // Session 38: signs and reliefs
     await host("sign", b => { b.sign = { style: "<script>", text: "<img src=x onerror=alert(1)>".repeat(30), letterH: 1e9, depth: -5, wall: "thick", backing: "everywhere", mount: "nails", holes: "yes", diffuserSlot: 99, font: -3, evil: 1 }; },
       b => b.sign.style === "channel" && b.sign.text.length === 200 && b.sign.letterH === 400 && b.sign.depth === 2 && b.sign.wall === 1.6 && b.sign.backing === "none" && b.sign.mount === "keyhole" && b.sign.holes === false && b.sign.diffuserSlot === 7 && b.sign.font === 0 && !("evil" in b.sign)

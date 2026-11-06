@@ -177,6 +177,7 @@ node tools-smoke-test.js index.html              # every tab, button, quick star
 node tools-audit.js index.html                   # every control to both ends; flags controls that change nothing
 npm run test:project                             # saved projects come back unchanged; hostile files are tamed
 npm run test:paint && npm run test:photo         # the colour painter and colour from a photo
+npm run test:sharp                               # paint edges cut into the model
 npm run test:enclosure && npm run test:phonecase # project boxes and phone cases
 npm run test:jigsaw && npm run test:litho        # puzzles and lithophanes
 npm run test:tracer && npm run test:print        # traced parts against known sizes; printability

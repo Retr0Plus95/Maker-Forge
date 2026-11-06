@@ -2905,10 +2905,63 @@
       }
       E.set(key(a, m), pack(am[0], am.length > 1 ? am[1] : -1));
       E.set(key(m, b), pack(mb[0], mb.length > 1 ? mb[1] : -1));
+      if (eIdx) { eAdd(key(a, m)); eAdd(key(m, b)); for (const t of ts) if (t >= 0) { const w = [T[3 * t], T[3 * t + 1], T[3 * t + 2]].find(x => x !== m && x !== a && x !== b); if (w !== undefined) eAdd(key(m, w)); } }
       return m;
     }
-    const d2 = (a, b) => { const dx = P[3 * a] - P[3 * b], dy = P[3 * a + 1] - P[3 * b + 1], dz = P[3 * a + 2] - P[3 * b + 2]; return dx * dx + dy * dy + dz * dz; };
+    // edges filed by where their middles are (built the first time a cut asks for a region), so a cut along a
+    // brush stroke looks only at the edges near it, not at every edge of a big model
+    let eIdx = null, eCell = 4, eMax = 0;
+    const eCellKey = (i, j, k) => ((i + 32768) * 65536 + (j + 32768)) * 65536 + (k + 32768);
+    function eAdd(k) {
+      const a = Math.floor(k / EB), b = k % EB, x = (P[3 * a] + P[3 * b]) / 2, y = (P[3 * a + 1] + P[3 * b + 1]) / 2, z = (P[3 * a + 2] + P[3 * b + 2]) / 2;
+      eMax = Math.max(eMax, Math.sqrt(d2(a, b)));
+      const c = eCellKey(Math.floor(x / eCell), Math.floor(y / eCell), Math.floor(z / eCell));
+      let L = eIdx.get(c); if (!L) eIdx.set(c, L = []); L.push(k);
+    }
+    function edgesIn(box) {
+      if (!box) return [...E.keys()];
+      if (!eIdx) {
+        let s = 0, n = 0; for (const k of E.keys()) { if (n++ > 2000) break; s += Math.sqrt(d2(Math.floor(k / EB), k % EB)); }
+        eCell = Math.max(0.5, 3 * s / Math.max(1, Math.min(n, 2001))); eIdx = new Map(); for (const k of E.keys()) eAdd(k);
+      }
+      const g = eMax / 2, out = new Set();
+      const i0 = Math.floor((box[0] - g) / eCell), i1 = Math.floor((box[3] + g) / eCell), j0 = Math.floor((box[1] - g) / eCell), j1 = Math.floor((box[4] + g) / eCell);
+      const k0 = Math.floor((box[2] - g) / eCell), k1 = Math.floor((box[5] + g) / eCell);
+      if ((i1 - i0 + 1) * (j1 - j0 + 1) * (k1 - k0 + 1) > eIdx.size) return [...E.keys()];
+      for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) for (let k = k0; k <= k1; k++) { const L = eIdx.get(eCellKey(i, j, k)); if (L) for (const e of L) out.add(e); }
+      return [...out];
+    }
+    function d2(a, b) { const dx = P[3 * a] - P[3 * b], dy = P[3 * a + 1] - P[3 * b + 1], dz = P[3 * a + 2] - P[3 * b + 2]; return dx * dx + dy * dy + dz * dz; }
     return {
+      // cut the surface where fn(x, y, z) crosses 0 (Session 40: paint edges that follow a brush stroke or a
+      // picture's colours instead of the triangles). Only edges in box ([x0, y0, z0, x1, y1, z1], optional)
+      // are looked at. Each crossing is found on its edge by a few halvings (the field need not be straight);
+      // one that falls within 5% of an end is left, so no sliver is made. Returns how many edges were split.
+      cutField(fn, box) {
+        const val = new Map(), at = v => { let f = val.get(v); if (f === undefined) { f = +fn(P[3 * v], P[3 * v + 1], P[3 * v + 2]); if (!isFinite(f)) f = 1e9; val.set(v, f); } return f; };
+        const todo = [];
+        for (const k of edgesIn(box)) {
+          if (!E.has(k)) continue;
+          const a = Math.floor(k / EB), b = k % EB, fa = at(a), fb = at(b);
+          if ((fa < 0 && fb > 0) || (fa > 0 && fb < 0)) todo.push(a, b);
+        }
+        let n = 0;
+        for (let i = 0; i < todo.length; i += 2) {
+          const a = todo[i], b = todo[i + 1]; if (!E.has(key(a, b))) continue;
+          const fa = at(a), fb = at(b), A = [P[3 * a], P[3 * a + 1], P[3 * a + 2]], B = [P[3 * b], P[3 * b + 1], P[3 * b + 2]];
+          let lo = 0, hi = 1, flo = fa, t = fa / (fa - fb);
+          for (let it = 0; it < 6; it++) {                   // false position, kept inside the bracket
+            const f = +fn(A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t, A[2] + (B[2] - A[2]) * t);
+            if (!isFinite(f) || Math.abs(f) < 1e-6) break;
+            if ((f < 0) === (flo < 0)) { lo = t; flo = f; } else hi = t;
+            t = (lo + hi) / 2;
+          }
+          if (t < 0.05 || t > 0.95) continue;
+          const m = split(a, b, A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t, A[2] + (B[2] - A[2]) * t);
+          if (m >= 0) { val.set(m, 0); n++; }
+        }
+        return n;
+      },
       // bisect the longest edge of every triangle longer than maxEdge, until none is (or maxTris)
       refine(maxEdge, maxTris) {
         const L2 = maxEdge * maxEdge * 1.0404;          // 2% slack: edges already at the limit (say after a 3mf round trip) stay
@@ -3295,6 +3348,136 @@
     for (const p of pts) for (const t of brushTris(topo, grid, p, r, facing, edge)) if (paint[t] !== slot) { paint[t] = slot; n++; }
     return n;
   }
+  // A brush stroke as a shape (Session 40): every point within r of the line through its points (a single
+  // point: a ball). f(x, y, z) is the distance to that line less r (below 0 inside), quick to ask near the
+  // stroke (its pieces are filed in a grid); box is where it can be below 0.
+  function strokeField(pts, r) {
+    const P = (pts || []).filter(q => Array.isArray(q) && q.length >= 3 && q.every(isFinite)), R = Math.max(0.05, +r || 3);
+    const segs = P.length === 1 ? [[P[0], P[0]]] : P.slice(1).map((q, i) => [P[i], q]);
+    const box = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
+    P.forEach(q => { for (let j = 0; j < 3; j++) { box[j] = Math.min(box[j], q[j] - R); box[j + 3] = Math.max(box[j + 3], q[j] + R); } });
+    const cell = Math.max(R * 2, 1), inv = 1 / cell, grid = new Map(), ck = (i, j, k) => ((i + 32768) * 65536 + (j + 32768)) * 65536 + (k + 32768);
+    segs.forEach((sg, n) => {
+      const pad = R + cell;                              // filed a cell further than r out, so answers near the edge are exact
+      const lo = [0, 1, 2].map(j => Math.floor((Math.min(sg[0][j], sg[1][j]) - pad) * inv)), hi = [0, 1, 2].map(j => Math.floor((Math.max(sg[0][j], sg[1][j]) + pad) * inv));
+      if ((hi[0] - lo[0] + 1) * (hi[1] - lo[1] + 1) * (hi[2] - lo[2] + 1) > 4000) { let L = grid.get("far"); if (!L) grid.set("far", L = []); L.push(n); return; }
+      for (let i = lo[0]; i <= hi[0]; i++) for (let j = lo[1]; j <= hi[1]; j++) for (let k = lo[2]; k <= hi[2]; k++) { const c = ck(i, j, k); let L = grid.get(c); if (!L) grid.set(c, L = []); L.push(n); }
+    });
+    const far = grid.get("far") || [];
+    const segD2 = (n, x, y, z) => {
+      const [a, b] = segs[n], ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], L2 = ux * ux + uy * uy + uz * uz;
+      let t = L2 > 0 ? ((x - a[0]) * ux + (y - a[1]) * uy + (z - a[2]) * uz) / L2 : 0; t = Math.max(0, Math.min(1, t));
+      const dx = x - a[0] - ux * t, dy = y - a[1] - uy * t, dz = z - a[2] - uz * t; return dx * dx + dy * dy + dz * dz;
+    };
+    const f = (x, y, z) => {
+      if (!segs.length) return 1e9;
+      let best = Infinity;
+      const L = grid.get(ck(Math.floor(x * inv), Math.floor(y * inv), Math.floor(z * inv)));
+      if (L) for (const n of L) best = Math.min(best, segD2(n, x, y, z));
+      for (const n of far) best = Math.min(best, segD2(n, x, y, z));
+      return best === Infinity ? cell : Math.sqrt(best) - R;     // nothing filed here: more than a cell beyond r
+    };
+    return { f, box, segs: segs.length, r: R, pts: P };
+  }
+  // the brush, exactly (Session 40): every triangle whose middle is inside the stroke's shape (strokeField),
+  // facing the camera when `facing` is given; with `edge`, only those reached from under the stroke without
+  // crossing a fold sharper than edge degrees. Long jumps between points are filled in, not left as gaps.
+  function strokeTris(topo, grid, sf, facing, edge) {
+    const ok = t => !facing || topo.nrm[3 * t] * facing[0] + topo.nrm[3 * t + 1] * facing[1] + topo.nrm[3 * t + 2] * facing[2] <= 0.05;
+    const R = sf.r, inside = new Set(), seeds = [], P = sf.pts;
+    const probe = (q, rad) => grid.near(q[0], q[1], q[2], rad, t => { if (!inside.has(t) && ok(t) && sf.f(topo.cen[3 * t], topo.cen[3 * t + 1], topo.cen[3 * t + 2]) <= 0) inside.add(t); });
+    for (let i = 0; i < P.length; i++) {
+      probe(P[i], R * 1.05);
+      if (i) { const a = P[i - 1], b = P[i], L = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]), n = Math.ceil(L / R);
+        for (let k = 1; k < n; k++) probe([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n, a[2] + (b[2] - a[2]) * k / n], R * 1.05); }
+    }
+    if (!(edge > 0)) return [...inside];
+    for (const q of P) { let t0 = -1, bd = Infinity; grid.near(q[0], q[1], q[2], R, t => { if (!inside.has(t)) return; const d = (topo.cen[3 * t] - q[0]) ** 2 + (topo.cen[3 * t + 1] - q[1]) ** 2 + (topo.cen[3 * t + 2] - q[2]) ** 2; if (d < bd) { bd = d; t0 = t; } }); if (t0 >= 0) seeds.push(t0); }
+    const lim = Math.cos(Math.min(89, edge) * Math.PI / 180), seen = new Set(seeds), stack = seeds.slice(), out = [];
+    while (stack.length) {
+      const t = stack.pop(); out.push(t);
+      for (let e = 0; e < 3; e++) {
+        const u = topo.nbr[3 * t + e]; if (u < 0 || seen.has(u) || !inside.has(u)) continue;
+        if (topo.nrm[3 * t] * topo.nrm[3 * u] + topo.nrm[3 * t + 1] * topo.nrm[3 * u + 1] + topo.nrm[3 * t + 2] * topo.nrm[3 * u + 2] >= lim) { seen.add(u); stack.push(u); }
+      }
+    }
+    return out;
+  }
+  function paintStroke(topo, grid, paint, pts, r, slot, facing, edge) {
+    let n = 0; for (const t of strokeTris(topo, grid, strokeField(pts, r), facing, edge)) if (paint[t] !== slot) { paint[t] = slot; n++; }
+    return n;
+  }
+  // where a point lands on a picture projected straight through the model ("front", "back", "left", "right",
+  // "top"): [fu, fv] across and down (0..1 on the picture), or null when it misses
+  function pictureUV(dir, box) {
+    const [iu, iv] = { front: [0, 1], back: [0, 1], left: [2, 1], right: [2, 1], top: [0, 2] }[dir] || [0, 1];
+    return (x, y, z) => {
+      const q = [x, y, z]; let u = q[iu], v = q[iv];
+      if (dir === "back" || dir === "left") u = -u;
+      if (dir === "top") v = -v;
+      return [(u - box[0]) / (box[2] - box[0]), (box[3] - v) / (box[3] - box[1])];
+    };
+  }
+  // the same for a picture wrapped round (paintPictureWrap's o)
+  function pictureWrapUV(o) {
+    const c = o.c || [0, 0, 0], turn = Math.max(1, Math.min(360, +o.turn || 360)) * Math.PI / 180, mid = (+o.start || 0) * Math.PI / 180;
+    const ball = o.mode === "ball";
+    return (x, y, z, pic) => {
+      const X = x - c[0], Y = y - c[1], Z = z - c[2], r = Math.hypot(X, Z), vt = ball ? turn / (pic.w / pic.h) : 0;
+      let a = Math.atan2(X, Z) - mid; a = ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+      return [a / turn + 0.5, ball ? 0.5 - Math.atan2(Y, r) / vt : (o.v1 - y) / ((o.v1 - o.v0) || 1)];
+    };
+  }
+  // A picture's colours as shapes (Session 40): for each colour in pic.pix (and -1, "none", which is also
+  // everything off the picture), its signed distance in pixels from the edge of its patches (below 0 inside),
+  // read smoothly between pixel middles. labels: the colours; at(k, fu, fv): colour k's distance there;
+  // which(fu, fv): the colour whose patch the point is deepest in. Cutting a model along at(k) = 0 for each k
+  // gives colour edges that run between the pixels instead of following the triangles.
+  function pictureFields(pic) {
+    const w = pic.w, h = pic.h, W = w + 2, H = h + 2, lab = new Int16Array(W * H).fill(-1);
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) { const s = pic.pix[j * w + i]; lab[(j + 1) * W + i + 1] = s >= 0 && s !== LEAVE ? s : -1; }
+    const labels = [...new Set(lab)].sort((a, b) => a - b), sd = new Map();
+    for (const k of labels) {
+      const inM = new Uint8Array(W * H), outM = new Uint8Array(W * H);
+      for (let i = 0; i < W * H; i++) { const yes = lab[i] === k; inM[i] = yes ? 1 : 0; outM[i] = yes ? 0 : 1; }
+      const toIn = edt(inM, W, H), toOut = edt(outM, W, H), f = new Float32Array(W * H);
+      // inside: minus the distance to the nearest pixel outside, less half a pixel (the edge runs between them)
+      for (let i = 0; i < W * H; i++) f[i] = lab[i] === k ? -(Math.min(toOut[i], 1e6) - 0.5) : Math.min(toIn[i], 1e6) - 0.5;
+      sd.set(k, f);
+    }
+    const at = (k, fu, fv) => {
+      const f = sd.get(k); if (!f) return 1e9;
+      let x = fu * w + 0.5, y = fv * h + 0.5;                 // pixel middles of the padded grid sit at i + 0.5
+      if (!(x > -1e6 && x < 1e6 && y > -1e6 && y < 1e6)) return k === -1 ? -1 : 1e9;
+      const off = Math.max(0, -x, x - (W - 1), -y, y - (H - 1));   // off the padded grid: "none" grows, others shrink
+      x = Math.max(0, Math.min(W - 1.0001, x)); y = Math.max(0, Math.min(H - 1.0001, y));
+      const i = Math.floor(x), j = Math.floor(y), a = x - i, b = y - j, I = j * W + i;
+      const v = (f[I] * (1 - a) + f[I + 1] * a) * (1 - b) + (f[I + W] * (1 - a) + f[I + W + 1] * a) * b;
+      return k === -1 ? v - off : v + off;
+    };
+    const which = (fu, fv) => { let best = -1, bv = Infinity; for (const k of labels) { const v = at(k, fu, fv); if (v < bv) { bv = v; best = k; } } return best; };
+    return { labels, at, which };
+  }
+  // the outline of a box or lasso as a shape on the model (Session 40): f(x, y, z) is the point's distance on
+  // the screen (in areaTris's -1..1 units) from the outline, below 0 inside; cutting along f = 0 gives the area
+  // tool an edge that follows the outline instead of the triangles
+  function areaField(M, poly) {
+    const n = poly.length;
+    return (x, y, z) => {
+      const w = M[3] * x + M[7] * y + M[11] * z + M[15];
+      if (!(w > 1e-9)) return 1e9;
+      const X = (M[0] * x + M[4] * y + M[8] * z + M[12]) / w, Y = (M[1] * x + M[5] * y + M[9] * z + M[13]) / w;
+      let d2 = Infinity, c = false;
+      for (let i = 0, j = n - 1; i < n; j = i++) {
+        const a = poly[i], b = poly[j];
+        if ((a[1] > Y) !== (b[1] > Y) && X < (b[0] - a[0]) * (Y - a[1]) / (b[1] - a[1]) + a[0]) c = !c;
+        const ux = b[0] - a[0], uy = b[1] - a[1], L2 = ux * ux + uy * uy;
+        let t = L2 > 0 ? ((X - a[0]) * ux + (Y - a[1]) * uy) / L2 : 0; t = Math.max(0, Math.min(1, t));
+        const dx = X - a[0] - ux * t, dy = Y - a[1] - uy * t; d2 = Math.min(d2, dx * dx + dy * dy);
+      }
+      return c ? -Math.sqrt(d2) : Math.sqrt(d2);
+    };
+  }
   // everything inside an outline drawn on the screen: M (16 numbers, column-major like three.js) takes the
   // model's own coordinates to the screen (-1..1 both ways, z -1 near to 1 far), poly is the box or lasso in
   // those screen units. Only what can be seen from there (a depth test at up to 1024 pixels over the
@@ -3392,15 +3575,15 @@
   }
   // a picture projected straight through the model (like a slide projector): pix[j*w+i] is a
   // filament index or -1; box = [u0, v0, u1, v1] is where the picture lands, in the axes of `dir`
-  function paintPicture(topo, paint, pic, dir, box, onlyFacing) {
+  // fields (pictureFields, optional): each triangle takes the colour whose shape its middle is in, rather
+  // than the pixel under it, so it matches a model cut along those shapes
+  function paintPicture(topo, paint, pic, dir, box, onlyFacing, fields) {
     const ax = { front: [0, 1, 2, 1], back: [0, 1, 2, -1], left: [2, 1, 0, -1], right: [2, 1, 0, 1], top: [0, 2, 1, 1] }[dir] || [0, 1, 2, 1];
-    const [iu, iv, iw, sgn] = ax;
+    const [, , iw, sgn] = ax, uv = pictureUV(dir, box);
     for (let t = 0; t < topo.n; t++) {
       if (onlyFacing && topo.nrm[3 * t + iw] * sgn < 0.05) continue;
-      let u = topo.cen[3 * t + iu], v = topo.cen[3 * t + iv];
-      if (dir === "back" || dir === "left") u = -u;
-      if (dir === "top") v = -v;
-      const fu = (u - box[0]) / (box[2] - box[0]), fv = (box[3] - v) / (box[3] - box[1]);
+      const [fu, fv] = uv(topo.cen[3 * t], topo.cen[3 * t + 1], topo.cen[3 * t + 2]);
+      if (fields) { if (fu < -0.05 || fu > 1.05 || fv < -0.05 || fv > 1.05) continue; const s = fields.which(fu, fv); if (s >= 0 && s !== LEAVE) paint[t] = s; continue; }
       if (fu < 0 || fu >= 1 || fv < 0 || fv >= 1) continue;
       const s = pic.pix[Math.floor(fv * pic.h) * pic.w + Math.floor(fu * pic.w)];
       if (s >= 0 && s !== LEAVE) paint[t] = s;
@@ -3410,10 +3593,24 @@
   // width going round, its height up the model) or over a "ball" centred on c (its width round, its
   // height from the bottom to the top). o: { mode, c:[x,y,z], turn (degrees the width covers), start
   // (degrees round where its middle lands, 0 = the front), v0, v1 (heights, mm, for "around"), outside }
-  function paintPictureWrap(topo, paint, pic, o) {
+  function paintPictureWrap(topo, paint, pic, o, fields) {
     const c = o.c || [0, 0, 0], turn = Math.max(1, Math.min(360, +o.turn || 360)) * Math.PI / 180, mid = (+o.start || 0) * Math.PI / 180;
     const ball = o.mode === "ball", vt = ball ? turn / (pic.w / pic.h) : 0;   // a ball: the picture's height spans its share of the half turn
     let n = 0;
+    if (fields) {
+      const uv = pictureWrapUV(o);
+      for (let t = 0; t < topo.n; t++) {
+        const x = topo.cen[3 * t] - c[0], y = topo.cen[3 * t + 1] - c[1], z = topo.cen[3 * t + 2] - c[2], r = Math.hypot(x, z);
+        if (o.outside) {
+          const d = ball ? (topo.nrm[3 * t] * x + topo.nrm[3 * t + 1] * y + topo.nrm[3 * t + 2] * z) / (Math.hypot(r, y) || 1) : (topo.nrm[3 * t] * x + topo.nrm[3 * t + 2] * z) / (r || 1);
+          if (d < 0.05) continue;
+        }
+        const [fu, fv] = uv(topo.cen[3 * t], topo.cen[3 * t + 1], topo.cen[3 * t + 2], pic);
+        if (!(fu >= -0.05 && fu <= 1.05 && fv >= -0.05 && fv <= 1.05)) continue;
+        const s = fields.which(fu, fv); if (s >= 0 && s !== LEAVE) { paint[t] = s; n++; }
+      }
+      return n;
+    }
     for (let t = 0; t < topo.n; t++) {
       const x = topo.cen[3 * t] - c[0], y = topo.cen[3 * t + 1] - c[1], z = topo.cen[3 * t + 2] - c[2], r = Math.hypot(x, z);
       if (o.outside) {                                   // only faces turned away from the axis (or the centre)
@@ -5951,7 +6148,7 @@
     seededRandom, jigsawGrid, jigsawCut, jigsawEdge, jigsawPiece, jigsawSVG, jigsawCutLines, ringField, ringDistance, outlineBand, strokeText,
     gridAround, heightSheet,
     meshEditor, meshTopology, paintCode, paintDecode, triangleGrid, paintHeights, stripeCuts, paintStripes, paintDirection, gradientCuts, gradientLayers, paintGradient, paintSwap, meshShells, paintShells,
-    meshRegions, paintRegions, paintNoise, paintPictureWrap, paintCurvature, curvatureClasses, layerSlots, pauseColours, colourChanges, paintBrush, brushTris, symmetryCopies, areaTris, paintFill, paintPicture, parseOBJ, parse3MFModel,
+    meshRegions, paintRegions, paintNoise, paintPictureWrap, paintCurvature, curvatureClasses, layerSlots, pauseColours, colourChanges, paintBrush, brushTris, strokeField, strokeTris, paintStroke, areaField, pictureUV, pictureWrapUV, pictureFields, symmetryCopies, areaTris, paintFill, paintPicture, parseOBJ, parse3MFModel,
     PHOTO_CAMS, PHOTO_ANGLES, photoCam, photoXY, photoRef, photoUV, PHOTO_K_MAX, srgbToLab, photoMask, photoModelMask, photoView, photoPalette, photoClasses, photoRaster, photoFit, photoFitCloseness, photoFitFull, photoFitClosenessSteps, photoFitFullSteps, paintFromPhotos, photoBend, photoBendApply, graphCut, cheapestLabels, photoLight, photoUnshade, photoLitBy, photoTriNormals, meshBVH, bvhRaycast,
     photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure, cutoutWithMap, edgeOpacity, pictureBackground, cutoutByColour, plateColour, cutoutCombine, photoFixMap, photoFixMask,
     parseGLB, parseGLTF, parseMTL, parseOBJColours, modelTriColours, modelPalette, modelColourLabels,

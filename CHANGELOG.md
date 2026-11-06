@@ -3,6 +3,20 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.34.0
+
+Paint that ends exactly where you painted it.
+
+- **Sharp edges** (on the Paint tab's **Paint detail** page, on unless you turn it off):
+  - Each brush stroke, eraser stroke, box or lasso and painted picture is cut into the model. A colour now ends exactly where you painted it, instead of at the nearest triangle.
+  - A round dab prints round, a stroke's edge is smooth, and a picture's colour edges run where the picture's do, even with coarse paint detail.
+  - The download carries the cut model, so the slicer shows the same edges.
+  - A big model is cut a moment after you stop painting, and always before a download.
+- **A stroke follows the line you drew**, so a fast stroke no longer leaves gaps between its dabs.
+- **Painted pictures are read finer** (240 pixels across instead of 160) when Sharp edges is on.
+
+![The same strokes on coarse triangles: jagged on the left, smooth with Sharp edges on the right](docs/images/paint-sharp.jpg)
+
 ## 0.33.0
 
 Many more openings for project boxes, and ways to mount them.

@@ -434,7 +434,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.33.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.34.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -960,7 +960,7 @@ const DEFAULTS = () => ({
   printer:{ model:"Bambu P1S / X1C", bed:[256,256,256], nozzle:0.4, layer:0.12, colors:4, flow:18, currency:"", overhang:45, bridge:10, purge:0.4, swap:60 },
   model:{ scale:100, mirror:false, orient:null, brim:0 },
   view:{ units:"mm", theme:"auto" },
-  paint:{ on:true, detail:"auto", part:-1, ops:[] }
+  paint:{ on:true, detail:"auto", sharp:true, part:-1, ops:[] }
 });
 let state = DEFAULTS();
 const assets = {};
@@ -5370,7 +5370,8 @@ const paintPicCache = { key:"", pic:null };
 function paintPicture(o){
   const d = state.items[o.item]; if (!d) return null;
   const src = sourceCanvas(d); if (!src) return null;
-  const w = 160, h = Math.max(4, Math.round(w / (d.aspect || 1)));
+  // with Sharp edges the colour edges follow the picture's pixels, so it is read finer (Session 40)
+  const w = state.paint.sharp !== false ? 240 : 160, h = Math.max(4, Math.round(w / (d.aspect || 1)));
   const key = [d.id, d._imgKey, w, h, state.slots.map(s=>s.hex).join(","), (d.skip||[]).join(",")].join("|");
   if (paintPicCache.key === key) return paintPicCache.pic;
   const img = resample(src, w, h, false);
@@ -6179,7 +6180,7 @@ async function photoRepaintNow(){
   photoWaiting++;
   try {
     const o = photoOpOf(), targets = paintTargets();
-    if (o && !o.hide && state.paint.on !== false) modelParts.forEach(p => { if (p.pc && p.pc.topo && !p.decal && targets.includes(p)) photoLabels(p.pc, o); });
+    if (o && !o.hide && state.paint.on !== false) modelParts.forEach(p => { if (p.pc && p.pc.topo && !p.decal && targets.includes(p)) photoLabels(p.pc.base || p.pc, o); });
     await wait();
   } catch (err){ console.error(err); } finally { photoWaiting--; }
   try { repaint(true); } catch (err){ console.error(err); }
@@ -6247,6 +6248,10 @@ function pictureWrap(o, pic, B){
 // replay every step on one part
 function runPaintOps(p, pc, ops, B){
   const topo = pc.topo, paint = new Uint8Array(topo.n).fill(PAINT_LEAVE);
+  // a mesh cut along the strokes (Session 40): steps that take a while to work out (curvature, colour from a
+  // photo or the model's own colours) are worked out once on the mesh before the cuts, and each piece
+  // of a cut triangle takes its triangle's answer
+  const bpc = pc.base || pc, sb = pc.base ? pc.srcBase : null, of = sb ? (arr, t) => arr[sb[t]] : (arr, t) => arr[t];
   if (p.importPaint && pc.src) for (let t=0;t<topo.n;t++){ const s = p.importPaint[pc.src[t]]; if (s > 0 && s <= state.slots.length) paint[t] = s - 1; }
   const S = s => paintSlotOk(s) ? s : PAINT_LEAVE;
   for (const o of ops){
@@ -6259,24 +6264,25 @@ function runPaintOps(p, pc, ops, B){
     else if (o.k === "regions") C.paintRegions(topo, paint, { angle:o.angle, slots:(o.slots||[]).map(S), minArea:4 });
     else if (o.k === "noise") C.paintNoise(topo, paint, { slots:(o.slots||[]).map(S), scale:o.scale, seed:o.seed });
     else if (o.k === "picture"){
-      const pic = paintPicture(o);
-      if (pic && (o.wrap === "around" || o.wrap === "ball")) C.paintPictureWrap(topo, paint, pic, pictureWrap(o, pic, B));
-      else if (pic) C.paintPicture(topo, paint, pic, o.dir, pictureBox(o, pic, B), o.facing !== false);
+      const pic = paintPicture(o), F = pic && pc.base ? picFields(pic) : null;   // cut along its colours: colour by their shapes
+      if (pic && (o.wrap === "around" || o.wrap === "ball")) C.paintPictureWrap(topo, paint, pic, pictureWrap(o, pic, B), F);
+      else if (pic) C.paintPicture(topo, paint, pic, o.dir, pictureBox(o, pic, B), o.facing !== false, F);
     }
     else if (o.k === "curve"){
       // which triangles are ridges or hollows is kept with the refined mesh (it takes a moment on big models)
-      const key = [o.radius, o.band].join("|"); if (!pc.curve) pc.curve = new Map();
-      let cls = pc.curve.get(key); if (!cls){ cls = C.curvatureClasses(topo, o.radius, o.band); pc.curve.set(key, cls); if (pc.curve.size > 4) pc.curve.delete(pc.curve.keys().next().value); }
+      const key = [o.radius, o.band].join("|");
+      if (!bpc.curve) bpc.curve = new Map();
+      let cls = bpc.curve.get(key); if (!cls){ cls = C.curvatureClasses(bpc.topo, o.radius, o.band); bpc.curve.set(key, cls); if (bpc.curve.size > 4) bpc.curve.delete(bpc.curve.keys().next().value); }
       const e = S(o.edges), h = S(o.hollows), f = S(o.flat);
-      for (let t=0;t<topo.n;t++){ const s = cls[t] > 0 ? e : cls[t] < 0 ? h : f; if (s !== PAINT_LEAVE) paint[t] = s; }
+      for (let t=0;t<topo.n;t++){ const c = of(cls, t), s = c > 0 ? e : c < 0 ? h : f; if (s !== PAINT_LEAVE) paint[t] = s; }
     }
     else if (o.k === "model" && p.importColour && o.pal && o.pal.length){
-      const lab = modelLabels(pc, o, p), sl = (o.slots || []).map(s => s === PAINT_LEAVE ? s : S(s));
-      for (let t=0;t<topo.n;t++){ const c = lab[t]; if (c >= 0 && sl[c] != null && sl[c] !== PAINT_LEAVE) paint[t] = sl[c]; }
+      const lab = modelLabels(bpc, o, p), sl = (o.slots || []).map(s => s === PAINT_LEAVE ? s : S(s));
+      for (let t=0;t<topo.n;t++){ const c = of(lab, t); if (c >= 0 && sl[c] != null && sl[c] !== PAINT_LEAVE) paint[t] = sl[c]; }
     }
     else if (o.k === "photo" && !p.decal){
-      const r = photoLabels(pc, o), sl = (o.slots || []).map(s => s === PAINT_LEAVE ? s : S(s));
-      for (let t=0;t<topo.n;t++){ const c = r.lab[t]; if (c >= 0 && sl[c] != null && sl[c] !== PAINT_LEAVE) paint[t] = sl[c]; }
+      const r = photoLabels(bpc, o), sl = (o.slots || []).map(s => s === PAINT_LEAVE ? s : S(s));
+      for (let t=0;t<topo.n;t++){ const c = of(r.lab, t); if (c >= 0 && sl[c] != null && sl[c] !== PAINT_LEAVE) paint[t] = sl[c]; }
       if (!r.pending){
         const was = photoInfo.get(o), add = was && was.rev === paintRev ? was : { rev:paintRev, seen:0, n:0, views:0 };
         add.seen += r.info.seen; add.n += r.info.n; add.views = Math.max(add.views, r.views); photoInfo.set(o, add);
@@ -6285,11 +6291,13 @@ function runPaintOps(p, pc, ops, B){
     else if (o.k === "brush"){
       if (!pc.grid) pc.grid = C.triangleGrid(topo, Math.max(1, (o.r||3)));
       const sl = o.slot === PAINT_LEAVE ? PAINT_LEAVE : S(o.slot);
-      // the stroke, its copies round the middle and mirrored across it (x = 0), for figures, faces and vases
-      for (const c of C.symmetryCopies(o.pts || [], o.facing || null, o.mirror, o.radial)) C.paintBrush(topo, pc.grid, paint, c.pts, o.r || 3, sl, c.facing, o.edge || 0);
+      // the stroke as the line it was drawn along (Session 40), its copies round the middle and mirrored across
+      // it (x = 0), for figures, faces and vases
+      for (const c of C.symmetryCopies(o.pts || [], o.facing || null, o.mirror, o.radial)) C.paintStroke(topo, pc.grid, paint, c.pts, o.r || 3, sl, c.facing, o.edge || 0);
     }
     else if (o.k === "area"){
-      // a box or lasso drawn on the screen: which triangles it takes is kept with the refined mesh
+      // a box or lasso drawn on the screen: which triangles it takes is kept with the mesh. A mesh cut along the
+      // outlines (Sharp edges) is asked itself, so the pieces inside the outline are taken and those outside not
       const key = JSON.stringify([o.m, o.poly, o.through]); if (!pc.area) pc.area = new Map();
       let tris = pc.area.get(key); if (!tris){ tris = C.areaTris(pc.solid, o.m, o.poly, o.through); pc.area.set(key, tris); if (pc.area.size > 40) pc.area.delete(pc.area.keys().next().value); }
       const sl = o.slot === PAINT_LEAVE ? PAINT_LEAVE : S(o.slot);
@@ -6310,6 +6318,49 @@ function nearestTri(pc, pt){
     if (best >= 0) return best;
   }
   return -1;
+}
+// Sharp edges (Session 40): the mesh is cut along every brush stroke's edge and every painted picture's colour
+// edges, so a colour ends where the brush or the picture says, not at the nearest triangle edge. The cut mesh
+// is made on top of the refined one (pc.base) once painting pauses (a big model takes a moment), and before
+// a download. Until then the model shows its triangles painted as before.
+const SHARP_NOW_TRIS = 60000;                       // smaller models are cut at once
+const picFieldCache = new WeakMap();
+function picFields(pic){ let f = picFieldCache.get(pic); if (!f){ f = C.pictureFields(pic); picFieldCache.set(pic, f); } return f; }
+function sharpKey(ops){
+  const list = ops.filter(o => o.k === "brush" || o.k === "picture" || o.k === "area");
+  if (!list.length) return "";
+  return JSON.stringify(list.map(o => o.k === "brush" ? [o.pts, o.r, o.mirror, o.radial] : o.k === "area" ? [o.m, o.poly] : [o.item, (state.items[o.item] || {})._imgKey, o.dir, o.wrap, o.scale, o.dx, o.dy, o.turn, o.start, (state.items[o.item] || {}).skip])) + "|" + state.slots.map(s => s.hex).join(",");
+}
+function sharpenPart(pc, ops, key, B){
+  const ed = C.meshEditor(pc.solid), cap = PAINT_MAX_TRIS * 1.15;
+  for (const o of ops){
+    if (ed.tris() > cap) break;
+    if (o.k === "brush") for (const c of C.symmetryCopies(o.pts || [], o.facing || null, o.mirror, o.radial)){ const sf = C.strokeField(c.pts, o.r || 3); ed.cutField(sf.f, sf.box); }
+    else if (o.k === "area" && Array.isArray(o.m) && Array.isArray(o.poly) && o.poly.length >= 3) ed.cutField(C.areaField(o.m, o.poly));
+    else if (o.k === "picture"){
+      const pic = paintPicture(o); if (!pic) continue;
+      const F = picFields(pic), wrap = o.wrap === "around" || o.wrap === "ball";
+      const uv = wrap ? C.pictureWrapUV(pictureWrap(o, pic, B)) : C.pictureUV(o.dir, pictureBox(o, pic, B));
+      // every border between two colours is the edge of one of them: cutting along all but "none" covers them all
+      for (const k of F.labels) if (k !== -1) ed.cutField((x, y, z) => { const q = uv(x, y, z, pic); return F.at(k, q[0], q[1]); });
+    }
+  }
+  const solid = ed.solid(), srcBase = ed.source();
+  return { key, solid, topo:C.meshTopology(solid), src: pc.src ? Int32Array.from(srcBase, t => pc.src[t]) : srcBase, base:pc, srcBase, grid:null };
+}
+let sharpTimer = 0, sharpNow = false;
+function scheduleSharpen(){
+  clearTimeout(sharpTimer);
+  sharpTimer = setTimeout(function go(){
+    if (busy || stroke){ sharpTimer = setTimeout(go, 300); return; }
+    sharpTimer = 0; sharpNow = true; try { applyPaint(true); refreshScene(); runChecks(); } finally { sharpNow = false; }
+  }, 500);
+}
+// before a download: any cut still waiting is made now
+function flushSharpen(){
+  if (!sharpTimer) return;
+  clearTimeout(sharpTimer); sharpTimer = 0;
+  sharpNow = true; try { applyPaint(true); } finally { sharpNow = false; }
 }
 // after a build (or when only the paint changed): refine and cut where needed, then replay the steps
 let paintRev = 0;
@@ -6340,13 +6391,20 @@ function applyPaint(repaintOnly){
       pc = { key, solid, topo:C.meshTopology(solid), grid:null, src:ed.source() };
       paintCache.set(p.solid0, pc);
     }
-    if (p.solid !== pc.solid) geomChanged = true;
-    p.solid = pc.solid; p.pc = pc;
-    p.paint = runPaintOps(p, pc, targets.includes(p) ? ops : [], B);
+    let use = pc;
+    const sk = state.paint.sharp !== false && targets.includes(p) ? sharpKey(ops) : "";
+    if (sk){
+      if (pc.sharp && pc.sharp.key === sk) use = pc.sharp;
+      else if (sharpNow || pc.topo.n < SHARP_NOW_TRIS){ pc.sharp = sharpenPart(pc, ops, sk, B); use = pc.sharp; }
+      else { pc.sharp = null; scheduleSharpen(); }
+    }
+    if (p.solid !== use.solid) geomChanged = true;
+    p.solid = use.solid; p.pc = use;
+    p.paint = runPaintOps(p, use, targets.includes(p) ? ops : [], B);
     if (p.geom && p.geom !== baseGeom) p.geom.dispose();
     p.geom = paintedGeometry(p);
-    tris += pc.topo.n;
-    for (let t=0;t<pc.topo.n;t++){ const s = p.paint[t] === PAINT_LEAVE ? p.slot : p.paint[t]; if (p.paint[t] !== PAINT_LEAVE) painted++; area[s] = (area[s]||0) + pc.topo.area[t]; }
+    tris += use.topo.n;
+    for (let t=0;t<use.topo.n;t++){ const s = p.paint[t] === PAINT_LEAVE ? p.slot : p.paint[t]; if (p.paint[t] !== PAINT_LEAVE) painted++; area[s] = (area[s]||0) + use.topo.area[t]; }
   });
   paintInfo = { tris, painted, edge:L, capped:paintInfo.capped, area };
   if (geomChanged) partsVer++;
@@ -11298,8 +11356,10 @@ function tabPaint(p){
 
   p.insertAdjacentHTML("beforeend", `<h2>Paint detail</h2>`);
   segField(p, [["auto","Automatic"],["coarse","Coarse"],["normal","Normal"],["fine","Fine"]], () => state.paint.detail || "auto", v => { state.paint.detail = v; renderTab(); paintChanged(); }, "four");
-  note(p, "The brush and pictures paint whole triangles, so the model is split into small ones: finer detail follows small shapes better but makes bigger files. Automatic uses normal detail when something needs it.");
-  note(p, "Height bands and stripes are always cut exactly, at any detail.");
+  note(p, "Painting splits the model into small triangles: finer detail follows small shapes better but makes bigger files. Automatic uses normal detail when something needs it.");
+  checkField(p, "Sharp edges: cut the model along each stroke and picture", () => state.paint.sharp !== false, v => { state.paint.sharp = v; paintChanged(); });
+  note(p, state.paint.sharp !== false ? "Each brush stroke and painted picture is cut into the model, so a colour ends exactly where you painted it instead of at the nearest triangle. A big model is cut a moment after you stop painting, and always before a download. Height bands and stripes are always cut exactly."
+    : "Off: the brush and pictures colour whole triangles, so their edges are as jagged as the paint detail. Height bands and stripes are still cut exactly.");
   requestAnimationFrame(updatePaintSummary);
 }
 // keys on the Paint tab: 1 to 8 pick a colour, [ and ] change the brush, B F E V pick a tool
@@ -11995,7 +12055,7 @@ function cleanPaint(P0){
     if (o.hide === true) c.hide = true;
     return c;
   }).filter(Boolean);
-  return { on:P.on !== false, detail:one(P.detail, ["auto","coarse","normal","fine"]), part:Math.round(num(P.part, -1, 200, -1)), ops };
+  return { on:P.on !== false, detail:one(P.detail, ["auto","coarse","normal","fine"]), sharp:P.sharp !== false, part:Math.round(num(P.part, -1, 200, -1)), ops };
 }
 // "your printer" is remembered in this browser and used for every new project
 function savePrinterPref(){ try { localStorage.setItem("makerforge.printer", JSON.stringify(state.printer)); } catch(e){} }
@@ -12393,6 +12453,7 @@ async function exportZip(e){
   if (btn){ btn.disabled = true; btn.textContent = "Building files…"; }
   await new Promise(r=>setTimeout(r,30));
   try {
+    flushSharpen();                                 // paint edges still waiting to be cut are cut now
     const zip = await buildZip(exportParts(), modelName());
     const blob = await zip.generateAsync({ type:"blob", compression:"DEFLATE", compressionOptions:{level:6} });
     pushRecent(modelName());
@@ -12685,14 +12746,14 @@ window.MakerForge = {
   model: { get colour(){ return stlColour; }, pick: modelPickColours, bytesToCanvas },
   // cutting (Session 32): tests hand in the library through hooks.module
   cut: { hooks: cutHooks, state: cutState, load: cutLoad, info: () => ({ blocked:cutBlocked, flat:flatInfo, drop:cutDrop, preps:cutPreps.length }) },
-  paint: { ui: paintUI, repaint: () => repaint(true), changed: paintChanged, get info(){ return paintInfo; }, importModel: importModelFile, buildZip, swapText: colourChangesText,
+  paint: { ui: paintUI, repaint: () => repaint(true), changed: paintChanged, get info(){ return paintInfo; }, flushSharpen, get sharpPending(){ return !!sharpTimer; }, importModel: importModelFile, buildZip, swapText: colourChangesText,
     hit: paintHit, pick: paintPick, recolour: paintRecolour, colourAt, area: paintArea, previewTris, prepare: preparePaint, get previewCount(){ return previewCount; }, cleanPrinter, showLayerCut, get prefs(){ return prefs; }, applyPrefs, findDefault, cleanPaint,
     photo: { ai: { hooks: aiHooks, find: aiFindFigures, config: AI_FIGURE, state: aiState, sha256: sha256Hex, get: aiGet, mapOf: aiMapOf },
       figure: (v, w, h) => { const px = photoPixels(v.asset, Math.max(w, h)); return px && photoFigure(v, px); },
       add: addPaintPhotos, fit: photoFitView, colours: photoPickColours, lightOf: photoLightOf, bendOf: photoBendOf, read: photoReadPixels, pixels: photoPixels,
       // the helper thread's share (Session 30): from how many triangles it colours, and forgetting every result
       get helperMin(){ return photoHelperMin; }, set helperMin(n){ photoHelperMin = n; }, get jobs(){ return photoJobsOut; }, get helperRuns(){ return photoHelperRuns; },
-      forget: () => { photoLightCache.clear(); photoShadeCache.clear(); modelParts.forEach(p => { if (p.pc){ p.pc.photo = null; p.pc.photoLast = null; p.pc.photoOnPage = false; } }); }, setFilaments: photoSetFilaments, nearest: photoNearestFilaments, get op(){ return photoOpOf(); }, info: o => photoInfo.get(o), labels: photoLabels, colourWord } },
+      forget: () => { photoLightCache.clear(); photoShadeCache.clear(); modelParts.forEach(p => { const q = p.pc && (p.pc.base || p.pc); if (q){ q.photo = null; q.photoLast = null; q.photoOnPage = false; } }); }, setFilaments: photoSetFilaments, nearest: photoNearestFilaments, get op(){ return photoOpOf(); }, info: o => photoInfo.get(o), labels: photoLabels, colourWord } },
   phone: { spec: phoneSpec, get info(){ return phoneInfo; }, list: PHONES },
   // business cards (Session 33): what was built, and what each QR code says
   // parts that fit (Session 37): what the last mechanism or fix-it part said, and the name plate's last build

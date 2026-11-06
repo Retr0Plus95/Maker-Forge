@@ -45,7 +45,8 @@ Plus, depending on what changed:
 - jigsaw work, or `traceField` / `fieldToPolys` → `npm run test:jigsaw`
 - lithophane work, or `heightSheet` / `ringField` / `checkMesh` → `npm run test:litho`
 - enclosure work → `npm run test:enclosure`
-- painter work, or `meshEditor` / the paint steps / 3mf or OBJ reading and writing → `npm run test:paint`
+- painter work, or `meshEditor` / the paint steps / 3mf or OBJ reading and writing → `npm run test:paint`; sharp paint edges
+  (`cutField`, `strokeField`, `pictureFields`, `areaField`, `sharpenPart` and the `pc.sharp` mesh) → `npm run test:sharp` (`CORE=1` for the core only)
 - phone case work, or `PHONES` / `heightSheet` → `npm run test:phonecase`
 - pictures on objects (placement, the Art tab, `makeWrapProjector`, `buildCellMap`, `dropCellBackground`, `maskToPolys`' `keep`), taking a
   picture's background away (`cutoutByColour`, `pictureBackground`, `plateColour`, the cut-out buttons), or the keys that move artwork →

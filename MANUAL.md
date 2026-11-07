@@ -210,6 +210,12 @@ Some objects in brief:
     - **Covers for the cable channels:** a strip for each channel with a tongue that presses between its lips, printed flat.
     - **Spacers** (printed tubes, any height, for M2 to M4 screws) and **zip-tie mounts** that screw down, printed flat in front of the box.
   - **A finger pull** (on the Lid page): a notch in the top of the front wall, so a press-fit or magnet lid lifts off easily. The lid's lip has a gap over it.
+  - **Gasket groove** (new in 0.51, a screwed or magnet lid, on the Lid page): a groove in the lid's inside face over the middle of the walls, for a 1.5, 2, 2.5 or 3 mm silicone or EPDM cord. The screws squeeze the cord onto the walls' tops, keeping out dust and splashes (not water under pressure). It needs walls at least the cord's size + 1.5 mm thick. What you'll need gives the cord's length.
+
+    ![A lid seen from inside, with the gasket groove running round it over the walls](docs/images/gasket.jpg)
+  - **A battery under a door** (new in 0.51): pick **Under a door** for a battery on the floor. It sits over an opening in the floor, on a printed door that screws on from underneath with two M2 screws into posts at its ends, so you change the battery without opening the box. The door sits flush in a recess and prints flat in front of the box. A door that would reach the walls, a floor under 1.6 mm, or a battery on a level gets a strap tray instead, with a note why.
+
+    ![The floor from underneath: the recess and opening for a battery door, and the door beside it](docs/images/battery-door.jpg)
   - **Hinged at the back** (new in 0.50, a press-fit lid, on the Lid page): five knuckles along the back, three on the box and two on the lid, turn on a length of 1.75 mm filament pushed through them as the pin (trim it flush). They print without support: the lid's lie on the bed, the box's have a 45° slope under them. The top of the back is kept for them, so a back opening up there, or hanging tabs, strap loops or hooks on the back, are named. Add snap catches or a finger pull to keep it shut and lift it.
 
     ![A box with a blue lid on a hinge at the back: three knuckles on the box and two on the lid, on a filament pin](docs/images/hinge.jpg)

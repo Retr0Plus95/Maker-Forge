@@ -446,7 +446,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.50.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.51.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -942,7 +942,7 @@ const DEFAULTS = () => ({
     box:{ w:90, d:70, h:4 }, cyl:{ dia:70, h:90 }, hex:{ dia:80, h:6 }, sphere:{ dia:70 },
     stl:{ name:"", scale:100, flat:0 },
     enclosure:{ w:100, d:64, h:36, wall:2, floor:2, radius:4, lid:"screw", lidThick:2.4, lipH:3, lipW:1.2, fit:0.2,
-      fasten:"insert", screw:"M3", head:"sink", postStyle:"full", snap:false, hinge:false, teardrop:false, grow:true, lensSlot:0, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
+      fasten:"insert", screw:"M3", head:"sink", postStyle:"full", snap:false, hinge:false, gasket:0, teardrop:false, grow:true, lensSlot:0, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
       mount:"none", earN:2, tabN:2, earHole:4.5, earT:3, strapW:12, strapT:2.5, strapDir:"across",
       labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
       split:"bed", splitParts:2, splitScrew:"M3",
@@ -2530,7 +2530,7 @@ function encBoardList(E){
     const holes = B.holes && o.hold !== "edges" ? B.holes : null, bat = B.g === "battery";
     // a battery (Session 51) lies on the floor in a strap tray unless "corner cradle" (edges) is chosen
     out.push({ key, B, main, src:o, x:+o.x || 0, y:+o.y || 0, rot:o.rot === true, sh:bat ? 1 : +o.h || +E.standH || 5, holes,
-      hold:holes ? "holes" : bat && o.hold !== "edges" ? "strap" : "edges", lvl:Math.max(0, Math.round(+(main ? E.boardLvl : o.lvl) || 0)) });
+      hold:holes ? "holes" : bat && o.hold === "door" ? "door" : bat && o.hold !== "edges" ? "strap" : "edges", lvl:Math.max(0, Math.round(+(main ? E.boardLvl : o.lvl) || 0)) });
   };
   add(E.board, { x:E.boardX, y:E.boardY, rot:E.boardRot, h:E.standH, hold:E.boardHold, bw:E.batW, bd:E.batD, bt:E.batT }, true);
   (Array.isArray(E.more) ? E.more : []).slice(0, 12).forEach(m => m && typeof m === "object" && add(m.kind, m, false));
@@ -2590,6 +2590,13 @@ function encAddBoardPorts(quiet){
   notify(added.length ? `${added.length} opening${added.length === 1 ? "" : "s"} for ${B.label}'s ports added, and the board moved against ${[...faces].map(f => "the " + ENC_FACE_NAME[f]).join(" and ")}. Check them against your board: makers move ports about.`
     : "Its ports are already there.");
   renderTab(); encBoardChanged(); pushHistory();
+}
+// a gasket groove in the lid (Session 57), on the Lid page
+function encGasketField(g){
+  const E = state.base.enclosure, I = enclosureInfo;
+  selField(g, "Gasket groove (splash-proof)", [["0","None"],["1.5","For a 1.5 mm cord"],["2","For a 2 mm cord"],["2.5","For a 2.5 mm cord"],["3","For a 3 mm cord"]], ()=>String(E.gasket || 0), v=>{ E.gasket = +v; renderTab(); baseChanged(); });
+  if (E.gasket) note(g, I && I.gasket ? `A ${I.gasket.width.toFixed(1)} mm groove, ${I.gasket.depth.toFixed(1)} mm deep, in the lid's inside face over the middle of the walls. Press a ${I.gasket.cord} mm silicone or EPDM cord into it (about ${I.gasket.length} mm, glue the ends); the screws squeeze it onto the walls' tops. It keeps out dust and splashes, not water under pressure.`
+    : "Not made: see the warning (the walls or the lid may need to be thicker).");
 }
 // full-height or short lid posts (Session 52), on the Lid page
 function encPostStyleField(g){
@@ -3907,8 +3914,27 @@ function buildEnclosure(){
   // board standoffs and cradles, worked out before the openings so a floor opening cannot land under one. Every board
   // in the box (Session 45): the main one and any extra boards and modules (encBoardList)
   const standoffs = [], boardList = encBoardList(E), levelSlots = [[], [], [], []];       // slots through each level's plate (Session 51)
+  // a battery under a door in the floor (Session 57): an opening under it, a recess round that from below for the door to sit
+  // flush, two M2 screws through the door into posts at its ends; the battery rests on the door inside a rim
+  const ENC_DOOR = { g:0.6, side:3.5, end:9.5, post:3, at:5.5 }, doorCuts = [];
   boardList.forEach(bd => {
     const B = bd.B, bw = bd.rot ? B.d : B.w, bdp = bd.rot ? B.w : B.d;
+    if (bd.hold === "door"){
+      const DR = ENC_DOOR, alongX = bw >= bdp, dt = clamp(fl - 0.8, 0.8, 1.6), gx = alongX ? DR.end : DR.side, gy = alongX ? DR.side : DR.end;
+      const rc = [bd.x - bw/2 - DR.g - gx, bd.y - bdp/2 - DR.g - gy, bd.x + bw/2 + DR.g + gx, bd.y + bdp/2 + DR.g + gy];
+      const screws = alongX ? [[bd.x - bw/2 - DR.at, bd.y], [bd.x + bw/2 + DR.at, bd.y]] : [[bd.x, bd.y - bdp/2 - DR.at], [bd.x, bd.y + bdp/2 + DR.at]];
+      const clash = taken.bottom.find(o => rc[0] < o.bb[2] + 0.6 && o.bb[0] < rc[2] + 0.6 && rc[1] < o.bb[3] + 0.6 && o.bb[1] < rc[3] + 0.6);
+      const why = bd.lvl ? "it is on a level (a door goes in the floor)" : fl < 1.6 ? "the floor is under 1.6 mm thick" : rc[0] < -iw/2 + 1 || rc[2] > iw/2 - 1 || rc[1] < -id/2 + 1 || rc[3] > id/2 - 1 ? "its door would reach the walls" : clash ? `its door would run into ${clash.what}` : "";
+      if (why){ warn.push({ t:`${B.label}: no door`, s:`It is in a strap tray instead: ${why}.` }); bd.hold = "strap"; }
+      else {
+        holesOn.bottom.push(encRect(bd.x - bw/2 - DR.g, bd.y - bdp/2 - DR.g, bd.x + bw/2 + DR.g, bd.y + bdp/2 + DR.g));
+        screws.forEach(([x, y]) => holesOn.bottom.push(C.ringCircle(SCREWS.M2.pilot/2, 20).map(([u, v]) => [u + x, v + y])));
+        doorCuts.push({ depth:dt, holes:[encOrient(encRect(rc[0], rc[1], rc[2], rc[3]), false)], islands:[] });
+        taken.bottom.push({ n:0, what:`${B.label}'s door`, bb:rc });
+        bd.door = { rc, screws, dt, alongX };
+        return;
+      }
+    }
     if (bd.hold === "strap"){
       // a battery's strap tray (Session 51): its slots through the floor, or through its level's plate
       bd.tray = encStrapTray(bd.x, bd.y, bw, bdp, 0, boardTall(bd.key, B));
@@ -4067,6 +4093,26 @@ function buildEnclosure(){
     if (lipH < 3 || t < 1.6 || xb - SN.gLen/2 < (E.pull === true ? 10 : 2)) warn.push({ t:"No snap catches", s:lipH < 3 ? "They need a lip at least 3 mm tall (Lid page)." : t < 1.6 ? "They need walls at least 1.6 mm thick." : "The box is too narrow for them: make it wider." });
     else snap = { xs:[-xb, xb], zc:H - lipH/2 };
   }
+  // a gasket groove (Session 57): in the lid's inside face over the middle of the walls, for a silicone or EPDM cord that the
+  // lid's screws (or magnets) press onto the walls' tops; it follows the rounded corners. gw: its width, gd: its depth
+  let gasket = null;
+  const GK = [1.5, 2, 2.5, 3].includes(+E.gasket) ? +E.gasket : 0;
+  if (GK && lidOn && !slide){
+    const gw = GK + 0.3, gd = Math.round(GK*7)/10, o = t/2;
+    if (E.lid !== "screw" && !magnet) warn.push({ t:"No gasket groove", s:"A gasket needs a lid that is pressed down: a screwed or a magnet lid." });
+    else if (t < gw + 1.2) warn.push({ t:"No gasket groove", s:`A ${GK} mm cord needs walls at least ${(gw + 1.2).toFixed(1)} mm thick (Basics).` });
+    else if (lidT < gd + 0.8) warn.push({ t:"No gasket groove", s:`A ${GK} mm cord needs a lid at least ${(gd + 0.8).toFixed(1)} mm thick.` });
+    else {
+      // the distance from a point to the groove's middle line (a rounded rectangle along the middle of the walls)
+      const rc = Math.max(0, R - o), lw = W - 2*o, ld = D - 2*o, toLine = (x, y) => { const qx = Math.abs(x) - (lw/2 - rc), qy = Math.abs(y) - (ld/2 - rc);
+        return Math.abs(Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - rc); };
+      const hr = magnet ? pocketD/2 : screw.clear/2;
+      if (bosses.some(([x, z]) => toLine(x, z) < gw/2 + hr + 0.4)) warn.push({ t:"No gasket groove", s:"It would run into the lid's screw holes: make the walls thicker." });
+      else gasket = { cord:GK, gw, gd, length:Math.round(2*(lw + ld) - (8 - 2*Math.PI)*rc),
+        outer:encOrient(C.ringRect(W - 2*(o - gw/2), D - 2*(o - gw/2), Math.max(0, R - (o - gw/2)), seg), false),
+        inner:encOrient(C.ringRect(W - 2*(o + gw/2), D - 2*(o + gw/2), Math.max(0, R - (o + gw/2)), seg), true) };
+    }
+  }
   const ART_FACE = { front:"Front", back:"Back", left:"Left side", right:"Right side", top:"Lid", bottom:"Floor" };
   const artParts = [], artName = (face, slot) => `${ART_FACE[face]} art (${(state.slots[slot] || state.slots[0]).name})`;
   const lidPins = split ? bosses.concat(split.pins) : bosses;
@@ -4122,6 +4168,7 @@ function buildEnclosure(){
     // its own depth, so the floor is built in layers
     const cuts = [];
     if (labs.length && fl >= 0.8) cuts.push({ depth: clamp(+E.labelDepth || 0.4, 0.2, fl - 0.4), holes: labHoles(labs), islands: labIslands(labs) });
+    cuts.push(...doorCuts);
     artOn.bottom.forEach(x => { cuts.push({ depth: x.depth, holes: labHoles(x.union), islands: labIslands(x.union) });
       x.colours.forEach(c => artParts.push({ name:artName("bottom", c.slot), slot:c.slot, solid:C.extrudePolysAt(c.polys, 0, x.depth) })); });
     if (feet.length){
@@ -4147,7 +4194,7 @@ function buildEnclosure(){
   } else bosses.forEach(([x, z]) => solids.push(post(x, -z, bossR, bossHole/2, postBot, H)));
   if (postHang) bosses.forEach(([x, z]) => solids.push(encLoft(C.ringCircle(0.4, 40).map(p => [p[0] + x, p[1] - z]), postFree, C.ringCircle(bossR, 40).map(p => [p[0] + x, p[1] - z]), postBot + 0.01)));
   let board = null, boardNeed = null;
-  const boardsInfo = [];
+  const boardsInfo = [], doorParts = [];
   // levels and their plates (Session 46): a board on a level stands on the level's top, and its mounts go on the plate
   const ceilZ = H - (lidOn ? lipH : 0), levels = encLevels(E, ceilZ - fl), levelSolids = levels.map(() => []), ghosts = [], hints = [...earlyHints];
   const levelTop = k => k > 0 && levels[k - 1] ? fl + levels[k - 1].z : fl;
@@ -4155,9 +4202,10 @@ function buildEnclosure(){
   const ceilingOver = k => k < levels.length ? fl + levels[k].z - levels[k].t : ceilZ;
   boardList.forEach((bd, n) => {
     if (bd.lvl > levels.length) bd.lvl = levels.length;
-    const B = bd.B, base = levelTop(bd.lvl), dst = bd.lvl ? levelSolids[bd.lvl - 1] : solids;
+    // a battery under a door rests on the door (Session 57), its top flush with the floor's underside
+    const B = bd.B, base = bd.hold === "door" ? bd.door.dt : levelTop(bd.lvl), dst = bd.lvl ? levelSolids[bd.lvl - 1] : solids;
     // a battery in a strap tray lies on the floor itself (Session 51); everything else on standoffs or a cradle's seats
-    const sh = bd.hold === "strap" ? 0 : clamp(bd.sh, 1, Math.max(1, H - base - 1)), bw = bd.rot ? B.d : B.w, bdp = bd.rot ? B.w : B.d;
+    const sh = bd.hold === "strap" || bd.hold === "door" ? 0 : clamp(bd.sh, 1, Math.max(1, H - base - 1)), bw = bd.rot ? B.d : B.w, bdp = bd.rot ? B.w : B.d;
     const info = { w:bw, d:bdp, top: base + sh + 1.6, base, lvl:bd.lvl, label:B.label, screw:B.screw, hold:bd.hold, main:bd.main, check:!!B.check,
       hole: bd.holes ? standoffs.find(so => so.bd === bd).hole : 0 };
     const x0 = bd.x - bw/2, x1 = bd.x + bw/2, y0 = bd.y - bdp/2, y1 = bd.y + bdp/2;
@@ -4171,6 +4219,16 @@ function buildEnclosure(){
       warn.push({ t:`${B.label} does not fit`, s:`${B.label} is ${bw.toFixed(1)} × ${bdp.toFixed(1)} mm and the inside is ${iw.toFixed(1)} × ${id.toFixed(1)} mm, so its ${bd.holes ? "standoffs are" : "cradle is"} left out. Make the box bigger (at least ${Math.ceil(need.w)} × ${Math.ceil(need.d)} mm outside) or move it.` });
       info.fits = false;
     } else if (bd.hold === "strap") dst.push(...encStrapTray(bd.x, bd.y, bw, bdp, base, boardTall(bd.key, B), bd.lvl ? plateB : null).solids);
+    else if (bd.hold === "door"){
+      // the rim round it on the floor (taller than a tray's: no strap holds it), the posts the door screws into
+      const fh = Math.min(16, Math.max(4, boardTall(bd.key, B)*0.6 - (fl - bd.door.dt)));
+      dst.push(...encRim(bd.x, bd.y, bw, bdp, ENC_DOOR.g, 1.6, fl - 0.01, fl + fh, [], [], null));
+      bd.door.screws.forEach(([x, y]) => dst.push(post(x, y, ENC_DOOR.post, SCREWS.M2.pilot/2, fl - 0.01, fl + 6)));
+      // the door: printed flat in front of the box, 0.25 mm smaller than its recess, with the screws' clearance holes
+      const [a0, b0, a1, b1] = bd.door.rc, dw = a1 - a0 - 0.5, dd = b1 - b0 - 0.5, cx = (a0 + a1)/2, cy = (b0 + b1)/2;
+      const doorSol = C.extrudePolysAt([{ outer:encOrient(C.ringRect(dw, dd, 1, 4), true), holes:bd.door.screws.map(([x, y]) => encOrient(C.ringCircle(SCREWS.M2.clear/2, 20).map(([u, v]) => [u + x - cx, v + y - cy]), false)) }], 0, bd.door.dt - 0.1);
+      doorParts.push({ inside:true, name:`Battery door (${B.label.replace(/\s*\(.*$/, "")})`, slot:clamp(+E.boxSlot || 0, 0, state.slots.length - 1), solid:doorSol, dd });
+    }
     else if (bd.holes) standoffs.filter(so => so.bd === bd).forEach(so => dst.push(post(so.x, so.y, so.r, so.hole/2, base - (bd.lvl ? 0.01 : 0), base + sh)));
     else dst.push(...encCradle(bd.x, bd.y, bw, bdp, base, sh, bd.lvl ? ENC_CRADLE.fence : Math.min(ENC_CRADLE.fence, t + 0.4), bd.lvl ? plateB : null));
     // its see-through parts: the board, the room its parts take above it, and its ports (Session 46)
@@ -4459,6 +4517,8 @@ function buildEnclosure(){
     insideParts.push({ inside:true, name:"Spacers and tie mounts", slot:exSlot, solid:C.affineSolid(C.mergeSolids(pcs), [1,0,0, 0,1,0, 0,0,1], [0, 0, frontZ + step/2]) });
     frontZ += depth + 10; extraInfo.spacers = spN; extraInfo.mounts = zmN;
   }
+  // battery doors (Session 57), printed flat in front of the box
+  doorParts.forEach(dp => { insideParts.push(Object.assign(dp, { solid:C.affineSolid(dp.solid, [1,0,0, 0,1,0, 0,0,1], [0, 0, frontZ + dp.dd/2]) })); frontZ += dp.dd + 10; });
   // a warm part in a closed box (Session 54): advice to let the air out (its own line: hints are things to fix)
   let airHint = "";
   {
@@ -4521,10 +4581,13 @@ function buildEnclosure(){
     if (logo){ const u = flipY(logo.union); lidCuts.push({ depth: logoDepth, holes: labHoles(u), islands: labIslands(u) }); }
     artOn.top.forEach(x => { const u = flipY(x.union); lidCuts.push({ depth: x.depth, holes: labHoles(u), islands: labIslands(u) }); });
     // the lid in slabs; each cut into its outside (labels, the logo) runs from the bed up to its own depth
-    const slab1 = (z0, z1, r, on) => C.extrudePolysAt([{ outer: lidOuter.slice(), holes: [...topHoles(), ...(r > 0 ? screwHoles(r) : []), ...on.flatMap(c => c.holes)] },
-      ...on.flatMap(c => c.islands)], z0, z1);
+    // the gasket groove (Session 57) runs down from the inside face: there the lid is a rim outside it and an island inside it
+    const gz = gasket ? lidT - gasket.gd : Infinity;
+    const slab1 = (z0, z1, r, on) => { const holes = [...topHoles(), ...(r > 0 ? screwHoles(r) : []), ...on.flatMap(c => c.holes)];
+      return z0 >= gz - 1e-9 ? C.extrudePolysAt([{ outer: lidOuter.slice(), holes: [gasket.outer] }, { outer: gasket.inner.slice(), holes }, ...on.flatMap(c => c.islands)], z0, z1)
+        : C.extrudePolysAt([{ outer: lidOuter.slice(), holes }, ...on.flatMap(c => c.islands)], z0, z1); };
     const slab = (z0, z1, r) => {
-      const zs = [z0, ...[...new Set(lidCuts.map(c => c.depth))].filter(d => d > z0 + 1e-9 && d < z1 - 1e-9).sort((a, b) => a - b), z1], out = [];
+      const zs = [z0, ...[...new Set([...lidCuts.map(c => c.depth), gz])].filter(d => d > z0 + 1e-9 && d < z1 - 1e-9).sort((a, b) => a - b), z1], out = [];
       for (let k=0;k<zs.length-1;k++) out.push(slab1(zs[k], zs[k+1], r, lidCuts.filter(c => c.depth >= zs[k+1] - 1e-9)));
       return out.length === 1 ? out[0] : C.mergeSolids(out);
     };
@@ -4654,6 +4717,7 @@ function buildEnclosure(){
   const need = [], nAdd = (n, what) => { if (n > 0) need.push([n, what]); }, len = v => [6, 8, 10, 12, 16, 20, 25, 30].find(q => q >= v) || 30;
   if (!state.base.enclosure.test){
     if (hinge) nAdd(1, `piece of 1.75 mm filament, ${hinge.Lh} mm long, as the hinge pin`);
+    if (gasket) nAdd(1, `silicone or EPDM cord, ${gasket.cord} mm thick, ${gasket.length + 10} mm long (cut to fit, glue the ends)`);
     if (lidOn && magnet && bosses.length) nAdd(2*lidPins.length, `round magnets ${mg.d} × ${mg.t} mm (half in the posts, half in the lid; check they attract)`);
     else if (lidOn && bossesOn && E.fasten !== "none"){ nAdd(lidPins.length, `${E.screw} screws, ${len(lidT + screw.insertDepth - 1)} mm long, for the lid`); if (E.fasten === "insert") nAdd(lidPins.length, `${E.screw} heat inserts for the lid`); }
     const bs = {}; boardList.filter(bd => bd.holes).forEach(bd => { const k = encHas(SCREWS, bd.B.screw) ? bd.B.screw : "M3"; bs[k] = (bs[k] || 0) + bd.holes.length; });
@@ -4661,7 +4725,8 @@ function buildEnclosure(){
     const lvScrews = levelInfo.reduce((a, l) => a + (l.hold === "ledges" ? 0 : l.posts.length), 0); nAdd(lvScrews, "M3 self-tapping screws, 8 mm long, for the levels");
     let straps = 0, ties = 0; boardList.filter(bd => bd.hold === "strap").forEach(bd => { const bw = bd.rot ? bd.B.d : bd.B.w, bdp = bd.rot ? bd.B.w : bd.B.d, tr = encStrapTray(0, 0, bw, bdp, 0, boardTall(bd.key, bd.B));
       if (tr.strap === "strap") straps += tr.slots.length/2; else ties += tr.slots.length/2; });
-    nAdd(straps, "hook-and-loop straps, 20 mm wide, for the batteries"); nAdd(ties, "zip ties for the small batteries");
+    nAdd(straps, "hook-and-loop straps, 20 mm wide, for the batteries");
+    nAdd(2*boardList.filter(bd => bd.hold === "door").length, "M2 self-tapping screws, 6 mm long, for the battery doors"); nAdd(ties, "zip ties for the small batteries");
     nAdd(feet.length, `stick-on rubber feet, ${FEET[encHas(FEET, E.footSize) ? E.footSize : "8"].d} mm`);
     if (mount.din) nAdd(2, "M3 screws, 8 mm long, for the DIN rail clip");
     (E.cut || []).forEach((c, i) => { if (!left.includes(i) && c.kind === "fan") nAdd(1, `${c.size || 40} mm fan, with 4 screws`); });
@@ -4670,7 +4735,7 @@ function buildEnclosure(){
     if (split) nAdd(split.pins ? split.pins.length : 0, `${E.splitScrew || "M3"} screws and heat inserts for the joins`);
     const parts2 = {}; boardList.forEach(bd => { parts2[bd.B.label] = (parts2[bd.B.label] || 0) + 1; }); Object.entries(parts2).forEach(([k, n]) => nAdd(n, k));
   }
-  enclosureInfo = { test: !!state.base.enclosure.test, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, snap:!!snap, hinge:hinge ? { length:hinge.Lh, knuckles:hinge.segs.length } : null, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR }, anchors:anchorsMade, ducts:ductInfo.length, count:(E.cut || []).length - left.length,
+  enclosureInfo = { test: !!state.base.enclosure.test, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, gasket:gasket ? { cord:gasket.cord, length:gasket.length, depth:gasket.gd, width:gasket.gw } : null, snap:!!snap, hinge:hinge ? { length:hinge.Lh, knuckles:hinge.segs.length } : null, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR }, anchors:anchorsMade, ducts:ductInfo.length, count:(E.cut || []).length - left.length,
     split: splitInfo };
   return out;
 }
@@ -11695,6 +11760,7 @@ function enclosureFields(p){
       selField(g, "Magnet size (diameter × thickness)", Object.keys(MAGNETS).map(k => [k, `${MAGNETS[k].d} × ${MAGNETS[k].t} mm`]), ()=>encHas(MAGNETS, E.magnet) ? E.magnet : "6x2", v=>{ E.magnet = v; baseChanged(); });
       const m = MAGNETS[encHas(MAGNETS, E.magnet) ? E.magnet : "6x2"];
       encPostStyleField(g);
+      encGasketField(g);
       note(g, `Eight round magnets: four pressed into the corner posts, four into the lid. Check each pair attracts before you glue them (a drop of superglue), or the lid will push away. The lid needs to be at least ${(m.t + 0.8).toFixed(1)} mm thick.`);
     }
     if (E.lid !== "slide" && E.lid !== "none") checkField(g, "A finger pull at the front (a notch to lift the lid)", ()=>E.pull === true, v=>{ E.pull = v; baseChanged(); });
@@ -11704,6 +11770,7 @@ function enclosureFields(p){
         selField(g, "Screw size", Object.keys(SCREWS).map(k => [k, k]), ()=>E.screw, v=>{ E.screw = v; renderTab(); baseChanged(); });
         if (E.lid === "screw") segField(g, [["sink","Countersunk"],["bore","Counterbored"],["plain","Plain hole"]], ()=>E.head, v=>{ E.head = v; baseChanged(); });
         encPostStyleField(g);
+        encGasketField(g);
         const s = encHas(SCREWS, E.screw) ? SCREWS[E.screw] : SCREWS.M3;
         note(g, (E.fasten === "insert"
           ? `${E.screw} heat inserts: the posts get a ${s.insert} mm hole, at least ${s.insertDepth} mm deep. Press the insert in with a soldering iron at about 220 °C, flush with the top.`
@@ -11849,7 +11916,7 @@ function enclosureFields(p){
     }
     if (E.board !== "none" && BB){
       if (BB.holes) segField(g, [["holes", `On its screw holes (${BB.screw || "M3"})`], ["edges", "By its edges"]], ()=>E.boardHold === "edges" ? "edges" : "holes", v=>{ E.boardHold = v; renderTab(); encBoardChanged(); }, "two");
-      else if (BB.g === "battery") segField(g, [["holes", "Strap tray"], ["edges", "Corner cradle"]], ()=>E.boardHold === "edges" ? "edges" : "holes", v=>{ E.boardHold = v; renderTab(); encBoardChanged(); }, "two");
+      else if (BB.g === "battery") segField(g, [["holes", "Strap tray"], ["edges", "Corner cradle"], ["door", "Under a door"]], ()=>E.boardHold === "edges" || E.boardHold === "door" ? E.boardHold : "holes", v=>{ E.boardHold = v; renderTab(); encBoardChanged(); });
       const nlv = Array.isArray(E.levels) ? E.levels.length : 0;     // the main board on any floor (Session 51)
       if (nlv) selField(g, "On", [["0","The floor"], ...Array.from({ length:nlv }, (_, k) => [String(k + 1), `Level ${k + 1}`])], ()=>String(Math.min(nlv, +E.boardLvl || 0)), v=>{ E.boardLvl = +v; encBoardChanged(); });
       if (E.board === "batcustom"){
@@ -11857,7 +11924,8 @@ function enclosureFields(p){
         numField(g,{ label:"Battery width (mm)", min:5,max:250,step:0.5, get:()=>E.batD ?? 35, set:v=>E.batD=v, onChange:encBoardChanged, noReset:true });
         numField(g,{ label:"Battery thickness (mm)", min:2,max:120,step:0.5, get:()=>E.batT ?? 10, set:v=>E.batT=v, onChange:encBoardChanged, noReset:true });
       }
-      if (BB.g === "battery" && E.boardHold !== "edges") note(g, "It lies on the floor in a strap tray: a low rim round it and slots through the floor either side for a 20 mm hook-and-loop strap round it (zip ties for a small one).");
+      if (BB.g === "battery" && E.boardHold === "door") note(g, "It sits over an opening in the floor, on a door that screws on from underneath (two M2 screws, posts inside at its ends): change it without opening the box. The door prints flat in front of the box.");
+      else if (BB.g === "battery" && E.boardHold !== "edges") note(g, "It lies on the floor in a strap tray: a low rim round it and slots through the floor either side for a 20 mm hook-and-loop strap round it (zip ties for a small one).");
       else note(g, (BB.holes && E.boardHold !== "edges") || E.board === "custom" ? `Standoffs with ${E.fasten === "insert" ? "holes for heat inserts" : "pilot holes for self-tapping screws"} under each of its holes.`
         : `${BB.holes ? "" : "No holes listed for this one, so it"}${BB.holes ? "It" : ""} sits in a cradle: a seat under each corner and a low fence round it, 0.3 mm clear. Drop it in; a dab of hot glue keeps it.`
         + (BB.check ? " Sizes differ between makers: measure yours and use My own board if it is not " + BB.w + " × " + BB.d + " mm." : ""));
@@ -11880,7 +11948,8 @@ function enclosureFields(p){
       const fitIt = I && I.boards && I.boards.find(b => !b.main && b.key === m.kind && b.at[0] === (+m.x || 0) && b.at[1] === (+m.y || 0));
       if (fitIt && fitIt.fits === false) note(box, "⚠ It does not fit where it is: move it, or make the box bigger.");
       if (B2.holes) segField(box, [["holes", "On its screw holes"], ["edges", "By its edges"]], ()=>m.hold === "edges" ? "edges" : "holes", v=>{ m.hold = v; renderTab(); encBoardChanged(); }, "two");
-      else if (B2.g === "battery") segField(box, [["holes", "Strap tray"], ["edges", "Corner cradle"]], ()=>m.hold === "edges" ? "edges" : "holes", v=>{ m.hold = v; renderTab(); encBoardChanged(); }, "two");
+      else if (B2.g === "battery") segField(box, [["holes", "Strap tray"], ["edges", "Corner cradle"], ["door", "Under a door"]], ()=>m.hold === "edges" || m.hold === "door" ? m.hold : "holes", v=>{ m.hold = v; renderTab(); encBoardChanged(); });
+      if (B2.g === "battery" && m.hold === "door") note(box, "It sits over an opening in the floor, on a door that screws on from underneath (two M2 screws): change it without opening the box.");
       if (m.kind === "batcustom"){
         numField(box,{ label:"Battery length (mm)", min:5,max:250,step:0.5, get:()=>m.bw ?? 60, set:v=>m.bw=v, onChange:encBoardChanged, noReset:true });
         numField(box,{ label:"Battery width (mm)", min:5,max:250,step:0.5, get:()=>m.bd ?? 35, set:v=>m.bd=v, onChange:encBoardChanged, noReset:true });
@@ -15166,7 +15235,7 @@ function sanitizeProject(data){
   if (st.base && "card" in st.base) st.base.card = cleanCard(st.base.card);
   if (st.base && st.base.enclosure && typeof st.base.enclosure === "object"){
     const E = st.base.enclosure, one = (v, list) => list.includes(v) ? v : list[0];
-    E.lid = one(E.lid, ["screw","press","magnet","slide","none"]); E.postStyle = one(E.postStyle, ["full","hang"]); E.snap = E.snap === true; E.hinge = E.hinge === true; E.fasten = one(E.fasten, ["insert","screw","none"]); E.head = one(E.head, ["sink","bore","plain"]);
+    E.lid = one(E.lid, ["screw","press","magnet","slide","none"]); E.postStyle = one(E.postStyle, ["full","hang"]); E.snap = E.snap === true; E.hinge = E.hinge === true; E.gasket = [1.5, 2, 2.5, 3].includes(+E.gasket) ? +E.gasket : 0; E.fasten = one(E.fasten, ["insert","screw","none"]); E.head = one(E.head, ["sink","bore","plain"]);
     E.magnet = encHas(MAGNETS, E.magnet) ? E.magnet : "6x2"; E.feet = one(E.feet, ["none","recess"]); E.mount = one(E.mount, ["none","ears","tabs","din","straps","skadis","pegboard"], "none"); E.tabN = E.tabN === 1 ? 1 : 2;
     E.earN = E.earN === 4 ? 4 : 2; E.strapDir = one(E.strapDir, ["across","up"], "across"); E.footSize = encHas(FEET, E.footSize) ? String(E.footSize) : "8";
     const L0 = E.logo && typeof E.logo === "object" ? E.logo : {};
@@ -15179,10 +15248,10 @@ function sanitizeProject(data){
     E.lensSlot = Math.round(Math.min(MAX_SLOTS - 1, Math.max(0, cleanNum(E.lensSlot, 0))));
     E.boardRot = E.boardRot === true; E.test = E.test === true;
     // more boards and modules (Session 45): known ones only, up to 12, each number clamped
-    E.boardHold = E.boardHold === "edges" ? "edges" : "holes";
+    E.boardHold = E.boardHold === "edges" || E.boardHold === "door" ? E.boardHold : "holes";
     E.more = (Array.isArray(E.more) ? E.more : []).slice(0, 12).filter(m => m && typeof m === "object" && encHas(BOARDS, m.kind) && m.kind !== "none" && m.kind !== "custom").map(m => ({
       kind:m.kind, x:Math.min(150, Math.max(-150, cleanNum(m.x, 0))), y:Math.min(150, Math.max(-150, cleanNum(m.y, 0))), h:Math.min(40, Math.max(1, cleanNum(m.h, 3))),
-      rot:m.rot === true, hold:m.hold === "edges" ? "edges" : "holes", lvl:Math.round(Math.min(ENC_LEVEL.max, Math.max(0, cleanNum(m.lvl, 0)))),
+      rot:m.rot === true, hold:m.hold === "edges" || m.hold === "door" ? m.hold : "holes", lvl:Math.round(Math.min(ENC_LEVEL.max, Math.max(0, cleanNum(m.lvl, 0)))),
       ...(m.kind === "batcustom" ? { bw:Math.min(250, Math.max(5, cleanNum(m.bw, 60))), bd:Math.min(250, Math.max(5, cleanNum(m.bd, 35))), bt:Math.min(120, Math.max(2, cleanNum(m.bt, 10))) } : {}) }));
     E.boardLvl = Math.round(Math.min(ENC_LEVEL.max, Math.max(0, cleanNum(E.boardLvl, 0))));          // the main board's floor (Session 51)
     // levels and dividers (Session 46)

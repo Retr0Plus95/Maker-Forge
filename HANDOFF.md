@@ -2386,6 +2386,33 @@ pin in What you'll need, support (none), what stops it, a hostile project, the p
 **Not done, next**: a gasket groove; a battery compartment with a door; rooms of their own sizes in the smallest box; dragging art
 and posts in the 3D view. **Still to check by hand**: the hinge printed and turning (the 0.3 mm clearance, the pin's fit).
 
+## Session 57: project boxes, a gasket groove and a battery door (v0.51.0)
+
+Asked (the owner): "a hinged lid, a gasket groove, a battery compartment with a door, Arrange working inside rooms, dividers on
+levels, and dragging posts or art in the 3D view" (the first, fourth and fifth are 0.49 and 0.50).
+
+**Gasket groove** (`E.gasket` 0/1.5/2/2.5/3, screwed or magnet lids; `encGasketField` on the Lid page): `gw = cord + 0.3` wide,
+`gd = 0.7 cord` deep, centred on the walls' middle line (a rounded rectangle, `R - t/2` at the corners), cut from the lid's inside
+face: in the lid's slab system a slab from `lidT - gd` up is the lid's outline with the groove's outside as a hole, plus an island
+(the groove's inside) carrying the lid's own holes (openings, screw holes). Not with walls under `gw + 1.2`, a lid under `gd +
+0.8`, a press-fit or sliding lid, or where it would meet a screw or magnet hole (`toLine`, 0.4 mm). Its length (the middle
+line) goes in What you'll need (+10 mm); `enclosureInfo.gasket`.
+**Battery door** (`hold` "door" for a battery, main or extra; `ENC_DOOR`): the early board pass makes an opening (the battery +
+0.6 mm), a recess from below round it (`dt = fl - 0.8`, 0.8 to 1.6 mm; 3.5 mm past the opening along the sides, 9.5 at the ends,
+the ends being across the short side), M2 pilot holes through the floor at the posts, `taken.bottom`; the boards pass puts the
+battery on the door (`base = dt`), a rim round it (`encRim`, up to 16 mm), two posts (r 3, 6 mm, M2 pilot) 5.5 mm past its ends,
+and the door (0.25 mm smaller than the recess, `dt - 0.1` thick, M2 clearance holes) printed flat in front of the box after the
+extras. It falls back to a strap tray, with a warning, on a level, with a floor under 1.6 mm, or where the door would reach the
+walls or something else on the floor. Two M2 screws per door in What you'll need.
+
+**Tests**: new `tools-sealdoor-test.js` (in `test:enclosure`): the groove's size and the volume it takes, the cord's length, a
+magnet lid, what stops it, support; the door: the battery's height, the opening, recess, ledge and posts, the door's size and
+thickness, its screws, when it falls back, support; a hostile project; the panel. Pictures: `docs/images/gasket.jpg`,
+`docs/images/battery-door.jpg`.
+
+**Not done, next**: dragging posts and art in the 3D view (0.52); a hint when a board stands over a battery door's recess (its
+ledge is 0.8 mm); a door that clips instead of screws. **Still to check by hand**: a cord in the groove, squeezed; the door's fit.
+
 ## Unfinished (in priority order)
 
 - **0.44: colour from a photo, with more AI, for the CR7 figure** (click to colour done in Session 50; the rest below is next) (the owner, Session 49: "fix the auto painter function from a pic,

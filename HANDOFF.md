@@ -2335,6 +2335,35 @@ grille) and no divider fan. It is `enclosureInfo.air`, shown under Board mounts 
 door; Arrange inside rooms and dividers on levels; dragging art and posts in the 3D view.
 **Still to check by hand**: a channel cover's press fit; a zip-tie mount's bridge; names 3.2 mm tall on a real floor.
 
+## Session 55: project boxes, Arrange inside rooms and dividers on a level (v0.49.0)
+
+Asked (the owner): "Keep going" (the rest of Session 52's box list).
+
+**Rooms in `encArrange`**: the dividers standing on a floor (`divsOn(k)`) cut it into rooms (`roomsOf`: the lines across and
+front to back, each taking `DB` (half the divider, its gap and a rib, + 0.6) either side, inside the cable channels' margins).
+`packRooms`: the main board in the room touching most of the walls its ports face (then the biggest), the rest largest first
+into the room with the most free area where `packFloor` still fits them; a board against the back goes against its room's back
+(`backY`). A room keeps clear of the corner posts only at the box's corners it touches: `packFloor` takes the front and back
+margins apart now (`cY`, `cB`). **Found while testing**: with both, four rooms in a cross wasted 9 mm in every room and a Uno
+didn't fit a 95 × 70 mm room. In this box the rooms are where the dividers are; in the smallest box the dividers keep their
+place in proportion (`lineAt`), each width tries depths from the area's lower bound up in 2 mm steps (widths in 4 mm steps
+with dividers), and the dividers are moved with the box when it is applied. `{ rooms }` in the result, named in the message.
+**Fixed**: Arrange ignored dividers (a divider across a board was only warned about afterwards).
+**Dividers on a level** (`w.lvl`, `encDividers` clamps it to the levels there are; the panel's **Stands on**; kept in a project
+only when above the floor): two ribs 3 mm tall (`DIVR`) printed on the level's plate along its line (`divRibRects`, broken where
+another on that level crosses), worked out before the plates are made; no wall ribs (a plate going in would catch on them);
+the plate stops 2 mm short of each side (`ENC_LEVEL.gap`); its room is from the level's top to the next level or the lid
+(`divBase`, `divRoof`); under 8 mm it is left out with a warning. Crossings only between dividers on the same floor. The level's
+mounting holes keep 5 mm from them; the floor grid only minds the floor's dividers. `dividerInfo` has `lvl` and `base`.
+
+**Tests**: new `tools-rooms-test.js` (in `test:enclosure`): two rooms in the box, three in a row in the smallest box (the
+dividers moved in proportion), four in a cross, a Pi with its ports in two rooms, 24 random sets with one or two dividers; a
+divider on a level (its ribs on the level, nothing on the box, its height), two crossing on a level and one on the floor, a
+level with no room, a board across one, support, a hostile project, the panel. The doc picture: `docs/images/rooms.jpg`.
+
+**Not done, next**: a hinged lid, a gasket groove, a battery compartment with a door; rooms of their own sizes in the smallest
+box (they keep their proportions); dragging art and posts in the 3D view.
+
 ## Unfinished (in priority order)
 
 - **0.44: colour from a photo, with more AI, for the CR7 figure** (click to colour done in Session 50; the rest below is next) (the owner, Session 49: "fix the auto painter function from a pic,

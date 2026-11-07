@@ -3,6 +3,18 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.49.0
+
+Project boxes: Arrange it for me works with rooms, and dividers can stand on a level.
+
+- **Arranging in rooms:** with dividers in the box, every board is put inside a room, never across a divider, the main board in the room by the walls its ports face. The smallest box moves its dividers with it.
+- **Dividers on a level:** a divider can stand on level 1, 2 or 3, in a groove printed on the level, as well as on the floor.
+
+![A box arranged into three rooms: a buck converter and a relay in one, the ESP32 in the middle, a small converter and a LiPo in the third](docs/images/rooms.jpg)
+
+**Fixed**
+- **Arrange it for me** ignored the dividers, so it could put a board right across one.
+
 ## 0.48.0
 
 Project boxes: a parts list, a floor to screw things to, names on the floor, and printed extras.

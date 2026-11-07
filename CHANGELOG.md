@@ -3,6 +3,14 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.50.0
+
+Project boxes: a hinged lid.
+
+- **Hinged at the back:** a press-fit lid can turn on knuckles along the back, with a length of 1.75 mm filament as the pin. Everything prints without support, and What you'll need lists the pin. Add snap catches or a finger pull to keep it shut and lift it.
+
+![A box with a blue lid on a hinge at the back: three knuckles on the box and two on the lid, on a filament pin](docs/images/hinge.jpg)
+
 ## 0.49.0
 
 Project boxes: Arrange it for me works with rooms, and dividers can stand on a level.

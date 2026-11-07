@@ -446,7 +446,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.49.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.50.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -942,7 +942,7 @@ const DEFAULTS = () => ({
     box:{ w:90, d:70, h:4 }, cyl:{ dia:70, h:90 }, hex:{ dia:80, h:6 }, sphere:{ dia:70 },
     stl:{ name:"", scale:100, flat:0 },
     enclosure:{ w:100, d:64, h:36, wall:2, floor:2, radius:4, lid:"screw", lidThick:2.4, lipH:3, lipW:1.2, fit:0.2,
-      fasten:"insert", screw:"M3", head:"sink", postStyle:"full", snap:false, teardrop:false, grow:true, lensSlot:0, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
+      fasten:"insert", screw:"M3", head:"sink", postStyle:"full", snap:false, hinge:false, teardrop:false, grow:true, lensSlot:0, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
       mount:"none", earN:2, tabN:2, earHole:4.5, earT:3, strapW:12, strapT:2.5, strapDir:"across",
       labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
       split:"bed", splitParts:2, splitScrew:"M3",
@@ -3888,6 +3888,21 @@ function buildEnclosure(){
   // strap on the back. Worked out before the openings, so an opening never lands under one.
   const mount = encMount(E, { W, D, H: Hs, R, t, fl, top: H + (lidOn && !slide ? lidT : 0) }, warn);
   mount.taken.forEach(([face, what, bb]) => taken[face].push({ n:0, what, bb }));
+  // a hinge at the back (Session 56), for a press-fit lid: knuckles on the back wall and on the lid's back edge, in turn, on a
+  // 1.75 mm filament pin. The axis is r behind the back and lidT - r above the top, so the lid's knuckles print standing on the
+  // bed beside it, and the box's have a 45° gusset under them; the pin holes are teardrops pointing up as each part prints
+  const HG = { r:3.5, gap:0.5, n:5, pin:2.0, clear:0.3 };
+  let hinge = null;
+  if (E.hinge === true && E.lid === "press"){
+    const Lh = Math.floor(W - 2*Math.max(R, 2) - 6), za = lidT - HG.r, v0 = H + za - 2.6*HG.r - 0.5, hb = [-Lh/2, v0, Lh/2, H];
+    const clash = taken.back.find(o => hb[0] < o.bb[2] && o.bb[0] < hb[2] && hb[1] < o.bb[3] && o.bb[1] < hb[3]);
+    if (Lh < 30) warn.push({ t:"No hinge", s:"The back is too narrow for a hinge: make the box wider." });
+    else if (H - fl < 3*HG.r + 6) warn.push({ t:"No hinge", s:"The box is too shallow for the hinge: make it taller." });
+    else if (clash) warn.push({ t:"No hinge", s:`The hinge and ${clash.what} both need the top of the back: choose another way to hang the box.` });
+    else { hinge = { Lh, za, segs:[] }; const sw = (Lh - (HG.n - 1)*HG.gap)/HG.n;
+      for (let i = 0; i < HG.n; i++){ const x0 = -Lh/2 + i*(sw + HG.gap); hinge.segs.push({ x0, x1:x0 + sw, box:i % 2 === 0 }); }
+      taken.back.push({ n:0, what:"the hinge", bb:hb }); }
+  }
   holesOn.bottom.push(...mount.floorHoles);
   // board standoffs and cradles, worked out before the openings so a floor opening cannot land under one. Every board
   // in the box (Session 45): the main one and any extra boards and modules (encBoardList)
@@ -4043,7 +4058,7 @@ function buildEnclosure(){
   const split = encSplitPlan(E, splitG);
   if (split) for (const f of ["front","back","left","right","bottom"]) if (artOn[f].length){
     warn.push({ t:`Art on the ${ENC_FACE_NAME[f]} left out`, s:"A box made in parts takes art on the lid only, for now." }); artOn[f] = []; }
-  // snap catches (Session 55): on a press-fit lid, two 45° bumps on the front and back of its lip click into grooves inside
+  // snap catches (Session 54): on a press-fit lid, two 45° bumps on the front and back of its lip click into grooves inside
   // those walls. xs: the bumps' middles along the lid (the walls' grooves at the same places), zc: their height on the box
   const SN = { len:10, out:0.5, h:1.6, gDepth:0.7, gLen:12, gH:2.4 };
   let snap = null;
@@ -4453,6 +4468,14 @@ function buildEnclosure(){
     if (warm.length && !air) airHint = (`${warm.map(b => b.label.replace(/\s*\(.*$/, "")).slice(0, 2).join(" and ")} ${warm.length === 1 ? "gets" : "get"} warm: add a vent or a fan (Openings), so the heat gets out.`);
   }
   solids.push(...mount.solids);
+  // the hinge's knuckles on the back wall (plan y = D/2 is the back's outside), each: a 45° hull of the knuckle and a point on
+  // the wall under it, and a strip into the wall; the pin hole a teardrop pointing up
+  const Mx = [0,1,0, 0,0,-1, -1,0,0], xBar = (prof, holes, x0, x1) => C.affineSolid(C.extrudePolysAt([{ outer:encOrient(prof, true), holes:holes.map(h => encOrient(h, false)) }], x0, x1), Mx, [0, 0, 0]);
+  const tear = (a, b) => C.convexHull([...C.ringCircle(HG.pin/2, 20).map(([u, v]) => [u + a, v + b]), [a, b + HG.pin/2*Math.SQRT2]]);
+  if (hinge){ const r = HG.r, ca = D/2 + r + HG.clear, cb = H + hinge.za, bot = cb - 2.6*r;
+    const hull = C.convexHull([...C.ringCircle(r, 40).map(([u, v]) => [u + ca, v + cb]), [D/2, bot], [D/2, cb]]);
+    hinge.segs.filter(sg => sg.box).forEach(sg => { solids.push(xBar(hull, [tear(ca, cb)], sg.x0, sg.x1));
+      solids.push(xBar([[D/2 - 0.6, bot], [D/2 + 0.01, bot], [D/2 + 0.01, H - 0.6], [D/2 - 0.6, H - 0.6]], [], sg.x0, sg.x1)); }); }
   const parts = [{ name:"Box", slot:clamp(+E.boxSlot || 0, 0, state.slots.length - 1), solid:C.mergeSolids(solids.filter(Boolean)) }, ...artParts];
   if (slide){
     // printed as it sits, top face up: a stack of thin slabs whose edges step in at 45° like the
@@ -4553,6 +4576,11 @@ function buildEnclosure(){
       } else lid.push(C.extrudePolysAt([{ outer: encOrient(C.ringRect(2*a, 2*b, Math.max(0, ri - fit), seg), true),
         holes:[encOrient(C.ringRect(2*a - 2*lipW, 2*b - 2*lipW, Math.max(0, ri - fit - lipW), seg), false)] }], lidT, lidT + lipH));
     }
+    // the hinge's knuckles on the lid (its frame: y = -D/2 is the back, z = 0 its outside on the bed): flat on the bed
+    if (hinge){ const r = HG.r, ca = -D/2 - r - HG.clear, cb = r;     // HG.clear off the back wall when shut
+      const hull = C.convexHull([...C.ringCircle(r, 40).map(([u, v]) => [u + ca, v + cb]), [ca - r, 0], [ca + r, 0]]);
+      hinge.segs.filter(sg => !sg.box).forEach(sg => { lid.push(xBar(hull, [tear(ca, cb)], sg.x0, sg.x1));
+        lid.push(xBar([[ca + r - 0.01, 0], [-D/2 + 0.6, 0], [-D/2 + 0.6, lidT - 0.01], [ca + r - 0.01, lidT - 0.01]], [], sg.x0, sg.x1)); }); }
     // the snap bumps on the outside of the lip's front and back (the lid prints face down, lip up): a 45° ridge each
     if (snap){
       const b = id/2 - fit, zc = lidT + lipH/2, Mx = [0,1,0, 0,0,-1, -1,0,0];
@@ -4574,7 +4602,7 @@ function buildEnclosure(){
   }
   parts.push(...insideParts);
   const fastenText = slide ? "Sliding lid: it slides in from the front along 45° grooves in the side walls, no screws needed." : magnet ? `Magnet lid: pockets for eight ${mg.d} × ${mg.t} mm magnets (${pocketD.toFixed(1)} mm wide, ${pocketH.toFixed(1)} mm deep), four in the posts and four in the lid.`
-    : !bossesOn ? (E.lid === "press" ? (snap ? "Press-fit lid with snap catches: four bumps on its lip click into grooves inside the front and back walls." : "Press-fit lid, no screws.") : "No screws.")
+    : !bossesOn ? (E.lid === "press" ? (hinge ? `Press-fit lid on a hinge at the back: push a ${hinge.Lh} mm length of 1.75 mm filament through the knuckles as the pin. ` : "") + (snap ? "Press-fit lid with snap catches: four bumps on its lip click into grooves inside the front and back walls." : "Press-fit lid, no screws.") : "No screws.")
     : E.fasten === "insert" ? `Corner posts for ${E.screw} heat inserts (${screw.insert} mm holes, at least ${screw.insertDepth} mm deep).`
     : `Corner posts for ${E.screw} self-tapping screws (${screw.pilot} mm pilot holes).`;
   // printed pilot lights: a faceted jewel lens per opening, printed flange down in front of the box. It
@@ -4625,6 +4653,7 @@ function buildEnclosure(){
   // what to buy or have ready (Session 54): screws, inserts, magnets, feet, straps and fans, from the box as it is
   const need = [], nAdd = (n, what) => { if (n > 0) need.push([n, what]); }, len = v => [6, 8, 10, 12, 16, 20, 25, 30].find(q => q >= v) || 30;
   if (!state.base.enclosure.test){
+    if (hinge) nAdd(1, `piece of 1.75 mm filament, ${hinge.Lh} mm long, as the hinge pin`);
     if (lidOn && magnet && bosses.length) nAdd(2*lidPins.length, `round magnets ${mg.d} × ${mg.t} mm (half in the posts, half in the lid; check they attract)`);
     else if (lidOn && bossesOn && E.fasten !== "none"){ nAdd(lidPins.length, `${E.screw} screws, ${len(lidT + screw.insertDepth - 1)} mm long, for the lid`); if (E.fasten === "insert") nAdd(lidPins.length, `${E.screw} heat inserts for the lid`); }
     const bs = {}; boardList.filter(bd => bd.holes).forEach(bd => { const k = encHas(SCREWS, bd.B.screw) ? bd.B.screw : "M3"; bs[k] = (bs[k] || 0) + bd.holes.length; });
@@ -4641,7 +4670,7 @@ function buildEnclosure(){
     if (split) nAdd(split.pins ? split.pins.length : 0, `${E.splitScrew || "M3"} screws and heat inserts for the joins`);
     const parts2 = {}; boardList.forEach(bd => { parts2[bd.B.label] = (parts2[bd.B.label] || 0) + 1; }); Object.entries(parts2).forEach(([k, n]) => nAdd(n, k));
   }
-  enclosureInfo = { test: !!state.base.enclosure.test, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, snap:!!snap, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR }, anchors:anchorsMade, ducts:ductInfo.length, count:(E.cut || []).length - left.length,
+  enclosureInfo = { test: !!state.base.enclosure.test, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, snap:!!snap, hinge:hinge ? { length:hinge.Lh, knuckles:hinge.segs.length } : null, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR }, anchors:anchorsMade, ducts:ductInfo.length, count:(E.cut || []).length - left.length,
     split: splitInfo };
   return out;
 }
@@ -11657,7 +11686,9 @@ function enclosureFields(p){
       numField(g,{ label:"Lip thickness (mm)", min:0.8,max:4,step:0.1, get:()=>E.lipW, set:v=>E.lipW=v, onChange:baseChanged });
       numField(g,{ label:"Gap between lip and walls (mm)", min:0,max:0.8,step:0.05, get:()=>E.fit, set:v=>E.fit=v, onChange:baseChanged,
         sub:()=> E.lid === "press" ? "0.1 grips tight, 0.2 slides in. Print a test lid first." : "0.2 slides in easily." });
-      if (E.lid === "press"){ checkField(g, "Snap catches (the lid clicks in)", ()=>E.snap === true, v=>{ E.snap = v; renderTab(); baseChanged(); });
+      if (E.lid === "press"){ checkField(g, "Hinged at the back (a 1.75 mm filament pin)", ()=>E.hinge === true, v=>{ E.hinge = v; renderTab(); baseChanged(); });
+        if (E.hinge) note(g, "Knuckles on the back wall and the lid's back edge, in turn; push a length of 1.75 mm filament through them as the pin (trim it flush). Each prints without support: the lid's lie on the bed, the box's have a 45° slope under them. Add snap catches or a finger pull to keep it shut and lift it.");
+        checkField(g, "Snap catches (the lid clicks in)", ()=>E.snap === true, v=>{ E.snap = v; renderTab(); baseChanged(); });
         if (E.snap) note(g, "Four small 45° bumps on the lid's lip click into grooves inside the front and back walls. With a 0.2 mm gap they hold firmly and still come off with a fingernail (add a finger pull)."); }
     }
     if (E.lid === "magnet"){
@@ -15135,7 +15166,7 @@ function sanitizeProject(data){
   if (st.base && "card" in st.base) st.base.card = cleanCard(st.base.card);
   if (st.base && st.base.enclosure && typeof st.base.enclosure === "object"){
     const E = st.base.enclosure, one = (v, list) => list.includes(v) ? v : list[0];
-    E.lid = one(E.lid, ["screw","press","magnet","slide","none"]); E.postStyle = one(E.postStyle, ["full","hang"]); E.snap = E.snap === true; E.fasten = one(E.fasten, ["insert","screw","none"]); E.head = one(E.head, ["sink","bore","plain"]);
+    E.lid = one(E.lid, ["screw","press","magnet","slide","none"]); E.postStyle = one(E.postStyle, ["full","hang"]); E.snap = E.snap === true; E.hinge = E.hinge === true; E.fasten = one(E.fasten, ["insert","screw","none"]); E.head = one(E.head, ["sink","bore","plain"]);
     E.magnet = encHas(MAGNETS, E.magnet) ? E.magnet : "6x2"; E.feet = one(E.feet, ["none","recess"]); E.mount = one(E.mount, ["none","ears","tabs","din","straps","skadis","pegboard"], "none"); E.tabN = E.tabN === 1 ? 1 : 2;
     E.earN = E.earN === 4 ? 4 : 2; E.strapDir = one(E.strapDir, ["across","up"], "across"); E.footSize = encHas(FEET, E.footSize) ? String(E.footSize) : "8";
     const L0 = E.logo && typeof E.logo === "object" ? E.logo : {};

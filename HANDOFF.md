@@ -2461,6 +2461,13 @@ the board's space clear), support; snap pins (solid standoff, the slot, the barb
 Picture: `docs/images/grips.jpg`. **Still to check by hand**: the ribs' 0.15 mm press with real boards (makers' sizes vary: a
 loose one wants glue, a tight one a file); the clips' spring in PLA and PETG; the snap pins in a Pi's 2.75 mm holes.
 
+## Session 60: a stale note fixed (v0.53.1)
+
+Found while taking screenshots for the owner: the Board mounts note for a board in a cradle still described the old loose fit
+("a dab of hot glue keeps it") under the 0.53 grip choices. It says now that it sits in a rim with a seat under each corner, held
+as chosen above; a board on snap pins says "solid standoffs, each with a snap pin". Text only. Tested: `tools-grip-test.js`,
+the project box's audit, the box's smoke test.
+
 ## Next: 0.54 (planned, not started)
 
 The three items left from Sessions 51 and 52's "Not done" lists (the owner asked for them; nothing is written yet, the branch

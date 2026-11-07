@@ -446,7 +446,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.53.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.53.1</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -19506,8 +19506,8 @@ function enclosureFields(p){
       }
       if (BB.g === "battery" && E.boardHold === "door") note(g, "It sits over an opening in the floor, on a door that screws on from underneath (two M2 screws, posts inside at its ends): change it without opening the box. The door prints flat in front of the box.");
       else if (BB.g === "battery" && E.boardHold !== "edges") note(g, "It lies on the floor in a strap tray: a low rim round it and slots through the floor either side for a 20 mm hook-and-loop strap round it (zip ties for a small one).");
-      else note(g, (BB.holes && E.boardHold !== "edges") || E.board === "custom" ? `Standoffs with ${E.fasten === "insert" ? "holes for heat inserts" : "pilot holes for self-tapping screws"} under each of its holes.`
-        : `${BB.holes ? "" : "No holes listed for this one, so it"}${BB.holes ? "It" : ""} sits in a cradle: a seat under each corner and a low fence round it, 0.3 mm clear. Drop it in; a dab of hot glue keeps it.`
+      else note(g, (BB.holes && E.boardHold !== "edges") || E.board === "custom" ? (E.boardPins === true && E.board !== "custom" ? "Solid standoffs under each of its holes, each with a snap pin." : `Standoffs with ${E.fasten === "insert" ? "holes for heat inserts" : "pilot holes for self-tapping screws"} under each of its holes.`)
+        : `${BB.holes ? "" : "No holes listed for this one, so it"}${BB.holes ? "It" : ""} sits in a cradle: a low rim round it, 0.3 mm clear, with a seat under each corner. How it's held is chosen above.`
         + (BB.check ? " Sizes differ between makers: measure yours and use My own board if it is not " + BB.w + " × " + BB.d + " mm." : ""));
       numField(g,{ label:"Board position, across (mm)", min:-120,max:120,step:0.5, get:()=>E.boardX, set:v=>E.boardX=v, onChange:baseChanged });
       numField(g,{ label:"Board position, front to back (mm)", min:-120,max:120,step:0.5, get:()=>E.boardY, set:v=>E.boardY=v, onChange:baseChanged });

@@ -2439,6 +2439,28 @@ board behind them, the switch. In real Chromium (scratchpad `drag52.js`, real mo
 **Not done, next**: dragging openings on the walls; dragging art on the lid and floor (they face the bed in the print layout);
 a highlight on what is under the pointer. **Still to check by hand**: dragging on a touch screen.
 
+## Session 59: project boxes, boards held without glue or screws (v0.53.0)
+
+Asked (the owner, with a picture of the cradles): "The mounting spaces for the different objects still seems a little meh, is
+it a tight fit or will there be need to glue? Is there another way or maybe other options to add as well". It was a loose fit
+(the rim 0.3 mm clear, nothing over the board): glue was needed.
+
+**Grips** (`encGrip`, `ENC_GRIP`; `grip` per board: `E.boardGrip`, an extra's `grip`, kept in a project only when not the
+default; `encGripField` on the panel): "ribs" (the default, so every cradle in an older project gets them too) — triangular
+ribs 1.2 mm wide on the rim's inside reaching 0.15 mm into the board's edge, from its seat to the rim's top, the top 1 mm a loft
+back to the rim (a lead-in): two on each long side at a third of its length (clear of the finger gap), one in the middle of
+each short side; only where the rim is (a level's plate trims it). "clips" — the long sides' middle gap at least 22 mm, a beam
+7 × 1 mm standing free in it from the floor to just over the board, its hook a loft from 0.6 mm over the board (flat
+underneath, 0.1 mm over the board's top) to the beam at 1.6 mm up; ribs on the short sides. "loose" — the rim alone.
+**Snap pins** (`pins`: `E.boardPins`, an extra's `pins`; `encSnapPin`): the standoff solid, a pin of two half-discs 0.8 mm apart,
+the screw's clearance less 0.3 across, 1.8 mm tall, then a 1.2 mm barb loft from 0.3 mm wider to 0.5 mm narrower; the parts list
+drops that board's screws. `enclosureInfo.boards[i].grip` says which ("ribs"/"clips"/"loose"/"screws"/"pins"/"strap"/"door").
+
+**Tests**: new `tools-grip-test.js` (in `test:enclosure`): ribs into the board's edge, clips (the beam, the hook over the board,
+the board's space clear), support; snap pins (solid standoff, the slot, the barb), the parts list; a hostile project; the panel.
+Picture: `docs/images/grips.jpg`. **Still to check by hand**: the ribs' 0.15 mm press with real boards (makers' sizes vary: a
+loose one wants glue, a tight one a file); the clips' spring in PLA and PETG; the snap pins in a Pi's 2.75 mm holes.
+
 ## Unfinished (in priority order)
 
 - **0.44: colour from a photo, with more AI, for the CR7 figure** (click to colour done in Session 50; the rest below is next) (the owner, Session 49: "fix the auto painter function from a pic,

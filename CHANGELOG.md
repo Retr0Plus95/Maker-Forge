@@ -3,6 +3,19 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.53.0
+
+Project boxes: boards held without glue or screws.
+
+- **Snug fit:** a board's cradle now has small ribs inside that press lightly on its edges, so it pushes in and stays. No glue.
+- **Snap clips:** or a springy clip on each long side that clicks over the board.
+- **Snap pins:** a board with holes can sit on printed split pins instead of screws.
+
+![An ESP32 in a cradle with ribs, a relay held by snap clips, and a Raspberry Pi on snap pins](docs/images/grips.jpg)
+
+**Fixed**
+- A board in a cradle was a loose drop-in fit that needed glue to stay put.
+
 ## 0.52.0
 
 Project boxes: drag things into place in the 3D view.

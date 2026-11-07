@@ -19,7 +19,8 @@ new work, and read the relevant "Session N" section before touching that feature
   `npm run fonts` (`tools-fonts.js`). Run it after adding a font to `FONTS`.
 - `index.html` – the built single-file app. **Generated: edit `src/`, never `index.html` directly.**
 - `tools-*.js` – headless tests (jsdom + a software canvas stub in `tools-test-env.js`), plus
-  `tools-browser-check.js`, which runs the app in real Chromium, and `tools-after-squash.js` (see Conventions).
+  `tools-browser-check.js`, which runs the app in real Chromium, and `tools-after-squash.js` (see Conventions);
+  `tools-partshot.js` renders chosen parts alone for the manual's pictures, `tools-boxdrag-check.js` drags a box's board with the real mouse.
 - `.github/workflows/after-squash.yml` – after each squash merge, brings the open pull requests built on it up to date.
 - `.github/workflows/release.yml` + `tools-release.js` – after each merge to `main`, every version on `main` without a
   GitHub Release gets one, with its `index.html` as `maker-forge-<version>.html` (`npm run release:dry` to preview).

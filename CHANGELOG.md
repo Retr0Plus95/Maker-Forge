@@ -3,6 +3,12 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.52.0
+
+Project boxes: drag things into place in the 3D view.
+
+- **✋ Move things with the mouse:** drag a board (on any floor), a word, icon or picture on a wall, or a post you put, straight in the 3D view. Drag anywhere else to turn the view; Undo puts it back.
+
 ## 0.51.0
 
 Project boxes: a gasket groove, and a battery you change from outside.

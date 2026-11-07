@@ -446,7 +446,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.51.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.52.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -2591,6 +2591,11 @@ function encAddBoardPorts(quiet){
     : "Its ports are already there.");
   renderTab(); encBoardChanged(); pushHistory();
 }
+// the switch for moving things with the mouse (Session 58)
+function encMoveField(g){
+  checkField(g, "✋ Move things with the mouse in the 3D view", ()=>viewOpts.boxMove === true, v=>{ viewOpts.boxMove = v;
+    if (v) notify("Drag a board, a word or an icon on a wall, or a post you put, to move it. Drag anywhere else to turn the view."); renderTab(); });
+}
 // a gasket groove in the lid (Session 57), on the Lid page
 function encGasketField(g){
   const E = state.base.enclosure, I = enclosureInfo;
@@ -3240,7 +3245,7 @@ function aiSettings(b){
 }
 
 function encLevels(E, room){
-  const L = (Array.isArray(E.levels) ? E.levels : []).slice(0, ENC_LEVEL.max).map(l => ({ z:clamp(+l.z || 30, 6, Math.max(6, room - 4)), t:clamp(+l.t || 2, 1.2, 5),
+  const L = (Array.isArray(E.levels) ? E.levels : []).slice(0, ENC_LEVEL.max).map(l => ({ src:l, z:clamp(+l.z || 30, 6, Math.max(6, room - 4)), t:clamp(+l.t || 2, 1.2, 5),
     hold:["posts","brackets","ledges","custom"].includes(l.hold) ? l.hold : "posts", vent:l.vent === true,
     at:(Array.isArray(l.at) ? l.at : []).slice(0, 6).filter(q => q && typeof q === "object").map(q => [clamp(+q.x || 0, -200, 200), clamp(+q.y || 0, -200, 200)]),
     // Session 51: where cables pass (a slot at the back before), how big, a grid of mounting holes, zip-tie anchors on it
@@ -4255,7 +4260,7 @@ function buildEnclosure(){
     // two boards on top of each other
     boardsInfo.forEach(o => { if (o.lvl === info.lvl && o.fits !== false && info.fits !== false && x0 < o.bb[2] && o.bb[0] < x1 && y0 < o.bb[3] && o.bb[1] < y1)
       warn.push({ t:`${B.label} overlaps ${o.label}`, s:`${B.label} and ${o.label} take the same place on the floor. Move one of them.` }); });
-    info.bb = [x0, y0, x1, y1]; info.at = [bd.x, bd.y]; info.rot = bd.rot; info.key = bd.key; info.tall = boardTall(bd.key, B);
+    info.bb = [x0, y0, x1, y1]; info.at = [bd.x, bd.y]; info.rot = bd.rot; info.key = bd.key; info.tall = boardTall(bd.key, B); info.src = bd.main ? null : bd.src;
     boardsInfo.push(info);
     if (!board) board = info;
   });
@@ -4409,7 +4414,7 @@ function buildEnclosure(){
         pr(-g2 - 2, -g2, zt - 0.01, zt + 5); pr(g2, g2 + 2, zt - 0.01, zt + 5); pr(-g2 - 2, g2 + 2, zt + 5 - 0.01, zt + 6.2); anchorsOn++;
       }
     }
-    levelInfo.push({ grid:gridN, anchors:anchorsOn, pass:L.pass, hold:holdOf[k], posts:postAt.map(q => q.slice()), onPosts:standsOnPosts(k) });
+    levelInfo.push({ grid:gridN, anchors:anchorsOn, pass:L.pass, hold:holdOf[k], posts:postAt.map(q => q.slice()), onPosts:standsOnPosts(k), src:L.src });
     const pieces = [plate, ...levelSolids[k]].filter(Boolean), dz = frontZ + d/2;
     insideParts.push({ inside:true, name:`Level ${k + 1}`, slot:clamp(+E.boxSlot || 0, 0, state.slots.length - 1), solid:C.affineSolid(C.mergeSolids(pieces), [1,0,0, 0,1,0, 0,0,1], [0, -zb, dz]) });
     frontZ += d + 10;
@@ -4735,7 +4740,7 @@ function buildEnclosure(){
     if (split) nAdd(split.pins ? split.pins.length : 0, `${E.splitScrew || "M3"} screws and heat inserts for the joins`);
     const parts2 = {}; boardList.forEach(bd => { parts2[bd.B.label] = (parts2[bd.B.label] || 0) + 1; }); Object.entries(parts2).forEach(([k, n]) => nAdd(n, k));
   }
-  enclosureInfo = { test: !!state.base.enclosure.test, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, gasket:gasket ? { cord:gasket.cord, length:gasket.length, depth:gasket.gd, width:gasket.gw } : null, snap:!!snap, hinge:hinge ? { length:hinge.Lh, knuckles:hinge.segs.length } : null, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR }, anchors:anchorsMade, ducts:ductInfo.length, count:(E.cut || []).length - left.length,
+  enclosureInfo = { test: !!state.base.enclosure.test, wallH:{ front:wallH("front"), back:wallH("back"), left:wallH("left"), right:wallH("right") }, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, gasket:gasket ? { cord:gasket.cord, length:gasket.length, depth:gasket.gd, width:gasket.gw } : null, snap:!!snap, hinge:hinge ? { length:hinge.Lh, knuckles:hinge.segs.length } : null, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR }, anchors:anchorsMade, ducts:ductInfo.length, count:(E.cut || []).length - left.length,
     split: splitInfo };
   return out;
 }
@@ -7715,7 +7720,7 @@ renderer.domElement.addEventListener("pointerup", e => {
   if (!downAt || Math.hypot(e.clientX-downAt[0], e.clientY-downAt[1]) > 5) return;
   downAt = null;
   if (viewOpts.measure){ measureAt(e); return; }
-  if (painting()) return;
+  if (painting() || boxMoveOn()) return;
   const d = state.items[state.active]; if (!d) return;
   const r = renderer.domElement.getBoundingClientRect();
   ray.setFromCamera({ x:((e.clientX-r.left)/r.width)*2-1, y:-((e.clientY-r.top)/r.height)*2+1 }, camera);
@@ -9165,6 +9170,68 @@ const endArea = e => {
 };
 renderer.domElement.addEventListener("pointerup", endArea);
 renderer.domElement.addEventListener("pointercancel", () => { areaDraw = null; areaPath(); });
+/* Moving things in a project box with the mouse (Session 58): a board (on its own floor), words, an icon or the picture on
+   a wall, or a post you put. On while viewOpts.boxMove is (the panel's switch); a press anywhere else still turns the view.
+   Everything is worked out in the box's own frame (plan x, height, -plan y), from enclosureInfo, and changes the same
+   settings the panel's numbers do, rounded to 0.5 mm; the box is rebuilt every 120 ms while dragging. */
+let boxDrag = null;
+function boxMoveOn(){ return viewOpts.boxMove === true && state.base.type === "enclosure" && !painting() && !viewOpts.measure && !viewOpts.layout && !(viewOpts.explode > 0); }
+function boxLocalRay(e){
+  const bi = modelParts.findIndex(p => p.name === "Box"), mesh = modelGroup.children.find(m => m.userData.part === bi); if (bi < 0 || !mesh) return null;
+  const r = renderer.domElement.getBoundingClientRect(); if (!r.width) return null;
+  ray.setFromCamera({ x:((e.clientX - r.left)/r.width)*2 - 1, y:-((e.clientY - r.top)/r.height)*2 + 1 }, camera);
+  mesh.updateMatrixWorld(true); return ray.ray.clone().applyMatrix4(mesh.matrixWorld.clone().invert());
+}
+// a wall's outward normal, and u (along it, seen from outside) from a point in the box's frame
+const BOX_FACE = { front:{ n:[0,0,1], u:p => p.x }, back:{ n:[0,0,-1], u:p => -p.x }, right:{ n:[1,0,0], u:p => -p.z }, left:{ n:[-1,0,0], u:p => p.z } };
+function boxDragPick(lr){
+  const I = enclosureInfo, E = state.base.enclosure; if (!I) return null;
+  const [W, D, H] = I.size, fl = H - I.inner[2], hits = [], V = THREE.Vector3;
+  const aabb = (x0, y0, z0, x1, y1, z1) => { const p = lr.intersectBox(new THREE.Box3(new V(Math.min(x0, x1), Math.min(y0, y1), Math.min(z0, z1)), new V(Math.max(x0, x1), Math.max(y0, y1), Math.max(z0, z1))), new V()); return p ? lr.origin.distanceTo(p) : null; };
+  (I.art || []).forEach(a => { const F = BOX_FACE[a.face], src = (E.art || [])[a.i]; if (!F || !src) return;
+    const n = new V(...F.n); if (lr.direction.dot(n) >= 0) return;
+    const pl = new THREE.Plane(n, -(a.face === "front" || a.face === "back" ? D/2 : W/2)), p = lr.intersectPlane(pl, new V()); if (!p) return;
+    const Hw = (I.wallH || {})[a.face] || H, cx = +src.x || 0, cy = Hw/2 + (+src.y || 0), u = F.u(p);
+    if (Math.abs(u - cx) <= a.w/2 + 1 && Math.abs(p.y - cy) <= a.h/2 + 1) hits.push({ kind:"art", d:lr.origin.distanceTo(p) - 0.5, src, face:a.face, plane:pl, grab:[u - cx, p.y - cy], Hw }); });
+  (I.levels || []).forEach((L, k) => { if (L.hold !== "custom" || !L.src || !Array.isArray(L.src.at)) return;
+    const z0 = k ? fl + I.levels[k - 1].z : fl, z1 = fl + L.z - L.t;
+    L.posts.forEach(([x, y], j) => { const d = aabb(x - 3.5, z0, -(y - 3.5), x + 3.5, z1, -(y + 3.5)); if (d != null && L.src.at[j]) hits.push({ kind:"post", d, src:L.src.at[j], h:(z0 + z1)/2, at:[x, y] }); }); });
+  (I.boards || []).forEach(b => { if (b.fits === false) return;
+    const d = aabb(b.bb[0], b.base, -b.bb[1], b.bb[2], b.top + (b.tall || 10), -b.bb[3]); if (d != null) hits.push({ kind:"board", d:d + 0.5, b, h:b.base, at:b.at }); });
+  hits.sort((p, q) => p.d - q.d);
+  const h = hits[0]; if (!h) return null;
+  if (h.kind !== "art"){ const p = lr.intersectPlane(new THREE.Plane(new V(0, 1, 0), -h.h), new V()); h.grab = p ? [p.x - h.at[0], -p.z - h.at[1]] : [0, 0]; }
+  return h;
+}
+function boxDragTo(lr){
+  const g = boxDrag, E = state.base.enclosure, r2 = v => Math.round(v*2)/2; if (!g) return false;
+  if (g.kind === "art"){ const p = lr.intersectPlane(g.plane, new THREE.Vector3()); if (!p) return false;
+    g.src.x = clamp(r2(BOX_FACE[g.face].u(p) - g.grab[0]), -200, 200); g.src.y = clamp(r2(p.y - g.grab[1] - g.Hw/2), -200, 200); return true; }
+  const p = lr.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -g.h), new THREE.Vector3()); if (!p) return false;
+  const x = r2(p.x - g.grab[0]), y = r2(-p.z - g.grab[1]);
+  if (g.kind === "post"){ g.src.x = clamp(x, -200, 200); g.src.y = clamp(y, -200, 200); }
+  else if (g.b.main){ E.boardX = clamp(x, -120, 120); E.boardY = clamp(y, -120, 120); }
+  else if (g.b.src){ g.b.src.x = clamp(x, -150, 150); g.b.src.y = clamp(y, -150, 150); }
+  return true;
+}
+function boxDragEnd(){
+  const g = boxDrag; boxDrag = null; controls.enabled = true; if (!g) return;
+  if (g.moved){ baseChanged(); pushHistory(); renderTab(); notify(g.kind === "art" ? "Moved. Its numbers are on the Art, words and icons page." : g.kind === "post" ? "Post moved." : `${g.b.label} moved.`); }
+}
+// capture phase: before the orbit controls, so a press on a thing moves it instead of turning the view
+renderer.domElement.addEventListener("pointerdown", e => {
+  if (!boxMoveOn() || e.button !== 0) return;
+  const lr = boxLocalRay(e), hit = lr && boxDragPick(lr); if (!hit) return;
+  boxDrag = Object.assign(hit, { id:e.pointerId, moved:false, t:0 }); controls.enabled = false; e.preventDefault();
+  try { renderer.domElement.setPointerCapture(e.pointerId); } catch(err){}
+}, true);
+renderer.domElement.addEventListener("pointermove", e => {
+  if (!boxDrag || e.pointerId !== boxDrag.id) return;
+  const lr = boxLocalRay(e); if (!lr || !boxDragTo(lr)) return;
+  boxDrag.moved = true; const now = performance.now(); if (now - boxDrag.t > 120){ boxDrag.t = now; baseChanged(); }
+});
+renderer.domElement.addEventListener("pointerup", e => { if (boxDrag && e.pointerId === boxDrag.id) boxDragEnd(); });
+renderer.domElement.addEventListener("pointercancel", () => { if (boxDrag) boxDragEnd(); });
 // a stroke cut short by a second finger (a pinch or a two-finger slide starting): one begun in the last half second, or
 // still only a few dabs long, is taken back as if never made; a longer one is kept as far as it got
 function cancelStroke(){
@@ -11814,6 +11881,7 @@ function enclosureFields(p){
   group(p, "Art, words and icons on the box", g => {
     const list = Array.isArray(E.art) ? E.art : (E.art = []), info = (I && I.art) || [];
     note(g, "Put a name, a word or an icon on any face: engraved into it, inlaid flush in another filament, or raised on a wall. The Art tab's picture can go on too.");
+    if (list.some(a => ENC_WALLS.has(a.face))) encMoveField(g);
     const add = (o) => { if (list.length >= ENC_ART.max) return; const face = o.face || "front";
       list.push(encArtClean(Object.assign({ face, x:0, y:0, finish:"inlay", slot:state.slots.length > 1 ? (+E.boxSlot === 1 ? 2 % state.slots.length : 1) : 0, depth:0.6 }, o))); renderTab(); baseChanged(); pushHistory(); };
     if (list.length < ENC_ART.max) buttonRow(g, [["Add words", ()=>add({ kind:"text", text:"MY PROJECT", size:8 })], ["Add an icon", ()=>add({ kind:"icon", icon:"power", size:12 })],
@@ -11905,6 +11973,7 @@ function enclosureFields(p){
     } else note(g, "Hang the box on a wall, a cabinet rail or a pole. For hanging on screws through the back wall, add a Wall-mount keyhole opening on the back instead.");
   }, E.mount && E.mount !== "none");
   group(p, "Board mounts", g => {
+    if (encBoardList(E).length) encMoveField(g);
     searchSelField(g, "Board", BOARDS, BOARD_GROUPS, ()=>E.board, v=>{ E.board = v; renderTab(); encBoardChanged(); }, { hint:"uno, esp32, pi, relay" });
     const BB = encHas(BOARDS, E.board) ? BOARDS[E.board] : null;
     if (E.board === "custom"){
@@ -12001,7 +12070,8 @@ function enclosureFields(p){
       else if (hold0() === "brackets") note(box, "A screw bracket on each side wall, front and back, under the plate: nothing stands on the floor (or the level) under it. Each prints with the box, over a 45° slope.");
       else if (hold0() === "custom"){
         const at = Array.isArray(L.at) ? L.at : (L.at = []);
-        note(box, (k ? "Posts on the level under it, printed on that one. " : "Posts on the floor. ") + "Put them in gaps between your boards: across from the middle (right is +) and front to back (back is +), in mm.");
+        note(box, (k ? "Posts on the level under it, printed on that one. " : "Posts on the floor. ") + "Put them in gaps between your boards: across from the middle (right is +) and front to back (back is +), in mm, or drag them in the 3D view.");
+        encMoveField(box);
         at.forEach((q, i) => {
           const row = document.createElement("div"); row.style.cssText = "display:flex;gap:6px;align-items:center"; box.appendChild(row);
           numField(row,{ label:`Post ${i + 1} across`, min:-200,max:200,step:1, get:()=>q.x, set:v=>q.x=v, onChange:baseChanged, noReset:true });
@@ -15862,7 +15932,7 @@ window.MakerForge = {
   examples: { list: EXAMPLES, forType: EXAMPLE_FOR_TYPE, art: EXAMPLE_ART, canvas: exampleCanvas, load: loadExample, drop: dropExamples },
   get tracer(){ return tracerInfo; },
   get enclosure(){ return enclosureInfo; },
-  get cutouts(){ return CUTOUTS; }, get boards(){ return BOARDS; }, boardPorts:BOARD_PORTS, addBoardPorts:encAddBoardPorts, arrange:encArrange, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
+  get cutouts(){ return CUTOUTS; }, get boards(){ return BOARDS; }, boardPorts:BOARD_PORTS, addBoardPorts:encAddBoardPorts, arrange:encArrange, boxDrag:{ pick:boxDragPick, start:h => { boxDrag = Object.assign(h, { id:-1, moved:false, t:0 }); }, to:lr => { const ok = boxDragTo(lr); if (ok && boxDrag) boxDrag.moved = true; return ok; }, end:boxDragEnd }, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
   get jigsaw(){ return jigsawInfo; },
   get lithophane(){ return lithoInfo; },
   get print(){ return printFresh() ? printInfo : null; },

@@ -2413,6 +2413,32 @@ thickness, its screws, when it falls back, support; a hostile project; the panel
 **Not done, next**: dragging posts and art in the 3D view (0.52); a hint when a board stands over a battery door's recess (its
 ledge is 0.8 mm); a door that clips instead of screws. **Still to check by hand**: a cord in the groove, squeezed; the door's fit.
 
+## Session 58: project boxes, dragging things in the 3D view (v0.52.0)
+
+Asked (the owner, with Session 57's list): "dragging posts or art in the 3D view".
+
+**How it works** (`viewOpts.boxMove`, not saved; the switch `encMoveField` is on Board mounts, the Art page and a level with
+posts where you put them): a `pointerdown` listener in the capture phase (before OrbitControls) takes the pointer's ray into the
+Box mesh's own frame (`boxLocalRay`: the mesh's world matrix inverted, so the view's scale, turn and bed offset don't matter) and
+`boxDragPick` finds the nearest of: art on a wall (the ray against that wall's outside plane, only from outside, within the
+piece's size + 1 mm; `BOX_FACE` gives each wall's normal and its `u` along it), a post you put (an upright box round it from the
+floor or level under it to its level), a board (a box from its base to its parts' top). It keeps where on it you took it
+(`grab`); `boxDragTo` intersects the ray with the same plane (the wall, or the level at the post's middle or the board's base) and
+sets the settings the panel's numbers set (art `x`/`y`, `E.boardX`/`boardY`, an extra board's `x`/`y`, `L.at[i]`), rounded to
+0.5 mm and clamped; the box is rebuilt every 120 ms while dragging and once at the end (then Undo, the panel). OrbitControls is
+off during a drag; a press on nothing leaves it to turn the view. The click that places Art tab artwork is skipped while the
+switch is on. To find the settings: `enclosureInfo.boards[i].src` (an extra board's own object), `levels[k].src` (the level's
+object; `encLevels` keeps it), `wallH` per wall. Test hooks: `MakerForge.boxDrag` {pick, start, to, end}.
+
+**Tests**: new `tools-boxdrag-test.js` (in `test:enclosure`): the main board on the floor and an extra on a level, words on the
+front, an icon on the back and the right side, nothing picked from inside a wall or on a miss, a post you put, words before a
+board behind them, the switch. In real Chromium (scratchpad `drag52.js`, real mouse events): the switch clicked, the Uno dragged
+80 px on screen moved 77 px with the camera still, a drag on empty space still turned the view, no page errors. Not in
+`check:browser` yet.
+
+**Not done, next**: dragging openings on the walls; dragging art on the lid and floor (they face the bed in the print layout);
+a highlight on what is under the pointer. **Still to check by hand**: dragging on a touch screen.
+
 ## Unfinished (in priority order)
 
 - **0.44: colour from a photo, with more AI, for the CR7 figure** (click to colour done in Session 50; the rest below is next) (the owner, Session 49: "fix the auto painter function from a pic,

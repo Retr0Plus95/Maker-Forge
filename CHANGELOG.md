@@ -3,6 +3,15 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.51.0
+
+Project boxes: a gasket groove, and a battery you change from outside.
+
+- **Gasket groove:** a screwed or magnet lid can have a groove for a silicone or EPDM cord over the walls, for a dust- and splash-proof box.
+- **A battery under a door:** a battery can sit over an opening in the floor, on a door that screws on from underneath, so it's changed without opening the box.
+
+![The floor from underneath: the recess and opening for a battery door, and the door beside it](docs/images/battery-door.jpg)
+
 ## 0.50.0
 
 Project boxes: a hinged lid.

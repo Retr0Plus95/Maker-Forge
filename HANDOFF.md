@@ -2259,7 +2259,7 @@ a tray's strap gaps; short posts (nothing under them, too shallow, a board under
 plate's holes, too low); posts where you put them; two levels on posts (9 mm from the screws under them, nothing through level
 1); support for all of them (none); a board under a post and wall brackets instead; Arrange with brackets and 18 random sets
 with a level on corner posts; a hostile project; the panel. The doc picture: `docs/images/mounts.jpg`, rendered alone in a
-plain scene (scratchpad `shot46.js`, the parts by name).
+plain scene (`tools-partshot.js`, the parts by name).
 
 **Not done, next**: posts dragged in the 3D view (they are typed in); Arrange placing boards round posts where you put them (it
 warns); brackets on the front and back walls. Next release (0.47): art, icons, engravings and labels on any face of the box.
@@ -2291,7 +2291,7 @@ buttons and lights; it only fills openings without a label.
 or adds, the inlay filling its pocket), raised in the box's filament, the lid's and floor's art in the first layers, the lid's
 read from above, all 54 icons, left out over an opening or past the edge, turned words, no lid, the sliding lid, support (none),
 the Art tab picture inlaid and engraved, Label every opening, the panel, a hostile project. The doc picture:
-`docs/images/box-art.jpg`, rendered with the lid turned over onto the box (scratchpad `shot46.js`, `ASSEMBLE=1 SLOTCOL=1`).
+`docs/images/box-art.jpg`, rendered with the lid turned over onto the box (`tools-partshot.js`, `ASSEMBLE=1 SLOTCOL=1`).
 
 **Not done, next**: dragging art in the 3D view (it is typed in); art wrapping round a rounded corner; art on a box made in
 parts; a picture inlaid in the lid and on a wall at once recomputes the trace each build (`encLogoCache` holds one size).
@@ -2381,7 +2381,7 @@ pin; `enclosureInfo.hinge` `{length, knuckles}`.
 
 **Tests**: new `tools-hinge-test.js` (in `test:enclosure`): five knuckles and their volume, the box's pin hole on the axis, the
 pin in What you'll need, support (none), what stops it, a hostile project, the panel. The doc picture: `docs/images/hinge.jpg`
-(the lid turned onto the box, `shot46.js` `ASSEMBLE=1`).
+(the lid turned onto the box, `tools-partshot.js` `ASSEMBLE=1`).
 
 **Not done, next**: a gasket groove; a battery compartment with a door; rooms of their own sizes in the smallest box; dragging art
 and posts in the 3D view. **Still to check by hand**: the hinge printed and turning (the 0.3 mm clearance, the pin's fit).
@@ -2432,7 +2432,7 @@ object; `encLevels` keeps it), `wallH` per wall. Test hooks: `MakerForge.boxDrag
 
 **Tests**: new `tools-boxdrag-test.js` (in `test:enclosure`): the main board on the floor and an extra on a level, words on the
 front, an icon on the back and the right side, nothing picked from inside a wall or on a miss, a post you put, words before a
-board behind them, the switch. In real Chromium (scratchpad `drag52.js`, real mouse events): the switch clicked, the Uno dragged
+board behind them, the switch. In real Chromium (`tools-boxdrag-check.js`, real mouse events): the switch clicked, the Uno dragged
 80 px on screen moved 77 px with the camera still, a drag on empty space still turned the view, no page errors. Not in
 `check:browser` yet.
 
@@ -2460,6 +2460,25 @@ drops that board's screws. `enclosureInfo.boards[i].grip` says which ("ribs"/"cl
 the board's space clear), support; snap pins (solid standoff, the slot, the barb), the parts list; a hostile project; the panel.
 Picture: `docs/images/grips.jpg`. **Still to check by hand**: the ribs' 0.15 mm press with real boards (makers' sizes vary: a
 loose one wants glue, a tight one a file); the clips' spring in PLA and PETG; the snap pins in a Pi's 2.75 mm holes.
+
+## Next: 0.54 (planned, not started)
+
+The three items left from Sessions 51 and 52's "Not done" lists (the owner asked for them; nothing is written yet, the branch
+was only made):
+1. **Strap loops instead of floor slots** for a battery's strap tray: a loop standing on the floor each side of the battery
+   where the slots are now, so the floor stays closed (a splash-proof box with the gasket). The strap (22 mm) passes under a
+   roof that must be a 45° gable to print without support (about 11 mm high over a 3 mm opening). A choice beside "Strap tray"
+   (`hold` stays "holes"/"strap"; add a `strapBy` "slots"/"loops"), the slots' code is in `encStrapTray`.
+2. **Arrange it for me and posts you put**: after arranging, move each custom post (`L.at`) that a board now covers to the
+   nearest free spot on its plate (clear of boards + 4 mm, other posts 10 mm, the plate's edge 4 mm), and say how many moved.
+   Today it only warns ("is under a post of level k"). `encArrange` ends where the dividers are moved; `postPlan` has the posts.
+3. **Brackets on the front and back walls** for a level: `L.bracketWalls` "sides"/"frontback"; in `postPlan` the brackets are
+   at `x = ±(iw/2 - BRK.in)` on the sides; front and back means `y = ±(id/2 - BRK.in)`, `x = ±(lvW/2 - px)` clear of the corner
+   posts, and the D-shaped boss and its 45° wedge turned 90° (the build is after `if (holdOf[k] === "brackets") postAt.forEach`);
+   the checks for a channel or a board under one, and `encArrange`'s `bands`, take the new places.
+Each wants a test in `test:enclosure` like `tools-mounts-test.js`, the manual, CHANGELOG 0.54.0 and a Session 60 here.
+Helper scripts: `tools-partshot.js` renders parts alone for the manual's pictures; `tools-boxdrag-check.js` drags a board
+with the real mouse in Chromium.
 
 ## Unfinished (in priority order)
 

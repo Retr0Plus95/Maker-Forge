@@ -3,6 +3,11 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.53.1
+
+**Fixed**
+- The note under a board in a cradle still said it was a loose fit held by a dab of glue, under the new grip choices; it now says how it sits, and a board on snap pins says so too.
+
 ## 0.53.0
 
 Project boxes: boards held without glue or screws.

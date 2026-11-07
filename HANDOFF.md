@@ -2364,6 +2364,28 @@ level with no room, a board across one, support, a hostile project, the panel. T
 **Not done, next**: a hinged lid, a gasket groove, a battery compartment with a door; rooms of their own sizes in the smallest
 box (they keep their proportions); dragging art and posts in the 3D view.
 
+## Session 56: project boxes, a hinged lid (v0.50.0)
+
+Asked (the owner): "Keep going".
+
+**The hinge** (`E.hinge`, a press-fit lid only; `HG`): `HG.n` (5) knuckles along `Lh` (the back less its rounded corners and 3 mm
+each end), 0.5 mm apart, the box's at the ends and the middle. The axis is `HG.r` (3.5) + `HG.clear` (0.3) behind the back and
+`lidT - r` above the top: then the lid's knuckles (the lid's frame: y = -D/2 its back, z = 0 its outside on the bed) are the
+knuckle's circle hulled with its foot on the bed, joined to the lid's edge by a strip above the box's top; the box's are the
+circle hulled with a point on the wall 2.6 r under the axis (its underside 42° from upright), and a strip into the wall under
+the top. Both are extruded across with `Mx` (the snap bumps' frame). The pin holes (2 mm, for 1.75 mm filament) are teardrops
+pointing up as each part prints. The top of the back (from 2.6 r under the axis) is in `taken.back`: a back opening there is left
+out, a mount on the back that wants it means no hinge (a warning), as does a back under 30 mm or a box under 3 r + 6 mm deep.
+Opening the lid moves everything under the axis away from the back wall, so the lip needs no gap. What you'll need lists the
+pin; `enclosureInfo.hinge` `{length, knuckles}`.
+
+**Tests**: new `tools-hinge-test.js` (in `test:enclosure`): five knuckles and their volume, the box's pin hole on the axis, the
+pin in What you'll need, support (none), what stops it, a hostile project, the panel. The doc picture: `docs/images/hinge.jpg`
+(the lid turned onto the box, `shot46.js` `ASSEMBLE=1`).
+
+**Not done, next**: a gasket groove; a battery compartment with a door; rooms of their own sizes in the smallest box; dragging art
+and posts in the 3D view. **Still to check by hand**: the hinge printed and turning (the 0.3 mm clearance, the pin's fit).
+
 ## Unfinished (in priority order)
 
 - **0.44: colour from a photo, with more AI, for the CR7 figure** (click to colour done in Session 50; the rest below is next) (the owner, Session 49: "fix the auto painter function from a pic,

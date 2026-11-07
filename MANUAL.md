@@ -210,6 +210,9 @@ Some objects in brief:
     - **Covers for the cable channels:** a strip for each channel with a tongue that presses between its lips, printed flat.
     - **Spacers** (printed tubes, any height, for M2 to M4 screws) and **zip-tie mounts** that screw down, printed flat in front of the box.
   - **A finger pull** (on the Lid page): a notch in the top of the front wall, so a press-fit or magnet lid lifts off easily. The lid's lip has a gap over it.
+  - **Hinged at the back** (new in 0.50, a press-fit lid, on the Lid page): five knuckles along the back, three on the box and two on the lid, turn on a length of 1.75 mm filament pushed through them as the pin (trim it flush). They print without support: the lid's lie on the bed, the box's have a 45° slope under them. The top of the back is kept for them, so a back opening up there, or hanging tabs, strap loops or hooks on the back, are named. Add snap catches or a finger pull to keep it shut and lift it.
+
+    ![A box with a blue lid on a hinge at the back: three knuckles on the box and two on the lid, on a filament pin](docs/images/hinge.jpg)
   - **Snap catches** (a press-fit lid, on the Lid page): four small 45° bumps on the lid's lip click into grooves inside the front and back walls, so the lid holds without screws. They need a lip at least 3 mm tall.
   - **My own battery or pack** (in the battery list): type its length, width and thickness and it gets a strap tray or a cradle like the others.
   - **What you'll need**: a list of the screws (with their lengths), heat inserts, magnets, rubber feet, straps, fans and boards the box takes, worked out from the box as it is. **Copy the list** puts it on the clipboard for your shopping list.

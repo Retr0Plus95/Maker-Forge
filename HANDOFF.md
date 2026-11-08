@@ -2518,10 +2518,61 @@ suite, the project box's audit and smoke test, `npm run test:project`, `ONLY=enc
 drag's growth is only tested through the same function as the number fields (`encBoardChanged`), not with the real mouse
 (`tools-boxdrag-check.js` drags but does not cross a wall). Shrink to fit takes about 25 builds (a second or two on a big box).
 
+## Session 62: project boxes, seeing the parts (still v0.54.0, the same pull request)
+
+The owner, after Session 61 (its pull request not merged yet, so this joins 0.54.0): "Fix any bugs, make it easier to use add
+more features and maybe an easy way to view components. Just go crazy and make it the best project box generator ever".
+
+**A bug hunt that clicks at random**, `tools-boxfuzz.js` (new; `SEED`, `RUNS`, `STEPS`; not in `test:enclosure`, it is slow): each
+run opens a quick start and does random things through the panel (about 30 actions), checking after each step for page errors,
+open meshes, sizes out of range, and that adding a part never puts it on something, Shrink to fit makes no new warning, Make it all
+fit leaves no board out and adding an opening leaves none out. It found, all fixed (checked in `tools-boxview-test.js`):
+1. When the box grew for a part, `encPlace` looked for room with the corner posts, a level's posts and brackets, cable channels
+   and rounded corners where they had been, not moved out with the walls: a part could land on a post (`encBusy(…, g)` now moves
+   what stands against a wall with it, `atWall`).
+2. A board sticking out of the box (`fits:false`) was not an obstacle, so a new part went on top of it once the box grew.
+3. With dividers making every room too small one way and too short the other, no single-side growth helped and the part was
+   dropped in the middle (over others), its "no room" note then overwritten: a second search grows two sides at a corner, and
+   `encAddPart` notifies last.
+4. Corner posts, or a level's posts (`xi > 8`), that only fit the bigger box appeared under the part it grew for: `encAddPart`
+   builds once the part is in and looks again (up to three times) when it is on something.
+5. A copied opening is put in first, so it could push the openings after it out (`encRoomOnFace` only checked whether the new one
+   was left out): the build now records `clashes` (who pushed whom), and the new one moves.
+6. An opening that could not fit even in a bigger box (a 155 mm screen past a notch) grew the box wider and taller for nothing:
+   `encOpeningChanged` puts the box back and says so. `freeSpot` no longer offers a place off the end of the face.
+7. A full wall grew round its middle, splitting the new room between both ends: it grows on one side now (`encGrowSides`).
+8. On the lid and the floor a new opening only looked sideways for room (`encFreeU` searches both ways there; on a wall at its
+   height first, then higher or lower, then a taller box). An opening that only just fits fell between the 0.5 mm steps: the
+   ranges' ends are tried too.
+9. A taller box lets a level pressed down by the lid rise, and its parts with it: `encMakeRoom` repeats until it settles.
+
+**Seeing the parts:**
+- **Plan of the inside** (`encPlanSVG`, `encPlanPage`, `openPlanBig`): an SVG of each floor from the last build, in mm (back at the
+  top), with every part (name, screw holes, the main board's ports), lid posts, a level's posts or brackets, dividers, channels,
+  wall openings as marks, floor openings dashed, parts on other floors dashed. `encSel` is the picked part ({ main } or { m }):
+  its settings under the plan; drag (0.5 mm), arrow keys (Shift 5), R, D, Delete, Escape; ⤢ a bigger copy in the modal. The
+  panel re-renders after a build when `encPanelSig` (warnings, parts, their places, the inside) changes.
+- **The catalogue** (`openPartsBrowser`, `boardDrawing`, `openingDrawing`): boards at one scale (170 × 100 mm view) with holes,
+  ports and a 10 mm bar; openings as `openingRings` paths. Add to the box (`encAddPart`), As the main board (`encMainPicked`).
+- **Names in 3D** (`encNameSprite`, `viewOpts.boxNames`, on by default) and the picked part amber; ghosts carry `who`.
+- **How to put it together** (`encAssembly`), on its page and as `how-to-assemble.txt` (with What you'll need) in the download;
+  the openings' parts in What you'll need (not a board's own ports), and Copy for a spreadsheet (CSV).
+- **The 0.55 plan, done:** strap loops (`strapBy`/`boardStrapBy` "loops", `ENC_TRAY.loop`; a C-shaped gable profile run along the
+  strap, turned with a proper rotation), level brackets on the front and back walls (`bracketWalls` "frontback", worked out across
+  and along the wall they are on), and Arrange moving a post you put that a board now covers (nearest free place, clear of boards
+  by 4 mm, other posts by 10, the plate's edge by 4).
+
+Tested: `tools-boxview-test.js` (45 checks), `tools-boxroom-test.js`, the whole `test:enclosure`, the box's smoke test and audit,
+`test:project`, the browser check for project boxes; in Chromium the plan's dragging and keys, the catalogue, the names in 3D and
+the download's `how-to-assemble.txt` (JSZip cannot build a zip in jsdom). `tools-boxfuzz.js`: 20 seeds of 4 to 6 runs (each
+about 20 random steps); the last eleven clean. One case was seen once and never again (seed 64, before the last fixes: a Pi 3 A+
+on a corner post after the box grew both ways, in a box made in parts); its replay and later seeds were clean. A main board placed
+by `encMainPicked` keeps its turn (`keepRot`): its ports face the walls they do; modules may be turned to fit. Pictures: `docs/images/box-plan.jpg`, `box-parts.jpg`. Not done: dragging openings along the walls in the plan; a
+real print of the strap loops (3 mm under a 45° gable: check the strap slides through).
+
 ## Next: 0.55 (planned, not started)
 
-The three items left from Sessions 51 and 52's "Not done" lists (the owner asked for them; nothing is written yet, the branch
-was only made):
+Done in Session 62 (0.54.0), kept here for the record; the next release needs a new plan. The three items were:
 1. **Strap loops instead of floor slots** for a battery's strap tray: a loop standing on the floor each side of the battery
    where the slots are now, so the floor stays closed (a splash-proof box with the gasket). The strap (22 mm) passes under a
    roof that must be a 45° gable to print without support (about 11 mm high over a 3 mm opening). A choice beside "Strap tray"

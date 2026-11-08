@@ -3,6 +3,31 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.54.0
+
+Project boxes: room for what you add, and a lot less fiddling.
+
+- **The box grows sensibly:** a part or an opening that doesn't fit makes the box bigger on the side it needs, by just enough, and everything already in it stays put. Or choose **Stays this size**.
+- **New parts go where there is room:** on the floor or a level, either way round, clear of the other parts, posts, dividers and cable channels.
+- **Shrink to fit what's in it**, **Inside sizes**, and **Make it all fit** for every problem at once, listed at the top.
+- **Board mounts lists every part**, with its size, its floor, how much room is taken and its own problems. **Duplicate**, **Centre it**, and **Remove this board**.
+- **Port openings follow their board** when it moves, turns or is arranged, with their labels; another board swaps them for its own.
+- A full wall makes room for one more opening; levels stay in height order with their parts; a new level goes over the parts under it; a new divider splits the biggest room; a turned part slides back inside.
+
+**Fixed**
+- Adding a module could more than double the box's width (a relay made a 100 mm Uno box 218 mm wide), and could land on a corner screw post.
+- Moving or turning a board out of the box grew it on both sides by twice what it needed.
+- A third level in a shallow box was listed but never built, without a word.
+- With levels typed out of height order, "Level 1" on the Inside page and "On: Level 1" under Board mounts were different shelves.
+- Removing a level left the main board and dividers on it pointing at the wrong level.
+- Two dividers added in a row landed in the same place.
+- Arrange it for me threw away the labels on the board's port openings.
+- Pressing Add this board's ports after the board moved left the old openings behind, and picking another board kept the old board's port holes.
+- A duplicated port opening was taken away by the next Arrange.
+- A new opening on a full wall was pushed onto another one and left out.
+- A board couldn't be put more than 120 mm from the middle (150 for a module), in boxes up to 300 mm wide.
+- A box made smaller than its board had no one-click way back.
+
 ## 0.53.1
 
 **Fixed**

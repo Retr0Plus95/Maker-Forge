@@ -2468,7 +2468,57 @@ Found while taking screenshots for the owner: the Board mounts note for a board 
 as chosen above; a board on snap pins says "solid standoffs, each with a snap pin". Text only. Tested: `tools-grip-test.js`,
 the project box's audit, the box's smoke test.
 
-## Next: 0.54 (planned, not started)
+## Session 61: project boxes, room for what you add (v0.54.0)
+
+The owner: "look at the generator itself and come up with 20 improvements, ease of use, common sense ideas, something like
+adding another component won't mess up the outer box size completely and many more, find 10 bugs too". The three items planned
+for 0.54 (below) moved to 0.55.
+
+**Bugs found** (each reproduced in jsdom first, all fixed; `tools-boxroom-test.js` checks them):
+1. Adding a module could more than double the box: `encFreeBoardSpot` put it in a row along the width without looking at the
+   box, and `encBoardChanged` grew the box round its middle (`2*|x|`), so a relay beside a Uno made a 100 mm box 218 mm wide.
+2. The new module could land on a corner screw post (the old spot finder ignored posts, dividers, channels and levels' posts).
+3. A third level in a shallow box was listed on the Inside page but dropped by `encLevels` (closer than 4 mm) without a word.
+4. Levels typed out of height order: `encLevels` sorts them for the build, so "Level 1" on the panel and a board's "On: Level 1"
+   were different shelves.
+5. Removing a level renumbered the extra boards but not the main board (`boardLvl`) or the dividers (`walls[].lvl`).
+6. Two dividers added in a row both went to `axis:"x", at:0`.
+7. Arrange threw away the labels on the main board's port openings (it removed every `auto:"ports"` opening and made new ones).
+8. Add this board's ports after the board moved left the old openings behind (4 holes for 2 ports); picking another board, or
+   none, kept the old board's port holes.
+9. A duplicated port opening kept `auto:"ports"`, so the next Arrange deleted it.
+10. A new opening on a full wall: `freeSpot` gave a place off the face, `encGrowToFit` pushed it back onto another opening, and it
+   was left out instead of the box growing.
+11. Position limits: the main board ±120 mm, modules ±150 (fields and dragging) in boxes up to 300 mm.
+12. A box made smaller than its board had no fix but typing the size back (the "Make it fit" button was for openings only).
+
+**Improvements** (20): one-sided growth by just enough, everything else kept against the old walls (`encGrowSides` /
+`encShiftAll`: parts, posts put by hand, dividers, channels and openings move; art and the lid logo stay on their faces' middles);
+a new part where there is room (`encPlace`: a 1 mm scan of each floor against `encBusy`, both turns, floors in order, then the
+side giving the smallest, squarest box, found by a binary search on the growth); the size switch at the top (`E.grow`, which was a
+tick box on the Openings page); inside sizes (`viewOpts.encInside`, a panel setting, not saved in the project); Shrink to fit
+(`encShrinkWrap`: centre the parts and their openings, then a binary search on width, depth and height while no new warning
+title appears); the box's problems at the top with Make it all fit (`encFixAll`, also with the size kept); the parts overview
+with floor use; each part's own problems (`info.issues`, filled wherever a warning names a board); Duplicate and Centre it for
+modules, Centre and Remove this board for the main one; port openings that follow the main board (`encPortsFollow`, each
+opening now has `board` and `port`; older ones are matched by kind in order) on a move, turn, drag, Arrange or a new standoff
+height, keeping labels; another board picked swaps its ports (`encMainPicked`, which also finds the new board a place when the
+old spot does not suit it); a turned part slides back inside (`encKeepInside`); a full wall grows (`encRoomOnFace` /
+`encFreeU`, from the faces' lengths now in `enclosureInfo.faceU`); levels kept in height order with their parts
+(`encSortLevels`, remapping `boardLvl`, `more[].lvl`, `walls[].lvl`) and removed with them (`encRemoveLevel`); a new level over
+the tallest parts under it, the box taller if it must be (`encNewLevel`); a new divider splitting the biggest room
+(`encNewDivider`); a board dragged past a wall gets room like one typed there.
+
+`enclosureInfo` gained `lidPosts.at` (the posts in plan), `ceil`, `ri`, `lipH`, `wall`, `faceU`, `ductRects`, and per board `issues`,
+`m` (its margin from the walls) and `room` (the height over its floor). A height the parts need is now grown for too (parts
+reaching the lid on the top floor), as the warning always asked.
+
+Tested: `tools-boxroom-test.js` (34 checks: every bug above, every improvement, a hostile file), the whole `test:enclosure`
+suite, the project box's audit and smoke test, `npm run test:project`, `ONLY=enclosure npm run check:browser`. Not done: the 3D
+drag's growth is only tested through the same function as the number fields (`encBoardChanged`), not with the real mouse
+(`tools-boxdrag-check.js` drags but does not cross a wall). Shrink to fit takes about 25 builds (a second or two on a big box).
+
+## Next: 0.55 (planned, not started)
 
 The three items left from Sessions 51 and 52's "Not done" lists (the owner asked for them; nothing is written yet, the branch
 was only made):
@@ -2483,7 +2533,7 @@ was only made):
    at `x = ±(iw/2 - BRK.in)` on the sides; front and back means `y = ±(id/2 - BRK.in)`, `x = ±(lvW/2 - px)` clear of the corner
    posts, and the D-shaped boss and its 45° wedge turned 90° (the build is after `if (holdOf[k] === "brackets") postAt.forEach`);
    the checks for a channel or a board under one, and `encArrange`'s `bands`, take the new places.
-Each wants a test in `test:enclosure` like `tools-mounts-test.js`, the manual, CHANGELOG 0.54.0 and a Session 60 here.
+Each wants a test in `test:enclosure` like `tools-mounts-test.js`, the manual, CHANGELOG 0.55.0 and a Session 62 here.
 Helper scripts: `tools-partshot.js` renders parts alone for the manual's pictures; `tools-boxdrag-check.js` drags a board
 with the real mouse in Chromium.
 

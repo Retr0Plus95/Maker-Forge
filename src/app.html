@@ -2564,7 +2564,8 @@ const BOARD_PORTS = {
   feather:[["x0",11.45,"usbc",1.6]], tp4056:[["x0",9.5,"usbc",1.6]]
 };
 // the main board's ports as openings in the walls they face, at the height the board puts them; the board first slides
-// up to those walls (1 mm clear inside), so the ports reach the holes
+// up to those walls (1 mm clear inside), so the ports reach the holes. Each opening remembers its board and which of its
+// ports it is (Session 61: c.board, c.port), so it follows the board when it moves and pressing again adds none twice
 function encAddBoardPorts(quiet){
   const E = state.base.enclosure, list = encHas(BOARD_PORTS, E.board) ? BOARD_PORTS[E.board] : null;
   let bd = encBoardList(E).find(b => b.main); if (!list || !bd) return;
@@ -2577,20 +2578,41 @@ function encAddBoardPorts(quiet){
     if (faces.has("left")) E.boardX = +(-iw/2 + 1 + bw/2).toFixed(2); else if (faces.has("right")) E.boardX = +(iw/2 - 1 - bw/2).toFixed(2);
     if (faces.has("front")) E.boardY = +(-id/2 + 1 + bdp/2).toFixed(2); else if (faces.has("back")) E.boardY = +(id/2 - 1 - bdp/2).toFixed(2);
   }
+  E.cut = Array.isArray(E.cut) ? E.cut : [];
+  const moved = encPortsFollow(E);                        // the ones already there go where the board is now
   buildEnclosure(); bd = encBoardList(E).find(b => b.main);
   const top = enclosureInfo && enclosureInfo.board ? enclosureInfo.board.top : (+E.standH || 5) + 3.6, added = [];
-  E.cut = Array.isArray(E.cut) ? E.cut : [];
-  list.forEach(([edge, at, kind, up]) => {
-    const p = { x0:[0, at], x1:[B.w, at], y0:[at, 0], y1:[at, B.d] }[edge];
-    let lx = p[0] - B.w/2, ly = p[1] - B.d/2; if (bd.rot) [lx, ly] = [-ly, lx];
-    const px = bd.x + lx, py = bd.y + ly, face = faceOf(...turn(NORMAL[edge])), u = { front:px, back:-px, left:-py, right:py }[face];
-    const c = newOpening(kind, face); c.u = +u.toFixed(2); c.v = +(top + up).toFixed(2); c.auto = "ports";
+  const have = new Set(E.cut.filter(c => c.auto === "ports" && (c.board == null || c.board === E.board) && Number.isInteger(c.port)).map(c => c.port));
+  list.forEach((port, pi) => {
+    if (have.has(pi)) return;
+    const q = boardPortPlace(bd, port), c = newOpening(port[2], q.face); c.u = +q.u.toFixed(2); c.v = +(top + q.up).toFixed(2); c.auto = "ports"; c.board = E.board; c.port = pi;
     if (!E.cut.some(o => o.face === c.face && o.kind === c.kind && Math.abs((+o.u || 0) - c.u) < 1 && Math.abs((+o.v || 0) - c.v) < 1)){ E.cut.push(c); added.push(c); }
   });
   if (quiet) return added.length;
   notify(added.length ? `${added.length} opening${added.length === 1 ? "" : "s"} for ${B.label}'s ports added, and the board moved against ${[...faces].map(f => "the " + ENC_FACE_NAME[f]).join(" and ")}. Check them against your board: makers move ports about.`
-    : "Its ports are already there.");
+    : moved ? `The board moved against ${[...faces].map(f => "the " + ENC_FACE_NAME[f]).join(" and ")}, and its ${moved} port opening${moved === 1 ? "" : "s"} with it.` : "Its ports are already there.");
   renderTab(); encBoardChanged(); pushHistory();
+}
+// the main board's port openings put back in front of its ports wherever the board is now (Session 61): after it moves,
+// turns, rises on its standoffs or goes onto a level, and after Arrange. Each keeps its label and everything else; openings
+// for another board's ports (one picked before) are taken out. Returns how many moved
+function encPortsFollow(E){
+  const cuts = Array.isArray(E.cut) ? E.cut : [];
+  if (!cuts.some(c => c && c.auto === "ports")) return 0;
+  const list = encHas(BOARD_PORTS, E.board) ? BOARD_PORTS[E.board] : null;
+  E.cut = cuts.filter(c => !(c && c.auto === "ports" && ((c.board != null && c.board !== E.board) || !list)));
+  const bd = list && encBoardList(E).find(b => b.main); if (!bd) return 0;
+  buildEnclosure();
+  const top = enclosureInfo && enclosureInfo.board ? enclosureInfo.board.top : (+E.standH || 5) + 3.6, taken = new Set();
+  const mine = E.cut.filter(c => c.auto === "ports");
+  mine.forEach(c => { if (Number.isInteger(c.port) && list[c.port] && list[c.port][2] === c.kind && !taken.has(c.port)) taken.add(c.port); else c.port = null; });
+  // openings from before Session 61 (no port number): matched to the board's ports of their kind in order
+  mine.filter(c => c.port == null).forEach(c => { const pi = list.findIndex((pt, j) => pt[2] === c.kind && !taken.has(j)); if (pi >= 0){ c.port = pi; taken.add(pi); } });
+  let moved = 0;
+  mine.forEach(c => { if (c.port == null) return; const q = boardPortPlace(bd, list[c.port]), u = +q.u.toFixed(2), v = +(top + q.up).toFixed(2);
+    if (c.face !== q.face || Math.abs((+c.u || 0) - u) > 0.01 || Math.abs((+c.v || 0) - v) > 0.01) moved++;
+    c.face = q.face; c.u = u; c.v = v; c.board = E.board; });
+  return moved;
 }
 // how a board is held (Session 59): a cradle's grip (snug ribs, snap clips, loose), or screws or snap pins on standoffs
 function encGripField(g, B, hold, getGrip, setGrip, getPins, setPins){
@@ -2795,18 +2817,261 @@ function encArrange(keepSize){
   }
   // the main board's port openings, where it is now
   let ports = 0;
-  if (main && encHas(BOARD_PORTS, main.key)){ E.cut = (E.cut || []).filter(c => c.auto !== "ports"); encAddBoardPorts(true); ports = (E.cut || []).filter(c => c.auto === "ports").length; }
+  // (Session 61: the ones there follow the board with their labels, instead of being made again without them)
+  if (main && encHas(BOARD_PORTS, main.key)){ encPortsFollow(E); encAddBoardPorts(true); ports = (E.cut || []).filter(c => c.auto === "ports").length; }
   return { ok:true, before, after:[E.w, E.d, E.h], n:list.length, ports, rooms:Math.max(1, ...pick.res.map(r => r.rooms || 1)) };
 }
 // a free spot on the floor for a board or module just added: beside the ones already there, along the width
-function encFreeBoardSpot(E, n){
-  const B = BOARDS[n.kind], w = n.rot ? B.d : B.w, d = n.rot ? B.w : B.d, I0 = enclosureInfo, used = (I0 && I0.boards || []).map(b => b.bb);
-  for (const k of [0, 1, -1, 2, -2, 3, -3, 4, -4]) for (const y of [0, (d + 4), -(d + 4)]){
-    const cx = Math.sign(k)*Math.abs(k)*(w + 4)/2;
-    const bb = [cx - w/2, y - d/2, cx + w/2, y + d/2];
-    if (!used.some(o => bb[0] < o[2] + 2 && o[0] < bb[2] + 2 && bb[1] < o[3] + 2 && o[1] < bb[3] + 2)){ n.y = y; return +cx.toFixed(1); }
+/* Room for parts (Session 61). A new part used to go in a row along the width whether or not the box had room there, and
+   the box then grew round its middle by twice what the part needed (a relay added to a 100 mm Uno box made it 218 mm wide).
+   Now a part goes where there is room inside the box, either way round, on the floor or a level, clear of the other parts,
+   the corner posts, a level's posts or brackets, the dividers and the cable channels. Only when nothing is free does the box
+   grow, on one side and by just enough; everything already in it moves with the old walls (encShiftAll), so the box stays
+   centred and nothing changes place against the walls it was near. */
+const ENC_ROOM = { gap:3, pad:2.2 };
+// a part's size in plan (w across, d front to back), how tall it stands and on what: from the board list when it is there
+function encPartDims(E, n){
+  const B = n.kind === "batcustom" ? { w:clamp(+n.bw || 60, 5, 250), d:clamp(+n.bd || 35, 5, 250), tall:clamp(+n.bt || 10, 2, 120), g:"battery" }
+    : n.kind === "custom" ? { w:clamp(+E.bw || 60, 5, 400), d:clamp(+E.bd || 40, 5, 400), holes:true } : BOARDS[n.kind];
+  if (!B) return null;
+  const bat = B.g === "battery", sh = bat ? 1 : (+n.h || +E.standH || 5);
+  return { w:B.w, d:B.d, need:sh + (bat || /^lrs/.test(n.kind) ? 0 : 1.6) + boardTall(n.kind, B) };
+}
+// what is in the way on floor k (0: the floor, k: level k), as plan rectangles [x0, y0, x1, y1]; skip(info): a board to leave out
+function encBusy(E, I, k, skip){
+  const out = [], g = ENC_ROOM.gap, lv = I.levels || [];
+  (I.boards || []).forEach(b => { if ((skip && skip(b)) || (b.lvl || 0) !== k || b.fits === false) return; out.push([b.bb[0] - g, b.bb[1] - g, b.bb[2] + g, b.bb[3] + g]); });
+  const lp = I.lidPosts || {};
+  if (lp.at && lp.n && !(lp.hang && k === 0)) lp.at.forEach(([x, y]) => out.push([x - lp.r - 1, y - lp.r - 1, x + lp.r + 1, y + lp.r + 1]));
+  // a level's posts stand on the floor (or level) under it; its brackets reach in from the side walls over it
+  const lj = lv[k];
+  if (lj && lj.posts){
+    const P = ENC_LEVEL.post + 1.5;
+    if (lj.onPosts) lj.posts.forEach(([x, y]) => out.push([x - P, y - P, x + P, y + P]));
+    else if (lj.hold === "brackets") lj.posts.forEach(([x, y]) => out.push(x > 0 ? [x - 5, y - 5, 1e3, y + 5] : [-1e3, y - 5, x + 5, y + 5]));
   }
-  return 0;
+  encDividers(E).forEach(d => { if (Math.min(d.lvl, lv.length) !== k) return; const h = ENC_DIV.t/2 + ENC_DIV.gap/2 + ENC_DIV.rib + 1;
+    out.push(d.axis === "x" ? [-1e3, d.at - h, 1e3, d.at + h] : [d.at - h, -1e3, d.at + h, 1e3]); });
+  (I.ductRects || []).forEach(r => out.push([r[0] - 1, r[1] - 1, r[2] + 1, r[3] + 1]));
+  // the rounded inside corners
+  const ri = +I.ri || 0, [iw, id] = I.inner || [0, 0];
+  if (ri > 2) for (const sx of [-1, 1]) for (const sy of [-1, 1]){ const c = ri*0.35 + 1; out.push([sx > 0 ? iw/2 - c : -1e3, sy > 0 ? id/2 - c : -1e3, sx > 0 ? 1e3 : -iw/2 + c, sy > 0 ? 1e3 : -id/2 + c]); }
+  return out;
+}
+// the free spot for a w × d part inside the rectangle R nearest the point `near` (the part's middle may only go between
+// cx0..cx1 and cy0..cy1 when given); null when there is none
+function encSpotIn(busy, w, d, R, near, step, lim){
+  let best = null; const st = step || 1, L = lim || {};
+  const xa = Math.max(R[0] + w/2, L.cx0 ?? -Infinity), xb = Math.min(R[2] - w/2, L.cx1 ?? Infinity), ya = Math.max(R[1] + d/2, L.cy0 ?? -Infinity), yb = Math.min(R[3] - d/2, L.cy1 ?? Infinity);
+  if (xa > xb + 1e-6 || ya > yb + 1e-6) return null;
+  const xs = [], ys = [];
+  for (let x = xa; x <= xb + 1e-6; x += st) xs.push(x); if (xs[xs.length - 1] < xb - 1e-6) xs.push(xb);
+  for (let y = ya; y <= yb + 1e-6; y += st) ys.push(y); if (ys[ys.length - 1] < yb - 1e-6) ys.push(yb);
+  const near0 = near || [0, 0];
+  for (const y of ys) for (const x of xs){
+    const a0 = x - w/2, a1 = x + w/2, b0 = y - d/2, b1 = y + d/2;
+    let hit = false; for (const o of busy) if (a0 < o[2] && o[0] < a1 && b0 < o[3] && o[1] < b1){ hit = true; break; }
+    if (hit) continue;
+    const sc = Math.hypot(x - near0[0], y - near0[1]);
+    if (!best || sc < best.s - 1e-9) best = { x:+x.toFixed(1), y:+y.toFixed(1), s:sc };
+  }
+  return best;
+}
+// where a part n ({ kind, rot, lvl, h, bw, bd, bt }) can go: inside the box as it is if it can (floors in order, unless
+// n.lvl is fixed), else, with grow, on whichever side makes the smallest box. skip: its own info when it is already in the
+// box (a test on its info). Returns { x, y, rot, lvl, grow:{ l, r, f, b } (mm on each side) } or null
+function encPlace(E, n, o = {}){
+  buildEnclosure();
+  const I = enclosureInfo, D0 = encPartDims(E, n); if (!I || !D0) return null;
+  const [iw, id] = I.inner, pad = ENC_ROOM.pad, lv = I.levels || [], fl = I.size[2] - I.inner[2];
+  const R = [-iw/2 + pad, -id/2 + pad, iw/2 - pad, id/2 - pad];
+  const pref = o.prefer != null ? Math.min(lv.length, Math.max(0, Math.round(+o.prefer || 0))) : 0;
+  const floors = o.lvl != null ? [Math.min(lv.length, Math.max(0, o.lvl))] : [pref, ...Array.from({ length:lv.length + 1 }, (_, k) => k).filter(k => k !== pref)];
+  const roomOn = k => (k < lv.length ? fl + lv[k].z - lv[k].t : (I.ceil ?? I.size[2])) - (k ? fl + lv[k - 1].z : fl) - 0.3;
+  const rots = n.rot ? [true, false] : [false, true];
+  for (const k of floors){
+    if (D0.need > roomOn(k) && k < lv.length) continue;           // too tall under the level over it
+    const busy = encBusy(E, I, k, o.skip);
+    let best = null;
+    for (const rot of rots){ const w = rot ? D0.d : D0.w, d = rot ? D0.w : D0.d, sp = encSpotIn(busy, w, d, R, o.near);
+      if (sp && (!best || sp.s < best.s - 0.5)) best = Object.assign(sp, { rot }); }
+    if (best) return { x:best.x, y:best.y, rot:best.rot, lvl:k, grow:null };
+  }
+  if (o.grow === false) return null;
+  // nothing is free: grow on one side (and on the back or the right as well if the part is wider than the box that way)
+  const k = floors.find(f => D0.need <= roomOn(f)) ?? floors[floors.length - 1], busy = encBusy(E, I, k, o.skip), W = I.size[0], Dd = I.size[1], MAX = 300;
+  let pick = null;
+  for (const side of ["r", "b", "l", "f"]) for (const rot of rots){
+    const w = rot ? D0.d : D0.w, d = rot ? D0.w : D0.d, alongX = side === "r" || side === "l";
+    const cross = Math.max(0, Math.ceil((alongX ? d - (R[3] - R[1]) : w - (R[2] - R[0])) + 0.01));
+    if ((alongX ? Dd : W) + cross > MAX) continue;
+    const region = g => { const q = R.slice(); if (side === "r") q[2] += g; if (side === "l") q[0] -= g; if (side === "b") q[3] += g; if (side === "f") q[1] -= g;
+      if (cross){ if (alongX) q[3] += cross; else q[2] += cross; } return q; };
+    // with no growth across, the part must reach into the new strip: only look there
+    const lim = g => cross ? {} : side === "r" ? { cx0:R[2] - w/2 } : side === "l" ? { cx1:R[0] + w/2 } : side === "b" ? { cy0:R[3] - d/2 } : { cy1:R[1] + d/2 };
+    const gMax = MAX - (alongX ? W : Dd); if (gMax < 1) continue;
+    const at = g => encSpotIn(busy, w, d, region(g), o.near, 2, lim(g));
+    if (!at(gMax)) continue;
+    let lo = 0, hi = gMax;                                      // the smallest growth with room (more room never takes room away)
+    while (hi - lo > 1){ const m = Math.floor((lo + hi)/2); if (at(m)) hi = m; else lo = m; }
+    // the smallest floor, a little in favour of squarer boxes (as Arrange does): a long thin one is awkward
+    const sp = at(hi), nw = W + (alongX ? hi : cross), nd = Dd + (alongX ? cross : hi), area = nw*nd*(1 + 0.25*Math.max(0, Math.max(nw, nd)/Math.min(nw, nd) - 1.3));
+    if (!pick || area < pick.area - 1){ const grow = { l:0, r:0, f:0, b:0 }; grow[side] = hi; if (cross){ if (alongX) grow.b += cross; else grow.r += cross; }
+      pick = { area, x:sp.x, y:sp.y, rot, lvl:k, grow }; }
+  }
+  return pick;
+}
+// move everything in the box by (dx, dy) in plan (x right, y back): its parts, the posts put by hand, dividers, cable
+// channels and the openings in the walls, lid and floor (they belong with the parts: a port stays in front of its board).
+// Art and the lid's logo stay where they are on their faces (they are placed from each face's middle).
+function encShiftAll(E, dx, dy){
+  const r = v => +(+v || 0).toFixed(2);
+  if (dx || dy){
+    if (E.board && E.board !== "none"){ E.boardX = r((+E.boardX || 0) + dx); E.boardY = r((+E.boardY || 0) + dy); }
+    (Array.isArray(E.more) ? E.more : []).forEach(m => { if (m && typeof m === "object"){ m.x = r((+m.x || 0) + dx); m.y = r((+m.y || 0) + dy); } });
+    (Array.isArray(E.levels) ? E.levels : []).forEach(L => (Array.isArray(L && L.at) ? L.at : []).forEach(q => { if (q && typeof q === "object"){ q.x = r((+q.x || 0) + dx); q.y = r((+q.y || 0) + dy); } }));
+    (Array.isArray(E.walls) ? E.walls : []).forEach(w => { if (w && typeof w === "object") w.at = r((+w.at || 0) + (w.axis === "y" ? dx : dy)); });
+    (Array.isArray(E.ducts) ? E.ducts : []).forEach(u => { if (u && typeof u === "object") u.at = r((+u.at || 0) + (u.face === "left" || u.face === "right" ? dy : dx)); });
+    (Array.isArray(E.cut) ? E.cut : []).forEach(c => { if (!c || typeof c !== "object") return;
+      const du = { front:dx, back:-dx, left:-dy, right:dy, top:dx, bottom:dx }[c.face]; if (du) c.u = r((+c.u || 0) + du);
+      if (c.face === "top" || c.face === "bottom") c.v = r((+c.v || 0) + dy); });
+  }
+}
+// grow the box by g = { l, r, f, b } mm on each side, keeping what is in it against the old walls
+function encGrowSides(E, g){
+  const gx = (g.l || 0) + (g.r || 0), gy = (g.f || 0) + (g.b || 0);
+  if (gx) E.w = +((+E.w || 100) + gx).toFixed(2); if (gy) E.d = +((+E.d || 60) + gy).toFixed(2);
+  encShiftAll(E, ((g.l || 0) - (g.r || 0))/2, ((g.f || 0) - (g.b || 0))/2);
+}
+const ENC_SIDE_NAME = { l:"left", r:"right", f:"front", b:"back" };
+const encGrowText = g => Object.entries(g).filter(([, v]) => v > 0).map(([k, v]) => `${+v.toFixed(1)} mm on the ${ENC_SIDE_NAME[k]}`).join(" and ");
+// a board or module that sticks out of the box (moved, turned, or picked bigger): the box grows on that side, by just
+// enough; its height follows parts that reach the lid on the top floor. Returns what changed. force: even with grow off
+function encMakeRoom(E){
+  buildEnclosure();
+  const I = enclosureInfo, before = [E.w, E.d, E.h]; if (!I) return { grew:false, before, after:before };
+  const [iw, id] = I.inner, g = { l:0, r:0, f:0, b:0 }, nLv = (I.levels || []).length; let hNeed = 0, what = "";
+  (I.boards || []).forEach(b => {
+    const m = b.m ?? 0.5;
+    if (b.fits === false){
+      g.l = Math.max(g.l, (-iw/2 + m) - b.bb[0]); g.r = Math.max(g.r, b.bb[2] - (iw/2 - m)); g.f = Math.max(g.f, (-id/2 + m) - b.bb[1]); g.b = Math.max(g.b, b.bb[3] - (id/2 - m));
+      what = what || b.label;
+    }
+    // the height: its standoffs and the board under the lid's lip, and its parts under the lid when nothing is over it
+    const over = b.hole ? 0 : ENC_CRADLE.over, need = Math.max(b.top + 1 + (I.lipH || 0) + 0.5 + over, (b.lvl || 0) >= nLv && b.room != null ? I.size[2] + (b.partsTop + 0.5 - b.room) : 0);
+    if (need > I.size[2] + 0.01){ hNeed = Math.max(hNeed, need); what = what || b.label; }
+  });
+  for (const k of Object.keys(g)) g[k] = g[k] > 0.01 ? Math.ceil(g[k] + 0.4) : 0;
+  const capX = Math.max(0, 300 - (+E.w || 0)), capY = Math.max(0, 300 - (+E.d || 0));
+  const fx = g.l + g.r > capX ? capX/((g.l + g.r) || 1) : 1, fy = g.f + g.b > capY ? capY/((g.f + g.b) || 1) : 1;
+  g.l = Math.floor(g.l*fx); g.r = Math.floor(g.r*fx); g.f = Math.floor(g.f*fy); g.b = Math.floor(g.b*fy);
+  encGrowSides(E, g);
+  if (hNeed) E.h = Math.min(250, Math.max(+E.h || 30, Math.ceil(hNeed)));
+  const after = [E.w, E.d, E.h], grew = after.some((v, k) => v !== before[k]);
+  if (grew) buildEnclosure();
+  return { grew, before, after, sides:encGrowText(g), taller:after[2] !== before[2], what };
+}
+// a board or module added (or duplicated) (Session 61): where there is room, or the box grows on one side for it
+function encAddPart(E, n, at){
+  const more = Array.isArray(E.more) ? E.more : (E.more = []); if (more.length >= 12) return;
+  const lab = (BOARDS[n.kind] || {}).label || "It", sp = encPlace(E, n, { grow:E.grow !== false, near:[+n.x || 0, +n.y || 0], prefer:n.lvl });
+  let said;
+  if (sp){
+    if (sp.grow) encGrowSides(E, sp.grow);
+    const dx = sp.grow ? ((sp.grow.l || 0) - (sp.grow.r || 0))/2 : 0, dy = sp.grow ? ((sp.grow.f || 0) - (sp.grow.b || 0))/2 : 0;
+    n.x = +(sp.x + dx).toFixed(1); n.y = +(sp.y + dy).toFixed(1); n.rot = sp.rot; if (sp.lvl) n.lvl = sp.lvl; else delete n.lvl;
+    said = sp.grow ? `${lab} added: the box grew ${encGrowText(sp.grow)} to make room for it (everything else stayed where it was).` : `${lab} added${sp.lvl ? ` on level ${sp.lvl}` : ""}, where there was room${sp.rot ? ", turned 90°" : ""}.`;
+  } else { n.x = 0; n.y = 0; said = `${lab} added in the middle: there is no free room for it in the box. Move it, add a level, try Arrange it for me, or let the box grow (at the top).`; }
+  more.splice(at == null ? more.length : at, 0, n);
+  notify(said); renderTab(); encBoardChanged(); pushHistory();
+}
+// the levels kept in height order (Session 61), so Level 1 on the Inside page is the lowest, as it is built. remap: the
+// boards and dividers on each level go with it (after a level's height was changed; before that the list was in order)
+function encSortLevels(E, remap){
+  const L = Array.isArray(E.levels) ? E.levels : []; if (L.length < 2 || !L.every(l => l && typeof l === "object")) return false;
+  const zOf = l => clamp(+l.z || 30, 6, 1e4), order = L.map((l, i) => i).sort((a, b) => zOf(L[a]) - zOf(L[b]) || a - b);
+  if (order.every((v, i) => v === i)) return false;
+  if (remap){
+    const nw = []; order.forEach((old, k) => { nw[old] = k; });
+    const fix = v => { const q = Math.round(+v || 0); return q > 0 && q <= L.length ? nw[q - 1] + 1 : v; };
+    E.boardLvl = fix(E.boardLvl);
+    (Array.isArray(E.more) ? E.more : []).forEach(m => { if (m && typeof m === "object") m.lvl = fix(m.lvl); });
+    (Array.isArray(E.walls) ? E.walls : []).forEach(w => { if (w && typeof w === "object") w.lvl = fix(w.lvl); });
+  }
+  E.levels = order.map(i => L[i]);
+  return true;
+}
+// a level taken out: what was on it goes onto the one under it (or the floor), and everything above comes down one
+function encRemoveLevel(E, k){
+  const levels = Array.isArray(E.levels) ? E.levels : []; levels.splice(k, 1);
+  const fix = v => { const q = Math.round(+v || 0); return q > k ? Math.max(0, q - 1) : q; };
+  E.boardLvl = fix(E.boardLvl);
+  (Array.isArray(E.more) ? E.more : []).forEach(m => { if (m && typeof m === "object") m.lvl = fix(m.lvl); });
+  (Array.isArray(E.walls) ? E.walls : []).forEach(w => { if (w && typeof w === "object") w.lvl = fix(w.lvl); });
+}
+// a new level's height (Session 61): over the tallest parts on the top floor (3 mm clear), at least 15 mm over the level
+// under it, else half way up as before. With grow, the box gets taller when there is no room. Returns { z, taller }
+function encNewLevel(E){
+  buildEnclosure();
+  const I = enclosureInfo, fl = I.size[2] - I.inner[2], lv = I.levels || [], prev = lv.length ? lv[lv.length - 1].z : 0, t = 2;
+  const tops = (I.boards || []).filter(b => (b.lvl || 0) === lv.length && b.fits !== false).map(b => b.partsTop - fl);
+  let Hin = (+E.h || 40) - (+E.floor || 2);
+  const z = Math.ceil(Math.max(prev + 15, Hin/2, tops.length ? Math.max(...tops) + 3 + t : 0));
+  let taller = false;
+  if (z > Hin - 6 && E.grow !== false){ const h = Math.min(250, Math.ceil((+E.h || 40) + z - (Hin - 6) + 6)); if (h > (+E.h || 40)){ E.h = h; taller = true; Hin = h - (+E.floor || 2); } }
+  return { z:Math.round(Math.min(Hin - 6, z)), taller };
+}
+// a new divider (Session 61) splits the biggest room on the floor in two, instead of landing on the one already there
+function encNewDivider(E){
+  buildEnclosure();
+  const [iw, id] = enclosureInfo.inner, ds = encDividers(E).filter(d => !d.lvl);
+  if (!ds.length) return { axis:"x", at:0 };
+  const gapOn = axis => { const span = axis === "x" ? id : iw, cuts = ds.filter(d => d.axis === axis).map(d => d.at).sort((a, b) => a - b), edges = [-span/2, ...cuts, span/2];
+    let best = { len:0, at:0 }; for (let i = 0; i < edges.length - 1; i++){ const len = edges[i + 1] - edges[i]; if (len > best.len) best = { len, at:Math.round((edges[i] + edges[i + 1])) /2 }; } return best; };
+  const gx = gapOn("x"), gy = gapOn("y");
+  // the room it splits is that gap by the whole other way, shared by the dividers across it
+  const nx = ds.filter(d => d.axis === "x").length, ny = ds.filter(d => d.axis === "y").length;
+  const ax = gx.len*(iw/(ny + 1)), ay = gy.len*(id/(nx + 1));
+  return ay >= ax ? { axis:"y", at:gy.at } : { axis:"x", at:gx.at };
+}
+// Shrink to fit (Session 61): the smallest box round everything where it is, without rearranging: the parts are centred
+// (with the openings, so each stays in front of its part), then the width, depth and height come down while nothing new
+// goes wrong (no part or opening left out, no new warning). Returns what it did
+function encShrinkWrap(E){
+  buildEnclosure();
+  const I0 = enclosureInfo, before = [E.w, E.d, E.h], okT = new Set(I0.warn.map(w => w.t));
+  const boards = (I0.boards || []).filter(b => b.fits !== false);
+  if (!boards.length && !(E.cut || []).length) return { ok:false, why:"There is nothing in the box to fit it round yet: add a board or an opening." };
+  const ok = () => { buildEnclosure(); return enclosureInfo.warn.every(w => okT.has(w.t)); };
+  // centre the parts (and their openings) in the box; back as they were if that puts something wrong
+  if (boards.length){
+    const x0 = Math.min(...boards.map(b => b.bb[0])), x1 = Math.max(...boards.map(b => b.bb[2])), y0 = Math.min(...boards.map(b => b.bb[1])), y1 = Math.max(...boards.map(b => b.bb[3]));
+    const dx = -+((x0 + x1)/2).toFixed(1), dy = -+((y0 + y1)/2).toFixed(1);
+    encShiftAll(E, dx, dy); if (!ok()) encShiftAll(E, -dx, -dy);
+  }
+  // the smallest size that still builds as well as it did, for each of width, depth and height in turn
+  const shrink = (k, lo) => { let a = Math.max(lo, 8), b = +E[k]; if (b <= a) return; const keep = E[k];
+    E[k] = a; if (ok()) return;
+    while (b - a > 1){ const m = Math.floor((a + b)/2); E[k] = m; if (ok()) b = m; else a = m; }
+    E[k] = b; if (!ok()) E[k] = keep; };
+  shrink("w", 20); shrink("d", 20); shrink("h", 8);
+  buildEnclosure();
+  const after = [E.w, E.d, E.h];
+  return { ok:true, before, after, same:after.every((v, k) => v === before[k]) };
+}
+// Make it all fit (Session 61): every part that sticks out gets room (the box grows on that side), and every opening that
+// is outside its face or on top of another moves or gets room. Works even with grow off: it was asked for
+function encFixAll(E){
+  const before = [E.w, E.d, E.h]; let n = 0;
+  const r = encMakeRoom(E); if (r.grew) n++;
+  encPortsFollow(E);
+  buildEnclosure();
+  const mis = [...new Set((enclosureInfo.misfit || []).map(m => m.i))];
+  if (mis.length){ const g = encGrowToFit(E, mis); if (g.grew || g.moved) n += mis.length; }
+  buildEnclosure();
+  (enclosureInfo.left || []).slice().forEach(i => { const q = encRoomOnFace(E, i); if (q.grew || q.moved) n++; });
+  buildEnclosure();
+  return { n, before, after:[E.w, E.d, E.h], left:enclosureInfo.warn.length };
 }
 // a solid joining two convex plan outlines with the same number of points (bottom at z0, top at z1), point i to point i:
 // the 45° support under a hanging post or a wall bracket (Session 52). Plan (x, y) is world (x, z, -y).
@@ -4019,6 +4284,9 @@ function buildEnclosure(){
     }
   });
   const lipTop = lidOn && lipH > 0 ? H - lipH - 0.3 : Infinity, lipEdge = lidOn && lipH > 0 ? fit + lipW + 0.8 : 0.8, misfit = [];
+  // how far along each face an opening may reach (Session 61), for finding a free place on it
+  const slideA0 = iw/2 + gr - fit - lidT, faceU = { top: slide ? [-slideA0 + 0.8, slideA0 - 0.8] : [-iw/2 + lipEdge, iw/2 - lipEdge], bottom:[-iw/2 + 0.8, iw/2 - 0.8] };
+  for (const f of ["front","back","left","right"]) faceU[f] = [-faceInfo[f].L/2 + 0.8, faceInfo[f].L/2 - 0.8];
   (Array.isArray(E.cut) ? E.cut : []).forEach((c, i) => {
     const face = encHas(holesOn, c.face) ? c.face : "front", wall = ENC_WALLS.has(face), lab = `Opening ${i+1} (${(encHas(CUTOUTS, c.kind) ? CUTOUTS[c.kind] : CUTOUTS.round).label})`;
     if (face === "top" && !lidOn){ left.push(i); warn.push({ t:`${lab} left out`, s:`${lab} is on the lid, but the box has no lid.` }); return; }
@@ -4259,6 +4527,9 @@ function buildEnclosure(){
   const boardsInfo = [], doorParts = [];
   // levels and their plates (Session 46): a board on a level stands on the level's top, and its mounts go on the plate
   const ceilZ = H - (lidOn ? lipH : 0), levels = encLevels(E, ceilZ - fl), levelSolids = levels.map(() => []), ghosts = [], hints = [...earlyHints];
+  // a level too close to the one under it used to vanish without a word (Session 61)
+  (Array.isArray(E.levels) ? E.levels : []).slice(0, ENC_LEVEL.max).forEach((l, i) => { if (l && typeof l === "object" && !levels.some(q => q.src === l))
+    warn.push({ t:`Level ${i + 1} left out`, s:`It is less than 4 mm above the level under it (or too near the lid): raise it, lower the one under it, or make the box taller.` }); });
   const levelTop = k => k > 0 && levels[k - 1] ? fl + levels[k - 1].z : fl;
   const plateB = [-(iw/2 - ENC_LEVEL.gap), -(id/2 - ENC_LEVEL.gap), iw/2 - ENC_LEVEL.gap, id/2 - ENC_LEVEL.gap];     // a level plate's extent (Session 51)
   const ceilingOver = k => k < levels.length ? fl + levels[k].z - levels[k].t : ceilZ;
@@ -4269,16 +4540,18 @@ function buildEnclosure(){
     // a battery in a strap tray lies on the floor itself (Session 51); everything else on standoffs or a cradle's seats
     const sh = bd.hold === "strap" || bd.hold === "door" ? 0 : clamp(bd.sh, 1, Math.max(1, H - base - 1)), bw = bd.rot ? B.d : B.w, bdp = bd.rot ? B.w : B.d;
     const info = { w:bw, d:bdp, top: base + sh + 1.6, base, lvl:bd.lvl, label:B.label, screw:B.screw, hold:bd.hold, main:bd.main, check:!!B.check,
-      hole: bd.holes ? standoffs.find(so => so.bd === bd).hole : 0 };
+      hole: bd.holes ? standoffs.find(so => so.bd === bd).hole : 0, issues:[] };
+    // each board's own problems (Session 61), shown under it in the panel as well as with the box's warnings
+    const bwarn = (t, s) => { warn.push({ t, s }); info.issues.push(s); };
     const x0 = bd.x - bw/2, x1 = bd.x + bw/2, y0 = bd.y - bdp/2, y1 = bd.y + bdp/2;
     // how big the box must be for this board where it is (used by "make it fit"); a cradle's fences need a little more
     const extra = bd.holes ? 1 : 2*(ENC_CRADLE.gap + 0.3);
     const need = { w: bw + extra + 2*Math.abs(bd.x) + 2*t, d: bdp + extra + 2*Math.abs(bd.y) + 2*t, h: info.top + 1 + lipH + 0.5 + (bd.holes ? 0 : ENC_CRADLE.over) };
     boardNeed = boardNeed ? { w:Math.max(boardNeed.w, need.w), d:Math.max(boardNeed.d, need.d), h:Math.max(boardNeed.h, need.h) } : need;
-    const m = bd.holes ? 0.5 : ENC_CRADLE.gap + 0.3;
+    const m = bd.holes ? 0.5 : ENC_CRADLE.gap + 0.3; info.m = m;
     if (x0 < -iw/2 + m || x1 > iw/2 - m || y0 < -id/2 + m || y1 > id/2 - m){
       // it would stand outside the box: leave its mounts out until it fits
-      warn.push({ t:`${B.label} does not fit`, s:`${B.label} is ${bw.toFixed(1)} × ${bdp.toFixed(1)} mm and the inside is ${iw.toFixed(1)} × ${id.toFixed(1)} mm, so its ${bd.holes ? "standoffs are" : "cradle is"} left out. Make the box bigger (at least ${Math.ceil(need.w)} × ${Math.ceil(need.d)} mm outside) or move it.` });
+      bwarn(`${B.label} does not fit`, `${B.label} is ${bw.toFixed(1)} × ${bdp.toFixed(1)} mm and the inside is ${iw.toFixed(1)} × ${id.toFixed(1)} mm, so its ${bd.holes ? "standoffs are" : "cradle is"} left out. Make the box bigger (at least ${Math.ceil(need.w)} × ${Math.ceil(need.d)} mm outside) or move it.`);
       info.fits = false;
     } else if (bd.hold === "strap") dst.push(...encStrapTray(bd.x, bd.y, bw, bdp, base, boardTall(bd.key, B), bd.lvl ? plateB : null).solids);
     else if (bd.hold === "door"){
@@ -4301,9 +4574,9 @@ function buildEnclosure(){
     const tall = boardTall(bd.key, B), solidBody = B.g === "battery" || /^lrs/.test(bd.key);
     if (solidBody) ghosts.push(ghostBox(x0, y0, base + sh, x1, y1, base + sh + tall, "parts", B.label));
     else { ghosts.push(ghostBox(x0, y0, base + sh, x1, y1, base + sh + 1.6, "board", B.label)); ghosts.push(ghostBox(x0 + 1, y0 + 1, base + sh + 1.6, x1 - 1, y1 - 1, base + sh + 1.6 + tall, "parts", B.label)); }
-    info.partsTop = solidBody ? base + sh + tall : info.top + tall;
+    info.partsTop = solidBody ? base + sh + tall : info.top + tall; info.room = ceilingOver(bd.lvl);
     if (info.fits !== false && info.partsTop > ceilingOver(bd.lvl) - 0.3)
-      warn.push({ t:`${B.label} is too tall for its place`, s:`Its parts stand about ${tall} mm high, so they reach ${bd.lvl < levels.length ? "the level above" : lidOn ? "the lid" : "the top"} (${(info.partsTop - ceilingOver(bd.lvl)).toFixed(1)} mm too much). ${bd.lvl < levels.length ? "Raise that level" : "Make the box taller"} or lower its standoffs.` });
+      bwarn(`${B.label} is too tall for its place`, `Its parts stand about ${tall} mm high, so they reach ${bd.lvl < levels.length ? "the level above" : lidOn ? "the lid" : "the top"} (${(info.partsTop - ceilingOver(bd.lvl)).toFixed(1)} mm too much). ${bd.lvl < levels.length ? "Raise that level" : "Make the box taller"} or lower its standoffs.`);
     if (bd.main && encHas(BOARD_PORTS, bd.key)) BOARD_PORTS[bd.key].forEach(port => {
       const q = boardPortPlace(bd, port), k = encHas(CUTOUTS, q.kind) ? CUTOUTS[q.kind] : CUTOUTS.round;
       const pw = (k.w || k.dia || 8) + 0.5, ph = (k.h || k.dia || 4) + 0.5, v = info.top + q.up, out = 2;
@@ -4316,11 +4589,11 @@ function buildEnclosure(){
       if (near && !covered) hints.push(`${B.label}: its ${k.label.replace(/[,:(].*$/, "").trim()} on the ${ENC_FACE_NAME[q.face]} has no opening in front of it.`);
     });
     if (info.fits !== false && (!postHang || info.top + boardTall(bd.key, B) > postFree) && bosses.some(([x, z]) => x + bossR > x0 && x - bossR < x1 && -z + bossR > y0 && -z - bossR < y1))
-      warn.push({ t:`${B.label} sits on a screw post`, s:"A corner screw post is under it. Move it, or make the box bigger." });
-    if (info.top + 1 > H - lipH) warn.push({ t:"Not enough headroom", s:`The top of ${B.label} is ${info.top.toFixed(1)} mm up, too close to the lid. Make the box taller or its standoffs shorter.` });
+      bwarn(`${B.label} sits on a screw post`, "A corner screw post is under it. Move it, or make the box bigger.");
+    if (info.top + 1 > H - lipH) bwarn("Not enough headroom", `The top of ${B.label} is ${info.top.toFixed(1)} mm up, too close to the lid. Make the box taller or its standoffs shorter.`);
     // two boards on top of each other
-    boardsInfo.forEach(o => { if (o.lvl === info.lvl && o.fits !== false && info.fits !== false && x0 < o.bb[2] && o.bb[0] < x1 && y0 < o.bb[3] && o.bb[1] < y1)
-      warn.push({ t:`${B.label} overlaps ${o.label}`, s:`${B.label} and ${o.label} take the same place on the floor. Move one of them.` }); });
+    boardsInfo.forEach(o => { if (o.lvl === info.lvl && o.fits !== false && info.fits !== false && x0 < o.bb[2] && o.bb[0] < x1 && y0 < o.bb[3] && o.bb[1] < y1){
+      bwarn(`${B.label} overlaps ${o.label}`, `${B.label} and ${o.label} take the same place on the floor. Move one of them.`); o.issues.push(`It overlaps ${B.label}.`); } });
     info.bb = [x0, y0, x1, y1]; info.at = [bd.x, bd.y]; info.rot = bd.rot; info.key = bd.key; info.tall = boardTall(bd.key, B); info.src = bd.main ? null : bd.src; info.grip = bd.holes ? (bd.pins ? "pins" : "screws") : bd.hold === "edges" || bd.hold === "holes" ? bd.grip : bd.hold;
     boardsInfo.push(info);
     if (!board) board = info;
@@ -4341,7 +4614,7 @@ function buildEnclosure(){
     const fp = isY ? [a - half, Math.min(sgn*c0, sgn*c1), a + half, Math.max(sgn*c0, sgn*c1)] : [Math.min(sgn*c0, sgn*c1), a - half, Math.max(sgn*c0, sgn*c1), a + half];
     ductInfo.push({ k, face:u.face, at:a, fp, isY, sgn });
     ghosts.push(ghostBox(fp[0], fp[1], fl, fp[2], fp[3], ductTop, "level", `Cable channel ${k + 1}`));
-    boardsInfo.filter(b => b.fits !== false).forEach(b => { if (b.bb[0] < fp[2] && fp[0] < b.bb[2] && b.bb[1] < fp[3] && fp[1] < b.bb[3]) warn.push({ t:`${b.label} runs into cable channel ${k + 1}`, s:`Move ${b.label} or the channel.` }); });
+    boardsInfo.filter(b => b.fits !== false).forEach(b => { if (b.bb[0] < fp[2] && fp[0] < b.bb[2] && b.bb[1] < fp[3] && fp[1] < b.bb[3]){ warn.push({ t:`${b.label} runs into cable channel ${k + 1}`, s:`Move ${b.label} or the channel.` }); b.issues.push(`It runs into cable channel ${k + 1}.`); } });
     (Array.isArray(E.cut) ? E.cut : []).forEach((c, ci) => { if (c.face !== u.face || left.includes(ci)) return; const bb = ringsBounds(placedRings(c, E)), along = { front:a, back:-a, left:-a, right:a }[u.face];
       if (bb[0] < along + half && bb[2] > along - half) warn.push({ t:`Opening ${ci + 1} is behind cable channel ${k + 1}`, s:`The channel covers it on the inside: move one of them.` }); });
   });
@@ -4383,13 +4656,13 @@ function buildEnclosure(){
   postPlan.forEach((pts, k) => {
     if (standsOnPosts(k)) pts.forEach(([x, y], i) => {
       const hit = boardsInfo.find(b => b.fits !== false && b.lvl === k && x + LV.post > b.bb[0] - 1 && x - LV.post < b.bb[2] + 1 && y + LV.post > b.bb[1] - 1 && y - LV.post < b.bb[3] + 1);
-      if (hit) warn.push({ t:`${hit.label} is under a post of level ${k + 1}`, s:`Move it, or choose wall brackets or posts where you put them for level ${k + 1} (Inside).` });
+      if (hit){ warn.push({ t:`${hit.label} is under a post of level ${k + 1}`, s:`Move it, or choose wall brackets or posts where you put them for level ${k + 1} (Inside).` }); hit.issues.push(`A post of level ${k + 1} stands where it is.`); }
       if (k && postPlan[k - 1].some(([a, b]) => Math.hypot(a - x, b - y) < LV.post + LV.clear/2 + 0.5)) warn.push({ t:`Level ${k + 1}: a post stands on a screw of level ${k}`, s:"Move that post, or the screws of the level under it." });
     });
     else if (holdOf[k] === "brackets") pts.forEach(([x, y]) => {
       const bot = fl + levels[k].z - levels[k].t - BRK.boss - BRK.drop, xw = Math.sign(x)*iw/2;
       const hit = boardsInfo.find(b => b.fits !== false && b.lvl === k && b.top + (b.tall || 10) + 1 > bot && Math.min(xw, x - Math.sign(x)*(BRK.r + 1)) < b.bb[2] && Math.max(xw, x - Math.sign(x)*(BRK.r + 1)) > b.bb[0] && y + BRK.r > b.bb[1] && y - BRK.r < b.bb[3]);
-      if (hit) warn.push({ t:`${hit.label} runs into a wall bracket of level ${k + 1}`, s:"Move it away from the side wall, or raise the level." });
+      if (hit){ warn.push({ t:`${hit.label} runs into a wall bracket of level ${k + 1}`, s:"Move it away from the side wall, or raise the level." }); hit.issues.push(`It runs into a wall bracket of level ${k + 1}.`); }
       ductInfo.forEach(du => { if (!du.isY && Math.sign(du.sgn) === Math.sign(x) && Math.abs(du.at - y) < half + BRK.r + 0.5) warn.push({ t:`Level ${k + 1}: a wall bracket is on cable channel ${du.k + 1}`, s:"Move the channel along the wall." }); });
     });
   });
@@ -4553,7 +4826,7 @@ function buildEnclosure(){
     ghosts.push(alongX ? ghostBox(-wp/2, Dv.at - T/2, base, wp/2, Dv.at + T/2, top, "level", `Divider ${k + 1}`) : ghostBox(Dv.at - T/2, -wp/2, base, Dv.at + T/2, wp/2, top, "level", `Divider ${k + 1}`));
     // a board on its floor across its line
     boardsInfo.filter(b => (b.lvl || 0) === Dv.lvl && b.fits !== false).forEach(b => { const lo = alongX ? b.bb[1] : b.bb[0], hi = alongX ? b.bb[3] : b.bb[2];
-      if (lo < Dv.at + gp/2 + rb && hi > Dv.at - gp/2 - rb) warn.push({ t:`Divider ${k + 1} crosses ${b.label}`, s:`Move the divider or ${b.label}.` }); });
+      if (lo < Dv.at + gp/2 + rb && hi > Dv.at - gp/2 - rb){ warn.push({ t:`Divider ${k + 1} crosses ${b.label}`, s:`Move the divider or ${b.label}.` }); b.issues.push(`Divider ${k + 1} crosses it.`); } });
     dividerInfo.push({ w:wp, h:hp, fan:fanNote, crossings:crossings.length, lvl:Dv.lvl, base });
   });
   // extras printed flat in front of the box (Session 54): a cover for each cable channel (a strip with a tongue that
@@ -4801,7 +5074,7 @@ function buildEnclosure(){
     if (split) nAdd(split.pins ? split.pins.length : 0, `${E.splitScrew || "M3"} screws and heat inserts for the joins`);
     const parts2 = {}; boardList.forEach(bd => { parts2[bd.B.label] = (parts2[bd.B.label] || 0) + 1; }); Object.entries(parts2).forEach(([k, n]) => nAdd(n, k));
   }
-  enclosureInfo = { test: !!state.base.enclosure.test, wallH:{ front:wallH("front"), back:wallH("back"), left:wallH("left"), right:wallH("right") }, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, gasket:gasket ? { cord:gasket.cord, length:gasket.length, depth:gasket.gd, width:gasket.gw } : null, snap:!!snap, hinge:hinge ? { length:hinge.Lh, knuckles:hinge.segs.length } : null, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR }, anchors:anchorsMade, ducts:ductInfo.length, count:(E.cut || []).length - left.length,
+  enclosureInfo = { test: !!state.base.enclosure.test, wallH:{ front:wallH("front"), back:wallH("back"), left:wallH("left"), right:wallH("right") }, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, gasket:gasket ? { cord:gasket.cord, length:gasket.length, depth:gasket.gd, width:gasket.gw } : null, snap:!!snap, hinge:hinge ? { length:hinge.Lh, knuckles:hinge.segs.length } : null, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR, at:bosses.map(([x, z]) => [x, -z]) }, ceil:ceilZ, ri, lipH, wall:t, anchors:anchorsMade, faceU, ducts:ductInfo.length, ductRects:ductInfo.map(du => du.fp.slice()), count:(E.cut || []).length - left.length,
     split: splitInfo };
   return out;
 }
@@ -4833,26 +5106,88 @@ function encGrowToFit(E, which){
   return { grew, moved: moved.size > 0, before, after: [E.w, E.d, E.h], fits: !(enclosureInfo.misfit || []).some(m => want.has(m.i)) };
 }
 // after an opening's size, kind or face changed: grow the box for it (unless switched off) and say so
-// a board picked (or turned, or its standoffs raised) that the box cannot hold: grow the box around it
+// a board picked (or turned, moved, or its standoffs raised) that the box cannot hold: the box grows on the side it sticks
+// out of, by just enough (Session 61: it used to grow round the middle by twice that), and its port openings follow it
 function encBoardChanged(){
   const E = state.base.enclosure;
   if (E.grow !== false){
-    buildEnclosure(); const need = enclosureInfo && enclosureInfo.boardNeed, before = [E.w, E.d, E.h];
-    if (need){ E.w = Math.min(300, Math.max(E.w, Math.ceil(need.w))); E.d = Math.min(300, Math.max(E.d, Math.ceil(need.d))); E.h = Math.min(250, Math.max(E.h, Math.ceil(need.h))); }
-    if ([E.w, E.d, E.h].some((v, k) => v !== before[k])){ notify(`The box grew from ${before.join(" × ")} to ${E.w} × ${E.d} × ${E.h} mm so the board fits. Undo puts it back.`); renderTab(); }
+    const r = encMakeRoom(E);
+    if (r.grew){ notify(`The box grew from ${r.before.join(" × ")} to ${r.after.join(" × ")} mm${r.sides ? ` (${r.sides}${r.taller ? ", and taller" : ""})` : r.taller ? " (taller)" : ""} so ${r.what || "the board"} fits. Undo puts it back.`); renderTab(); }
   }
+  // the port openings' numbers on the Openings page follow too, refreshed in place (a redraw would drop a slider being dragged)
+  if (encPortsFollow(E)) document.querySelectorAll("#panel .field").forEach(w => { if (w._sync) w._sync(); });
   baseChanged();
+}
+// a part that sticks out of the box after it was turned slides back in, if the box is big enough for it (Session 61)
+function encKeepInside(E, isMain, m){
+  buildEnclosure(); const I = enclosureInfo, b = I && (I.boards || []).find(q => isMain ? q.main : q.src === m); if (!b || b.fits !== false) return false;
+  const [iw, id] = I.inner, mg = (b.m ?? 0.5) + 0.1, w = b.bb[2] - b.bb[0], d = b.bb[3] - b.bb[1];
+  if (w > iw - 2*mg || d > id - 2*mg) return false;
+  const x = clamp(b.at[0], -iw/2 + mg + w/2, iw/2 - mg - w/2), y = clamp(b.at[1], -id/2 + mg + d/2, id/2 - mg - d/2), rr = v => +v.toFixed(1);
+  if (isMain){ E.boardX = rr(x); E.boardY = rr(y); } else { m.x = rr(x); m.y = rr(y); }
+  return true;
+}
+// the main board picked (Session 61): the old board's port openings make way for the new one's, and it goes where there is
+// room if where the old one was does not suit it
+function encMainPicked(old){
+  const E = state.base.enclosure, had = (Array.isArray(E.cut) ? E.cut : []).filter(c => c.auto === "ports" && (c.board == null || c.board === old));
+  if (old !== E.board && had.length) E.cut = E.cut.filter(c => !had.includes(c));
+  let said = "";
+  if (E.board !== "none" && encHas(BOARDS, E.board)){
+    buildEnclosure();
+    const me = (enclosureInfo.boards || []).find(b => b.main);
+    if (me && (me.fits === false || me.issues.some(t => /overlaps|screw post/.test(t)))){
+      const sp = encPlace(E, { kind:E.board, rot:E.boardRot === true, h:E.standH, bw:E.batW, bd:E.batD, bt:E.batT }, { skip:b => b.main, lvl:+E.boardLvl || 0, grow:E.grow !== false });
+      if (sp){ if (sp.grow) encGrowSides(E, sp.grow); const dx = sp.grow ? ((sp.grow.l || 0) - (sp.grow.r || 0))/2 : 0, dy = sp.grow ? ((sp.grow.f || 0) - (sp.grow.b || 0))/2 : 0;
+        E.boardX = +(sp.x + dx).toFixed(1); E.boardY = +(sp.y + dy).toFixed(1); E.boardRot = sp.rot; said = sp.grow ? ` The box grew ${encGrowText(sp.grow)} to make room for it.` : " It went where there is room."; }
+    }
+  }
+  if (had.length && old !== E.board && encHas(BOARD_PORTS, E.board)){ const n = encAddBoardPorts(true); notify(`The openings for the old board's ports were taken out${n ? `, and ${n} for this one's put in` : ""}.${said}`); }
+  else if (had.length && old !== E.board) notify(`The openings for the old board's ports were taken out.${said}`);
+  else if (said) notify(said.trim());
+  encBoardChanged();
 }
 function encOpeningChanged(i){
   const E = state.base.enclosure;
   if (E.grow !== false && E.cut[i]){
-    const c = E.cut[i], r = encGrowToFit(E, [i]);
+    const c = E.cut[i], r = encGrowToFit(E, [i]), full = encRoomOnFace(E, i);
     const lab = c.kind === "fan" ? `${c.size} mm fan` : (CUTOUTS[c.kind] || CUTOUTS.round).label.replace(/[:(,].*$/, "").trim();
-    if (r.grew) notify(`The box grew from ${r.before.join(" × ")} to ${r.after.join(" × ")} mm so the ${lab.toLowerCase()} fits. Undo puts it back.`);
-    else if (r.moved) notify(`The ${lab.toLowerCase()} was moved so it fits on the ${ENC_FACE_NAME[E.cut[i].face]}.`);
-    if (r.grew || r.moved) renderTab();
+    if (r.grew || full.grew) notify(`The box grew from ${r.before.join(" × ")} to ${[E.w, E.d, E.h].join(" × ")} mm so the ${lab.toLowerCase()} fits${full.grew ? ` beside the others on the ${ENC_FACE_NAME[E.cut[i].face]}` : ""}. Undo puts it back.`);
+    else if (r.moved || full.moved) notify(`The ${lab.toLowerCase()} was moved so it fits on the ${ENC_FACE_NAME[E.cut[i].face]}.`);
+    if (r.grew || r.moved || full.grew || full.moved) renderTab();
   }
   baseChanged();
+}
+// an opening left out because the others on its face take the room (Session 61): it slides to a free place, and when
+// the face is full the box grows along it (the width for the front, back, lid and floor; the depth for the sides)
+function encRoomOnFace(E, i){
+  const c = E.cut[i], out = { grew:false, moved:false }; if (!c) return out;
+  for (let it = 0; it < 4; it++){
+    buildEnclosure(); const I = enclosureInfo;
+    if (!I.left.includes(i)) return out;
+    const mis = (I.misfit || []).find(m => m.i === i);
+    if (mis && !(mis.bb[2] - mis.bb[0] > mis.lim[2] - mis.lim[0]) && (mis.bb[1] < mis.lim[1] || mis.bb[3] > mis.lim[3])) return out;   // up or down: not along the face
+    const u = encFreeU(E, c);
+    if (u != null){ if (Math.abs(u - (+c.u || 0)) < 0.01) return out; c.u = u; out.moved = true; continue; }
+    const bb = ringsBounds(placedRings(c, E)), k = c.face === "left" || c.face === "right" ? "d" : "w", by = Math.ceil(bb[2] - bb[0] + 4);
+    if ((+E[k] || 0) + by > 300) return out;
+    E[k] = Math.ceil((+E[k] || 0) + by); out.grew = true;
+  }
+  buildEnclosure();
+  return out;
+}
+// the free place along an opening's face nearest where it is (clear of the other openings by 1 mm, inside the face), or null
+function encFreeU(E, c){
+  const I = enclosureInfo, lim = I && I.faceU && I.faceU[c.face]; if (!lim) return null;
+  const others = (E.cut || []).filter((o, j) => o !== c && o.face === c.face && !(I.left || []).includes(j)).map(o => ringsBounds(placedRings(o, E)));
+  const me = ringsBounds(placedRings({ ...c, u:0 }, E)), lo = lim[0] - me[0], hi = lim[1] - me[2];
+  let best = null;
+  for (let u = Math.ceil(lo*2)/2; u <= hi + 1e-6; u += 0.5){
+    const b = [me[0] + u, me[1], me[2] + u, me[3]];
+    if (others.some(o => b[0] < o[2] + 1 && o[0] < b[2] + 1 && b[1] < o[3] + 1 && o[1] < b[3] + 1)) continue;
+    if (best == null || Math.abs(u - (+c.u || 0)) < Math.abs(best - (+c.u || 0))) best = u;
+  }
+  return best;
 }
 // slide a new opening along its face until it clears the others
 function freeSpot(E, c){
@@ -9271,13 +9606,14 @@ function boxDragTo(lr){
   const p = lr.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -g.h), new THREE.Vector3()); if (!p) return false;
   const x = r2(p.x - g.grab[0]), y = r2(-p.z - g.grab[1]);
   if (g.kind === "post"){ g.src.x = clamp(x, -200, 200); g.src.y = clamp(y, -200, 200); }
-  else if (g.b.main){ E.boardX = clamp(x, -120, 120); E.boardY = clamp(y, -120, 120); }
-  else if (g.b.src){ g.b.src.x = clamp(x, -150, 150); g.b.src.y = clamp(y, -150, 150); }
+  else if (g.b.main){ E.boardX = clamp(x, -200, 200); E.boardY = clamp(y, -200, 200); }
+  else if (g.b.src){ g.b.src.x = clamp(x, -200, 200); g.b.src.y = clamp(y, -200, 200); }
   return true;
 }
 function boxDragEnd(){
   const g = boxDrag; boxDrag = null; controls.enabled = true; if (!g) return;
-  if (g.moved){ baseChanged(); pushHistory(); renderTab(); notify(g.kind === "art" ? "Moved. Its numbers are on the Art, words and icons page." : g.kind === "post" ? "Post moved." : `${g.b.label} moved.`); }
+  // a board dragged past a wall gets room like one moved by its numbers, and the main board's ports follow it (Session 61)
+  if (g.moved){ if (g.kind === "board") encBoardChanged(); else baseChanged(); pushHistory(); renderTab(); notify(g.kind === "art" ? "Moved. Its numbers are on the Art, words and icons page." : g.kind === "post" ? "Post moved." : `${g.b.label} moved.`); }
 }
 // capture phase: before the orbit controls, so a press on a thing moves it instead of turning the view
 renderer.domElement.addEventListener("pointerdown", e => {
@@ -9420,7 +9756,7 @@ async function rebuildAll(resetItems){
     // show a box's new placement messages on its pages
     document.querySelectorAll("#panel .field").forEach(w => w._refreshSub && w._refreshSub());
     if (t === "enclosure" && tab === "make" && enclosureInfo){
-      const sig = enclosureInfo.warn.map(w => w.s).join("|");
+      const sig = encPanelSig(enclosureInfo);
       if (sig !== renderedEncWarn){
         // not while someone is typing a label or dragging a slider: when they leave that field
         const a = document.activeElement, inPanel = a && a.closest && a.closest("#panel") && a.matches("input,textarea,select");
@@ -11845,16 +12181,44 @@ function cardFields(p){
 
 let encAdd = { kind:"usbc", face:"front" }, encAddBoard = { kind:"relay1" };
 let renderedEncWarn = "";
+// what the box's pages show from a build (Session 61: the parts list and how much floor they take, besides the warnings)
+const encPanelSig = I => I ? I.warn.map(w => w.s).join("|") + "#" + (I.boards || []).map(b => [b.label, b.lvl || 0, Math.round(b.w), Math.round(b.d), b.issues ? b.issues.length : 0].join(",")).join(";") + "#" + I.inner.map(Math.round).join(",") : "";
 function enclosureFields(p){
   if (!state.base.enclosure) state.base.enclosure = DEFAULTS().base.enclosure;
   const E = state.base.enclosure, I = enclosureInfo;
-  renderedEncWarn = I ? I.warn.map(w => w.s).join("|") : "";
+  renderedEncWarn = encPanelSig(I);
   checkField(p, "Print a fit test first", ()=>E.test === true, v=>{ E.test = v; renderTab(); baseChanged(); });
   if (E.test) note(p, `<b>Fit test:</b> a small box${I && I.test ? ` (${mm(I.size[0])} × ${mm(I.size[1])} × ${mm(I.size[2])})` : ""} with your walls, lid, lip gap, screws or magnets, and one of each opening. Print it, try your parts and the lid, adjust the clearances, then untick this to make the real box.`);
-  numField(p,{ label:"Outside width (mm)", min:20,max:300,step:1, get:()=>E.w, set:v=>E.w=v, onChange:baseChanged });
-  numField(p,{ label:"Outside depth (mm)", min:20,max:300,step:1, get:()=>E.d, set:v=>E.d=v, onChange:baseChanged });
-  numField(p,{ label:"Height of the box (mm)", min:8,max:250,step:1, get:()=>E.h, set:v=>E.h=v, onChange:baseChanged,
-    sub:()=> I ? `Inside: ${mm(I.inner[0])} × ${mm(I.inner[1])} × ${mm(I.inner[2])}. With the lid on: ${mm(I.total)} tall.` : "" });
+  encSortLevels(E, false);                              // a project from before Session 61 may list its levels out of order
+  // the box's size, outside or inside (Session 61: type the room your parts need, the walls are added)
+  segField(p, [["out","Outside sizes"],["in","Inside sizes"]], ()=>viewOpts.encInside ? "in" : "out", v=>{ viewOpts.encInside = v === "in"; renderTab(); }, "two");
+  const wallT = () => clamp(+E.wall || 2, 0.8, 6), floorT = () => clamp(+E.floor || 2, 0.6, 6);
+  if (viewOpts.encInside){
+    numField(p,{ label:"Inside width (mm)", min:10,max:296,step:1, noReset:true, get:()=>+((+E.w || 100) - 2*wallT()).toFixed(1), set:v=>E.w=+(v + 2*wallT()).toFixed(1), onChange:baseChanged });
+    numField(p,{ label:"Inside depth (mm)", min:10,max:296,step:1, noReset:true, get:()=>+((+E.d || 60) - 2*wallT()).toFixed(1), set:v=>E.d=+(v + 2*wallT()).toFixed(1), onChange:baseChanged });
+    numField(p,{ label:"Inside height, floor to top (mm)", min:6,max:248,step:1, noReset:true, get:()=>+((+E.h || 30) - floorT()).toFixed(1), set:v=>E.h=+(v + floorT()).toFixed(1), onChange:baseChanged,
+      sub:()=> I ? `Outside: ${mm(I.size[0])} × ${mm(I.size[1])} × ${mm(I.size[2])}. With the lid on: ${mm(I.total)} tall.` : "" });
+  } else {
+    numField(p,{ label:"Outside width (mm)", min:20,max:300,step:1, get:()=>E.w, set:v=>E.w=v, onChange:baseChanged });
+    numField(p,{ label:"Outside depth (mm)", min:20,max:300,step:1, get:()=>E.d, set:v=>E.d=v, onChange:baseChanged });
+    numField(p,{ label:"Height of the box (mm)", min:8,max:250,step:1, get:()=>E.h, set:v=>E.h=v, onChange:baseChanged,
+      sub:()=> I ? `Inside: ${mm(I.inner[0])} × ${mm(I.inner[1])} × ${mm(I.inner[2])}. With the lid on: ${mm(I.total)} tall.` : "" });
+  }
+  // what the box does when something is added that it cannot hold (Session 61; it was a tick box on the Openings page)
+  segField(p, [["grow","Grows to fit what I add"],["fixed","Stays this size"]], ()=>E.grow === false ? "fixed" : "grow", v=>{ E.grow = v !== "fixed"; renderTab(); }, "two");
+  note(p, E.grow === false ? "A part or an opening that does not fit is left out, with a warning."
+    : "A part or an opening that does not fit makes the box grow on the side it needs, by just enough. What is in it stays put.");
+  buttonRow(p, [["Shrink to fit what's in it", ()=>{ const r = encShrinkWrap(E); if (!r.ok){ notify(r.why); return; }
+    notify(r.same ? "It is already as small as it can be with everything in it." : `The box is now ${r.after.join(" × ")} mm (it was ${r.before.join(" × ")}). Undo puts it back.`); renderTab(); baseChanged(); pushHistory(); }]]);
+  // the box's problems in one place (Session 61), with one button for the ones a bigger box or a move can fix
+  if (I && I.warn.length){
+    const ws = I.warn.filter(w => !w.split);
+    if (ws.length){
+      note(p, `<b>⚠ ${ws.length} thing${ws.length === 1 ? "" : "s"} to look at:</b> ${ws.slice(0, 4).map(w => esc(w.t)).join("; ")}${ws.length > 4 ? `; and ${ws.length - 4} more (each is on its page below)` : ""}.`);
+      const fixable = (I.boards || []).some(b => b.fits === false || b.issues.some(t => /too close to the lid|reach the lid|reach the top/.test(t))) || (I.left || []).length > 0;
+      if (fixable) buttonRow(p, [["Make it all fit", ()=>{ const r = encFixAll(E); notify(r.n ? `Done: the box is ${r.after.join(" × ")} mm${r.after.some((v, k) => v !== r.before[k]) ? ` (it was ${r.before.join(" × ")})` : ""}${r.left ? `; ${r.left} warning${r.left === 1 ? " is" : "s are"} left to look at` : ""}. Undo puts it back.` : "Nothing a bigger box or a move can fix: see the warnings."); renderTab(); baseChanged(); pushHistory(); }]]);
+    }
+  }
   note(p, "The box prints open side up and the lid beside it, outside face down, so neither needs support. Openings, screw posts and board mounts are on the pages below.");
   encDescribe(p);
   group(p, "Walls and corners", g => {
@@ -12035,7 +12399,15 @@ function enclosureFields(p){
   }, E.mount && E.mount !== "none");
   group(p, "Board mounts", g => {
     if (encBoardList(E).length) encMoveField(g);
-    searchSelField(g, "Board", BOARDS, BOARD_GROUPS, ()=>E.board, v=>{ E.board = v; renderTab(); encBoardChanged(); }, { hint:"uno, esp32, pi, relay" });
+    // every part at a glance (Session 61): its size, where it is, and whether it fits; how much of each floor is taken
+    if (I && (I.boards || []).length > 1){
+      const lvN = (I.levels || []).length, onName = k => k ? `level ${k}` : "the floor";
+      const rows = I.boards.map((b, k) => `${k + 1}. ${esc(b.label.replace(/\s*\(.*$/, ""))}: ${b.w.toFixed(0)} × ${b.d.toFixed(0)} mm on ${onName(b.lvl || 0)}, ${b.issues.length ? "⚠ " + esc(b.issues[0]) : "fits"}`);
+      const use = Array.from({ length:lvN + 1 }, (_, k) => { const on = I.boards.filter(b => (b.lvl || 0) === k); if (!on.length) return "";
+        return `${onName(k).replace(/^t/, "T").replace(/^l/, "L")}: ${Math.round(100*on.reduce((a, b) => a + b.w*b.d, 0)/(I.inner[0]*I.inner[1]))} % taken`; }).filter(Boolean);
+      note(g, `<b>In the box:</b><br>${rows.join("<br>")}<br>${use.join(". ")}.`);
+    }
+    searchSelField(g, "Board", BOARDS, BOARD_GROUPS, ()=>E.board, v=>{ const old = E.board; E.board = v; encMainPicked(old); renderTab(); }, { hint:"uno, esp32, pi, relay" });
     const BB = encHas(BOARDS, E.board) ? BOARDS[E.board] : null;
     if (E.board === "custom"){
       numField(g,{ label:"Board width (mm)", min:5,max:250,step:0.5, get:()=>E.bw, set:v=>E.bw=v, onChange:encBoardChanged });
@@ -12060,11 +12432,15 @@ function enclosureFields(p){
       else note(g, (BB.holes && E.boardHold !== "edges") || E.board === "custom" ? (E.boardPins === true && E.board !== "custom" ? "Solid standoffs under each of its holes, each with a snap pin." : `Standoffs with ${E.fasten === "insert" ? "holes for heat inserts" : "pilot holes for self-tapping screws"} under each of its holes.`)
         : `${BB.holes ? "" : "No holes listed for this one, so it"}${BB.holes ? "It" : ""} sits in a cradle: a low rim round it, 0.3 mm clear, with a seat under each corner. How it's held is chosen above.`
         + (BB.check ? " Sizes differ between makers: measure yours and use My own board if it is not " + BB.w + " × " + BB.d + " mm." : ""));
-      numField(g,{ label:"Board position, across (mm)", min:-120,max:120,step:0.5, get:()=>E.boardX, set:v=>E.boardX=v, onChange:baseChanged });
-      numField(g,{ label:"Board position, front to back (mm)", min:-120,max:120,step:0.5, get:()=>E.boardY, set:v=>E.boardY=v, onChange:baseChanged });
+      const meI = I && (I.boards || []).find(b => b.main);
+      if (meI && meI.issues.length) note(g, meI.issues.map(t => "⚠ " + esc(t)).join("<br>"));
+      numField(g,{ label:"Board position, across (mm)", min:-200,max:200,step:0.5, get:()=>E.boardX, set:v=>E.boardX=v, onChange:encBoardChanged });
+      numField(g,{ label:"Board position, front to back (mm)", min:-200,max:200,step:0.5, get:()=>E.boardY, set:v=>E.boardY=v, onChange:encBoardChanged });
       numField(g,{ label:"Standoff height (mm)", min:2,max:40,step:0.5, get:()=>E.standH, set:v=>E.standH=v, onChange:encBoardChanged,
         sub:()=>"Leave room under the board for solder joints: 4 to 6 mm." });
-      checkField(g, "Turn the board 90°", ()=>E.boardRot, v=>{ E.boardRot = v; encBoardChanged(); });
+      checkField(g, "Turn the board 90°", ()=>E.boardRot, v=>{ E.boardRot = v; encKeepInside(E, true); encBoardChanged(); renderTab(); });
+      buttonRow(g, [["Centre it across", ()=>{ E.boardX = 0; encBoardChanged(); renderTab(); pushHistory(); }], ["Centre it front to back", ()=>{ E.boardY = 0; encBoardChanged(); renderTab(); pushHistory(); }],
+        ["Remove this board", ()=>{ E.board = "none"; encPortsFollow(E); renderTab(); baseChanged(); pushHistory(); }]]);
       if (I && I.board) note(g, `The top of the board ends up ${mm(I.board.top)} above the bed. Openings for its ports go from there up.`);
       if (encHas(BOARD_PORTS, E.board)) buttonRow(g, [["Add this board's ports", ()=>encAddBoardPorts()]]);
       if (I && I.hints && I.hints.length) note(g, I.hints.map(h => "• " + esc(h)).join("<br>") + (encHas(BOARD_PORTS, E.board) ? "<br>Add this board's ports puts them in." : ""));
@@ -12076,8 +12452,9 @@ function enclosureFields(p){
       const B2 = encHas(BOARDS, m.kind) ? BOARDS[m.kind] : null; if (!B2) return;
       const box = document.createElement("div"); box.style.cssText = "border-top:1px solid rgba(128,128,128,.35);margin-top:10px;padding-top:6px";
       box.insertAdjacentHTML("beforeend", `<p class="hint" style="margin:0 0 4px"><b>${esc(B2.label)}</b> (${B2.w} × ${B2.d} mm${B2.check ? ", check yours" : ""})</p>`); g.appendChild(box);
-      const fitIt = I && I.boards && I.boards.find(b => !b.main && b.key === m.kind && b.at[0] === (+m.x || 0) && b.at[1] === (+m.y || 0));
-      if (fitIt && fitIt.fits === false) note(box, "⚠ It does not fit where it is: move it, or make the box bigger.");
+      const fitIt = I && I.boards && (I.boards.find(b => b.src === m) || I.boards.find(b => !b.main && b.key === m.kind && b.at[0] === (+m.x || 0) && b.at[1] === (+m.y || 0)));
+      if (fitIt && fitIt.issues && fitIt.issues.length) note(box, fitIt.issues.map(t => "⚠ " + esc(t)).join("<br>"));
+      else if (fitIt && fitIt.fits === false) note(box, "⚠ It does not fit where it is: move it, or make the box bigger.");
       if (B2.holes) segField(box, [["holes", "On its screw holes"], ["edges", "By its edges"]], ()=>m.hold === "edges" ? "edges" : "holes", v=>{ m.hold = v; renderTab(); encBoardChanged(); }, "two");
       else if (B2.g === "battery") segField(box, [["holes", "Strap tray"], ["edges", "Corner cradle"], ["door", "Under a door"]], ()=>m.hold === "edges" || m.hold === "door" ? m.hold : "holes", v=>{ m.hold = v; renderTab(); encBoardChanged(); });
       if (B2.g === "battery" && m.hold === "door") note(box, "It sits over an opening in the floor, on a door that screws on from underneath (two M2 screws): change it without opening the box.");
@@ -12087,13 +12464,14 @@ function enclosureFields(p){
         numField(box,{ label:"Battery width (mm)", min:5,max:250,step:0.5, get:()=>m.bd ?? 35, set:v=>m.bd=v, onChange:encBoardChanged, noReset:true });
         numField(box,{ label:"Battery thickness (mm)", min:2,max:120,step:0.5, get:()=>m.bt ?? 10, set:v=>m.bt=v, onChange:encBoardChanged, noReset:true });
       }
-      numField(box,{ label:"Position, across (mm)", min:-150,max:150,step:0.5, get:()=>m.x, set:v=>m.x=v, onChange:encBoardChanged });
-      numField(box,{ label:"Position, front to back (mm)", min:-150,max:150,step:0.5, get:()=>m.y, set:v=>m.y=v, onChange:encBoardChanged });
+      numField(box,{ label:"Position, across (mm)", min:-200,max:200,step:0.5, get:()=>m.x, set:v=>m.x=v, onChange:encBoardChanged });
+      numField(box,{ label:"Position, front to back (mm)", min:-200,max:200,step:0.5, get:()=>m.y, set:v=>m.y=v, onChange:encBoardChanged });
       numField(box,{ label:"Height off the floor (mm)", min:1,max:40,step:0.5, get:()=>m.h, set:v=>m.h=v, onChange:encBoardChanged });
-      checkField(box, "Turn it 90°", ()=>m.rot === true, v=>{ m.rot = v; encBoardChanged(); });
+      checkField(box, "Turn it 90°", ()=>m.rot === true, v=>{ m.rot = v; encKeepInside(E, false, m); encBoardChanged(); renderTab(); });
       const nl = Array.isArray(E.levels) ? E.levels.length : 0;
       if (nl) selField(box, "On", [["0","The floor"], ...Array.from({ length:nl }, (_, k) => [String(k + 1), `Level ${k + 1}`])], ()=>String(Math.min(nl, +m.lvl || 0)), v=>{ m.lvl = +v; encBoardChanged(); });
-      buttonRow(box, [["Remove", ()=>{ more.splice(i, 1); renderTab(); baseChanged(); pushHistory(); }]]);
+      buttonRow(box, [...(more.length < 12 ? [["Duplicate", ()=>{ const n = JSON.parse(JSON.stringify(m)); encAddPart(E, n, i + 1); }]] : []),
+        ["Centre it", ()=>{ m.x = 0; m.y = 0; encBoardChanged(); renderTab(); pushHistory(); }], ["Remove", ()=>{ more.splice(i, 1); renderTab(); baseChanged(); pushHistory(); }]]);
     });
     // arrange it for me (Session 48)
     if (encBoardList(E).length){
@@ -12107,7 +12485,7 @@ function enclosureFields(p){
     }
     if (more.length < 12){
       const add = document.createElement("div"); add.style.cssText = "margin-top:12px"; g.appendChild(add);
-      const addIt = k => { const n = { kind:k, x:0, y:0, h:3, rot:false, hold:"holes" }; n.x = encFreeBoardSpot(E, n); more.push(n); renderTab(); encBoardChanged(); pushHistory(); };
+      const addIt = k => encAddPart(E, { kind:k, x:0, y:0, h:3, rot:false, hold:"holes" });
       searchSelField(add, "Add another board or module", Object.fromEntries(Object.entries(BOARDS).filter(([k]) => k !== "none" && k !== "custom")), BOARD_GROUPS,
         ()=>encAddBoard.kind, v=>{ encAddBoard.kind = v; }, { pick:true, hint:"relay, buck, 18650", onEnter:addIt });
       buttonRow(add, [["Add it", ()=>addIt(encAddBoard.kind)]]);
@@ -12121,7 +12499,7 @@ function enclosureFields(p){
     levels.forEach((L, k) => {
       const box = document.createElement("div"); box.style.cssText = "border-top:1px solid rgba(128,128,128,.35);margin-top:10px;padding-top:6px"; g.appendChild(box);
       box.insertAdjacentHTML("beforeend", `<p class="hint" style="margin:0 0 4px"><b>Level ${k + 1}</b>: a shelf, printed flat in front of the box</p>`);
-      numField(box,{ label:"Height of its top above the floor (mm)", min:6,max:280,step:0.5, get:()=>L.z, set:v=>L.z=v, onChange:baseChanged });
+      numField(box,{ label:"Height of its top above the floor (mm)", min:6,max:280,step:0.5, get:()=>L.z, set:v=>L.z=v, onChange:()=>{ if (encSortLevels(E, true)) renderTab(); baseChanged(); } });
       numField(box,{ label:"Thickness (mm)", min:1.2,max:5,step:0.1, get:()=>L.t, set:v=>L.t=v, onChange:baseChanged });
       const hold0 = () => ["posts","brackets","ledges","custom"].includes(L.hold) ? L.hold : "posts";
       selField(box, "It is held by", [["posts","4 posts in the corners, screwed"],["brackets","Brackets on the side walls, screwed (floor free)"],["custom","Posts where I put them, screwed"],["ledges","Ledges on the side walls (45°), no screws"]], hold0, v=>{
@@ -12151,11 +12529,12 @@ function enclosureFields(p){
       const li = I && I.levels && I.levels[k];
       if (li && (li.grid || li.anchors)) note(box, [li.grid ? `${li.grid} mounting holes (M3 bolts and nuts, or self-tapping screws) where nothing else is` : "", li.anchors ? `${li.anchors} zip-tie anchor${li.anchors === 1 ? "" : "s"} along its back` : ""].filter(Boolean).join("; ") + ".");
       checkField(box, "Air slots in the middle", ()=>L.vent === true, v=>{ L.vent = v; baseChanged(); });
-      buttonRow(box, [["Remove", ()=>{ levels.splice(k, 1); (E.more || []).forEach(m => { if ((+m.lvl || 0) > k) m.lvl = Math.max(0, (+m.lvl || 0) - 1); }); renderTab(); baseChanged(); pushHistory(); }]]);
+      buttonRow(box, [["Remove", ()=>{ encRemoveLevel(E, k); renderTab(); baseChanged(); pushHistory(); }]]);
     });
     if (levels.length < ENC_LEVEL.max) buttonRow(g, [["Add a level (a second floor)", ()=>{
-      const prev = levels.length ? Math.max(...levels.map(l => +l.z || 0)) : 0, Hin = (+E.h || 40) - (+E.floor || 2);
-      levels.push({ z:Math.round(Math.min(Hin - 6, Math.max(prev + 15, Hin/2))), t:2, hold:"posts", cable:true, vent:false }); renderTab(); baseChanged(); pushHistory(); }]]);
+      const r = encNewLevel(E); E.levels.push({ z:r.z, t:2, hold:"posts", cable:true, vent:false }); encSortLevels(E, true);
+      if (r.taller) notify(`The box is now ${E.h} mm tall, so the new level fits over the parts under it. Undo puts it back.`);
+      renderTab(); baseChanged(); pushHistory(); }]]);
     note(g, levels.length ? "Put extra boards on a level with On (Board mounts). The posts take M3 self-tapping screws through the plate; ledges need none." : "A level is a second floor: a shelf with its own boards, over the ones on the floor. Useful round a big fan or a power supply.");
     const walls = Array.isArray(E.walls) ? E.walls : (E.walls = []);
     walls.forEach((Wd, k) => {
@@ -12172,7 +12551,7 @@ function enclosureFields(p){
       if (di && di.crossings) note(box, `It crosses ${di.crossings} other divider${di.crossings === 1 ? "" : "s"}: each has a slot half way, so they slide into each other.`);
       buttonRow(box, [["Remove", ()=>{ walls.splice(k, 1); renderTab(); baseChanged(); pushHistory(); }]]);
     });
-    if (walls.length < ENC_DIV.max) buttonRow(g, [["Add a divider", ()=>{ walls.push({ axis:"x", at:0, height:0, fan:0, cable:true, notch:"small" }); renderTab(); baseChanged(); pushHistory(); }]]);
+    if (walls.length < ENC_DIV.max) buttonRow(g, [["Add a divider", ()=>{ const nd = encNewDivider(E); walls.push({ axis:nd.axis, at:nd.at, height:0, fan:0, cable:true, notch:"small" }); renderTab(); baseChanged(); pushHistory(); }]]);
     // rooms in one go (Session 51): the dividers for two rooms, three, or four in a cross (they replace the ones there)
     const room = (list) => { walls.splice(0, walls.length, ...list.map(([axis, f]) => ({ axis, at:Math.round(f*((axis === "x" ? +E.d : +E.w) - 2*(+E.wall || 2))), height:0, fan:0, cable:true, notch:"small" })));
       renderTab(); baseChanged(); pushHistory(); };
@@ -12277,7 +12656,8 @@ function enclosureFields(p){
       lt.addEventListener("change", ()=>{ if (!!encLabelText(c.label) !== had) renderTab(); });
       if (had) segField(box, [["below","Label below"],["above","Label above"]], ()=>c.labelPos === "above" ? "above" : "below", v=>{ c.labelPos = v; renderTab(); baseChanged(); }, "two");
       buttonRow(box, [
-        ["Duplicate", ()=>{ const n = JSON.parse(JSON.stringify(c)); E.cut.splice(i + 1, 0, n); n.u = freeSpot(E, n); renderTab(); baseChanged(); pushHistory(); }],
+        // a copy is the user's own opening, not one of the board's ports (Session 61: Arrange used to take it away)
+        ["Duplicate", ()=>{ const n = JSON.parse(JSON.stringify(c)); delete n.auto; delete n.board; delete n.port; E.cut.splice(i + 1, 0, n); n.u = freeSpot(E, n); renderTab(); encOpeningChanged(i + 1); pushHistory(); }],
         ["Remove", ()=>{ E.cut.splice(i, 1); renderTab(); baseChanged(); pushHistory(); }]
       ]);
     });
@@ -12289,7 +12669,7 @@ function enclosureFields(p){
     searchSelField(add, "Add an opening", CUTOUTS, CUT_GROUPS, ()=>encAdd.kind, v=>{ encAdd.kind = v; }, { pick:true, hint:"usb-c, oled, gland", onEnter:k => { encAdd.kind = k; addOpening(); } });
     selField(add, "On", ENC_FACES, ()=>encAdd.face, v=>{ encAdd.face = v; });
     buttonRow(add, [["Add opening", addOpening]]);
-    checkField(add, "Make the box bigger when an opening does not fit", ()=>E.grow !== false, v=>{ E.grow = v; });
+    checkField(add, "Make the box bigger when an opening does not fit (the same switch as at the top)", ()=>E.grow !== false, v=>{ E.grow = v; renderTab(); });
     if (cuts.some(c => (CUTOUTS[c.kind] || {}).lensFor)){
       slotField(add, "Filament for the pilot light lenses", ()=>String(E.lensSlot || 0), v=>{ E.lensSlot = +v; baseChanged(); });
       note(add, "The jewel lenses print in front of the box, flat side down. Use a clear or see-through filament (clear PETG, transparent PLA, or red and green ones for classic warning lights). Push each lens through its hole from inside, then the LED into its back.");

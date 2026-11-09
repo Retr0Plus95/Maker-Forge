@@ -9517,12 +9517,12 @@ let enclosureInfo = null, enclosureLogo = null;
 // own keys only: a project file saying "__proto__" or "constructor" must not match a table entry
 const encHas = (o, k) => k != null && Object.prototype.hasOwnProperty.call(o, String(k));
 // hole sizes for printed plastic: heat-insert holes, self-tapping pilot holes, clearance through the
-// lid, and the screw head (countersunk heads are 90°, so the cone is (head - clearance) / 2 deep)
+// lid, and the screw head (countersunk heads are 90°, so the cone is (head - clearance) / 2 deep); a hex nut's size across its flats and its thickness (Session 64: nut pockets)
 const SCREWS = {
-  "M2":   { insert:3.2, insertDepth:4, pilot:1.6, clear:2.4, head:4.2, headH:2.2 },
-  "M2.5": { insert:3.6, insertDepth:5, pilot:2.0, clear:2.9, head:5.0, headH:2.7 },
-  "M3":   { insert:4.0, insertDepth:6, pilot:2.5, clear:3.4, head:6.0, headH:3.2 },
-  "M4":   { insert:5.6, insertDepth:8, pilot:3.3, clear:4.5, head:7.6, headH:4.2 }
+  "M2":   { insert:3.2, insertDepth:4, pilot:1.6, clear:2.4, head:4.2, headH:2.2, nutAf:4, nutT:1.6 },
+  "M2.5": { insert:3.6, insertDepth:5, pilot:2.0, clear:2.9, head:5.0, headH:2.7, nutAf:5, nutT:2.0 },
+  "M3":   { insert:4.0, insertDepth:6, pilot:2.5, clear:3.4, head:6.0, headH:3.2, nutAf:5.5, nutT:2.4 },
+  "M4":   { insert:5.6, insertDepth:8, pilot:3.3, clear:4.5, head:7.6, headH:4.2, nutAf:7, nutT:3.2 }
 };
 /* Your printer's fits (Session 64): what the calibration card found, kept with the printer settings (this browser remembers
    them for every new project; a project file carries them too). Each is in mm. FIT_DEFAULT is what every box used before:
@@ -10205,11 +10205,22 @@ function encMoveField(g){
     if (v) notify("Drag a board, a word or an icon on a wall, or a post you put, to move it. Drag anywhere else to turn the view."); renderTab(); });
 }
 // a gasket groove in the lid (Session 57), on the Lid page
+// the filament for a printed gasket (Session 64): the one picked, else a TPU one loaded, else the lid's
+function encGasketSlot(E){
+  const n = state.slots.length, k = +E.gasketSlot;
+  if (E.gasketSlot != null && Number.isInteger(k) && k >= 0 && k < n) return k;
+  const tpu = state.slots.findIndex(sl => /tpu|tpe|flex/i.test(sl.mat || "")); return tpu >= 0 ? tpu : clamp(+E.lidSlot || 0, 0, n - 1);
+}
 function encGasketField(g){
   const E = state.base.enclosure, I = enclosureInfo;
   selField(g, "Gasket groove (splash-proof)", [["0","None"],["1.5","For a 1.5 mm cord"],["2","For a 2 mm cord"],["2.5","For a 2.5 mm cord"],["3","For a 3 mm cord"]], ()=>String(E.gasket || 0), v=>{ E.gasket = +v; renderTab(); baseChanged(); });
-  if (E.gasket) note(g, I && I.gasket ? `A ${I.gasket.width.toFixed(1)} mm groove, ${I.gasket.depth.toFixed(1)} mm deep, in the lid's inside face over the middle of the walls. Press a ${I.gasket.cord} mm silicone or EPDM cord into it (about ${I.gasket.length} mm, glue the ends); the screws squeeze it onto the walls' tops. It keeps out dust and splashes, not water under pressure.`
+  if (E.gasket) note(g, I && I.gasket ? (E.gasketPrint === true ? `A ${I.gasket.width.toFixed(1)} mm groove, ${I.gasket.depth.toFixed(1)} mm deep, in the lid's inside face over the middle of the walls, and a gasket to print for it: a ring ${I.gasket.cord} mm wide and ${I.gasket.printed ? I.gasket.printed.h : ""} mm tall (half the cord proud of the groove), shown as its own part. Print it in TPU (95A or softer), press it into the groove; the screws squeeze it onto the walls' tops.`
+      : `A ${I.gasket.width.toFixed(1)} mm groove, ${I.gasket.depth.toFixed(1)} mm deep, in the lid's inside face over the middle of the walls. Press a ${I.gasket.cord} mm silicone or EPDM cord into it (about ${I.gasket.length} mm, glue the ends); the screws squeeze it onto the walls' tops.`) + " It keeps out dust and splashes, not water under pressure."
     : "Not made: see the warning (the walls or the lid may need to be thicker).");
+  if (E.gasket){
+    checkField(g, "Print the gasket in TPU (no cord to buy)", ()=>E.gasketPrint === true, v=>{ E.gasketPrint = v; renderTab(); baseChanged(); });
+    if (E.gasketPrint === true) slotField(g, "Gasket filament", ()=>String(encGasketSlot(E)), v=>{ E.gasketSlot = +v; baseChanged(); });
+  }
 }
 // full-height or short lid posts (Session 52), on the Lid page
 function encPostStyleField(g){
@@ -10632,7 +10643,7 @@ function encAddPart(E, n, at){
    and what it needs: vents low and high (about 3 cm² per watt over what the box sheds), or above 15 W a fan (airflow from
    3.1 × watts ÷ a 10 °C rise, in m³/h). Rules of thumb, so the advice says "about". */
 const ENC_WATTS = [[/^lrs35/, 4], [/^lrs100/, 10], [/^lrs150/, 15], [/^pi$/, 5], [/^pi3a/, 2.5], [/^pizero/, 1], [/^pico/, 0.3], [/^(buck|mp1584|mt3608|xl)/, 1.5],
-  [/^l298n/, 3], [/^(drv8825|a4988|tmc)/, 1.5], [/^mosfet/, 1], [/^(pam8403|max98357)/, 0.8], [/^(esp32|nodemcu|d1mini|xiao|tdisplay)/, 0.5], [/^(uno|mega|leonardo|due)/, 0.4],
+  [/^l298n/, 3], [/^(drv8825|a4988|tmc)/, 1.5], [/^mosfet/, 1], [/^(pam8403|max98357)/, 0.8], [/^esp32cam/, 1], [/^(esp32|nodemcu|d1mini|xiao|tdisplay)/, 0.5], [/^(uno|mega|leonardo|due)/, 0.4],
   [/^(tp4056|ip5306)/, 1], [/^sim800/, 1], [/^(bat|aa|lipo)/, 0]];
 const ENC_FAN_FLOW = { 25:3, 30:5, 40:10, 50:17, 60:30, 70:40, 80:50, 92:60, 120:100, 140:130 };
 function encWattsOf(key){
@@ -10656,6 +10667,51 @@ function encHeat(E, I){
   const status = P <= sealed || (fans && fans >= Math.ceil(3.1*P/10)) ? "ok" : needFlow ? "fan" : vent >= needVent ? "ok" : "vents";
   return { parts, P, sealed, vent, fans, needVent, needFlow, fanSize:fanSize ? +fanSize : null, status };
 }
+/* Battery life (Session 64): how long the box's batteries run what is in it (and what it powers outside, the camera box
+   beside a battery box). Each battery's energy in Wh (from its mAh and cells, or typed), 80% of it used; the parts' power
+   awake (the heat page's watts, without chargers, converters and batteries) and asleep (typical deep-sleep draws, mW);
+   always on, or awake a number of times a day for some seconds; a converter loses about 15%. Rules of thumb: says "about". */
+const ENC_SLEEP_MW = [[/^esp32cam/, 20], [/^(xiao|esp32c3mini|esp32s3)/, 1], [/^(esp32|nodemcu|tdisplay)/, 50], [/^d1mini/, 1], [/^(uno|mega|leonardo|due)/, 200],
+  [/^(nano|micro|promini)/, 60], [/^pico/, 6], [/^(mt3608|buck|xl|mp1584)/, 2], [/^(tp4056|ip5306)/, 0.1], [/^relay/, 0], [/^(bat|aa|lipo|rc\d|cr2|sla|cx|dx)/, 0]];
+function encBatteryWh(key, B){
+  const n = +(/x(\d)/.exec(key || "") || [0, 1])[1] || 1, mah = +(/(\d+)\s*mAh/.exec((B && B.label) || "") || [])[1] || 0;
+  if (/^lipo/.test(key)) return mah*3.7/1000;
+  const rc = /^rc(\d)s(\d+)/.exec(key || ""); if (rc) return +rc[1]*3.7*+rc[2]/1000;
+  if (/^bat18650/.test(key)) return n*3.0*3.6; if (/^bat21700/.test(key)) return n*4.5*3.6; if (/^bat26650/.test(key)) return 5*3.6;
+  if (/^aaax/.test(key)) return n*1.2; if (/^aax/.test(key)) return n*3; if (/^cx/.test(key)) return n*12; if (/^dx/.test(key)) return n*24;
+  if (key === "bat9v") return 4.5; if (key === "bat23a") return 0.66; if (key === "cr2032") return 0.66; if (key === "cr2450") return 1.8;
+  if (key === "sla1") return 14.4*0.6; if (key === "sla7") return 84*0.6;               // (lead-acid: no deeper than about 60%)
+  return 0;
+}
+const encIsBattery = B => B && B.g === "battery";
+const encIsPower = (B, key) => B && B.g === "power" || /^(tp4056|ip5306|mt3608|buck|xl|mp1584|lrs)/.test(key || "");
+const encOver = (src, k) => { const v = src && src[k]; return v != null && v !== "" && isFinite(+v) ? +v : null; };
+function encSleepMw(E, b){
+  const o = b.main ? encOver(E, "boardSleepMw") : encOver(b.src, "sleepMw"); if (o != null) return clamp(o, 0, 50000);
+  if (/^pi/.test(b.key) && !/^pico/.test(b.key)) return encPartWatts(E, b)*1000*0.6;        // a Raspberry Pi has no deep sleep
+  const hit = ENC_SLEEP_MW.find(([re]) => re.test(b.key || "")); return hit ? hit[1] : 1;
+}
+function encBattery(E, I){
+  if (!I) return null;
+  const P = E.power && typeof E.power === "object" ? E.power : {}, boards = I.boards || [];
+  const packs = boards.filter(b => encIsBattery(b.B || BOARDS[b.key])).map(b => { const B = b.B || BOARDS[b.key], o = b.main ? encOver(E, "boardWh") : encOver(b.src, "wh");
+    return { b, wh:o != null ? clamp(o, 0, 5000) : encBatteryWh(b.key, B) }; });
+  const ext = { w:clamp(encOver(P, "extW") || 0, 0, 200), mw:clamp(encOver(P, "extSleepMw") || 0, 0, 50000) };
+  if (!packs.length && !ext.w) return null;
+  const loads = boards.filter(b => { const B = b.B || BOARDS[b.key]; return !encIsBattery(B) && !encIsPower(B, b.key); })
+    .map(b => ({ b, w:encPartWatts(E, b), mw:encSleepMw(E, b) }));
+  const conv = boards.some(b => /^(mt3608|buck|xl|mp1584)/.test(b.key)), eff = clamp(encOver(P, "eff") || (conv ? 85 : 95), 30, 100)/100;
+  const quiet = boards.filter(b => encIsPower(b.B || BOARDS[b.key], b.key)).reduce((a, b) => a + encSleepMw(E, b), 0);     // a converter's own draw
+  const awakeW = loads.reduce((a, q) => a + q.w, 0) + ext.w, sleepW = (loads.reduce((a, q) => a + q.mw, 0) + ext.mw)/1000;
+  const wake = P.mode === "wake", wakes = clamp(Math.round(encOver(P, "wakes") ?? 24), 0, 1440), secs = clamp(encOver(P, "secs") ?? 30, 1, 86400);
+  const hAwake = wake ? Math.min(24, wakes*secs/3600) : 24, perDay = (awakeW*hAwake + sleepW*(24 - hAwake))/eff + quiet/1000*24;
+  const wh = packs.reduce((a, q) => a + q.wh, 0), usable = wh*0.8, days = perDay > 0 ? usable/perDay : Infinity;
+  // what uses most of it
+  const share = [...loads.map(q => ({ what:q.b.label.replace(/\s*\(.*$/, ""), wh:(q.w*hAwake + q.mw/1000*(24 - hAwake))/eff })),
+    ...(ext.w || ext.mw ? [{ what:"what it powers outside", wh:(ext.w*hAwake + ext.mw/1000*(24 - hAwake))/eff }] : [])].sort((a, b) => b.wh - a.wh);
+  return { packs, loads, ext, eff, quiet, awakeW, sleepW, wake, wakes, secs, hAwake, perDay, wh, usable, days, share };
+}
+const encDaysText = d => !isFinite(d) ? "as long as the battery keeps its charge" : d >= 60 ? `about ${Math.round(d/30)} months` : d >= 2 ? `about ${Math.round(d)} days` : `about ${Math.max(1, Math.round(d*24))} hours`;
 // vents (or a fan and a vent) put in for the heat (Session 63): low on one wall and high on the one opposite, so warm air
 // rises out; on the long walls, each half the area needed
 function encAddCooling(E, fan){
@@ -11398,7 +11454,7 @@ const ENC_KITS = [
   // (Session 64) a bird house camera in two boxes: the battery and the motion sensor in one, the camera in the other
   { name:"Bird house battery and motion sensor", what:"An 8000 mAh LiPo (126090) on strap loops, a TP4056 charger with its USB-C through the wall, an MT3608 boost to 5 V, a small dome motion sensor in front and a cable gland to the camera box; a gasket and screw ears.",
     words:"LiPo pouch 126090, TP4056 charger, MT3608 boost converter, mini motion sensor AM312, cable gland PG7",
-    set:{ lid:"screw", fasten:"insert", wall:3, gasket:1.5, mount:"ears", radius:4 }, round:true, faces:{ pirmini:"front", gland:"back" }, main:"tp4056", holds:{ lipo126090:{ hold:"strap", strapBy:"loops" } } },
+    set:{ lid:"screw", fasten:"insert", wall:3, gasket:1.5, mount:"ears", radius:4 }, round:true, faces:{ pirmini:"front", gland:"back" }, main:"tp4056", holds:{ lipo126090:{ hold:"strap", strapBy:"loops" } }, power:{ mode:"wake", wakes:20, secs:30, extW:1, extSleepMw:20 } },
   { name:"Bird house camera", what:"An ESP32-CAM held by snap clips, its camera in a holder in the lid with the lens through it (the lid faces the nest), a cable gland for power from the battery box; a gasket and screw ears.",
     words:"ESP32-CAM camera board, camera holder in the lid, cable gland PG7",
     set:{ lid:"screw", fasten:"insert", wall:3, gasket:1.5, mount:"ears", radius:4, boardHold:"edges", boardGrip:"clips" }, round:true, faces:{ camholder:"top", gland:"back" }, over:{ camholder:"main" }, h:22 }
@@ -11422,6 +11478,7 @@ function encStartKit(kit){
   if (kit.holds || kit.main) encArrange(true);
   if (kit.main){ encAddBoardPorts(true, true); if (!encArrange(true).ok) encArrange(false); encPortsFollow(E); }
   if (kit.h) E.h = kit.h;
+  if (kit.power) E.power = JSON.parse(JSON.stringify(kit.power));
   if (kit.over) (E.cut || []).forEach(c => { if (kit.over[c.kind] === "main"){ c.face = "top"; c.u = +(+E.boardX || 0).toFixed(1); c.v = +(+E.boardY || 0).toFixed(1); } });
   if (kit.min){ for (const k of ["w","d","h"]) if (kit.min[k] && (+E[k] || 0) < kit.min[k]) E[k] = kit.min[k]; encArrange(true); }
   (E.cut || []).forEach(c => { if (!encLabelText(c.label) && encAutoLabel(c.kind)) c.label = encAutoLabel(c.kind); });
@@ -11929,7 +11986,7 @@ function encSplitPlan(E, g){
   const Lo = axis ? ext[2] - ext[0] : ext[3] - ext[1], outLo = axis ? -g.D/2 - ext[1] : -g.W/2 - ext[0], outHi = axis ? ext[3] - g.D/2 : ext[2] - g.W/2;
   if (mode === "bed" && ext[2] - ext[0] <= bed[0] && ext[3] - ext[1] <= bed[1]) return null;
   if (g.slide){ warn.push({ split:true, t:"A box with a sliding lid is not split", s:"The sliding lid runs the whole length of the box, so it can't be made in parts. Pick a screwed, press-fit or magnet lid to split the box." }); return null; }
-  const key = encHas(SCREWS, E.splitScrew) ? E.splitScrew : "M3", S = encScrew(key), insert = E.fasten !== "screw";
+  const key = encHas(SCREWS, E.splitScrew) ? E.splitScrew : "M3", S = encScrew(key), insert = E.fasten !== "screw" && E.fasten !== "nut";
   // the flange: tf thick (along the cut), b wide (in from the walls and up from the floor); with lid posts it must
   // hold the lid's insert or magnet, and the lid's screw head must stay clear of the lid's own join
   const posts = g.bosses.length > 0, lidHead = g.magnet ? g.pocketD : g.screw.head;
@@ -12111,7 +12168,8 @@ function encAssembly(){
   const boardsHoles = (I.boards || []).filter(b => b.grip === "screws");
   if (E.fasten === "insert" && (ins || boardsHoles.length)) out.push(`Press the heat inserts in with a soldering iron at about 220 °C, flush with the top: ${[ins ? `${ins} in the lid posts` : "", boardsHoles.length ? `one in each standoff of ${boardsHoles.map(lab).join(", ")}` : ""].filter(Boolean).join(", and ")}.`);
   if (E.lid === "magnet" && (I.lidPosts || {}).n) out.push("Glue the magnets into the posts and the lid with a drop of superglue. Check each pair attracts before the glue sets.");
-  if (I.gasket) out.push(`Press the ${I.gasket.cord} mm cord into the groove in the lid; cut it to length and glue the ends together.`);
+  if (E.fasten === "nut" && (E.lid === "screw" || E.lid === "none") && (I.lidPosts || {}).n) out.push(`Slide an ${E.screw} nut into the slot near the top of each corner post, from the inside, until it sits over the hole (a long screw through the post lines it up).`);
+  if (I.gasket) out.push(I.gasket.printed ? "Press the printed TPU gasket into the groove in the lid, all the way round." : `Press the ${I.gasket.cord} mm cord into the groove in the lid; cut it to length and glue the ends together.`);
   if (E.feet === "recess") out.push("Stick the rubber feet into the recesses under the floor.");
   const fix = b => b.grip === "screws" ? `screw ${lab(b)} onto its standoffs (${b.screw || "M3"} screws, 6 mm long)` : b.grip === "pins" ? `press ${lab(b)} onto its snap pins until they click`
     : b.grip === "clips" ? `push ${lab(b)} down into its rim until the clips click over it` : b.grip === "loose" ? `drop ${lab(b)} into its rim with a dab of hot glue`
@@ -12148,6 +12206,16 @@ function encSplitReadme(){
   return [`Maker Forge project box in parts: ${S.parts}`, "", S.join, "", ...S.plates.map(p => p.replace(/^Plate (\d+):/, "plates/plate-$1-*.3mf:")), "",
     "Print the box parts open side up and the lid parts outside face down, as they lie in the files.",
     "Heat inserts: press each in with a soldering iron at about 220 °C, flush with the face, before the parts go together."];
+}
+// a corner post's slice with a nut pocket (Session 64): the post's circle (radius r round x, y) less a hex nut (af across its
+// flats, with the gap fit) and the slot it slides in by, towards the middle of the box; one outline, no holes
+const ENC_NUT = { above:3 };
+function encNutSlice(x, y, r, af, z0, z1){
+  const h = af/2 + encFit().gap/2, Rc = h*2/Math.sqrt(3), x0 = Math.sqrt(Math.max(0, r*r - h*h)), a0 = Math.atan2(h, x0), L = [];
+  for (let i = 0; i <= 40; i++){ const a = a0 + (2*Math.PI - 2*a0)*i/40; L.push([r*Math.cos(a), r*Math.sin(a)]); }   // round the back, from the slot's top edge to its bottom one
+  L.push([-Rc/2, -h], [-Rc, 0], [-Rc/2, h]);
+  const th = Math.atan2(-y, -x), c = Math.cos(th), sn = Math.sin(th);                 // the slot points to the middle of the box
+  return C.extrudePolysAt([{ outer:encOrient(L.map(([u, v]) => [x + u*c - v*sn, y + u*sn + v*c]), true), holes:[] }], z0, z1);
 }
 /* The calibration card (Session 63 one of each, Session 64 three sizes of each): a flat card with every way a box holds a
    part, each in three sizes, 1 the tightest, 2 the printer's fit now, 3 the loosest, labelled: cradles with crush ribs, with
@@ -12228,8 +12296,9 @@ function buildEnclosure(){
   const magnet = E.lid === "magnet", mg = MAGNETS[encHas(MAGNETS, E.magnet) ? E.magnet : "6x2"];
   const pocketD = mg.d + 0.2, pocketH = mg.t + 0.2;
   const bossesOn = magnet || (E.fasten !== "none" && E.lid !== "press" && !slide);
-  const bossHole = magnet ? 0 : E.fasten === "insert" ? screw.insert : screw.pilot;
-  const bossR = magnet ? Math.max(pocketD/2 + 1.2, 2.6) : Math.max(bossHole/2 + 1.6, 2.6);
+  const nutPocket = !magnet && E.fasten === "nut", nutH = (screw.nutAf/2 + encFit().gap/2)*2/Math.sqrt(3);    // a nut's corner, with its fit
+  const bossHole = magnet ? 0 : E.fasten === "insert" ? screw.insert : nutPocket ? screw.clear : screw.pilot;
+  const bossR = magnet ? Math.max(pocketD/2 + 1.2, 2.6) : nutPocket ? Math.max(nutH + 1.6, 2.6) : Math.max(bossHole/2 + 1.6, 2.6);
   const bosses = [];
   if (bossesOn){
     if (iw < 4*bossR + 4 || id < 4*bossR + 4) warn.push({ t:"Screw posts do not fit", s:"The box is too small for four corner screw posts: make it bigger, use a smaller screw, or a press-fit lid." });
@@ -12603,6 +12672,18 @@ function buildEnclosure(){
     const ph = Math.min(pocketH, Math.max(0, H - fl - 1));
     if (ph < pocketH - 1e-6) warn.push({ t:"Box too shallow for the magnets", s:`The corner posts are too short for ${mg.d} × ${mg.t} mm magnets. Make the box taller or use thinner magnets.` });
     bosses.forEach(([x, z]) => { solids.push(post(x, -z, bossR, 0, postBot, H - ph)); if (ph > 0) solids.push(post(x, -z, bossR, pocketD/2, H - ph, H)); });
+  } else if (nutPocket){
+    // nut pockets (Session 64): a hex pocket 3 mm under each post's top, open to the inside of the box by a slot the nut slides
+    // in through; the screw goes through the lid into it. The pocket's roof is a short bridge, so no support
+    const zt = H - ENC_NUT.above, zb = zt - (screw.nutT + 0.3);
+    if (zb < postBot + 1) warn.push({ t:"Box too shallow for nut pockets", s:"The corner posts are too short for a nut pocket under their tops: make the box taller, or use heat inserts." });
+    bosses.forEach(([x, z]) => { const y = -z;
+      if (zb < postBot + 1){ solids.push(post(x, y, bossR, bossHole/2, postBot, H)); return; }
+      solids.push(post(x, y, bossR, bossHole/2, postBot, zb)); solids.push(encNutSlice(x, y, bossR, screw.nutAf, zb, zt));
+      // its roof in 0.2 mm steps, each 0.2 mm narrower a side: a 45° slope down to the screw's hole, so it needs no support
+      let zr = zt;
+      for (let k = 1; ; k++){ const af = screw.nutAf - 0.4*k; if (af/2 + encFit().gap/2 <= bossHole/2 + 0.05 || zr + 0.2 > H - 0.8) break; solids.push(encNutSlice(x, y, bossR, af, zr, zr + 0.2)); zr += 0.2; }
+      solids.push(post(x, y, bossR, bossHole/2, zr, H)); });
   } else bosses.forEach(([x, z]) => solids.push(post(x, -z, bossR, bossHole/2, postBot, H)));
   if (postHang) bosses.forEach(([x, z]) => solids.push(encLoft(C.ringCircle(0.4, 40).map(p => [p[0] + x, p[1] - z]), postFree, C.ringCircle(bossR, 40).map(p => [p[0] + x, p[1] - z]), postBot + 0.01)));
   let board = null, boardNeed = null;
@@ -13012,6 +13093,15 @@ function buildEnclosure(){
   }
   // battery doors (Session 57), printed flat in front of the box
   doorParts.forEach(dp => { insideParts.push(Object.assign(dp, { solid:C.affineSolid(dp.solid, [1,0,0, 0,1,0, 0,0,1], [0, 0, frontZ + dp.dd/2]) })); frontZ += dp.dd + 10; });
+  // a gasket printed in TPU (Session 64), instead of a cord: a ring the cord's width along the groove (0.15 mm clear of each of
+  // its sides), standing half the cord proud of it so the screws squeeze it; printed flat in front of the box, in its own filament
+  if (gasket && E.gasketPrint === true && !state.base.enclosure.test){
+    const o = t/2, ww = gasket.cord, hh = +(gasket.gd + gasket.cord*0.5).toFixed(2), gs = encGasketSlot(E);
+    const ring = [{ outer:encOrient(C.ringRect(W - 2*(o - ww/2), D - 2*(o - ww/2), Math.max(0, R - (o - ww/2)), seg), true),
+      holes:[encOrient(C.ringRect(W - 2*(o + ww/2), D - 2*(o + ww/2), Math.max(0, R - (o + ww/2)), seg), false)] }];
+    insideParts.push({ inside:true, name:"Gasket (TPU)", slot:gs, solid:C.affineSolid(C.extrudePolysAt(ring, 0, hh), [1,0,0, 0,1,0, 0,0,1], [0, 0, frontZ + D/2]) });
+    frontZ += D + 10; gasket.printed = { h:hh, w:ww, slot:gs };
+  }
   // a warm part in a closed box (Session 54): advice to let the air out (its own line: hints are things to fix)
   let airHint = "";
   {
@@ -13186,6 +13276,7 @@ function buildEnclosure(){
   const fastenText = slide ? "Sliding lid: it slides in from the front along 45° grooves in the side walls, no screws needed." : magnet ? `Magnet lid: pockets for eight ${mg.d} × ${mg.t} mm magnets (${pocketD.toFixed(1)} mm wide, ${pocketH.toFixed(1)} mm deep), four in the posts and four in the lid.`
     : !bossesOn ? (E.lid === "press" ? (hinge ? `Press-fit lid on a hinge at the back: push a ${hinge.Lh} mm length of 1.75 mm filament through the knuckles as the pin. ` : "") + (snap ? "Press-fit lid with snap catches: four bumps on its lip click into grooves inside the front and back walls." : "Press-fit lid, no screws.") : "No screws.")
     : E.fasten === "insert" ? `Corner posts for ${E.screw} heat inserts (${screw.insert} mm holes, at least ${screw.insertDepth} mm deep).`
+    : E.fasten === "nut" ? `Corner posts with a pocket for an ${E.screw} nut ${ENC_NUT.above} mm under the top: slide a nut into each from the inside.`
     : `Corner posts for ${E.screw} self-tapping screws (${screw.pilot} mm pilot holes).`;
   // printed pilot lights: a faceted jewel lens per opening, printed flange down in front of the box. It
   // goes through its hole from inside (the flange stops it), and the LED pushes into its back.
@@ -13236,9 +13327,10 @@ function buildEnclosure(){
   const need = [], nAdd = (n, what) => { if (n > 0) need.push([n, what]); }, len = v => [6, 8, 10, 12, 16, 20, 25, 30].find(q => q >= v) || 30;
   if (!state.base.enclosure.test){
     if (hinge) nAdd(1, `piece of 1.75 mm filament, ${hinge.Lh} mm long, as the hinge pin`);
-    if (gasket) nAdd(1, `silicone or EPDM cord, ${gasket.cord} mm thick, ${gasket.length + 10} mm long (cut to fit, glue the ends)`);
+    if (gasket && !gasket.printed) nAdd(1, `silicone or EPDM cord, ${gasket.cord} mm thick, ${gasket.length + 10} mm long (cut to fit, glue the ends)`);
     if (lidOn && magnet && bosses.length) nAdd(2*lidPins.length, `round magnets ${mg.d} × ${mg.t} mm (half in the posts, half in the lid; check they attract)`);
-    else if (lidOn && bossesOn && E.fasten !== "none"){ nAdd(lidPins.length, `${E.screw} screws, ${len(lidT + screw.insertDepth - 1)} mm long, for the lid`); if (E.fasten === "insert") nAdd(lidPins.length, `${E.screw} heat inserts for the lid`); }
+    else if (lidOn && bossesOn && E.fasten !== "none"){ nAdd(lidPins.length, `${E.screw} screws, ${len(E.fasten === "nut" ? lidT + ENC_NUT.above + screw.nutT + 1 : lidT + screw.insertDepth - 1)} mm long, for the lid`);
+      if (E.fasten === "insert") nAdd(lidPins.length, `${E.screw} heat inserts for the lid`); if (E.fasten === "nut") nAdd(lidPins.length, `${E.screw} hex nuts for the lid`); }
     const bs = {}; boardList.filter(bd => bd.holes && !bd.pins).forEach(bd => { const k = encHas(SCREWS, bd.B.screw) ? bd.B.screw : "M3"; bs[k] = (bs[k] || 0) + bd.holes.length; });
     Object.entries(bs).forEach(([k, n]) => { nAdd(n, `${k} screws, 6 mm long, for the boards`); if (E.fasten === "insert") nAdd(n, `${k} heat inserts for the boards' standoffs`); });
     const lvScrews = levelInfo.reduce((a, l) => a + (l.hold === "ledges" ? 0 : l.posts.length), 0); nAdd(lvScrews, "M3 self-tapping screws, 8 mm long, for the levels");
@@ -13277,7 +13369,7 @@ function buildEnclosure(){
     behind.push({ i:po.i, face:f, rect:r, z:[z0, z1], hit:hit ? hit.label : null, pen:+pen.toFixed(2) });
     if (hit) warn.push({ t:`${po.lab} reaches ${hit.label}`, s:`Its body goes about ${dp} mm into the box (shown in the 3D view) and meets ${hit.label}: move one of them, or make the box bigger. (Typical sizes: check yours.)` });
   });
-  enclosureInfo = { test: !!state.base.enclosure.test, wallH:{ front:wallH("front"), back:wallH("back"), left:wallH("left"), right:wallH("right") }, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, gasket:gasket ? { cord:gasket.cord, length:gasket.length, depth:gasket.gd, width:gasket.gw } : null, snap:!!snap, hinge:hinge ? { length:hinge.Lh, knuckles:hinge.segs.length } : null, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR, at:bosses.map(([x, z]) => [x, -z]) }, ceil:ceilZ, ri, lipH, wall:t, anchors:anchorsMade, faceU, clashes, wallV:Object.fromEntries(["front","back","left","right"].map(f => [f, [0.8, Math.min(wallH(f) - 0.8, lipTop)]])), cams:camInfo, behind, ducts:ductInfo.length, ductRects:ductInfo.map(du => ({ fp:du.fp.slice(), isY:du.isY })),
+  enclosureInfo = { test: !!state.base.enclosure.test, wallH:{ front:wallH("front"), back:wallH("back"), left:wallH("left"), right:wallH("right") }, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, gasket:gasket ? { cord:gasket.cord, length:gasket.length, depth:gasket.gd, width:gasket.gw, printed:gasket.printed || null } : null, snap:!!snap, hinge:hinge ? { length:hinge.Lh, knuckles:hinge.segs.length } : null, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR, at:bosses.map(([x, z]) => [x, -z]) }, ceil:ceilZ, ri, lipH, wall:t, anchors:anchorsMade, faceU, clashes, wallV:Object.fromEntries(["front","back","left","right"].map(f => [f, [0.8, Math.min(wallH(f) - 0.8, lipTop)]])), cams:camInfo, behind, ducts:ductInfo.length, ductRects:ductInfo.map(du => ({ fp:du.fp.slice(), isY:du.isY })),
     takenOn:Object.fromEntries(Object.entries(taken).map(([f, l]) => [f, l.map(o => ({ n:o.n || 0, bb:o.bb.slice() }))])), count:(E.cut || []).length - left.length,
     split: splitInfo };
   return out;
@@ -20881,7 +20973,7 @@ function enclosureFields(p){
     }
     if (E.lid !== "slide" && E.lid !== "none") checkField(g, "A finger pull at the front (a notch to lift the lid)", ()=>E.pull === true, v=>{ E.pull = v; baseChanged(); });
     if (E.lid === "screw" || E.lid === "none"){
-      segField(g, [["insert","Heat inserts"],["screw","Self-tapping"],["none","No screws"]], ()=>E.fasten, v=>{ E.fasten = v; renderTab(); baseChanged(); });
+      segField(g, [["insert","Heat inserts"],["nut","Nuts"],["screw","Self-tapping"],["none","No screws"]], ()=>E.fasten, v=>{ E.fasten = v; renderTab(); baseChanged(); }, "four");
       if (E.fasten !== "none"){
         selField(g, "Screw size", Object.keys(SCREWS).map(k => [k, k]), ()=>E.screw, v=>{ E.screw = v; renderTab(); baseChanged(); });
         if (E.lid === "screw") segField(g, [["sink","Countersunk"],["bore","Counterbored"],["plain","Plain hole"]], ()=>E.head, v=>{ E.head = v; baseChanged(); });
@@ -20890,6 +20982,7 @@ function enclosureFields(p){
         const s = encScrew(E.screw);
         note(g, (E.fasten === "insert"
           ? `${E.screw} heat inserts: the posts get a ${s.insert} mm hole, at least ${s.insertDepth} mm deep. Press the insert in with a soldering iron at about 220 °C, flush with the top.`
+          : E.fasten === "nut" ? `${E.screw} nuts: each corner post gets a pocket for a nut ${ENC_NUT.above} mm under its top (${s.nutAf} mm across, ${s.nutT} mm thick, plus your printer's fit), open to the inside of the box so the nut slides in. No soldering iron, and the thread lasts for ever. The boards' standoffs still take self-tapping screws.`
           : `${E.screw} self-tapping screws: the posts get a ${s.pilot} mm pilot hole. Good for a few openings; use heat inserts for a lid you open often.`)
           + (E.lid === "screw" ? ` The lid gets ${s.clear} mm clearance holes.` : ""));
       }
@@ -21160,6 +21253,31 @@ function enclosureFields(p){
       set:v=>{ if (b.main) E.boardWatts = v; else if (b.src) b.src.watts = v; }, onChange:()=>{ renderTab(); } }));
     note(g, "Rules of thumb, not a simulation: a box in the sun, or round a heater, needs more.");
   }, !!(HT && HT.status !== "ok"));
+  // battery life (Session 64)
+  const BL = I && !E.test ? encBattery(E, I) : null;
+  if (BL || (I && !E.test && (I.boards || []).some(b => encIsBattery(b.B || BOARDS[b.key])))) group(p, "Battery life", g => {
+    const P = E.power && typeof E.power === "object" ? E.power : (E.power = {}), redo = () => { renderTab(); };
+    if (!BL){ note(g, "Add a battery (Board mounts) to see how long it runs."); return; }
+    const packs = BL.packs.map(q => `${q.b.label.replace(/\s*\(.*$/, "")} (${q.wh.toFixed(1)} Wh)`).join(" and ") || "no battery in this box";
+    note(g, `<b>${encDaysText(BL.days)}</b> on ${packs}${BL.wh ? `, using 80% of its ${BL.wh.toFixed(1)} Wh` : ""}. It uses about ${(BL.perDay).toFixed(BL.perDay < 1 ? 2 : 1)} Wh a day: ${BL.awakeW.toFixed(2)} W awake${BL.wake ? ` for ${(BL.hAwake*60).toFixed(0)} min a day` : " all day"}${BL.wake ? `, ${(BL.sleepW*1000).toFixed(1)} mW asleep` : ""}${BL.eff < 1 ? `, through a converter (about ${Math.round(BL.eff*100)}% efficient)` : ""}.`);
+    if (BL.share.length && BL.share[0].wh > 0) note(g, `Most of it goes to ${BL.share[0].what} (${Math.round(BL.share[0].wh/Math.max(1e-9, BL.perDay)*100)}%).` + (BL.wake && BL.sleepW*(24 - BL.hAwake) > BL.awakeW*BL.hAwake ? " Asleep uses more than awake here: a board with a lower sleep draw (or one whose power is switched off between wakes) lasts much longer." : ""));
+    segField(g, [["on","Always on"],["wake","Wakes now and then"]], ()=>P.mode === "wake" ? "wake" : "on", v=>{ P.mode = v; redo(); }, "two");
+    if (P.mode === "wake"){
+      numField(g, { label:"Wakes a day", min:0, max:1440, step:1, def:24, get:()=>BL.wakes, set:v=>P.wakes = Math.round(v), onChange:redo });
+      numField(g, { label:"Seconds awake each time", min:1, max:3600, step:1, def:30, get:()=>BL.secs, set:v=>P.secs = v, onChange:redo });
+    }
+    numField(g, { label:"It also powers, outside the box (W awake)", min:0, max:100, step:0.1, def:0, get:()=>BL.ext.w, set:v=>P.extW = v, onChange:redo });
+    if (P.mode === "wake") numField(g, { label:"…and asleep (mW)", min:0, max:5000, step:1, def:0, get:()=>BL.ext.mw, set:v=>P.extSleepMw = v, onChange:redo });
+    g.insertAdjacentHTML("beforeend", `<p class="hint" style="margin:8px 0 2px">Each battery (typical; type yours):</p>`);
+    BL.packs.forEach(({ b, wh }) => numField(g, { label:`${b.label.replace(/\s*\(.*$/, "")} (Wh)`, min:0, max:2000, step:0.1, noReset:true, get:()=>+wh.toFixed(2),
+      set:v=>{ if (b.main) E.boardWh = v; else if (b.src) b.src.wh = v; }, onChange:redo }));
+    if (P.mode === "wake" && BL.loads.length){
+      g.insertAdjacentHTML("beforeend", `<p class="hint" style="margin:8px 0 2px">What each part draws asleep (typical deep sleep; change it for yours):</p>`);
+      BL.loads.forEach(({ b, mw }) => numField(g, { label:`${b.label.replace(/\s*\(.*$/, "")} (mW)`, min:0, max:5000, step:0.1, noReset:true, get:()=>+mw.toFixed(2),
+        set:v=>{ if (b.main) E.boardSleepMw = v; else if (b.src) b.src.sleepMw = v; }, onChange:redo }));
+    }
+    note(g, "Awake power is the Heat page's watts. Rules of thumb: cold weather and old cells give less, so test yours with a USB power meter.");
+  });
   // wiring (Session 63)
   if (I && !E.test) group(p, "Wiring", g => {
     const wires = Array.isArray(E.wires) ? E.wires : (E.wires = []), ends = encWireEnds(E, I), info = encWires(E, I);
@@ -24465,7 +24583,7 @@ function sanitizeProject(data){
   if (st.base && "card" in st.base) st.base.card = cleanCard(st.base.card);
   if (st.base && st.base.enclosure && typeof st.base.enclosure === "object"){
     const E = st.base.enclosure, one = (v, list) => list.includes(v) ? v : list[0];
-    E.lid = one(E.lid, ["screw","press","magnet","slide","none"]); E.postStyle = one(E.postStyle, ["full","hang"]); E.snap = E.snap === true; E.hinge = E.hinge === true; E.gasket = [1.5, 2, 2.5, 3].includes(+E.gasket) ? +E.gasket : 0; E.fasten = one(E.fasten, ["insert","screw","none"]); E.head = one(E.head, ["sink","bore","plain"]);
+    E.lid = one(E.lid, ["screw","press","magnet","slide","none"]); E.postStyle = one(E.postStyle, ["full","hang"]); E.snap = E.snap === true; E.hinge = E.hinge === true; E.gasket = [1.5, 2, 2.5, 3].includes(+E.gasket) ? +E.gasket : 0; E.fasten = one(E.fasten, ["insert","screw","nut","none"]); E.head = one(E.head, ["sink","bore","plain"]);
     E.magnet = encHas(MAGNETS, E.magnet) ? E.magnet : "6x2"; E.feet = one(E.feet, ["none","recess"]); E.mount = one(E.mount, ["none","ears","tabs","din","straps","skadis","pegboard"], "none"); E.tabN = E.tabN === 1 ? 1 : 2;
     E.earN = E.earN === 4 ? 4 : 2; E.strapDir = one(E.strapDir, ["across","up"], "across"); E.footSize = encHas(FEET, E.footSize) ? String(E.footSize) : "8";
     const L0 = E.logo && typeof E.logo === "object" ? E.logo : {};
@@ -24478,9 +24596,17 @@ function sanitizeProject(data){
     const has = k => Object.prototype.hasOwnProperty.call(E, k);
     if (has("edge")) E.edge = ["chamfer","round"].includes(E.edge) ? E.edge : ""; if (has("texture")) E.texture = ["grooves","hex"].includes(E.texture) ? E.texture : ""; if (has("band")) E.band = E.band === true;     // the style (Session 63)
     if (has("testKind")) E.testKind = E.testKind === "holders" ? "holders" : "box";
+    if (has("gasketPrint")) E.gasketPrint = E.gasketPrint === true; if (has("gasketSlot")){ const k = Math.round(+E.gasketSlot); if (Number.isInteger(k) && k >= 0 && k < 16) E.gasketSlot = k; else delete E.gasketSlot; }
     if (has("cal")){ const c2 = cleanFit(E.cal); if (Object.keys(c2).length) E.cal = c2; else delete E.cal; }
     if (has("boardFace")) E.boardFace = ENC_MOUNT_FACES.includes(E.boardFace) ? E.boardFace : ""; if (has("boardSide")) E.boardSide = E.boardSide === "out" ? "out" : "in"; if (has("boardStrapBy")) E.boardStrapBy = E.boardStrapBy === "loops" ? "loops" : "slots";
     if (E.boardWatts != null && E.boardWatts !== "") E.boardWatts = Math.min(500, Math.max(0, cleanNum(+E.boardWatts, 0))); else delete E.boardWatts;
+    // battery life (Session 64): the schedule, what it powers outside, a battery's Wh and a part's sleep draw (only when set)
+    for (const [k, hi] of [["boardWh", 5000], ["boardSleepMw", 50000]]) if (E[k] != null && E[k] !== "" && isFinite(+E[k])) E[k] = Math.min(hi, Math.max(0, +E[k])); else delete E[k];
+    if (has("power")){ const P0 = E.power && typeof E.power === "object" ? E.power : {}, P1 = {};
+      if (P0.mode === "wake" || P0.mode === "on") P1.mode = P0.mode;
+      for (const [k, lo, hi] of [["wakes", 0, 1440], ["secs", 1, 86400], ["extW", 0, 200], ["extSleepMw", 0, 50000], ["eff", 30, 100]])
+        if (P0[k] != null && P0[k] !== "" && isFinite(+P0[k])) P1[k] = Math.min(hi, Math.max(lo, +P0[k]));
+      E.power = P1; }
     E.boardX = Math.min(200, Math.max(-200, cleanNum(E.boardX, 0))); E.boardY = Math.min(250, Math.max(-200, cleanNum(E.boardY, 0)));
     // until v0.17 every round hole in a wall was a teardrop unless switched off; people read them as
     // misshapen ovals, so older projects open with round holes (the option is still there)
@@ -24496,6 +24622,7 @@ function sanitizeProject(data){
       kind:m.kind, x:Math.min(200, Math.max(-200, cleanNum(m.x, 0))), y:Math.min(250, Math.max(-200, cleanNum(m.y, 0))), h:Math.min(40, Math.max(1, cleanNum(m.h, 3))),
       ...(m.strapBy === "loops" ? { strapBy:"loops" } : {}), ...(ENC_MOUNT_FACES.includes(m.face) ? { face:m.face } : {}), ...(m.side === "out" ? { side:"out" } : {}),
       ...(m.watts != null && m.watts !== "" && isFinite(+m.watts) ? { watts:Math.min(500, Math.max(0, +m.watts)) } : {}), ...(okId(m.id) ? { id:m.id } : {}),
+      ...(m.wh != null && m.wh !== "" && isFinite(+m.wh) ? { wh:Math.min(5000, Math.max(0, +m.wh)) } : {}), ...(m.sleepMw != null && m.sleepMw !== "" && isFinite(+m.sleepMw) ? { sleepMw:Math.min(50000, Math.max(0, +m.sleepMw)) } : {}),
       rot:m.rot === true, hold:m.hold === "edges" || m.hold === "door" ? m.hold : "holes", lvl:Math.round(Math.min(ENC_LEVEL.max, Math.max(0, cleanNum(m.lvl, 0)))),
       ...(["clips","loose"].includes(m.grip) ? { grip:m.grip } : {}), ...(m.pins === true ? { pins:true } : {}),
       ...(m.kind === "batcustom" ? { bw:Math.min(250, Math.max(5, cleanNum(m.bw, 60))), bd:Math.min(250, Math.max(5, cleanNum(m.bd, 35))), bt:Math.min(120, Math.max(2, cleanNum(m.bt, 10))) } : {}) }));
@@ -25125,7 +25252,7 @@ window.MakerForge = {
   get enclosure(){ return enclosureInfo; },
   get cutouts(){ return CUTOUTS; }, get boards(){ return BOARDS; }, boardPorts:BOARD_PORTS, addBoardPorts:encAddBoardPorts, arrange:encArrange,
   // room for parts (Session 61), for the tests
-  boxRoom:{ place:encPlace, freeU:encFreeU, onFace:encRoomOnFace, shrink:encShrinkWrap, fixAll:encFixAll, makeRoom:encMakeRoom, busy:encBusy, assembly:encAssembly, kicad:kicadParse, importKicad:encImportKicad, heat:encHeat, wires:encWires, kits:ENC_KITS, startKit:encStartKit, fit:{ printer:printerFit, sample:fitSample, defaults:FIT_DEFAULT, clean:cleanFit, rows:FIT_ROWS, save:fitSave, screw:encScrew, card:ENC_HOLDERS } }, boxDrag:{ pick:boxDragPick, start:h => { boxDrag = Object.assign(h, { id:-1, moved:false, t:0 }); }, to:lr => { const ok = boxDragTo(lr); if (ok && boxDrag) boxDrag.moved = true; return ok; }, end:boxDragEnd }, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
+  boxRoom:{ place:encPlace, freeU:encFreeU, onFace:encRoomOnFace, shrink:encShrinkWrap, fixAll:encFixAll, makeRoom:encMakeRoom, busy:encBusy, assembly:encAssembly, kicad:kicadParse, importKicad:encImportKicad, heat:encHeat, wires:encWires, kits:ENC_KITS, startKit:encStartKit, battery:encBattery, batteryWh:encBatteryWh, fit:{ printer:printerFit, sample:fitSample, defaults:FIT_DEFAULT, clean:cleanFit, rows:FIT_ROWS, save:fitSave, screw:encScrew, card:ENC_HOLDERS } }, boxDrag:{ pick:boxDragPick, start:h => { boxDrag = Object.assign(h, { id:-1, moved:false, t:0 }); }, to:lr => { const ok = boxDragTo(lr); if (ok && boxDrag) boxDrag.moved = true; return ok; }, end:boxDragEnd }, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
   get jigsaw(){ return jigsawInfo; },
   get lithophane(){ return lithoInfo; },
   get print(){ return printFresh() ? printInfo : null; },

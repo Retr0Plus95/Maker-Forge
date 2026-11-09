@@ -10786,6 +10786,54 @@ function encWires(E, I){
     return { i, w, ok, why, colour, a, b, A, B, path, len:Math.ceil((len*1.1 + 20)/10)*10, fromPin:encWireText(w.fromPin), toPin:encWireText(w.toPin) };
   }).filter(Boolean);
 }
+/* A firmware starter from the wiring (Session 64): for an ESP32 or ESP8266 main board, an ESPHome file with a component for
+   each part wired to it (relays as switches, motion sensors and buttons as binary sensors, LEDs as lights, a DHT or a BME280,
+   the ESP32-CAM's camera with its usual AI-Thinker pins); for other boards, the pins as Arduino #defines. A starting point:
+   it says to check every pin. */
+const ESPHOME_BOARDS = [[/^esp32cam/, "esp32", "esp32cam"], [/^esp32s3/, "esp32", "esp32-s3-devkitc-1"], [/^esp32c3/, "esp32", "esp32-c3-devkitm-1"], [/^xiao/, "esp32", "seeed_xiao_esp32c3"],
+  [/^(esp32|tdisplay)/, "esp32", "esp32dev"], [/^d1mini/, "esp8266", "d1_mini"], [/^nodemcu/, "esp8266", "nodemcuv2"]];
+function encFirmware(E, I, title){
+  if (!I) return null;
+  const main = (I.boards || []).find(b => b.main); if (!main) return null;
+  const ends = encWireEnds(E, I), byId = new Map(ends.map(e => [e.id, e])), wires = (Array.isArray(E.wires) ? E.wires : []).filter(w => w && (w.from === "main" || w.to === "main"));
+  const pinOf = w => (w.from === "main" ? w.fromPin : w.toPin) || "", other = w => byId.get(w.from === "main" ? w.to : w.from);
+  const kindOf = e => e ? (e.b ? e.b.key : e.c ? e.c.kind : "") : "", slug = String(title || "my-box").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30) || "my-box";
+  const nameOf = (e, n) => (e ? e.label.replace(/\s*\(.*$/, "") : "Part") + (n > 1 ? ` ${n}` : ""), gpio = p => /^(gpio)?\d+$/i.test(p.trim()) ? (/^\d+$/.test(p.trim()) ? `GPIO${p.trim()}` : p.trim().toUpperCase()) : p.trim();
+  const fam = ESPHOME_BOARDS.find(([re]) => re.test(main.key));
+  if (!fam){
+    const lines = [`// Pins for ${title || "my box"}, from Maker Forge's wiring plan: check each one against your board.`, ""];
+    const used = new Map();
+    wires.forEach(w => { const e = other(w), p = pinOf(w).trim(); if (!p || /^(gnd|5v|3v3|3\.3v|vin|vcc|aref|reset)$/i.test(p)) return;
+      const base = nameOf(e).toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, ""), n = (used.get(base) || 0) + 1; used.set(base, n);
+      lines.push(`#define ${base}${n > 1 ? "_" + n : ""}_PIN ${p.replace(/^(D|GPIO)(\d+)$/i, "$2")}  // ${e ? e.label : ""}${w.from === "main" ? (w.toPin ? `, its ${w.toPin}` : "") : (w.fromPin ? `, its ${w.fromPin}` : "")}`); });
+    return { file:"pins.h", text:lines, kind:"arduino", n:wires.length };
+  }
+  const L = [`# ESPHome starter for ${title || "my box"}, from Maker Forge's wiring plan.`, "# Check every pin against your board before you flash it. Put your WiFi in secrets.yaml.", "",
+    "esphome:", `  name: ${slug}`, "", `${fam[1]}:`, `  board: ${fam[2]}`, ...(fam[1] === "esp32" ? ["  framework:", "    type: arduino"] : []), "",
+    "logger:", "api:", "ota:", "  - platform: esphome", "wifi:", "  ssid: !secret wifi_ssid", "  password: !secret wifi_password", "  ap: {}", "captive_portal:", ""];
+  const sec = { switch:[], binary_sensor:[], light:[], output:[], sensor:[], i2c:null, other:[] }, seen = new Map();
+  wires.forEach(w => {
+    const e = other(w), k = kindOf(e), p = gpio(pinOf(w)); if (!p || /^(gnd|5v|3v3|3\.3v|vin|vcc)$/i.test(p)) return;
+    const n = (seen.get(k) || 0) + 1; seen.set(k, n); const nm = nameOf(e, n);
+    if (/^relay|^mosfet/.test(k)) sec.switch.push(`  - platform: gpio`, `    pin: ${p}`, `    name: "${nm}"`);
+    else if (/^pir|^(btn|tact|arcade|footswitch|keysw|toggle|rocker|slide)/.test(k)) sec.binary_sensor.push(`  - platform: gpio`, `    pin:`, `      number: ${p}`, ...(/^pir/.test(k) ? [] : ["      mode: INPUT_PULLUP", "      inverted: true"]), `    name: "${nm}"`, ...(/^pir/.test(k) ? ["    device_class: motion"] : []));
+    else if (/^(led|pilot|ledbezel)/.test(k)){ sec.output.push(`  - platform: gpio`, `    pin: ${p}`, `    id: out_${k}_${n}`); sec.light.push(`  - platform: binary`, `    output: out_${k}_${n}`, `    name: "${nm}"`); }
+    else if (/^(buzzer)/.test(k)) sec.output.push(`  - platform: gpio`, `    pin: ${p}`, `    id: buzzer_${n}`);
+    else if (/^dht(11|22)/.test(k)) sec.sensor.push(`  - platform: dht`, `    pin: ${p}`, `    model: ${/22/.test(k) ? "DHT22" : "DHT11"}`, `    temperature:`, `      name: "Temperature"`, `    humidity:`, `      name: "Humidity"`);
+    else if (/^bme280/.test(k)){ const pn = (w.from === "main" ? w.toPin : w.fromPin) || ""; sec.i2c = sec.i2c || {}; if (/sda/i.test(pn)) sec.i2c.sda = p; else if (/scl/i.test(pn)) sec.i2c.scl = p; sec.bme = true; }
+    else if (/^ldr/.test(k)) sec.sensor.push(`  - platform: adc`, `    pin: ${p}`, `    name: "Light"`, `    update_interval: 30s`);
+    else sec.other.push(`# ${e ? e.label : "a part"} on ${p}: add its component (esphome.io/components)`);
+  });
+  if (sec.bme) sec.sensor.push(`  - platform: bme280_i2c`, `    temperature:`, `      name: "Temperature"`, `    pressure:`, `      name: "Pressure"`, `    humidity:`, `      name: "Humidity"`);
+  if (main.key === "esp32cam") L.push("# the ESP32-CAM's own camera (AI-Thinker pins)", "esp32_camera:", "  name: Camera", "  external_clock:", "    pin: GPIO0", "    frequency: 20MHz", "  i2c_pins:", "    sda: GPIO26", "    scl: GPIO27",
+    "  data_pins: [GPIO5, GPIO18, GPIO19, GPIO21, GPIO36, GPIO39, GPIO34, GPIO35]", "  vsync_pin: GPIO25", "  href_pin: GPIO23", "  pixel_clock_pin: GPIO22", "  power_down_pin: GPIO32", "  resolution: 800x600", "",
+    "esp32_camera_web_server:", "  - port: 8080", "    mode: stream", "");
+  if (sec.i2c) L.push("i2c:", `  sda: ${sec.i2c.sda || "GPIO21"}`, `  scl: ${sec.i2c.scl || "GPIO22"}`, "");
+  for (const k of ["switch", "binary_sensor", "output", "light", "sensor"]) if (sec[k].length) L.push(`${k}:`, ...sec[k], "");
+  if (sec.other.length) L.push(...sec.other, "");
+  if (!wires.length) L.push("# No wires to the board yet: add them on the Wiring page and each part gets its component here.");
+  return { file:"esphome.yaml", text:L, kind:"esphome", n:wires.length };
+}
 function encWiringText(E, I){
   const ws = encWires(E, I).filter(w => w.ok); if (!ws.length) return null;
   const tot = {}; ws.forEach(w => { tot[w.colour] = (tot[w.colour] || 0) + w.len; });
@@ -12244,6 +12292,8 @@ function encSolarRect(E, W, D, t){
   const x = clamp(+E.solarX || 0, -200, 200), y = clamp(+E.solarY || 0, -200, 200);
   return { x, y, w, d, fits:w <= roomW && d <= roomD, depth:0.4, hole:[x + w/2 - Math.min(10, w/4), y] };
 }
+// openings that can have a scale round their knob (Session 64)
+const ENC_DIAL_KINDS = new Set(["pot", "encoder", "rotary"]);
 // a 1/4-20 UNC tripod nut: 7/16 inch (11.1 mm) across its flats, 5.6 mm thick, and the screw's hole (Session 64)
 const ENC_TRIPOD = { af:11.1, t:5.6, hole:6.6 };
 // a corner post's slice with a nut pocket (Session 64): the post's circle (radius r round x, y) less a hex nut (af across its
@@ -12482,7 +12532,7 @@ function buildEnclosure(){
     if (wall && !notch && bb[3] > lipTop) warn.push({ t:`${lab} is behind the lid's lip`, s:`The lid's lip covers the top ${lipH.toFixed(1)} mm of the inside of the walls. Lower ${lab.toLowerCase()} or make the lip shorter.` });
     taken[face].push({ n:i+1, bb });
     if (notch) notchesOn[face].push([bb[0], bb[2], bb[1]]); else holesOn[face].push(...rings);
-    placedOpen.push({ i, face, bb, c, lab });
+    placedOpen.push({ i, face, bb, c, lab, lim });
     if (face === "top" && c.kind === "camholder") camFrames.push({ i, lab, x:(bb[0] + bb[2])/2, y:(bb[1] + bb[3])/2, rot:c.rot === true, lim });
     const text = encLabelText(c.label);
     if (text) labelQueue.push({ i, c, face, bb, text, lab, lim });
@@ -12508,6 +12558,22 @@ function buildEnclosure(){
     let segs = C.strokeText(text, cx, cy, lh).segs;
     if (flip) segs = segs.map(q => [q[0], -q[1], q[2], -q[3]]);
     labelsOn[face].push(...C.strokePolys(segs, lhalf, 0.04));
+  });
+  // a scale round a knob (Session 64): ticks over 270° outside the knob, from lower left round the top to lower right, with
+  // 0 and 10 (or MIN and MAX) at the ends, cut like the labels; left out with a word when it would run into something
+  placedOpen.filter(po => ENC_DIAL_KINDS.has(po.c.kind) && ["ticks","0-10","minmax"].includes(po.c.dial) && po.face !== "bottom").forEach(po => {
+    const c = po.c, face = po.face, cx = (po.bb[0] + po.bb[2])/2, cy = (po.bb[1] + po.bb[3])/2, rk = clamp(+c.knob || 20, 6, 60)/2;
+    const n = c.dial === "ticks" ? 11 : 11, th = 2.6, ends = c.dial === "0-10" ? ["0", "10"] : c.dial === "minmax" ? ["MIN", "MAX"] : null;
+    const ro = rk + 3.2 + (ends ? th + 1.5 : 0), out = [cx - ro, cy - ro, cx + ro, cy + ro], lim = face === "top" ? po.lim || [-1e9, -1e9, 1e9, 1e9] : po.lim || [-1e9, -1e9, 1e9, 1e9];
+    const clash = taken[face].find(o => o.n !== po.i + 1 && out[0] < o.bb[2] + 0.4 && o.bb[0] < out[2] + 0.4 && out[1] < o.bb[3] + 0.4 && o.bb[1] < out[3] + 0.4);
+    if (out[0] < lim[0] || out[1] < lim[1] || out[2] > lim[2] || out[3] > lim[3] || clash){
+      warn.push({ t:`Scale round opening ${po.i + 1} left out`, s:`Its scale reaches ${ro.toFixed(0)} mm from the middle of ${po.lab.toLowerCase()} and ${clash ? `would run into ${clash.n ? "opening " + clash.n : clash.what}` : "goes off the face"}: move it, or choose a smaller knob.` }); return; }
+    const segs = [];
+    for (let k = 0; k < n; k++){ const a = (225 - 270*k/(n - 1))*Math.PI/180, major = k === 0 || k === n - 1 || k === (n - 1)/2, r1 = rk + 1, r2 = rk + (major ? 3.2 : 2.2);
+      segs.push([cx + r1*Math.cos(a), cy + r1*Math.sin(a), cx + r2*Math.cos(a), cy + r2*Math.sin(a)]); }
+    if (ends) ends.forEach((t2, e) => { const a = (e ? -45 : 225)*Math.PI/180, rr = rk + 3.2 + th*0.9;
+      segs.push(...C.strokeText(t2, cx + rr*Math.cos(a), cy + rr*Math.sin(a) - th*0.4, th).segs); });
+    labelsOn[face].push(...C.strokePolys(segs, Math.max(0.3, lhalf*0.8), 0.04)); taken[face].push({ n:0, what:"a knob's scale", bb:out });
   });
   // art on the box (Session 53): each piece placed on its face once the openings and labels are, kept clear of them
   const artOn = { front:[], back:[], left:[], right:[], top:[], bottom:[] }, artInfo = [], boxSlot0 = clamp(+E.boxSlot || 0, 0, state.slots.length - 1);
@@ -21404,6 +21470,10 @@ function enclosureFields(p){
       note(g, `<b>Wire to cut:</b> ${Object.entries(tot).map(([c, l]) => `${esc(c)} ${l} mm`).join(", ")} (with 10% and 20 mm to spare on each).`);
       buttonRow(g, [["Copy the wiring list", ()=>{ try { navigator.clipboard.writeText(encWiringText(E, I).join("\n")).then(() => notify("The wiring list is copied.")); } catch (e) { notify("Copying isn't allowed here."); } }]]); }
     checkField(g, "Show the wires in the plan", ()=>viewOpts.boxWires !== false, v=>{ viewOpts.boxWires = v; renderTab(); });
+    // a firmware starter from the wiring (Session 64)
+    const fw = wires.length ? encFirmware(E, I, "my box") : null;
+    if (fw && fw.n){ note(g, fw.kind === "esphome" ? `<b>Firmware:</b> an ESPHome starter with a component for each part wired to the board (the download has it as esphome.yaml). Check every pin before you flash it.` : `<b>Firmware:</b> the pins as Arduino #defines (pins.h in the download).`);
+      buttonRow(g, [[fw.kind === "esphome" ? "Copy the ESPHome starter" : "Copy the pins", ()=>{ try { navigator.clipboard.writeText(fw.text.join("\n")).then(() => notify("Copied: paste it into a new file.")); } catch (e) { notify("Copying isn't allowed here."); } }]]); }
   }, Array.isArray(E.wires) && E.wires.length > 0);
   // the inside of the box (Session 46): the parts shown, levels and dividers
   group(p, "Inside: levels and dividers", g => {
@@ -21560,6 +21630,12 @@ function enclosureFields(p){
       }
       if (k.kind === "vent") segField(box, [["slots","Slots"],["honeycomb","Honeycomb"],["holes","Round holes"]], ()=>c.style, v=>{ c.style = v; baseChanged(); });
       if (k.kind !== "round" && k.kind !== "grille") checkField(box, "Turn it 90°", ()=>c.rot, v=>{ c.rot = v; renderTab(); encOpeningChanged(i); });
+      // a scale round its knob (Session 64)
+      if (ENC_DIAL_KINDS.has(c.kind) && c.face !== "bottom"){
+        selField(box, "Scale round the knob", [["","None"],["ticks","Ticks"],["0-10","0 to 10"],["minmax","MIN to MAX"]], ()=>c.dial || "", v=>{ c.dial = v; renderTab(); baseChanged(); });
+        if (c.dial) numField(box, { label:"Knob diameter (mm)", min:6, max:60, step:1, def:20, get:()=>+c.knob || 20, set:v=>c.knob = v, onChange:baseChanged,
+          sub:()=>"The ticks go just outside it. Put the opening's label above, or leave it out." });
+      }
       // a rain hood over it, outside (Session 64)
       if (wall && !c.notch){ checkField(box, "Rain hood over it (for boxes outdoors)", ()=>c.hood === true, v=>{ c.hood = v; renderTab(); baseChanged(); });
         if (c.hood === true) note(box, "A little roof over it outside: rain runs off past the opening. Its underside rises at 45°, so it prints without support."); }
@@ -24772,6 +24848,7 @@ function sanitizeProject(data){
       if (c.auto === "ports"){ o.auto = "ports"; if (encHas(BOARDS, c.board)) o.board = c.board; if (Number.isInteger(c.port) && c.port >= 0 && c.port < 32) o.port = c.port; }
       if (okId(c.id)) o.id = c.id;
       if (c.hood === true) o.hood = true;
+      if (["ticks","0-10","minmax"].includes(c.dial)) o.dial = c.dial; if (c.knob != null && isFinite(+c.knob)) o.knob = Math.min(60, Math.max(6, +c.knob));
       return o;
     });
     // the wiring (Session 63): up to 40 wires, each end an id, pins plain text, a colour from the list
@@ -25032,6 +25109,8 @@ async function buildZip(parts, title){
   const asm = state.base.type === "enclosure" && enclosureInfo && !state.base.enclosure.test ? encAssembly() : [];
   const wiring = state.base.type === "enclosure" && enclosureInfo && !state.base.enclosure.test ? encWiringText(state.base.enclosure, enclosureInfo) : null;
   if (wiring) zip.file("wiring.txt", wiring.join("\r\n"));
+  const fw = state.base.type === "enclosure" && enclosureInfo && !state.base.enclosure.test && (state.base.enclosure.wires || []).length ? encFirmware(state.base.enclosure, enclosureInfo, title) : null;
+  if (fw) zip.file(fw.file, fw.text.join("\n") + "\n");
   if (asm.length) zip.file("how-to-assemble.txt", [`How to put ${title} together`, "", ...asm.map((t, k) => `${k + 1}. ${t}`), "",
     ...(enclosureInfo.need && enclosureInfo.need.length ? ["What you'll need:", ...enclosureInfo.need.map(([n, w]) => `  ${n} x ${w}`)] : [])].join("\r\n"));
   if (state.base.type === "jigsaw" && jigsawInfo) zip.file("cad/puzzle-cut-lines.svg", C.jigsawSVG(jigsawInfo.cut, title));
@@ -25061,6 +25140,7 @@ async function buildZip(parts, title){
     ...(cardNfcText(title) ? ["An NFC tag goes inside: nfc-tag.txt says where to pause and put it in."] : []),
     ...(asm.length ? ["A project box: how-to-assemble.txt has the steps and what you'll need."] : []),
     ...(wiring ? ["wiring.txt lists every wire, end to end, with its colour and length."] : []),
+    ...(fw ? [fw.kind === "esphome" ? "esphome.yaml is a starting point for the firmware (ESPHome), from the wiring: check every pin." : "pins.h has the pins from the wiring as Arduino #defines: check every pin."] : []),
     ...(nPlates ? [`It prints on ${nPlates} plates: open plates/plate-1-prusa-orca.3mf (or -bambu.3mf) and so on, one plate at a time.`,
       "  The model files above hold every plate side by side. how-it-goes-together.txt says how the parts join."] : []),
     ...(P.some(p => p.paint) ? ["Painted on the Paint tab: both 3mf files carry the paint, so the slicer shows it painted and",
@@ -25363,7 +25443,7 @@ window.MakerForge = {
   get enclosure(){ return enclosureInfo; },
   get cutouts(){ return CUTOUTS; }, get boards(){ return BOARDS; }, boardPorts:BOARD_PORTS, addBoardPorts:encAddBoardPorts, arrange:encArrange,
   // room for parts (Session 61), for the tests
-  boxRoom:{ place:encPlace, freeU:encFreeU, onFace:encRoomOnFace, shrink:encShrinkWrap, fixAll:encFixAll, makeRoom:encMakeRoom, busy:encBusy, assembly:encAssembly, kicad:kicadParse, importKicad:encImportKicad, heat:encHeat, wires:encWires, kits:ENC_KITS, startKit:encStartKit, battery:encBattery, batteryWh:encBatteryWh, fit:{ printer:printerFit, sample:fitSample, defaults:FIT_DEFAULT, clean:cleanFit, rows:FIT_ROWS, save:fitSave, screw:encScrew, card:ENC_HOLDERS } }, boxDrag:{ pick:boxDragPick, start:h => { boxDrag = Object.assign(h, { id:-1, moved:false, t:0 }); }, to:lr => { const ok = boxDragTo(lr); if (ok && boxDrag) boxDrag.moved = true; return ok; }, end:boxDragEnd }, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
+  boxRoom:{ place:encPlace, freeU:encFreeU, onFace:encRoomOnFace, shrink:encShrinkWrap, fixAll:encFixAll, makeRoom:encMakeRoom, busy:encBusy, assembly:encAssembly, kicad:kicadParse, importKicad:encImportKicad, heat:encHeat, wires:encWires, kits:ENC_KITS, startKit:encStartKit, battery:encBattery, batteryWh:encBatteryWh, firmware:encFirmware, fit:{ printer:printerFit, sample:fitSample, defaults:FIT_DEFAULT, clean:cleanFit, rows:FIT_ROWS, save:fitSave, screw:encScrew, card:ENC_HOLDERS } }, boxDrag:{ pick:boxDragPick, start:h => { boxDrag = Object.assign(h, { id:-1, moved:false, t:0 }); }, to:lr => { const ok = boxDragTo(lr); if (ok && boxDrag) boxDrag.moved = true; return ok; }, end:boxDragEnd }, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
   get jigsaw(){ return jigsawInfo; },
   get lithophane(){ return lithoInfo; },
   get print(){ return printFresh() ? printInfo : null; },

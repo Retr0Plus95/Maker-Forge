@@ -164,6 +164,13 @@ const EASYEDA = JSON.stringify({ head:{ docType:"3", c_para:{ name:"Weather node
     await press(/^Remove it from my parts$/);
     check(R.myParts().length === 1, "and taken out again");
     win.localStorage.removeItem("makerforge.parts");
+    // a board measured from a photo: a 60 × 40 board at 10 px/mm, its corners clicked, its four holes and a USB-C at the left edge
+    const m = { a:[100, 500], b:[700, 100], w:60, d:40, holes:[[135, 465], [665, 465], [135, 135], [665, 135]], ports:[[102, 300, "usbc"]], screw:"M3", label:"Photo test" };
+    const pb = R.boardFromPhoto(m);
+    check(pb && pb.w === 60 && pb.d === 40 && JSON.stringify(pb.holes) === "[[3.5,3.5],[56.5,3.5],[3.5,36.5],[56.5,36.5]]" && JSON.stringify(pb.ports) === '[["x0",20,"usbc",1.6]]', "a board from a photo: its holes and port in mm, from the clicks", JSON.stringify(pb));
+    await fresh({ w:120, d:90, h:40 }); R.openPhotoBoard(); await sleep(50);
+    Object.assign(R.openPhotoBoard.m, m); [...document.querySelectorAll("#modal button")].find(b => b.textContent === "Make the board").click(); await settle();
+    check(/^kc_/.test(E().board) && E().customBoards[0].label === "Photo test" && document.querySelector("#modal").hidden && closed(), "Make the board puts it in the box", E().board);
   }
 
   console.log("\nsaved and opened again; a hostile project");

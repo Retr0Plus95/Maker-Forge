@@ -13762,6 +13762,57 @@ function openingDrawing(kind){
   if (rings.length) svgEl("path", { d:rings.map(L => "M" + L.map(([x, y]) => `${x.toFixed(2)},${(-y).toFixed(2)}`).join("L") + "Z").join(""), class:"pc-cut" }, svg);
   return svg;
 }
+/* A board measured from a photo (Session 65): a photo taken from straight above, two opposite corners clicked and the real
+   width and depth typed (with a ruler), then each mounting hole and each port at an edge clicked; it becomes a board of your
+   own (encAddCustomBoard), to save to your parts. Points in the photo are mapped linearly between the two corners. */
+const PHOTO_PORTS = [["usbc","USB-C"],["micro","Micro-USB"],["usba","USB-A"],["usbb","USB-B"],["dcpcb","DC jack"],["rj45","Ethernet"],["hdmi","HDMI"],["jack35","Audio jack"],["sd","microSD"]];
+function boardFromPhoto(m){
+  if (!m || !m.a || !m.b) return null;
+  const w = clamp(+m.w || 0, 5, 300), d = clamp(+m.d || 0, 5, 300), x0 = Math.min(m.a[0], m.b[0]), x1 = Math.max(m.a[0], m.b[0]), y0 = Math.min(m.a[1], m.b[1]), y1 = Math.max(m.a[1], m.b[1]);
+  if (x1 - x0 < 4 || y1 - y0 < 4) return null;
+  const mm = ([px, py]) => [+((px - x0)/(x1 - x0)*w).toFixed(2), +((y1 - py)/(y1 - y0)*d).toFixed(2)];         // from the board's left and front (the photo's bottom)
+  const inside = q => q[0] >= -1 && q[0] <= w + 1 && q[1] >= -1 && q[1] <= d + 1;
+  const holes = (m.holes || []).map(mm).filter(inside).map(([x, y]) => [clamp(x, 0, w), clamp(y, 0, d)]);
+  const ports = (m.ports || []).map(([px, py, kind]) => { const [x, y] = mm([px, py]), dist = { x0:x, x1:w - x, y0:y, y1:d - y }, edge = Object.keys(dist).sort((a2, b2) => dist[a2] - dist[b2])[0];
+    const k = (KICAD_PORTS.find(q => q[1] === kind) || [0, kind, 2])[2]; return [edge, +(edge[0] === "x" ? y : x).toFixed(2), kind, k]; }).filter(q => encHas(CUTOUTS, q[2]));
+  return { label:String(m.label || "My photo board").slice(0, 30), w, d, holes:holes.slice(0, 16), screw:encHas(SCREWS, m.screw) ? m.screw : "M3", ports:ports.slice(0, 16), panel:[], tall:clamp(+m.tall || 10, 1, 60) };
+}
+function openPhotoBoard(){
+  const E = state.base.enclosure, m = { a:null, b:null, w:60, d:40, holes:[], ports:[], mode:"corners", port:"usbc", screw:"M3", label:"My photo board", img:null };
+  openModal("A board from a photo", body => {
+    $("#modal").classList.add("wide");
+    note(body, "A photo of the board from straight above (on a cutting mat or beside a ruler helps). 1: click two opposite corners. 2: type its real width and depth. 3: click each mounting hole's middle, and each port where it meets the edge. Then make it.");
+    const bar = document.createElement("div"); bar.className = "partbar"; body.appendChild(bar);
+    const fi = document.createElement("input"); fi.type = "file"; fi.accept = "image/*"; fi.setAttribute("aria-label", "The photo"); bar.appendChild(fi);
+    const modes = document.createElement("div"); body.appendChild(modes);
+    const cv = document.createElement("canvas"); cv.width = 900; cv.height = 600; cv.style.cssText = "width:100%;max-width:900px;border-radius:8px;background:var(--field);cursor:crosshair;touch-action:none"; body.appendChild(cv);
+    const out = document.createElement("div"); body.appendChild(out);
+    const draw = () => { const x = cv.getContext("2d"); x.clearRect(0, 0, cv.width, cv.height);
+      if (m.img) x.drawImage(m.img, 0, 0, cv.width, cv.height);
+      const dot = ([px, py], col, r = 7) => { x.beginPath(); x.arc && x.arc(px, py, r, 0, Math.PI*2); x.fillStyle = col; x.fill && x.fill(); };
+      if (m.a && m.b && x.strokeRect){ x.strokeStyle = "#e8912a"; x.lineWidth = 3; x.strokeRect(Math.min(m.a[0], m.b[0]), Math.min(m.a[1], m.b[1]), Math.abs(m.b[0] - m.a[0]), Math.abs(m.b[1] - m.a[1])); }
+      [m.a, m.b].filter(Boolean).forEach(q => dot(q, "#e8912a"));
+      m.holes.forEach(q => dot(q, "#2e9d5b", 6)); m.ports.forEach(q => dot(q, "#2f6fd6", 6)); };
+    const panel = () => { modes.innerHTML = "";
+      segField(modes, [["corners","1: Corners"],["holes","3: Holes"],["ports","3: Ports"]], ()=>m.mode, v=>{ m.mode = v; panel(); });
+      numField(modes, { label:"Its real width (mm, left to right in the photo)", min:5, max:300, step:0.1, noReset:true, get:()=>m.w, set:v=>m.w = v, onChange:show });
+      numField(modes, { label:"Its real depth (mm, top to bottom in the photo)", min:5, max:300, step:0.1, noReset:true, get:()=>m.d, set:v=>m.d = v, onChange:show });
+      if (m.mode === "ports") selField(modes, "The port you click next", PHOTO_PORTS, ()=>m.port, v=>{ m.port = v; });
+      if (m.mode === "holes") selField(modes, "Its screws", Object.keys(SCREWS).map(k => [k, k]), ()=>m.screw, v=>{ m.screw = v; });
+      textField(modes, "Its name", ()=>m.label, v=>{ m.label = v; }, { max:30 });
+      buttonRow(modes, [["Take the last one back", ()=>{ if (m.mode === "holes") m.holes.pop(); else if (m.mode === "ports") m.ports.pop(); else { if (m.b) m.b = null; else m.a = null; } draw(); show(); }],
+        ["Make the board", ()=>{ const B = boardFromPhoto(m); if (!B){ notify("Click the board's two opposite corners first."); return; } if (encAddCustomBoard(E, B)){ $("#modal").hidden = true; notify(`${B.label}: ${B.w} × ${B.d} mm, ${B.holes.length} hole${B.holes.length === 1 ? "" : "s"}, ${B.ports.length} port${B.ports.length === 1 ? "" : "s"}. Save it to your parts on Board mounts.`); renderTab(); baseChanged(); pushHistory(); } }]]); };
+    const show = () => { const B = boardFromPhoto(m); out.innerHTML = ""; note(out, B ? `${B.w} × ${B.d} mm, ${B.holes.length} hole${B.holes.length === 1 ? "" : "s"} (${B.holes.map(q => `${q[0]}, ${q[1]}`).join("; ") || "none"}), ${B.ports.length} port${B.ports.length === 1 ? "" : "s"}.` : "Click two opposite corners of the board."); };
+    cv.addEventListener("pointerdown", e => { const r = cv.getBoundingClientRect(), q = [(e.clientX - r.left)*cv.width/Math.max(1, r.width), (e.clientY - r.top)*cv.height/Math.max(1, r.height)];
+      if (m.mode === "corners"){ if (!m.a || m.b){ m.a = q; m.b = null; } else { m.b = q; m.mode = "holes"; panel(); } }
+      else if (m.mode === "holes") m.holes.push(q); else m.ports.push([q[0], q[1], m.port]);
+      draw(); show(); });
+    fi.onchange = () => { const f = fi.files && fi.files[0]; if (!f) return; const url = URL.createObjectURL(f), im = new Image();
+      im.onload = () => { m.img = im; const k = Math.min(900/im.width, 900/im.height); cv.width = Math.round(im.width*k); cv.height = Math.round(im.height*k); draw(); URL.revokeObjectURL(url); }; im.src = url; };
+    panel(); draw(); show();
+    openPhotoBoard.m = m;                                  // (for the tests)
+  });
+}
 function openPartsBrowser(mode){
   const E = state.base.enclosure; let added = 0, query = "", grp = "", face = encAdd.face || "front";
   openModal(mode === "openings" ? "Openings, with pictures" : "Boards, modules and batteries, with pictures", body => {
@@ -14167,7 +14218,7 @@ function enclosureFields(p){
     if (more.length < 12){
       const add = document.createElement("div"); add.style.cssText = "margin-top:12px"; g.appendChild(add);
       buttonRow(add, [["Browse the parts, with pictures", ()=>openPartsBrowser("boards")], ["Import a board (KiCad, EasyEDA, Eagle)", ()=>{ const fi = document.createElement("input"); fi.type = "file"; fi.accept = ".kicad_pcb,.brd,.json";
-        fi.onchange = () => encImportKicad(fi.files && fi.files[0]); fi.click(); }]]);
+        fi.onchange = () => encImportKicad(fi.files && fi.files[0]); fi.click(); }], ["A board from a photo", openPhotoBoard]]);
       // your parts (Session 64)
       const mine = myParts(), have = new Set(mine.map(q => q.id)), own = (Array.isArray(E.customBoards) ? E.customBoards : []).filter(b => b && !have.has(b.id));
       const saveRow = [...own.map(b => [`Save “${b.label}” to my parts`, ()=>{ if (myPartsSave(b)){ notify(`${b.label} is in your parts: Add from my parts puts it in any project.`); renderTab(); } }]),
@@ -18302,7 +18353,7 @@ window.MakerForge = {
   get enclosure(){ return enclosureInfo; },
   get cutouts(){ return CUTOUTS; }, get boards(){ return BOARDS; }, boardPorts:BOARD_PORTS, addBoardPorts:encAddBoardPorts, arrange:encArrange,
   // room for parts (Session 61), for the tests
-  boxRoom:{ place:encPlace, freeU:encFreeU, onFace:encRoomOnFace, shrink:encShrinkWrap, fixAll:encFixAll, makeRoom:encMakeRoom, busy:encBusy, assembly:encAssembly, kicad:kicadParse, importKicad:encImportKicad, heat:encHeat, wires:encWires, kits:ENC_KITS, startKit:encStartKit, battery:encBattery, batteryWh:encBatteryWh, firmware:encFirmware, boardFile:boardFileParse, addCustomBoard:encAddCustomBoard, myParts, myPartsSave, measuredBoard:encMeasuredBoard, faceSVG:encFaceSVG, faceDXF:encFaceDXF, faceDrawings:encFaceDrawings, fit:{ printer:printerFit, sample:fitSample, defaults:FIT_DEFAULT, clean:cleanFit, rows:FIT_ROWS, save:fitSave, screw:encScrew, card:ENC_HOLDERS } }, boxDrag:{ pick:boxDragPick, start:h => { boxDrag = Object.assign(h, { id:-1, moved:false, t:0 }); }, to:lr => { const ok = boxDragTo(lr); if (ok && boxDrag) boxDrag.moved = true; return ok; }, end:boxDragEnd }, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
+  boxRoom:{ place:encPlace, freeU:encFreeU, onFace:encRoomOnFace, shrink:encShrinkWrap, fixAll:encFixAll, makeRoom:encMakeRoom, busy:encBusy, assembly:encAssembly, kicad:kicadParse, importKicad:encImportKicad, heat:encHeat, wires:encWires, kits:ENC_KITS, startKit:encStartKit, battery:encBattery, batteryWh:encBatteryWh, firmware:encFirmware, boardFromPhoto, openPhotoBoard, boardFile:boardFileParse, addCustomBoard:encAddCustomBoard, myParts, myPartsSave, measuredBoard:encMeasuredBoard, faceSVG:encFaceSVG, faceDXF:encFaceDXF, faceDrawings:encFaceDrawings, fit:{ printer:printerFit, sample:fitSample, defaults:FIT_DEFAULT, clean:cleanFit, rows:FIT_ROWS, save:fitSave, screw:encScrew, card:ENC_HOLDERS } }, boxDrag:{ pick:boxDragPick, start:h => { boxDrag = Object.assign(h, { id:-1, moved:false, t:0 }); }, to:lr => { const ok = boxDragTo(lr); if (ok && boxDrag) boxDrag.moved = true; return ok; }, end:boxDragEnd }, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
   get jigsaw(){ return jigsawInfo; },
   get lithophane(){ return lithoInfo; },
   get print(){ return printFresh() ? printInfo : null; },

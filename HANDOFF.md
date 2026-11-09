@@ -2716,6 +2716,8 @@ This session is the boxes' part of that, as 0.56.0 (its own pull request after #
 - **Imports** (`boardFileParse`: `kicadParse`, `eagleParse` (DOMParser), `easyedaParse` (Standard JSON, 10 mil units, y down);
   `boardFromFeatures`), `encAddCustomBoard` shared, and **your parts** (`myParts`, `myPartsSave`, `encMeasuredBoard`;
   `makerforge.parts`, up to 40; adding copies into `E.customBoards`). `KICAD_PORTS`/`KICAD_PANEL` know TYPE-C, SW-TH, TS, KEY-6X6.
+- **A board from a photo** (`openPhotoBoard`, `boardFromPhoto`, `PHOTO_PORTS`): two opposite corners and the real width and depth set
+  a linear map (the photo taken from straight above); holes and edge ports clicked; `encAddCustomBoard`.
 
 Shared features (the "make it global" answer, begun here):
 - **A QR code on anything** (`cleanQr`, `qrCanvas`, `qrSrc`, `addQrItem`, `qrPanel`; an item's `qr` {text, ec, quiet}, `_qrSig` a

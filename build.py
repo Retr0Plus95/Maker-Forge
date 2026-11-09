@@ -74,5 +74,10 @@ manual = manual_html((root / "MANUAL.md").read_text(encoding="utf-8"))
 assert "</script" not in manual.lower()
 assert app.count('/*MANUAL*/""') == 1, 'placeholder /*MANUAL*/"" must appear exactly once'
 out = app.replace("/*CORE*/", core).replace("/*EXAMPLES*/", examples).replace("/*THUMBS*/{}", json.dumps(thumbs, separators=(",", ":"))).replace('/*MANUAL*/""', json.dumps(manual)).replace("/*FONTS*/{}", font_js)
+# the version badge in the header follows package.json (it was typed by hand, and 0.54.0 shipped saying v0.53.1)
+version = json.loads((root / "package.json").read_text(encoding="utf-8"))["version"]
+out, n_badge = re.subn(r'(id="verBadge">)v[0-9][0-9A-Za-z.\-]*(<)', lambda m: m.group(1) + "v" + version + m.group(2), out)
+if n_badge != 1:
+    raise SystemExit("build.py: the version badge (id=\"verBadge\") was not found once in src/app.html")
 (root / "index.html").write_text(out, encoding="utf-8")
 print("built index.html", len(out.encode("utf-8")), "bytes, with", len(files), "font files and", len(thumbs), "start pictures")

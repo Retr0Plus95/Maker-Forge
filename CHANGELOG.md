@@ -18,11 +18,20 @@ Project boxes: boards on the walls and the lid, wiring, your own boards from KiC
 - **Recipes:** a weather station, an ESP32 sensor box, a bench power supply, an LED strip controller, a Raspberry Pi server or a guitar pedal, in one click.
 - **Style:** a chamfered or rounded lid edge, grooved or hexagon walls, and a band of another colour.
 - **The plan:** drag openings too, distances to the walls and neighbours, snapping (Alt to drag freely), and Tab between parts.
-- **Fit test for the holders:** one card with every way a board is held, to try before the real box.
+- **Calibrate once, every box fits:** the calibration card has every way a box holds a part in three sizes (crush ribs, snap clips, the rim, snap pins, heat-insert holes, screw standoffs, strap loops). Pick the one that fitted best on each row, and your printer remembers it: every box after uses your sizes. The small test box can keep its lid gap and openings' clearance for every new box, and all the fits are numbers on the Colours tab.
+- **A bird house camera, in two recipes:** a battery box (an 8000 mAh 126090 LiPo on strap loops, a TP4056 charger with USB-C through the wall, an MT3608 boost, a small dome motion sensor) and a camera box (an ESP32-CAM in snap clips), both with a gasket and screw ears.
+- **A camera holder in the lid:** the lens hole and a frame inside that holds an OV2640 camera with its lens through the lid, printed without support.
+- **What sticks out behind the wall:** switches, jacks, sockets, pilot lights, pots and motion sensors show their body inside the box, the box says when one meets a board, and Make it all fit moves the wall out.
+- **The 126090 LiPo** (8000 mAh) is in the batteries.
 
 **Fixed**
 - A saved project, opened again, lost a module's strap loops, a level's brackets on the front and back walls, and the link between the main board and its port openings (so they no longer followed it, and Arrange made them again); modules more than 150 mm from the middle came back nearer.
 - A fan in a wall only counted for cooling when the parts gave off over 15 W.
+- The version in the header said v0.53.1 in 0.54.0: it now always shows the version you have.
+- The little fins under screw ears ended in a knife-edge where they met the wall: the print check counted it as walls thinner than the nozzle, and a slicer could leave it out. They now end in a small step.
+- A board in a cradle put close to a wall for its ports left a sliver of its rim standing between the board and the wall, and on a thin wall the rim reached through to the outside. The rim now stops at the wall.
+- The print check saw thin walls where two parts of one piece overlapped (a board's rim on a battery tray's, for one), as if the overlap were a gap. It now reads them the way slicers do.
+- The bench power supply recipe put its inlet, switch and sockets right in front of the power supply: their bodies had no room behind the front wall. The box is now deep enough.
 - A label too long for its place next to an opening was simply left out: it now goes above the opening, and is only dropped when there is no room there either (Label every opening and the recipes).
 
 ## 0.54.0

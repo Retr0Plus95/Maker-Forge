@@ -2625,10 +2625,65 @@ a box shrunk until everything is left out shows its old clashes again once a new
 board on a wall, the catalogue's shapes. Not tested: a real KiCad board beyond the test file (other footprint libraries name
 parts differently: the patterns are in `KICAD_PORTS` / `KICAD_PANEL`), and real prints of the wall standoffs, the styles and the card.
 
+## Session 64: calibration, the bird house camera, what sticks out behind a wall (still v0.55.0, the same pull request)
+
+The owner asked what the box maker still misses, was given a list (calibration feed-back, box shapes, plungers and light pipes,
+more board imports and a parts library, drill templates and face drawings, the engine) and answered "Do all of them then we
+calibrate tonight, I need to print a box for a lip 8k mah 126090 and a small dome movment sensor and then add a small esp32 cam
+in another box for a little bird house". This session did what tonight needs, in the 0.55.0 pull request (#47, not merged yet);
+the rest is next (see Next).
+
+- **Your printer's fits** (`FIT_DEFAULT`, `FIT_RANGE`, `FIT_STEP`, `FIT_DIR`, `cleanFit`, `printerFit`, `encFit`, `encFitOver`,
+  `encScrew`, `storedFit`, `fitSave`): `state.printer.fit`, cleaned by `cleanPrinter` (only when there, so a project from before
+  is unchanged), saved with the printer (`makerforge.printer`), carried by a project file; a project without fits keeps this
+  browser's (`loadProject` keeps `myFit`). `gap` (the room round a board in a cradle, was `ENC_CRADLE.gap`), `rib` and `clip`
+  (`ENC_GRIP.into`/`.over`), `pin` (a snap pin this much thinner than the screw's clearance, was 0.3), `pilot` and `insert` (added
+  to every hole from `SCREWS` in the box: every lookup there goes through `encScrew`), `loop` (`ENC_TRAY.loop.gap`), and `lid` /
+  `clear`, where a new box's `fit` and `clear` start (`DEFAULTS` reads them with `storedFit`, which stands alone: DEFAULTS runs
+  before the constants exist). The defaults are the old numbers, so nothing changes until the fits are set: the print survey
+  is unchanged.
+- **The calibration card** (`encHolderCard`, `ENC_HOLDERS` now 172 × 122 mm, `FIT_ROWS`): seven rows (RIBS, CLIPS, RIM, LOOP,
+  PIN, INS, WALL), three sizes each, 1 the tightest, built with `encFitOver` set to each sample's sizes. Its middle sizes are
+  `E.cal` (kept by `sanitizeProject`), set when the card is chosen, so the picks still match the printed card after the fits
+  change; `encCalibrationPanel` has a 1-2-3 pick per row, **Make a new card round my picks** and **Back to the standard fits**.
+  `encLoopAt` is the strap loop on its own (the tray uses it). The small box test has **Keep these gaps for every new box**.
+  Settings: `fitSettingsGroup` on the Colours tab ("Fits (from the calibration card)").
+- **The bird house** (two `ENC_KITS`): the battery box (a `lipo126090`, 94 × 61 × 13 with its protection board, on strap loops;
+  the TP4056 made the main board so `encAddBoardPorts(true, true)` puts its USB-C through the wall; an MT3608; `pirmini` in front;
+  a PG7 gland; gasket, ears) and the camera box (an ESP32-CAM in clips, a `camholder` over it, h 22). Recipes take `holds`,
+  `main`, `over` and `h` now; with `main`, Arrange may make the box bigger (`encArrange(false)` when it does not fit).
+- **The camera holder** (`camholder` in `CUTOUTS`, `ENC_CAM`, `camFrames`, `info.cams`): the lens hole, and a three-sided frame
+  on the lid's inside (8.5 mm + the gap fit, 1.2 mm walls, 3.2 mm tall), open towards the front (or the right, turned); left out
+  with a warning when it would reach the lip, and a warning when a board's parts reach it. A ghost shows the camera.
+- **What sticks out behind a wall** (`deep`, `body` on 45 `CUTOUTS`; `placedOpen`, `info.behind`): a ghost behind each panel
+  part, and a warning when it meets a board on the floor; `encFixAll` grows that wall by the overlap (up to 3 rounds). A board's
+  own port openings (`auto: "ports"`) and a KiCad board's panel parts are skipped. It found the bench power supply recipe's inlet,
+  switch and sockets inside the LRS-100 (the recipe's box is now 27 mm deeper).
+
+**Fixed on the way** (the bird house boxes in Chromium said "4 walls are thinner than the nozzle"): the screw ears' 45° fins
+ended in a knife-edge at the wall (now a 0.6 mm step); a floor cradle's rim had no bounds, so a board put 1 mm from a wall for its
+ports (Arrange, Add this board's ports) left a free sliver of rim and, on a wall under 1.6 mm, reached through it (floor cradles
+are clipped to the inside now, like a level's); and `sliceMask` in `src/core.js` filled slice rows odd-even, so two overlapping
+shells of one part (the TP4056's rim on the LiPo tray's: Arrange keeps 3 mm between boards, their rims reach 1.9 and 2.2 mm)
+read as a gap with thin walls either side. It now fills by winding (each crossing's way from the triangle's normal), as slicers
+do, with odd-even kept for a row with a crossing whose way is unclear. The version badge was typed by hand and said v0.53.1 in
+0.54.0: `build.py` now writes `package.json`'s version into it (and stops if the badge is not found).
+
+Tested: `tools-boxcal-test.js` (new, in `test:enclosure`): the card (closed, no support, fits a 220 mm bed, three sizes a row,
+1 the tightest), a pick (the printer's fit, stored, the card unchanged, shown picked), a new card round the picks, every fit used
+by a box (ribs, the cradle's room, pilot and insert holes, the panel's words, strap loops still without support), a new box's
+lid gap and clearance, the small box's button, Settings, a project keeping its fits, one from before keeping the browser's, a
+hostile one; both bird house recipes (no warnings, closed, no support), the frame (on the lid, near a wall, over a board),
+a rocker switch in front of an Uno and Make it all fit, a Pi's own audio jack. Not tested: a real print of the card (tonight),
+the OV2640 in the frame, the 126090's real size with its protection board, and the body depths (typical datasheet values).
+
 ## Next (no plan yet)
 
-The 0.54/0.55 owner list is done. Ideas left from Session 62's answer: none; from earlier lists see Unfinished. The holders'
-fit-test card is ready for a real print: its results should set `ENC_CRADLE`, `ENC_TRAY.loop` and the snap pins' sizes.
+The owner's list from Session 64, still to do (each for a release of its own, from main after #47 is merged): box shapes (a
+sloped front, round and hexagonal boxes, a clamshell split), printed button plungers, a flexing button in the lid and printed
+light pipes, EasyEDA and Eagle board imports, a board measured from a photo, your own parts library kept across projects,
+paper drilling templates for a bought box and each face as SVG/DXF, and the engine (the body built with Manifold, builds on the
+helper thread). The calibration card's real print (the owner, tonight) may move `FIT_DEFAULT`.
 
 ## Earlier plan: 0.55 (done in 0.54.0)
 
@@ -2786,7 +2841,7 @@ with the real mouse in Chromium.
 
 - Enclosure opening sizes are typical datasheet values: modules differ between makers, verify with calipers (Session 11).
 - Enclosure: wall openings wider than the bridge limit (default 10 mm, e.g. USB-A, LCD bezels) are reported as needing support; the Openings page offers a pointed top or a notch for ports and rectangles (Session 12), but snap-in parts keep their flat tops. Since Session 47 the PSU box quick start reads about 184 mm² (the IEC inlet, rocker and voltmeter keep flat tops for their bezels); fan grilles default to slots and honeycomb in walls is flat-topped, both without support.
-- Enclosure: artwork goes on the lid only (inlay or engraved), not on the walls.
+- Enclosure: artwork goes on every face since Session 54 (words, icons and the Art tab picture; engraved, inlaid or raised); this line said "the lid only" until Session 64.
 - Enclosure, Session 40 not yet printed: the join flanges (an M3 insert in a 4.0 mm hole with a pointed top, M3 × 14 screws through 3.4 mm holes), the lid posts on them and the lid in parts. Print a small box in two parts first (**Always**, 2 parts).
 - Cutting (Session 32) needs a closed model: one with gaps is refused, and the app does not repair it. Pieces of a model that overlap (eyes set into a head, the shell's floor inside its walls) are joined before a cut, so its volume reading drops by the overlap. On a 300 000-triangle model each change to engraved artwork takes about a second on the page. An inlay's pieces touch the object exactly; how each slicer takes that is still to be seen.
 - Enclosure, Session 12 fits not yet printed: magnet pockets (+0.2 mm on diameter and depth), the sliding lid's 0.2 mm gap and 45° rails, foot recesses, 0.4 mm label depth and 0.6 mm label lines, the lid logo in its first layers. Print the fit test first.

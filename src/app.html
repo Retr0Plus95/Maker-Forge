@@ -484,7 +484,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.53.1</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.55.0</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -979,8 +979,8 @@ const DEFAULTS = () => ({
     shell:{ shape:"round", dia:70, w:70, d:70, h:80, wall:0.8, floor:2 },
     box:{ w:90, d:70, h:4 }, cyl:{ dia:70, h:90 }, hex:{ dia:80, h:6 }, sphere:{ dia:70 },
     stl:{ name:"", scale:100, flat:0 },
-    enclosure:{ w:100, d:64, h:36, wall:2, floor:2, radius:4, lid:"screw", lidThick:2.4, lipH:3, lipW:1.2, fit:0.2,
-      fasten:"insert", screw:"M3", head:"sink", postStyle:"full", snap:false, hinge:false, gasket:0, teardrop:false, grow:true, lensSlot:0, clear:0.2, magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
+    enclosure:{ w:100, d:64, h:36, wall:2, floor:2, radius:4, lid:"screw", lidThick:2.4, lipH:3, lipW:1.2, fit:storedFit("lid", 0.2),
+      fasten:"insert", screw:"M3", head:"sink", postStyle:"full", snap:false, hinge:false, gasket:0, teardrop:false, grow:true, lensSlot:0, clear:storedFit("clear", 0.2), magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
       mount:"none", earN:2, tabN:2, earHole:4.5, earT:3, strapW:12, strapT:2.5, strapDir:"across",
       labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
       split:"bed", splitParts:2, splitScrew:"M3",
@@ -2063,6 +2063,33 @@ const SCREWS = {
   "M3":   { insert:4.0, insertDepth:6, pilot:2.5, clear:3.4, head:6.0, headH:3.2 },
   "M4":   { insert:5.6, insertDepth:8, pilot:3.3, clear:4.5, head:7.6, headH:4.2 }
 };
+/* Your printer's fits (Session 64): what the calibration card found, kept with the printer settings (this browser remembers
+   them for every new project; a project file carries them too). Each is in mm. FIT_DEFAULT is what every box used before:
+   gap, the room round a board in a cradle; rib, how far a cradle's crush ribs press into its edge; clip, how far a snap clip's
+   hook reaches over it; pin, how much thinner than the screw's hole a snap pin is; pilot and insert, added to every
+   self-tapping and heat-insert hole; loop, the height under a strap loop; lid and clear, a new box's lid gap and openings. */
+const FIT_DEFAULT = { gap:0.3, rib:0.15, clip:0.6, pin:0.3, pilot:0, insert:0, loop:3, lid:0.2, clear:0.2 };
+const FIT_RANGE = { gap:[0, 1.2], rib:[0, 0.6], clip:[0.2, 1.6], pin:[0, 1.2], pilot:[-0.8, 0.8], insert:[-0.8, 0.8], loop:[1.5, 6], lid:[0, 0.8], clear:[-0.3, 1] };
+// the card's three sizes of each, 1 the tightest: the middle one is the fit now, the others a step either side (dir -1: a
+// bigger number holds tighter)
+const FIT_STEP = { gap:0.15, rib:0.1, clip:0.2, pin:0.15, pilot:0.2, insert:0.2, loop:0.5 }, FIT_DIR = { rib:-1, clip:-1 };
+const fitSample = (cal, k, i) => +(clamp(cal[k] + (FIT_DIR[k] || 1)*(i - 2)*FIT_STEP[k], ...FIT_RANGE[k])).toFixed(2);
+function cleanFit(f){
+  const F = f && typeof f === "object" ? f : {}, out = {};
+  for (const k of Object.keys(FIT_DEFAULT)) if (F[k] != null && F[k] !== "" && isFinite(+F[k])) out[k] = +clamp(+F[k], ...FIT_RANGE[k]).toFixed(2);
+  if (typeof F.when === "string" && /^\d{4}-\d{2}-\d{2}$/.test(F.when)) out.when = F.when;
+  return out;
+}
+let encFitOver = null;                                   // the card's samples, each built with its own sizes
+const printerFit = () => Object.assign({}, FIT_DEFAULT, state && state.printer && state.printer.fit ? cleanFit(state.printer.fit) : {});
+const encFit = () => encFitOver || printerFit();
+// a screw's holes with the printer's pilot and insert fits added
+function encScrew(key){ const b = SCREWS[encHas(SCREWS, key) ? key : "M3"], f = encFit(); return Object.assign({}, b, { pilot:+(b.pilot + f.pilot).toFixed(2), insert:+(b.insert + f.insert).toFixed(2) }); }
+// the stored fits, for a new box's lid gap and openings: DEFAULTS runs before this file's constants exist, so this stands alone
+function storedFit(k, fb){
+  try { const P = JSON.parse(localStorage.getItem("makerforge.printer") || "null"), v = P && P.fit && typeof P.fit === "object" ? P.fit[k] : null;
+    return v != null && v !== "" && isFinite(+v) ? +Math.min(k === "clear" ? 1 : 0.8, Math.max(k === "clear" ? -0.3 : 0, +v)).toFixed(2) : fb; } catch(e){ return fb; }
+}
 const FAN_SPACING = { 25:20, 30:24, 40:32, 50:40, 60:50, 70:61.5, 80:71.5, 92:82.5, 120:105, 140:124.5 };
 // round neodymium magnets for magnet lids: diameter × thickness
 const MAGNETS = { "5x2":{ d:5, t:2 }, "6x2":{ d:6, t:2 }, "6x3":{ d:6, t:3 }, "8x2":{ d:8, t:2 }, "8x3":{ d:8, t:3 }, "10x2":{ d:10, t:2 }, "10x3":{ d:10, t:3 }, "12x3":{ d:12, t:3 } };
@@ -2155,6 +2182,8 @@ const BOARDS = {
   lipo805060:{ g:"battery", label:"LiPo pouch 805060, 3000 mAh (50 × 60 × 8)", k:"1s lipo wide", w:60, d:50, tall:8.5, check:true },
   lipo906090:{ g:"battery", label:"LiPo pouch 906090, 5000 mAh (60 × 90 × 9)", k:"1s lipo wide big", w:90, d:60, tall:9.5, check:true },
   lipo1260100:{ g:"battery", label:"LiPo pouch 1260100, 8000 mAh (60 × 100 × 12)", k:"1s lipo wide big", w:100, d:60, tall:12.5, check:true },
+  // (Session 64) 126090: 12.6 × 60 × 90 mm, with its protection board and wires about 94 long; check yours with calipers
+  lipo126090:{ g:"battery", label:"LiPo pouch 126090, 8000 mAh (60 × 90 × 12.6, about 94 with its protection board)", k:"1s lipo wide big 8000mah", w:94, d:61, tall:13, check:true },
   rc2s1300:{ g:"battery", label:"RC LiPo pack 2S 1300 mAh (about 70 × 35 × 14)", k:"7.4v rc pack xt60", w:70, d:35, tall:15, check:true },
   rc3s1300:{ g:"battery", label:"RC LiPo pack 3S 1300 mAh (about 70 × 35 × 22)", k:"11.1v rc pack xt60", w:70, d:35, tall:23, check:true },
   rc3s2200:{ g:"battery", label:"RC LiPo pack 3S 2200 mAh (about 105 × 34 × 25)", k:"11.1v rc pack xt60", w:105, d:34, tall:26, check:true },
@@ -2195,25 +2224,25 @@ const CUTOUTS = {
   hdmi:{ g:"port", label:"HDMI port", kind:"rect", w:15.4, h:6.2, r:0.5 },
   rj45:{ g:"port", label:"Ethernet (RJ45)", kind:"rect", w:16.2, h:13.8, r:0.5 },
   sd:{ g:"port", label:"microSD card slot", kind:"rect", w:12.5, h:2.4, r:0.6 },
-  barrel:{ g:"port", label:"DC barrel jack, panel mount", kind:"round", dia:8 },
+  barrel:{ g:"port", label:"DC barrel jack, panel mount", kind:"round", dia:8, deep:14 },
   dcpcb:{ g:"port", label:"DC barrel jack on a board (DC-005)", kind:"rect", w:9.2, h:11.2, r:0.5 },
-  xt60:{ g:"port", label:"XT60 battery plug, panel mount", kind:"rect", w:16.2, h:8.6, r:1.5 },
-  jack35:{ g:"port", label:"Audio jack 3.5 mm, panel mount", kind:"round", dia:6.2 },
+  xt60:{ g:"port", label:"XT60 battery plug, panel mount", kind:"rect", w:16.2, h:8.6, r:1.5, deep:16 },
+  jack35:{ g:"port", label:"Audio jack 3.5 mm, panel mount", kind:"round", dia:6.2, deep:13 },
   sma:{ g:"port", label:"SMA antenna socket (an ESP32-CAM or LoRa antenna)", kind:"round", dia:6.5 },
-  iec:{ g:"port", label:"IEC C14 power inlet, snap-in", kind:"iec", w:27.4, h:19.6 },
-  banana:{ g:"port", label:"Banana socket / binding post", kind:"round", dia:8.2 },
-  btn:{ g:"button", label:"Push button, 12 mm", kind:"round", dia:12.2 },
-  btn16:{ g:"button", label:"Push button, 16 mm", kind:"round", dia:16.2 },
-  btn22:{ g:"button", label:"Arcade / e-stop button, 22 mm", kind:"round", dia:22.3 },
-  btn30:{ g:"button", label:"Arcade button, 30 mm", kind:"round", dia:28.2 },
+  iec:{ g:"port", label:"IEC C14 power inlet, snap-in", kind:"iec", w:27.4, h:19.6, deep:23 },
+  banana:{ g:"port", label:"Banana socket / binding post", kind:"round", dia:8.2, deep:20 },
+  btn:{ g:"button", label:"Push button, 12 mm", kind:"round", dia:12.2, deep:20 },
+  btn16:{ g:"button", label:"Push button, 16 mm", kind:"round", dia:16.2, deep:22 },
+  btn22:{ g:"button", label:"Arcade / e-stop button, 22 mm", kind:"round", dia:22.3, deep:32 },
+  btn30:{ g:"button", label:"Arcade button, 30 mm", kind:"round", dia:28.2, deep:32 },
   tact:{ g:"button", label:"Tactile button cap, 6 mm (a hole to press it through)", kind:"round", dia:4 },
-  toggle:{ g:"button", label:"Mini toggle switch (M6)", kind:"round", dia:6.3 },
-  toggle12:{ g:"button", label:"Toggle switch, large (M12)", kind:"round", dia:12.2 },
+  toggle:{ g:"button", label:"Mini toggle switch (M6)", kind:"round", dia:6.3, deep:20 },
+  toggle12:{ g:"button", label:"Toggle switch, large (M12)", kind:"round", dia:12.2, deep:30 },
   slide:{ g:"button", label:"Slide switch SS12D00 (the small on/off)", kind:"rect", w:8.8, h:3.8, r:0.4 },
-  rocker:{ g:"button", label:"Rocker switch KCD1 (19 × 13)", kind:"rect", w:19.2, h:13, r:0.5 },
+  rocker:{ g:"button", label:"Rocker switch KCD1 (19 × 13)", kind:"rect", w:19.2, h:13, r:0.5, deep:20 },
   rockerL:{ g:"button", label:"Rocker switch, large (30 × 22)", kind:"rect", w:30.2, h:22.2, r:0.5 },
-  pot:{ g:"button", label:"Potentiometer / knob shaft (M7)", kind:"round", dia:7.3 },
-  encoder:{ g:"button", label:"Rotary encoder EC11 / KY-040 (M7 nut)", kind:"round", dia:7.3 },
+  pot:{ g:"button", label:"Potentiometer / knob shaft (M7)", kind:"round", dia:7.3, deep:15, body:17 },
+  encoder:{ g:"button", label:"Rotary encoder EC11 / KY-040 (M7 nut)", kind:"round", dia:7.3, deep:14, body:13 },
   keysw:{ g:"button", label:"Keyboard key switch (Cherry MX type), 14 mm square", kind:"rect", w:14, h:14, r:0 },
   joystick:{ g:"button", label:"Thumb joystick KY-023 (stick and its travel)", kind:"round", dia:24 },
   // pilot lights: a printed jewel lens (in a clear filament) for a plain LED, or a bought panel-mount one
@@ -2221,12 +2250,12 @@ const CUTOUTS = {
   pilotp3:{ g:"light", label:"Pilot light, printed jewel lens, 3 mm LED", kind:"round", dia:6, lensFor:3 },
   ledbezel5:{ g:"light", label:"Pilot light, 5 mm LED in a chrome bezel (hole 8 mm)", kind:"round", dia:7.9 },
   ledbezel3:{ g:"light", label:"Pilot light, 3 mm LED in a chrome bezel (hole 6 mm)", kind:"round", dia:6.0 },
-  pilot8:{ g:"light", label:"Metal pilot light, 8 mm", kind:"round", dia:8 },
-  pilot10:{ g:"light", label:"Metal pilot light, 10 mm", kind:"round", dia:10 },
-  pilot12:{ g:"light", label:"Metal pilot light, 12 mm", kind:"round", dia:12 },
-  pilot16:{ g:"light", label:"Metal pilot light, 16 mm", kind:"round", dia:16 },
-  pilot19:{ g:"light", label:"Metal pilot light, 19 mm", kind:"round", dia:19 },
-  pilot22:{ g:"light", label:"Panel indicator lamp, 22 mm (AD16-22 dashboard style)", kind:"round", dia:22 },
+  pilot8:{ g:"light", label:"Metal pilot light, 8 mm", kind:"round", dia:8, deep:15 },
+  pilot10:{ g:"light", label:"Metal pilot light, 10 mm", kind:"round", dia:10, deep:18 },
+  pilot12:{ g:"light", label:"Metal pilot light, 12 mm", kind:"round", dia:12, deep:20 },
+  pilot16:{ g:"light", label:"Metal pilot light, 16 mm", kind:"round", dia:16, deep:25 },
+  pilot19:{ g:"light", label:"Metal pilot light, 19 mm", kind:"round", dia:19, deep:28 },
+  pilot22:{ g:"light", label:"Panel indicator lamp, 22 mm (AD16-22 dashboard style)", kind:"round", dia:22, deep:30 },
   led3:{ g:"light", label:"LED, 3 mm, bare hole", kind:"round", dia:3.1 },
   led5:{ g:"light", label:"LED, 5 mm, bare hole", kind:"round", dia:5.1 },
   led8:{ g:"light", label:"LED, 8 mm, bare hole", kind:"round", dia:8.1 },
@@ -2245,9 +2274,11 @@ const CUTOUTS = {
   voltamp:{ g:"screen", label:"Volt and amp meter 0.28-inch, two rows (about 46 × 26)", kind:"rect", w:45.6, h:26.2, r:0.3 },
   display:{ g:"screen", label:"Display window (my size) + 4 screws", kind:"display", w:40, h:30, hw:48, hh:38, hd:3 },
   esp32cam:{ g:"sensor", label:"ESP32-CAM / XIAO ESP32-S3 Sense camera lens (OV2640)", kind:"round", dia:8.5 },
+  // (Session 64) on the lid: the lens hole and, on the lid's inside, a frame that holds the camera (an OV2640 is 8.5 mm square)
+  camholder:{ g:"sensor", label:"Camera holder in the lid (OV2640): lens hole + a frame inside", k:"esp32-cam esp32cam ov2640 camera holder bird house nest lens frame", kind:"round", dia:8.6 },
   picam:{ g:"sensor", label:"Raspberry Pi camera module: lens + 4 screws", kind:"camera", dia:9, hw:21, hh:12.5, hd:2.2, holeShift:1.2 },
-  pir501:{ g:"sensor", label:"Motion sensor HC-SR501: dome + 2 screws", kind:"pir", dia:23.2, hw:28, hd:2.2 },
-  pirmini:{ g:"sensor", label:"Mini motion sensor (AM312 / HC-SR505): its dome", kind:"round", dia:10.4 },
+  pir501:{ g:"sensor", label:"Motion sensor HC-SR501: dome + 2 screws", kind:"pir", dia:23.2, hw:28, hd:2.2, deep:15, body:33 },
+  pirmini:{ g:"sensor", label:"Mini motion sensor (AM312 / HC-SR505): its dome", kind:"round", dia:10.4, deep:12 },
   hcsr04:{ g:"sensor", label:"Distance sensor HC-SR04: its two eyes", kind:"twin", dia:16.4, hw:26 },
   ldr:{ g:"sensor", label:"Light sensor (LDR, 5 mm)", kind:"round", dia:5.3 },
   irrx:{ g:"sensor", label:"IR remote receiver (VS1838B)", kind:"round", dia:6.2 },
@@ -2261,36 +2292,36 @@ const CUTOUTS = {
   // Session 45: many more, the most common first within each group. k: more words the search finds them by
   usbb:{ g:"port", label:"USB-B port (Arduino Uno, printers)", k:"arduino uno", kind:"rect", w:12.2, h:11, r:0.5 },
   usbmini:{ g:"port", label:"Mini-USB port", kind:"rect", w:7.8, h:4.2, r:0.5 },
-  usbcpanel:{ g:"port", label:"USB-C panel-mount socket, round (M12 thread)", k:"waterproof", kind:"round", dia:12.2 },
+  usbcpanel:{ g:"port", label:"USB-C panel-mount socket, round (M12 thread)", k:"waterproof", kind:"round", dia:12.2, deep:20 },
   usba2:{ g:"port", label:"USB-A double (stacked)", kind:"rect", w:13.6, h:14.8, r:0.4 },
   hdmimicro:{ g:"port", label:"Micro-HDMI port (Raspberry Pi 4 / 5)", kind:"rect", w:7.6, h:3.8, r:0.8 },
   hdmimini:{ g:"port", label:"Mini-HDMI port (Pi Zero)", kind:"rect", w:11.6, h:4.2, r:0.8 },
   sdfull:{ g:"port", label:"SD card slot (full size)", kind:"rect", w:26.5, h:3.5, r:0.6 },
-  keystone:{ g:"port", label:"Keystone jack (network, USB or HDMI insert)", k:"rj45 cat6 ethernet", kind:"rect", w:14.9, h:16.5, r:0 },
+  keystone:{ g:"port", label:"Keystone jack (network, USB or HDMI insert)", k:"rj45 cat6 ethernet", kind:"rect", w:14.9, h:16.5, r:0, deep:25 },
   rj11:{ g:"port", label:"RJ11 / RJ12 (phone, 6P)", k:"telephone", kind:"rect", w:10.2, h:9.4, r:0.4 },
-  db9:{ g:"port", label:"D-sub 9 (serial, DE-9), 2 screws", k:"rs232 db9 com", kind:"dsub", w:19.3, h:10.4, hw:25, hd:3.2 },
-  db15:{ g:"port", label:"VGA (D-sub 15, DE-15), 2 screws", k:"vga monitor", kind:"dsub", w:19.3, h:10.4, hw:25, hd:3.2 },
-  db25:{ g:"port", label:"D-sub 25 (parallel), 2 screws", k:"printer lpt", kind:"dsub", w:41.3, h:10.4, hw:47, hd:3.2 },
-  xlr:{ g:"port", label:"XLR socket (Neutrik D size), 2 screws", k:"microphone audio dmx", kind:"xlr", dia:24, hw:19, hh:24, hd:3.2 },
-  jack635:{ g:"port", label:"Jack 6.35 mm (1/4-inch), panel mount", k:"guitar audio", kind:"round", dia:9.6 },
-  rca:{ g:"port", label:"RCA (phono) socket, panel mount (check yours)", k:"cinch audio", kind:"round", dia:6.6 },
-  bnc:{ g:"port", label:"BNC socket, panel mount", k:"coax", kind:"round", dia:9.7 },
+  db9:{ g:"port", label:"D-sub 9 (serial, DE-9), 2 screws", k:"rs232 db9 com", kind:"dsub", w:19.3, h:10.4, hw:25, hd:3.2, deep:12 },
+  db15:{ g:"port", label:"VGA (D-sub 15, DE-15), 2 screws", k:"vga monitor", kind:"dsub", w:19.3, h:10.4, hw:25, hd:3.2, deep:12 },
+  db25:{ g:"port", label:"D-sub 25 (parallel), 2 screws", k:"printer lpt", kind:"dsub", w:41.3, h:10.4, hw:47, hd:3.2, deep:12 },
+  xlr:{ g:"port", label:"XLR socket (Neutrik D size), 2 screws", k:"microphone audio dmx", kind:"xlr", dia:24, hw:19, hh:24, hd:3.2, deep:30 },
+  jack635:{ g:"port", label:"Jack 6.35 mm (1/4-inch), panel mount", k:"guitar audio", kind:"round", dia:9.6, deep:30 },
+  rca:{ g:"port", label:"RCA (phono) socket, panel mount (check yours)", k:"cinch audio", kind:"round", dia:6.6, deep:15 },
+  bnc:{ g:"port", label:"BNC socket, panel mount", k:"coax", kind:"round", dia:9.7, deep:20 },
   fconn:{ g:"port", label:"F-connector (TV, satellite)", k:"coax", kind:"round", dia:9.7 },
   ntype:{ g:"port", label:"N-type antenna socket", k:"lora coax", kind:"round", dia:16.2 },
-  gx12:{ g:"port", label:"GX12 aviation connector", k:"circular", kind:"round", dia:12.2 },
-  gx16:{ g:"port", label:"GX16 aviation connector", k:"circular", kind:"round", dia:16.2 },
-  m8conn:{ g:"port", label:"M8 sensor connector", kind:"round", dia:8.2 },
-  m12conn:{ g:"port", label:"M12 sensor connector", kind:"round", dia:12.2 },
-  fuse:{ g:"port", label:"Fuse holder 5 × 20 mm, panel mount", k:"fuse", kind:"round", dia:12.3 },
-  iecfused:{ g:"port", label:"IEC inlet with fuse and switch (check yours)", k:"mains power c14", kind:"rect", w:47.5, h:28, r:1 },
-  dc21:{ g:"port", label:"DC jack 2.1 mm, small panel mount", kind:"round", dia:11.2 },
-  btn19:{ g:"button", label:"Push button, 19 mm (latching or lit)", k:"illuminated", kind:"round", dia:19.2 },
-  btn25:{ g:"button", label:"Push button, 25 mm", kind:"round", dia:25.2 },
-  arcade24:{ g:"button", label:"Arcade button, 24 mm (Sanwa size)", k:"game", kind:"round", dia:24.2 },
+  gx12:{ g:"port", label:"GX12 aviation connector", k:"circular", kind:"round", dia:12.2, deep:20 },
+  gx16:{ g:"port", label:"GX16 aviation connector", k:"circular", kind:"round", dia:16.2, deep:25 },
+  m8conn:{ g:"port", label:"M8 sensor connector", kind:"round", dia:8.2, deep:15 },
+  m12conn:{ g:"port", label:"M12 sensor connector", kind:"round", dia:12.2, deep:20 },
+  fuse:{ g:"port", label:"Fuse holder 5 × 20 mm, panel mount", k:"fuse", kind:"round", dia:12.3, deep:35 },
+  iecfused:{ g:"port", label:"IEC inlet with fuse and switch (check yours)", k:"mains power c14", kind:"rect", w:47.5, h:28, r:1, deep:30 },
+  dc21:{ g:"port", label:"DC jack 2.1 mm, small panel mount", kind:"round", dia:11.2, deep:12 },
+  btn19:{ g:"button", label:"Push button, 19 mm (latching or lit)", k:"illuminated", kind:"round", dia:19.2, deep:25 },
+  btn25:{ g:"button", label:"Push button, 25 mm", kind:"round", dia:25.2, deep:30 },
+  arcade24:{ g:"button", label:"Arcade button, 24 mm (Sanwa size)", k:"game", kind:"round", dia:24.2, deep:32 },
   tact12:{ g:"button", label:"Big tactile button 12 × 12 (hole for its cap)", kind:"round", dia:12.2 },
-  keyswitch:{ g:"button", label:"Key switch, 19 mm", k:"lock", kind:"round", dia:19.2 },
-  rotary:{ g:"button", label:"Rotary switch (3/8-inch thread)", kind:"round", dia:9.7 },
-  footswitch:{ g:"button", label:"Footswitch 3PDT, 12 mm (guitar pedal)", k:"stomp", kind:"round", dia:12.2 },
+  keyswitch:{ g:"button", label:"Key switch, 19 mm", k:"lock", kind:"round", dia:19.2, deep:30 },
+  rotary:{ g:"button", label:"Rotary switch (3/8-inch thread)", kind:"round", dia:9.7, deep:20, body:25 },
+  footswitch:{ g:"button", label:"Footswitch 3PDT, 12 mm (guitar pedal)", k:"stomp", kind:"round", dia:12.2, deep:30 },
   slide45:{ g:"button", label:"Slide potentiometer, 45 mm travel: its slot", k:"fader", kind:"rect", w:47, h:2.6, r:1.25 },
   slide60:{ g:"button", label:"Slide potentiometer, 60 mm travel: its slot", k:"fader", kind:"rect", w:62, h:2.6, r:1.25 },
   trimmer:{ g:"button", label:"Trimmer access (a screwdriver hole)", k:"trimpot adjust", kind:"round", dia:3.2 },
@@ -2634,7 +2665,7 @@ const BOARD_PORTS = {
 // the main board's ports as openings in the walls they face, at the height the board puts them; the board first slides
 // up to those walls (1 mm clear inside), so the ports reach the holes. Each opening remembers its board and which of its
 // ports it is (Session 61: c.board, c.port), so it follows the board when it moves and pressing again adds none twice
-function encAddBoardPorts(quiet){
+function encAddBoardPorts(quiet, place){
   const E = state.base.enclosure, list = encHas(BOARD_PORTS, E.board) ? BOARD_PORTS[E.board] : null;
   let bd = encBoardList(E).find(b => b.main); if (!list || !bd) return;
   if (bd.face){ if (!quiet) notify("Its ports are added for a board on the floor or a level. On a wall, add the openings you need on the Openings page."); return 0; }
@@ -2643,7 +2674,7 @@ function encAddBoardPorts(quiet){
   const NORMAL = { x0:[-1,0], x1:[1,0], y0:[0,-1], y1:[0,1] }, faceOf = (nx, ny) => nx < 0 ? "left" : nx > 0 ? "right" : ny < 0 ? "front" : "back";
   const turn = ([nx, ny]) => bd.rot ? [-ny, nx] : [nx, ny];
   const faces = new Set(list.map(([edge]) => faceOf(...turn(NORMAL[edge]))));
-  if (!quiet){                                            // (the arranger has placed the board already)
+  if (!quiet || place){                                   // (the arranger has placed the board already; a recipe moves it)
     if (faces.has("left")) E.boardX = +(-iw/2 + 1 + bw/2).toFixed(2); else if (faces.has("right")) E.boardX = +(iw/2 - 1 - bw/2).toFixed(2);
     if (faces.has("front")) E.boardY = +(-id/2 + 1 + bdp/2).toFixed(2); else if (faces.has("back")) E.boardY = +(id/2 - 1 - bdp/2).toFixed(2);
   }
@@ -3413,6 +3444,23 @@ function encFixAll(E){
   buildEnclosure();
   (enclosureInfo.left || []).slice().forEach(i => { const q = encRoomOnFace(E, i); if (q.grew || q.moved) n++; });
   buildEnclosure();
+  // (Session 64) an opening behind the lid's lip: lower it under the lip, or (when that makes it clash or leave the wall)
+  // make the box taller by enough
+  (enclosureInfo.warn || []).map(w => (w.t.match(/^Opening (\d+) \(.*\) is behind the lid's lip$/) || [])[1]).filter(Boolean).forEach(k => {
+    const c = E.cut[+k - 1]; if (!c) return;
+    const lim = (enclosureInfo.wallV || {})[c.face]; if (!lim) return;
+    const bb = ringsBounds(placedRings(c, E)), over = bb[3] - lim[1] + 0.3; if (!(over > 0)) return;
+    const v0 = +c.v || 0, warn0 = enclosureInfo.warn.length;
+    if (bb[1] - over >= lim[0]){ c.v = +(v0 - over).toFixed(2); buildEnclosure(); if (enclosureInfo.warn.length < warn0){ n++; return; } c.v = v0; }
+    E.h = +((+E.h || 30) + Math.ceil(over*10)/10 + 0.2).toFixed(1); n++; buildEnclosure();
+  });
+  // (Session 64) a switch's or a jack's body that meets a board: that wall moves out by enough
+  for (let it = 0; it < 3; it++){
+    const g = { l:0, r:0, f:0, b:0 }, side = { front:"f", back:"b", left:"l", right:"r" };
+    (enclosureInfo.behind || []).filter(q => q.hit && q.pen > 0).forEach(q => { const k2 = side[q.face]; g[k2] = Math.max(g[k2], Math.ceil(q.pen + 1)); });
+    if (!Object.values(g).some(v => v > 0) || (+E.w || 0) + g.l + g.r > 400 || (+E.d || 0) + g.f + g.b > 400) break;
+    encGrowSides(E, g); n++; buildEnclosure();
+  }
   return { n, before, after:[E.w, E.d, E.h], left:enclosureInfo.warn.length };
 }
 // a solid joining two convex plan outlines with the same number of points (bottom at z0, top at z1), point i to point i:
@@ -3464,7 +3512,7 @@ const encFingerGap = len => len >= 24 ? [[-Math.min(20, Math.max(8, len*0.3))/2,
 // over the board's top (and ribs on the short sides); "loose" — the rim alone (a dab of glue)
 const ENC_GRIP = { rib:1.2, into:0.15, clipW:7, clipT:1.0, over:0.6, hookH:1.6 };
 function encGrip(x, y, w, d, fl, sh, grip, bounds, gapsLong){
-  const out = [], G = ENC_GRIP, g = ENC_CRADLE.gap, top = fl + sh + 1.6 + ENC_CRADLE.over, bTop = fl + sh + 1.6, long = w >= d;
+  const F = encFit(), out = [], G = Object.assign({}, ENC_GRIP, { into:F.rib, over:F.clip }), g = F.gap, top = fl + sh + 1.6 + ENC_CRADLE.over, bTop = fl + sh + 1.6, long = w >= d;
   const inB = ([px, py]) => !bounds || (px >= bounds[0] && px <= bounds[2] && py >= bounds[1] && py <= bounds[3]);
   // a point on a side: u along it from its middle, v out from the board's edge (negative: over the board)
   const side = (alongX, s2) => (u, v) => alongX ? [x + u, y + s2*(d/2 + v)] : [x + s2*(w/2 + v), y + u];
@@ -3489,7 +3537,7 @@ function encGrip(x, y, w, d, fl, sh, grip, bounds, gapsLong){
   return out;
 }
 function encCradle(x, y, w, d, fl, sh, fence, bounds, grip = "ribs"){
-  const out = [], C2 = ENC_CRADLE, top = fl + sh + 1.6 + C2.over, a = Math.min(C2.arm, w/3, d/3), g = C2.gap;
+  const out = [], C2 = ENC_CRADLE, top = fl + sh + 1.6 + C2.over, a = Math.min(C2.arm, w/3, d/3), g = encFit().gap;
   // the seats: along both sides at each corner, under the board's edge, out to the rim
   if (sh > 0.05) for (const sx of [-1, 1]) for (const sy of [-1, 1]){
     const cx = x + sx*w/2, cy = y + sy*d/2, at = (px, py) => [cx + sx*px, cy + sy*py];
@@ -3518,6 +3566,18 @@ function encSnapPin(x, y, rp, z0){
 // through the floor (or the level) either side of it take a hook-and-loop strap (22 mm) round it, or zip ties on a small
 // one; the rim has a gap where each strap passes. Returns the rim (solids) and the slots (plan rectangles [x0, y0, x1, y1]).
 const ENC_TRAY = { gap:0.6, fence:1.6, arm:10, strap:22, slot:2.6, off:1.4, loop:{ gap:3, wall:2, depth:5 } };
+// one strap loop (Session 62; on its own for the calibration card, Session 64): a tunnel along the floor for a strap sl wide,
+// across plan x when alongX (else y), centred at aC along it, from b0 a loop's depth outwards (s2 the side), its roof a 45°
+// gable; the height under it is the printer's loop fit
+function encLoopAt(alongX, aC, b0, s2, sl, fl){
+  const L = ENC_TRAY.loop, hw = sl/2 + 1, ow = hw + L.wall, z0 = fl - 0.01, zt = fl + encFit().loop;
+  const prof = encOrient([[aC - ow, z0], [aC - hw, z0], [aC - hw, zt], [aC, zt + hw], [aC + hw, zt], [aC + hw, z0], [aC + ow, z0], [aC + ow, zt], [aC, zt + hw + L.wall*Math.SQRT2], [aC - ow, zt]], true);
+  const c0 = Math.min(b0, b0 + s2*L.depth), c1 = Math.max(b0, b0 + s2*L.depth);
+  // (a profile in plan (a, z) run along plan y is turned with a proper rotation: no mirror, so it stays outward-facing)
+  return { solid:alongX ? C.affineSolid(C.extrudePolysAt([{ outer:prof, holes:[] }], -c1, -c0), [1,0,0, 0,0,-1, 0,1,0], [0, 0, 0])
+      : C.affineSolid(C.extrudePolysAt([{ outer:prof, holes:[] }], c0, c1), [0,1,0, 0,0,-1, -1,0,0], [0, 0, 0]),
+    rect:alongX ? [aC - ow, c0, aC + ow, c1] : [c0, aC - ow, c1, aC + ow], top:zt + hw + L.wall*Math.SQRT2 };
+}
 function encStrapTray(x, y, w, d, fl, tall, bounds, loops){
   const T = ENC_TRAY, slots = [], fh = Math.min(12, Math.max(4, tall*0.4)), loopSol = [], loopRects = [];
   // the strap goes across the short side: one strap, or two on a long battery; a short battery gets zip-tie slots
@@ -3531,13 +3591,8 @@ function encStrapTray(x, y, w, d, fl, tall, bounds, loops){
       if (!loops){ slots.push(alongX ? [a0, Math.min(b0, b1), a1, Math.max(b0, b1)] : [Math.min(b0, b1), a0, Math.max(b0, b1), a1]); continue; }
       // a strap loop (Session 62), so the floor stays closed: a tunnel the strap runs through along the floor (it goes under
       // the battery), its roof a 45° gable so it prints without support. Profile across the strap (along a, up z), run along it
-      const L = T.loop, hw = sl/2 + 1, ow = hw + L.wall, aC = (a0 + a1)/2, z0 = fl - 0.01, zt = fl + L.gap;
-      const prof = encOrient([[aC - ow, z0], [aC - hw, z0], [aC - hw, zt], [aC, zt + hw], [aC + hw, zt], [aC + hw, z0], [aC + ow, z0], [aC + ow, zt], [aC, zt + hw + L.wall*Math.SQRT2], [aC - ow, zt]], true);
-      const c0 = Math.min(b0, b0 + s2*L.depth), c1 = Math.max(b0, b0 + s2*L.depth);
-      // (a profile in plan (a, z) run along plan y is turned with a proper rotation: no mirror, so it stays outward-facing)
-      loopSol.push(alongX ? C.affineSolid(C.extrudePolysAt([{ outer:prof, holes:[] }], -c1, -c0), [1,0,0, 0,0,-1, 0,1,0], [0, 0, 0])
-        : C.affineSolid(C.extrudePolysAt([{ outer:prof, holes:[] }], c0, c1), [0,1,0, 0,0,-1, -1,0,0], [0, 0, 0]));
-      loopRects.push(alongX ? [aC - ow, c0, aC + ow, c1] : [c0, aC - ow, c1, aC + ow]);
+      const lp = encLoopAt(alongX, (a0 + a1)/2, b0, s2, sl, fl);
+      loopSol.push(lp.solid); loopRects.push(lp.rect);
     }
   }
   const out = encRim(x, y, w, d, T.gap, T.fence, fl - 0.01, fl + fh, alongX ? gaps : [], alongX ? [] : gaps, bounds);
@@ -3871,7 +3926,14 @@ const ENC_KITS = [
     words:"Raspberry Pi 4, 60 mm fan, vent, rocker switch, LED", set:{ lid:"screw", fasten:"insert", feet:"recess", postStyle:"hang", radius:4 }, faces:{ vent:"left" } },
   { name:"Guitar pedal", what:"An Arduino Nano under a footswitch, a knob and an LED on the lid, jacks in and out on the sides, power at the back.",
     words:"Arduino Nano, footswitch, 6.35 mm jack, DC barrel jack, 5 mm LED, potentiometer", extra:[{ kind:"jack635", face:"right" }],
-    set:{ lid:"screw", fasten:"insert", wall:2.4, lidThick:3, feet:"recess", radius:3 }, min:{ w:112, d:60, h:38 }, faces:{ footswitch:"top", pot:"top", led5:"top", jack635:"left", barrel:"back" } }
+    set:{ lid:"screw", fasten:"insert", wall:2.4, lidThick:3, feet:"recess", radius:3 }, min:{ w:112, d:60, h:38 }, faces:{ footswitch:"top", pot:"top", led5:"top", jack635:"left", barrel:"back" } },
+  // (Session 64) a bird house camera in two boxes: the battery and the motion sensor in one, the camera in the other
+  { name:"Bird house battery and motion sensor", what:"An 8000 mAh LiPo (126090) on strap loops, a TP4056 charger with its USB-C through the wall, an MT3608 boost to 5 V, a small dome motion sensor in front and a cable gland to the camera box; a gasket and screw ears.",
+    words:"LiPo pouch 126090, TP4056 charger, MT3608 boost converter, mini motion sensor AM312, cable gland PG7",
+    set:{ lid:"screw", fasten:"insert", wall:3, gasket:1.5, mount:"ears", radius:4 }, round:true, faces:{ pirmini:"front", gland:"back" }, main:"tp4056", holds:{ lipo126090:{ hold:"strap", strapBy:"loops" } } },
+  { name:"Bird house camera", what:"An ESP32-CAM held by snap clips, its camera in a holder in the lid with the lens through it (the lid faces the nest), a cable gland for power from the battery box; a gasket and screw ears.",
+    words:"ESP32-CAM camera board, camera holder in the lid, cable gland PG7",
+    set:{ lid:"screw", fasten:"insert", wall:3, gasket:1.5, mount:"ears", radius:4, boardHold:"edges", boardGrip:"clips" }, round:true, faces:{ camholder:"top", gland:"back" }, over:{ camholder:"main" }, h:22 }
 ];
 function encStartKit(kit){
   const keepAI = state.base.enclosure && state.base.enclosure.logo;
@@ -3880,8 +3942,18 @@ function encStartKit(kit){
   const E = state.base.enclosure, plan = aiFromWords(kit.words);
   plan.openings.forEach(o => { if (kit.faces && kit.faces[o.kind]) o.face = kit.faces[o.kind]; });
   (kit.extra || []).forEach(o => plan.openings.push(Object.assign({}, o)));
-  E.teardrop = true;                                               // round holes in the walls with pointed tops: less support
+  E.teardrop = kit.round !== true;                                 // round holes in the walls with pointed tops: less support
+  // (Session 64: not on a box for outdoors, where a gland's seal and a sensor's dome need a round hole; small round holes bridge)
   const r = encApplyPlan(plan); if (!r.ok) return r;
+  // (Session 64) how a part is held, a module made the main board (so its ports get openings), an opening over the board
+  if (kit.holds) (E.more || []).forEach(m => { if (encHas(kit.holds, m.kind)) Object.assign(m, kit.holds[m.kind]); });
+  if (kit.main && E.board === "none"){ const k = (E.more || []).findIndex(m => m.kind === kit.main);
+    if (k >= 0){ const m = E.more.splice(k, 1)[0]; Object.assign(E, { board:m.kind, boardX:m.x, boardY:m.y, boardRot:m.rot === true, boardHold:m.hold || "holes" }); } }
+  if (kit.set && kit.set.boardHold) E.boardHold = kit.set.boardHold;
+  if (kit.holds || kit.main) encArrange(true);
+  if (kit.main){ encAddBoardPorts(true, true); if (!encArrange(true).ok) encArrange(false); encPortsFollow(E); }
+  if (kit.h) E.h = kit.h;
+  if (kit.over) (E.cut || []).forEach(c => { if (kit.over[c.kind] === "main"){ c.face = "top"; c.u = +(+E.boardX || 0).toFixed(1); c.v = +(+E.boardY || 0).toFixed(1); } });
   if (kit.min){ for (const k of ["w","d","h"]) if (kit.min[k] && (+E[k] || 0) < kit.min[k]) E[k] = kit.min[k]; encArrange(true); }
   (E.cut || []).forEach(c => { if (!encLabelText(c.label) && encAutoLabel(c.kind)) c.label = encAutoLabel(c.kind); });
   encFixAll(E); encTidyLabels(E);
@@ -4265,7 +4337,8 @@ function encMount(E, B, warn){
       Lp.push([xc, py + w/2], [x0, py + w/2]);
       out.solids.push(C.extrudePolysAt([{ outer: encOrient(Lp, true), holes:[encOrient(C.ringCircle(hole/2, 32).map(([x, y]) => [x + xc, y + py]), false)] }], 0, T));
       if (fin > 1) for (const e of [-1,1]){                   // the fins stand at the ear's edges, clear of the screw head
-        const prof = [[x0, T - 0.5], [sx*(W/2 + fin), T - 0.5], [sx*(W/2 + fin), T], [x0, T + fin + 0.5]];
+        // (Session 64: the 45° edge ends 0.6 mm out from the wall in a little step, not in a knife-edge the slicer drops)
+        const prof = [[x0, T - 0.5], [sx*(W/2 + fin), T - 0.5], [sx*(W/2 + fin), T], [sx*(W/2 + 0.6), T + fin - 0.6], [x0, T + fin - 0.6]];
         const z1 = zc + e*w/2, z0 = z1 - e*2;
         out.solids.push(sideways(prof, Math.min(z0, z1), Math.max(z0, z1)));
       }
@@ -4356,7 +4429,7 @@ function encMount(E, B, warn){
 function encDinClip(){
   const g = DIN.play, e = DIN.rail/2 + g, o = e + DIN.wall, pt = DIN.plate, zl = pt + DIN.flange + DIN.lift, len = DIN.len, parts = [];
   const rect = (x0, y0, x1, y1) => encOrient([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], true);
-  parts.push(C.extrudePolysAt([{ outer: rect(-len/2, -o, len/2, o), holes: [-1, 1].map(sx => encOrient(C.ringCircle(SCREWS.M3.pilot/2, 24).map(([x, y]) => [x + sx*DIN.screws/2, y]), false)) }], 0, pt));
+  parts.push(C.extrudePolysAt([{ outer: rect(-len/2, -o, len/2, o), holes: [-1, 1].map(sx => encOrient(C.ringCircle(encScrew("M3").pilot/2, 24).map(([x, y]) => [x + sx*DIN.screws/2, y]), false)) }], 0, pt));
   for (const sy of [-1, 1]) parts.push(C.extrudePolysAt([{ outer: rect(-len/2, Math.min(sy*e, sy*o), len/2, Math.max(sy*e, sy*o)), holes:[] }], pt - 0.5, zl));
   const n = Math.round(DIN.lip/0.2);
   for (let k=0;k<n;k++){
@@ -4387,7 +4460,7 @@ function encSplitPlan(E, g){
   const Lo = axis ? ext[2] - ext[0] : ext[3] - ext[1], outLo = axis ? -g.D/2 - ext[1] : -g.W/2 - ext[0], outHi = axis ? ext[3] - g.D/2 : ext[2] - g.W/2;
   if (mode === "bed" && ext[2] - ext[0] <= bed[0] && ext[3] - ext[1] <= bed[1]) return null;
   if (g.slide){ warn.push({ split:true, t:"A box with a sliding lid is not split", s:"The sliding lid runs the whole length of the box, so it can't be made in parts. Pick a screwed, press-fit or magnet lid to split the box." }); return null; }
-  const key = encHas(SCREWS, E.splitScrew) ? E.splitScrew : "M3", S = SCREWS[key], insert = E.fasten !== "screw";
+  const key = encHas(SCREWS, E.splitScrew) ? E.splitScrew : "M3", S = encScrew(key), insert = E.fasten !== "screw";
   // the flange: tf thick (along the cut), b wide (in from the walls and up from the floor); with lid posts it must
   // hold the lid's insert or magnet, and the lid's screw head must stay clear of the lid's own join
   const posts = g.bosses.length > 0, lidHead = g.magnet ? g.pocketD : g.screw.head;
@@ -4607,34 +4680,60 @@ function encSplitReadme(){
     "Print the box parts open side up and the lid parts outside face down, as they lie in the files.",
     "Heat inserts: press each in with a soldering iron at about 220 °C, flush with the face, before the parts go together."];
 }
-/* The fit test for the holders (Session 63): one flat card with a sample of each way a board is held, labelled, and the
-   tiles that go in them: a cradle with ribs and one with snap clips (each with a 25 × 18 mm tile the size of a board), a
-   standoff with a snap pin (and a plate with an M3 board's hole to push over it), a strap loop beside a little tray, and a
-   scrap of wall with a sideways standoff (the teardrop of a board on a wall). Print it, try each, then set the clearances. */
-const ENC_HOLDERS = { w:130, d:82, t:2, tw:25, td:18 };
+/* The calibration card (Session 63 one of each, Session 64 three sizes of each): a flat card with every way a box holds a
+   part, each in three sizes, 1 the tightest, 2 the printer's fit now, 3 the loosest, labelled: cradles with crush ribs, with
+   snap clips and with the rim alone (push the 25 × 18 mm tiles in), snap pins (push the plate with the board's hole over
+   them), heat-insert holes, a scrap of wall with sideways standoffs (does an M3 screw bite?) and strap loops (thread your
+   strap through). The middle sizes are E.cal, the fits when the card was made, so the picks still match the printed card
+   after the fits change; "Which fitted best?" on the box's page sets the printer's fits from them. */
+const ENC_HOLDERS = { w:172, d:122, x0:-82, y0:-64, t:2, tw:25, td:18 };
+// a camera held in the lid (Session 64): an OV2640's square, the frame's wall and how far it stands down from the lid
+const ENC_CAM = { side:8.5, wall:1.2, h:3.2 };
+const FIT_ROWS = [
+  { k:"rib", name:"RIBS", what:"Cradle with crush ribs", ask:"Push a tile in: it should go in firmly and stay when you turn the card over." },
+  { k:"clip", name:"CLIPS", what:"Cradle with snap clips", ask:"Push a tile in: the clips should click over it and hold it." },
+  { k:"gap", name:"RIM", what:"The rim round a board", ask:"Drop a tile in: it should go in without forcing, with almost no play." },
+  { k:"loop", name:"LOOP", what:"Strap loops", ask:"Thread your strap through: it should slide with a little drag." },
+  { k:"pin", name:"PIN", what:"Snap pins", ask:"Push the plate with the hole over each pin: it should click down and stay." },
+  { k:"insert", name:"INS", what:"Heat-insert holes", ask:"Press an M3 insert in with the iron: it should go in straight and not spin." },
+  { k:"pilot", name:"WALL", what:"Screw holes in standoffs", ask:"Drive an M3 self-tapping screw in: it should bite without splitting the standoff." }];
 function encHolderCard(E){
   const H = ENC_HOLDERS, T = H.t, solids = [], slot = clamp(+E.boxSlot || 0, 0, state.slots.length - 1), labels = [], warn = [];
+  const cal = Object.assign(printerFit(), cleanFit(E.cal));
   const plate = (x0, y0, x1, y1, z0, z1, holes = []) => C.extrudePolysAt([{ outer:encOrient(encRect(x0, y0, x1, y1), true), holes:holes.map(L => encOrient(L, false)) }], z0, z1);
   const circ = (x, y, r, n = 32) => C.ringCircle(r, n).map(([a, b]) => [a + x, b + y]);
-  const lab = (text, x, y) => labels.push(...C.strokePolys(C.strokeText(text, x, y, 4).segs, 0.35, 0.04));
-  // the cradles (ribs and clips) for a 25 × 18 tile, 2 mm up on their seats
-  [["ribs", -42, "RIBS"], ["clips", -8, "CLIPS"]].forEach(([grip, x, t2]) => { solids.push(...encCradle(x, 16, H.tw, H.td, T, 2, ENC_CRADLE.fence, null, grip)); lab(t2, x, 16 - H.td/2 - 7); });
-  // a standoff with a snap pin for an M3 board's hole
-  const sc = SCREWS.M3; solids.push(C.extrudePolysAt([{ outer:encOrient(circ(30, 16, 3.2), true), holes:[] }], T - 0.01, T + 5)); solids.push(...encSnapPin(30, 16, (sc.clear - 0.3)/2, T + 5)); lab("PIN", 30, 16 - 11);
-  // a strap loop beside a tray for a 40 × 18 battery
-  const tray = encStrapTray(-34, -22, 40, 18, T, 10, null, true); solids.push(...tray.solids); lab("LOOP", -1, -22);
-  // a scrap of wall (24 × 22 mm, 2 mm thick) with a sideways standoff on it, as on a wall in a box: a teardrop pointing down
-  const wx = 30, wy = -32, hole = sc.pilot, r = Math.max(hole/2 + 1.4, 2.4);
-  solids.push(plate(wx - 12, wy - 1, wx + 12, wy + 1, T - 0.01, T + 22));
-  const Mf = [1,0,0, 0,0,-1, 0,1,0], tearDown = rr => encTeardrop(rr, 24).map(([a, b]) => [a, -b]);
-  solids.push(C.affineSolid(C.extrudePolysAt([{ outer:encOrient(tearDown(r).map(([a, b]) => [a + wx, b + T + 12]), true), holes:[encOrient(encTeardrop(hole/2, 16).map(([a, b]) => [a + wx, b + T + 12]), false)] }], -(wy + 1) - 6, -(wy + 1) + 0.01), Mf, [0, 0, 0]));
-  lab("WALL", wx, wy - 5.5);
+  const lab = (text, x, y, h = 3.5) => labels.push(...C.strokePolys(C.strokeText(text, x, y, h).segs, 0.35, 0.04));
+  // each sample built with its own size of the one fit it tests
+  const sample = (k, i, make) => { encFitOver = Object.assign({}, cal, { [k]:fitSample(cal, k, i) }); try { make(); } finally { encFitOver = null; } };
+  const sc = SCREWS.M3, colX = i => -64 + (i - 1)*32, rightX = i => 30 + (i - 1)*22;
+  for (let i = 1; i <= 3; i++){
+    // the cradles for a 25 × 18 tile, 2 mm up on their seats: ribs, clips, the rim alone
+    [["rib", "ribs", 44, "RIBS"], ["clip", "clips", 12, "CLIPS"], ["gap", "loose", -20, "RIM"]].forEach(([k, grip, y, t2]) => {
+      sample(k, i, () => solids.push(...encCradle(colX(i), y, H.tw, H.td, T, 2, ENC_CRADLE.fence, null, grip))); lab(`${t2} ${i}`, colX(i), y - 15.5); });
+    // strap loops for your strap (22 mm)
+    sample("loop", i, () => solids.push(encLoopAt(true, colX(i), -54.5, 1, ENC_TRAY.strap, T).solid)); lab(`LOOP ${i}`, colX(i), -60.5);
+    // snap pins on standoffs, for an M3 board's hole
+    sample("pin", i, () => { solids.push(C.extrudePolysAt([{ outer:encOrient(circ(rightX(i), 44, 3.2), true), holes:[] }], T - 0.01, T + 5)); solids.push(...encSnapPin(rightX(i), 44, (sc.clear - encFit().pin)/2, T + 5)); });
+    lab(`PIN ${i}`, rightX(i), 35);
+    // heat-insert holes in bosses, as on the lid's posts
+    sample("insert", i, () => { const s3 = encScrew("M3"), ro = sc.insert/2 + 2.2, z1 = T + 1 + s3.insertDepth + 0.5;
+      solids.push(C.extrudePolysAt([{ outer:encOrient(circ(rightX(i), 18, ro), true), holes:[] }], T - 0.01, T + 1.01));
+      solids.push(C.extrudePolysAt([{ outer:encOrient(circ(rightX(i), 18, ro), true), holes:[encOrient(circ(rightX(i), 18, s3.insert/2, 28), false)] }], T + 1, z1)); });
+    lab(`INS ${i}`, rightX(i), 8.5);
+    lab(`WALL ${i}`, rightX(i), -19.5, 3);
+  }
+  // a scrap of wall (66 × 22 mm, 2 mm thick) with sideways standoffs on it, as on a wall in a box: teardrops pointing down
+  const wy = -14, Mf = [1,0,0, 0,0,-1, 0,1,0], tearDown = rr => encTeardrop(rr, 24).map(([a, b]) => [a, -b]);
+  solids.push(plate(19, wy - 1, 85, wy + 1, T - 0.01, T + 22));
+  for (let i = 1; i <= 3; i++) sample("pilot", i, () => { const hole = encScrew("M3").pilot, r = Math.max(hole/2 + 1.4, 2.4), wx = rightX(i);
+    solids.push(C.affineSolid(C.extrudePolysAt([{ outer:encOrient(tearDown(r).map(([a, b]) => [a + wx, b + T + 12]), true), holes:[encOrient(encTeardrop(hole/2, 16).map(([a, b]) => [a + wx, b + T + 12]), false)] }], -(wy + 1) - 6, -(wy + 1) + 0.01), Mf, [0, 0, 0])); });
+  lab("1 TIGHT  3 LOOSE", 52, -42);
   // the card, with the labels cut 0.4 mm into its top
-  const pocket = inlayPocket(labels);
-  solids.push(plate(-H.w/2, -H.d/2, H.w/2, H.d/2, 0, T - 0.4)); solids.push(C.extrudePolysAt([{ outer:encOrient(encRect(-H.w/2, -H.d/2, H.w/2, H.d/2), true), holes:pocket.holes }, ...pocket.islands], T - 0.4, T));
-  // the tiles: two board-sized ones for the cradles and a plate with an M3 board's hole for the pin, in front of the card
-  const ty = -H.d/2 - 18, tiles = [plate(-50, ty - H.td/2, -50 + H.tw, ty + H.td/2, 0, 1.6), plate(-20, ty - H.td/2, -20 + H.tw, ty + H.td/2, 0, 1.6), plate(15, ty - 6, 27, ty + 6, 0, 1.6, [circ(21, ty, 1.6)])];
-  enclosureInfo = { test:true, holders:true, size:[H.w, H.d + 40, T + 22], inner:[H.w, H.d, 20], total:T + 22, warn, left:[], misfit:[], boards:[], ghosts:[], hints:[], levels:[], dividers:[], art:[], need:[],
+  const pocket = inlayPocket(labels), X0 = H.x0, Y0 = H.y0, X1 = H.x0 + H.w, Y1 = H.y0 + H.d;
+  solids.push(plate(X0, Y0, X1, Y1, 0, T - 0.4)); solids.push(C.extrudePolysAt([{ outer:encOrient(encRect(X0, Y0, X1, Y1), true), holes:pocket.holes }, ...pocket.islands], T - 0.4, T));
+  // the tiles: two board-sized ones for the cradles and a plate with an M3 board's hole for the pins, in front of the card
+  const ty = Y0 - 15, tiles = [plate(-62, ty - H.td/2, -62 + H.tw, ty + H.td/2, 0, 1.6), plate(-30, ty - H.td/2, -30 + H.tw, ty + H.td/2, 0, 1.6), plate(4, ty - 6, 18, ty + 6, 0, 1.6, [circ(11, ty, 1.6)])];
+  enclosureInfo = { test:true, holders:true, cal, size:[H.w, H.d + 32, T + 22], inner:[H.w, H.d, 20], total:T + 22, warn, left:[], misfit:[], boards:[], ghosts:[], hints:[], levels:[], dividers:[], art:[], need:[],
     lidPosts:{ n:0, at:[] }, mount:[], wallH:{}, faceU:{}, takenOn:{}, clashes:[], count:0, extras:{}, wall:2, ceil:20, lipH:0, ri:0, ductRects:[] };
   return [{ name:"Holder test card", slot, solid:C.mergeSolids(solids) }, { name:"Test tiles", slot, solid:C.mergeSolids(tiles) }];
 }
@@ -4655,7 +4754,7 @@ function buildEnclosure(){
   const Hs = slide ? H - lidT : H, gr = slide ? clamp(t*0.5, 0.6, Math.max(0.6, t - 0.6)) : 0;   // side walls end under the lid; groove depth
   const wallH = face => slide && face !== "back" ? Hs : H;
   const lipW = clamp(+E.lipW || 1.2, 0.8, 6), fit = clamp(+E.fit || 0, 0, 1);
-  const screw = encHas(SCREWS, E.screw) ? SCREWS[E.screw] : SCREWS.M3;
+  const screw = encScrew(E.screw);
   // a magnet lid: solid corner posts with a pocket in the top, and matching pockets in the lid
   const magnet = E.lid === "magnet", mg = MAGNETS[encHas(MAGNETS, E.magnet) ? E.magnet : "6x2"];
   const pocketD = mg.d + 0.2, pocketH = mg.t + 0.2;
@@ -4685,6 +4784,8 @@ function buildEnclosure(){
     left: { L: R ? D - 2*R : D - 2*t, M:[0,-1,0, 0,0,-1, 1,0,0], T:[-(W/2 - t),0,0] }
   };
   const holesOn = { front:[], back:[], left:[], right:[], top:[], bottom:[] }, taken = { front:[], back:[], left:[], right:[], top:[], bottom:[] };
+  const camFrames = [];                                   // camera holders in the lid (Session 64)
+  const placedOpen = [];                                  // the openings placed, for what their parts take up behind the wall
   const labelsOn = { front:[], back:[], left:[], right:[], top:[], bottom:[] }, labelQueue = [];
   const notchesOn = { front:[], back:[], left:[], right:[] };     // [left, right, bottom] in the face's own coordinates
   // things on the floor that an opening in the floor must keep clear of
@@ -4735,7 +4836,7 @@ function buildEnclosure(){
       if (why){ warn.push({ t:`${B.label}: no door`, s:`It is in a strap tray instead: ${why}.` }); bd.hold = "strap"; }
       else {
         holesOn.bottom.push(encRect(bd.x - bw/2 - DR.g, bd.y - bdp/2 - DR.g, bd.x + bw/2 + DR.g, bd.y + bdp/2 + DR.g));
-        screws.forEach(([x, y]) => holesOn.bottom.push(C.ringCircle(SCREWS.M2.pilot/2, 20).map(([u, v]) => [u + x, v + y])));
+        screws.forEach(([x, y]) => holesOn.bottom.push(C.ringCircle(encScrew("M2").pilot/2, 20).map(([u, v]) => [u + x, v + y])));
         doorCuts.push({ depth:dt, holes:[encOrient(encRect(rc[0], rc[1], rc[2], rc[3]), false)], islands:[] });
         taken.bottom.push({ n:0, what:`${B.label}'s door`, bb:rc });
         bd.door = { rc, screws, dt, alongX };
@@ -4752,7 +4853,7 @@ function buildEnclosure(){
       return;
     }
     if (bd.holes){
-      const bs = encHas(SCREWS, B.screw) ? SCREWS[B.screw] : SCREWS.M3, hole = E.fasten === "insert" ? bs.insert : bs.pilot, sr = Math.max(hole/2 + 1.4, 2.4);
+      const bs = encScrew(B.screw), hole = E.fasten === "insert" ? bs.insert : bs.pilot, sr = Math.max(hole/2 + 1.4, 2.4);
       bd.holes.forEach(([hx, hy]) => {
         let lx = hx - B.w/2, ly = hy - B.d/2;
         if (bd.rot) [lx, ly] = [-ly, lx];
@@ -4760,7 +4861,7 @@ function buildEnclosure(){
         if (!bd.lvl) taken.bottom.push({ n:0, what:`${B.label}'s standoff`, bb:[bd.x + lx - sr, bd.y + ly - sr, bd.x + lx + sr, bd.y + ly + sr] });
       });
     } else if (!bd.lvl) for (const sx of [-1, 1]) for (const sy of [-1, 1]){
-      const cx = bd.x + sx*bw/2, cy = bd.y + sy*bdp/2, a = ENC_CRADLE.arm + ENC_CRADLE.gap + ENC_CRADLE.fence;
+      const cx = bd.x + sx*bw/2, cy = bd.y + sy*bdp/2, a = ENC_CRADLE.arm + encFit().gap + ENC_CRADLE.fence;
       taken.bottom.push({ n:0, what:`${B.label}'s corner`, bb:[Math.min(cx, cx - sx*a), Math.min(cy, cy - sy*a), Math.max(cx, cx - sx*a), Math.max(cy, cy - sy*a)].map((v, k) => v + (k < 2 ? -2 : 2)) });
     }
   });
@@ -4788,6 +4889,8 @@ function buildEnclosure(){
     if (wall && !notch && bb[3] > lipTop) warn.push({ t:`${lab} is behind the lid's lip`, s:`The lid's lip covers the top ${lipH.toFixed(1)} mm of the inside of the walls. Lower ${lab.toLowerCase()} or make the lip shorter.` });
     taken[face].push({ n:i+1, bb });
     if (notch) notchesOn[face].push([bb[0], bb[2], bb[1]]); else holesOn[face].push(...rings);
+    placedOpen.push({ i, face, bb, c, lab });
+    if (face === "top" && c.kind === "camholder") camFrames.push({ i, lab, x:(bb[0] + bb[2])/2, y:(bb[1] + bb[3])/2, rot:c.rot === true, lim });
     const text = encLabelText(c.label);
     if (text) labelQueue.push({ i, c, face, bb, text, lab, lim });
   });
@@ -5034,7 +5137,7 @@ function buildEnclosure(){
   } else bosses.forEach(([x, z]) => solids.push(post(x, -z, bossR, bossHole/2, postBot, H)));
   if (postHang) bosses.forEach(([x, z]) => solids.push(encLoft(C.ringCircle(0.4, 40).map(p => [p[0] + x, p[1] - z]), postFree, C.ringCircle(bossR, 40).map(p => [p[0] + x, p[1] - z]), postBot + 0.01)));
   let board = null, boardNeed = null;
-  const boardsInfo = [], doorParts = [];
+  const boardsInfo = [], doorParts = [], camInfo = [];
   // levels and their plates (Session 46): a board on a level stands on the level's top, and its mounts go on the plate
   const ceilZ = H - (lidOn ? lipH : 0), levels = encLevels(E, ceilZ - fl), levelSolids = levels.map(() => []), ghosts = [], hints = [...earlyHints];
   // a level too close to the one under it used to vanish without a word (Session 61)
@@ -5047,7 +5150,7 @@ function buildEnclosure(){
   const lidMounts = [];
   const faceMount = bd => {
     const B = bd.B, f = bd.face, wallF = f !== "top", out = bd.side === "out", mir = out ? 1 : -1, bw = bd.rot ? B.d : B.w, bh = bd.rot ? B.w : B.d;
-    const sh = clamp(bd.sh, 1, 40), tall = boardTall(bd.key, B), bs = encHas(SCREWS, B.screw) ? SCREWS[B.screw] : SCREWS.M3, hole = E.fasten === "insert" ? bs.insert : bs.pilot, sr = Math.max(hole/2 + 1.4, 2.4);
+    const sh = clamp(bd.sh, 1, 40), tall = boardTall(bd.key, B), bs = encScrew(B.screw), hole = E.fasten === "insert" ? bs.insert : bs.pilot, sr = Math.max(hole/2 + 1.4, 2.4);
     const info = { w:bw, d:bh, label:B.label, screw:B.screw, hold:"face", face:f, side:out ? "out" : "in", main:bd.main, check:!!B.check, issues:[], lvl:-1, key:bd.key, src:bd.main ? null : bd.src,
       rot:bd.rot, tall, grip:bd.pins ? "pins" : "screws", m:0.5, at:[bd.x, bd.y], hole };
     const bwarn = (t2, s2) => { warn.push({ t:t2, s:s2 }); info.issues.push(s2); };
@@ -5098,10 +5201,10 @@ function buildEnclosure(){
     const bwarn = (t, s) => { warn.push({ t, s }); info.issues.push(s); };
     const x0 = bd.x - bw/2, x1 = bd.x + bw/2, y0 = bd.y - bdp/2, y1 = bd.y + bdp/2;
     // how big the box must be for this board where it is (used by "make it fit"); a cradle's fences need a little more
-    const extra = bd.holes ? 1 : 2*(ENC_CRADLE.gap + 0.3);
+    const extra = bd.holes ? 1 : 2*(encFit().gap + 0.3);
     const need = { w: bw + extra + 2*Math.abs(bd.x) + 2*t, d: bdp + extra + 2*Math.abs(bd.y) + 2*t, h: info.top + 1 + lipH + 0.5 + (bd.holes ? 0 : ENC_CRADLE.over) };
     boardNeed = boardNeed ? { w:Math.max(boardNeed.w, need.w), d:Math.max(boardNeed.d, need.d), h:Math.max(boardNeed.h, need.h) } : need;
-    const m = bd.holes ? 0.5 : ENC_CRADLE.gap + 0.3; info.m = m;
+    const m = bd.holes ? 0.5 : encFit().gap + 0.3; info.m = m;
     if (x0 < -iw/2 + m || x1 > iw/2 - m || y0 < -id/2 + m || y1 > id/2 - m){
       // it would stand outside the box: leave its mounts out until it fits
       bwarn(`${B.label} does not fit`, `${B.label} is ${bw.toFixed(1)} × ${bdp.toFixed(1)} mm and the inside is ${iw.toFixed(1)} × ${id.toFixed(1)} mm, so its ${bd.holes ? "standoffs are" : "cradle is"} left out. Make the box bigger (at least ${Math.ceil(need.w)} × ${Math.ceil(need.d)} mm outside) or move it.`);
@@ -5111,18 +5214,20 @@ function buildEnclosure(){
       // the rim round it on the floor (taller than a tray's: no strap holds it), the posts the door screws into
       const fh = Math.min(16, Math.max(4, boardTall(bd.key, B)*0.6 - (fl - bd.door.dt)));
       dst.push(...encRim(bd.x, bd.y, bw, bdp, ENC_DOOR.g, 1.6, fl - 0.01, fl + fh, [], [], null));
-      bd.door.screws.forEach(([x, y]) => dst.push(post(x, y, ENC_DOOR.post, SCREWS.M2.pilot/2, fl - 0.01, fl + 6)));
+      bd.door.screws.forEach(([x, y]) => dst.push(post(x, y, ENC_DOOR.post, encScrew("M2").pilot/2, fl - 0.01, fl + 6)));
       // the door: printed flat in front of the box, 0.25 mm smaller than its recess, with the screws' clearance holes
       const [a0, b0, a1, b1] = bd.door.rc, dw = a1 - a0 - 0.5, dd = b1 - b0 - 0.5, cx = (a0 + a1)/2, cy = (b0 + b1)/2;
       const doorSol = C.extrudePolysAt([{ outer:encOrient(C.ringRect(dw, dd, 1, 4), true), holes:bd.door.screws.map(([x, y]) => encOrient(C.ringCircle(SCREWS.M2.clear/2, 20).map(([u, v]) => [u + x - cx, v + y - cy]), false)) }], 0, bd.door.dt - 0.1);
       doorParts.push({ inside:true, name:`Battery door (${B.label.replace(/\s*\(.*$/, "")})`, slot:clamp(+E.boxSlot || 0, 0, state.slots.length - 1), solid:doorSol, dd });
     }
     else if (bd.holes && bd.pins){                     // snap pins on solid standoffs (Session 59)
-      const sc = encHas(SCREWS, B.screw) ? SCREWS[B.screw] : SCREWS.M3;
-      standoffs.filter(so => so.bd === bd).forEach(so => { dst.push(post(so.x, so.y, so.r, 0, base - (bd.lvl ? 0.01 : 0), base + sh)); dst.push(...encSnapPin(so.x, so.y, (sc.clear - 0.3)/2, base + sh)); });
+      const sc = encScrew(B.screw);
+      standoffs.filter(so => so.bd === bd).forEach(so => { dst.push(post(so.x, so.y, so.r, 0, base - (bd.lvl ? 0.01 : 0), base + sh)); dst.push(...encSnapPin(so.x, so.y, (sc.clear - encFit().pin)/2, base + sh)); });
     }
     else if (bd.holes) standoffs.filter(so => so.bd === bd).forEach(so => dst.push(post(so.x, so.y, so.r, so.hole/2, base - (bd.lvl ? 0.01 : 0), base + sh)));
-    else dst.push(...encCradle(bd.x, bd.y, bw, bdp, base, sh, bd.lvl ? ENC_CRADLE.fence : Math.min(ENC_CRADLE.fence, t + 0.4), bd.lvl ? plateB : null, bd.grip));
+    // (Session 64: on the floor too, the rim stops at the walls' inside: a board put 1 mm from a wall for its ports left a sliver
+    // of rim standing free there, and on a thin wall the rim reached through it)
+    else dst.push(...encCradle(bd.x, bd.y, bw, bdp, base, sh, bd.lvl ? ENC_CRADLE.fence : Math.min(ENC_CRADLE.fence, t + 0.4), bd.lvl ? plateB : [-iw/2, -id/2, iw/2, id/2], bd.grip));
     // its see-through parts: the board, the room its parts take above it, and its ports (Session 46)
     const tall = boardTall(bd.key, B), solidBody = B.g === "battery" || /^lrs/.test(bd.key);
     const g0 = ghosts.length, shp = solidBody ? [] : boardShapesAt(bd.key, B, bd.x, bd.y, bd.rot, base + sh + 1.6);
@@ -5420,7 +5525,7 @@ function buildEnclosure(){
   }
   const spN = Math.round(clamp(+E.spacers || 0, 0, 16)), zmN = Math.round(clamp(+E.tieMounts || 0, 0, 16));
   if ((spN || zmN) && !state.base.enclosure.test){
-    const sc = encHas(SCREWS, E.spacerScrew) ? SCREWS[E.spacerScrew] : SCREWS.M3, sh2 = clamp(+E.spacerH || 5, 1, 40), od = sc.clear + 3.2, pcs = [], step = Math.max(od, 12) + 4;
+    const sc = encScrew(E.spacerScrew), sh2 = clamp(+E.spacerH || 5, 1, 40), od = sc.clear + 3.2, pcs = [], step = Math.max(od, 12) + 4;
     const cols = Math.max(1, Math.floor((W + 20)/step)), at = n => [-(Math.min(cols, spN + zmN) - 1)*step/2 + (n % cols)*step, Math.floor(n/cols)*(step + 8)];
     for (let n = 0; n < spN; n++){ const [x, y] = at(n);
       pcs.push(C.extrudePolysAt([{ outer:encOrient(C.ringCircle(od/2, 32).map(q => [q[0] + x, q[1] + y]), true), holes:[encOrient(C.ringCircle(sc.clear/2, 24).map(q => [q[0] + x, q[1] + y]), false)] }], 0, sh2)); }
@@ -5542,6 +5647,22 @@ function buildEnclosure(){
     } else lid.push(slab(0, lidT, 0));
     // standoffs for boards under the lid (Session 63), on its inside face (the lid's plan has front to back the other way)
     lidMounts.forEach(lm => lm.pts.forEach(([x, y]) => lid.push(C.extrudePolysAt([{ outer:encOrient(C.ringCircle(lm.sr, 32).map(q => [q[0] + x, q[1] - y]), true), holes:[encOrient(C.ringCircle(lm.hole/2, 24).map(q => [q[0] + x, q[1] - y]), false)] }], lidT - 0.01, lidT + lm.sh))));
+    // a camera held in the lid (Session 64): a three-sided frame round the lens hole on the lid's inside face holds an OV2640
+    // (8.5 mm square, ENC_CAM) with its lens through the hole, open on one side for its ribbon cable (towards the front, or the
+    // right when turned); it stands up as the lid prints face down, so no support
+    camFrames.forEach(cf => {
+      const CM = ENC_CAM, a = CM.side/2 + encFit().gap/2, w = CM.wall, X = cf.x, Y = -cf.y, h = CM.h;
+      if (cf.x - a - w < cf.lim[0] || cf.x + a + w > cf.lim[2] || cf.y - a - w < cf.lim[1] || cf.y + a + w > cf.lim[3]){
+        warn.push({ t:`${cf.lab}: no room for its frame`, s:`The frame round the camera reaches the lid's lip: move the camera ${(a + w).toFixed(1)} mm from the walls. The lens hole is there; glue the camera behind it.` }); return; }
+      const under = boardsInfo.find(b => b.bb && b.top != null && b.bb[0] < cf.x + a + w && b.bb[2] > cf.x - a - w && b.bb[1] < cf.y + a + w && b.bb[3] > cf.y - a - w && b.top + (b.tall || 0) > H - h - 0.5);
+      if (under) warn.push({ t:`${cf.lab}: its frame touches ${under.label}`, s:`The frame hangs ${h} mm under the lid, over ${under.label}, whose parts reach ${Math.max(0, H - under.top - (under.tall || 0)).toFixed(1)} mm from it: lower the board (its standoffs), move it, or make the box taller.` });
+      const turn = ([px, py]) => cf.rot ? [X + py, Y - px] : [X + px, Y + py];   // open side: +y in the lid's plan (the box's front), or +x
+      [[-a - w, -a - w, -a, a + 0.6], [a, -a - w, a + w, a + 0.6], [-a - 0.01, -a - w, a + 0.01, -a]].forEach(([x0, y0, x1, y1]) =>
+        lid.push(C.extrudePolysAt([{ outer:encOrient([[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(turn), true), holes:[] }], lidT - 0.01, lidT + h)));
+      // the camera slides in from the open side; a dab of glue keeps it there. Shown in the 3D view under the lid
+      ghosts.push(ghostBox(cf.x - CM.side/2, cf.y - CM.side/2, H - h, cf.x + CM.side/2, cf.y + CM.side/2, H, "parts", "Camera (OV2640)"));
+      camInfo.push({ x:cf.x, y:cf.y, rot:cf.rot, h });
+    });
     if (lipH > 0){
       const a = iw/2 - fit, b = id/2 - fit;
       // where a wall has notches the lip leaves a gap, so a cable or a port can pass under the lid.
@@ -5668,7 +5789,24 @@ function buildEnclosure(){
     if (split) nAdd(split.pins ? split.pins.length : 0, `${E.splitScrew || "M3"} screws and heat inserts for the joins`);
     const parts2 = {}; boardList.forEach(bd => { parts2[bd.B.label] = (parts2[bd.B.label] || 0) + 1; }); Object.entries(parts2).forEach(([k, n]) => nAdd(n, k));
   }
-  enclosureInfo = { test: !!state.base.enclosure.test, wallH:{ front:wallH("front"), back:wallH("back"), left:wallH("left"), right:wallH("right") }, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, gasket:gasket ? { cord:gasket.cord, length:gasket.length, depth:gasket.gd, width:gasket.gw } : null, snap:!!snap, hinge:hinge ? { length:hinge.Lh, knuckles:hinge.segs.length } : null, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR, at:bosses.map(([x, z]) => [x, -z]) }, ceil:ceilZ, ri, lipH, wall:t, anchors:anchorsMade, faceU, clashes, wallV:Object.fromEntries(["front","back","left","right"].map(f => [f, [0.8, Math.min(wallH(f) - 0.8, lipTop)]])), ducts:ductInfo.length, ductRects:ductInfo.map(du => ({ fp:du.fp.slice(), isY:du.isY })),
+  // what a panel part takes up behind its wall (Session 64): a switch's or a jack's body, a motion sensor's, `deep` mm in from
+  // the wall's inside and `body` wide (or the hole's size): shown in the 3D view, and checked against the boards on the floor
+  const behind = [];
+  placedOpen.forEach(po => {
+    // (a board's own port, and a KiCad board's LEDs and buttons, belong to the board: nothing more behind the wall)
+    const k = encHas(CUTOUTS, po.c.kind) ? CUTOUTS[po.c.kind] : null; if (!k || !k.deep || !ENC_WALLS.has(po.face) || po.c.auto === "ports" || po.c.from === "panel") return;
+    const cu = (po.bb[0] + po.bb[2])/2, cv = (po.bb[1] + po.bb[3])/2, hu = Math.max((po.bb[2] - po.bb[0])/2, (k.body || 0)/2), hv = Math.max((po.bb[3] - po.bb[1])/2, (k.body || 0)/2);
+    const u0 = cu - hu, u1 = cu + hu, dp = k.deep, f = po.face;
+    const r = f === "front" ? [u0, -id/2, u1, -id/2 + dp] : f === "back" ? [-u1, id/2 - dp, -u0, id/2] : f === "left" ? [-iw/2, -u1, -iw/2 + dp, -u0] : [iw/2 - dp, u0, iw/2, u1];
+    const z0 = cv - hv, z1 = cv + hv;
+    ghosts.push(ghostBox(r[0], r[1], z0, r[2], r[3], z1, "port", `${k.label.replace(/[:,(].*$/, "").trim()} (behind the wall)`));
+    const hit = boardsInfo.find(b => b.bb && !b.face && b.bb[0] < r[2] - 0.2 && b.bb[2] > r[0] + 0.2 && b.bb[1] < r[3] - 0.2 && b.bb[3] > r[1] + 0.2 && (b.base || 0) < z1 && (b.top || 0) + (b.tall || 0) > z0);
+    // how far it reaches past the board's edge, from its wall: what that wall must move out by
+    const pen = !hit ? 0 : f === "front" ? r[3] - hit.bb[1] : f === "back" ? hit.bb[3] - r[1] : f === "left" ? r[2] - hit.bb[0] : hit.bb[2] - r[0];
+    behind.push({ i:po.i, face:f, rect:r, z:[z0, z1], hit:hit ? hit.label : null, pen:+pen.toFixed(2) });
+    if (hit) warn.push({ t:`${po.lab} reaches ${hit.label}`, s:`Its body goes about ${dp} mm into the box (shown in the 3D view) and meets ${hit.label}: move one of them, or make the box bigger. (Typical sizes: check yours.)` });
+  });
+  enclosureInfo = { test: !!state.base.enclosure.test, wallH:{ front:wallH("front"), back:wallH("back"), left:wallH("left"), right:wallH("right") }, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, gasket:gasket ? { cord:gasket.cord, length:gasket.length, depth:gasket.gd, width:gasket.gw } : null, snap:!!snap, hinge:hinge ? { length:hinge.Lh, knuckles:hinge.segs.length } : null, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR, at:bosses.map(([x, z]) => [x, -z]) }, ceil:ceilZ, ri, lipH, wall:t, anchors:anchorsMade, faceU, clashes, wallV:Object.fromEntries(["front","back","left","right"].map(f => [f, [0.8, Math.min(wallH(f) - 0.8, lipTop)]])), cams:camInfo, behind, ducts:ductInfo.length, ductRects:ductInfo.map(du => ({ fp:du.fp.slice(), isY:du.isY })),
     takenOn:Object.fromEntries(Object.entries(taken).map(([f, l]) => [f, l.map(o => ({ n:o.n || 0, bb:o.bb.slice() }))])), count:(E.cut || []).length - left.length,
     split: splitInfo };
   return out;
@@ -11145,7 +11283,7 @@ const SECTION_ICONS = [
   [/^qr code$/i,"▦"], [/nfc tag/i,"📶"], [/^logo$/i,"✪"], [/border and band/i,"▭"], [/^pattern$/i,"≋"], [/printing the card/i,"⛰"], [/^copies$/i,"≡"],
   [/name and details/i,"Aa"], [/fonts and sizes/i,"𝐅"],
   [/^paint$/i,"🖌"], [/fit and walls/i,"▭"], [/phone's size/i,"↔"], [/camera opening/i,"◉"], [/buttons and port/i,"⏻"], [/picture on the back/i,"▨"], [/auto colou?r/i,"✨"], [/brush and fill/i,"✎"], [/paint list/i,"≡"], [/paint detail/i,"⚙"],
-  [/shape it/i,"⬒"], [/against the real/i,"✓"], [/^photo$/i,"▨"], [/parts in this/i,"▦"], [/colour swap/i,"⇅"]
+  [/^fits \(from/i,"⇿"], [/shape it/i,"⬒"], [/against the real/i,"✓"], [/^photo$/i,"▨"], [/parts in this/i,"▦"], [/colour swap/i,"⇅"]
 ];
 const SECTION_HELP = [
   [/^plan of the inside/i, "The box from above, to scale. Drag a part to move it; arrow keys nudge the one you picked, R turns it, D copies it."],
@@ -12845,6 +12983,36 @@ function encMountField(g, o){
     E.cut = Array.isArray(E.cut) ? E.cut : []; E.cut.push(c); encOpeningChanged(E.cut.length - 1); renderTab(); pushHistory(); notify("A window the size of the board, less 3 mm each side, is on the Openings page: set it to the screen's size."); }]]);
   return now;
 }
+/* Calibration (Session 64): your picks from the calibration card are kept with the printer settings (this browser remembers
+   them, a project carries them) and every box after uses them. */
+function fitSave(vals){ state.printer.fit = Object.assign(cleanFit(state.printer.fit), cleanFit(vals), { when:new Date().toISOString().slice(0, 10) }); savePrinterPref(); }
+const fitMm = v => `${+(+v).toFixed(2)} mm`;
+function encCalibrationPanel(p, E){
+  const H = ENC_HOLDERS, cal = Object.assign(printerFit(), cleanFit(E.cal)), F = printerFit();
+  note(p, `<b>The calibration card</b> (${H.w} × ${H.d} mm, and its tiles in front): every way a box holds a part, in three sizes, 1 the tightest and 3 the loosest, the middle one your printer's fit now. Print it in the filament you will use for the box (the tiles too), try each, and pick below the one that fitted best: your printer remembers it and every box after uses it.`);
+  FIT_ROWS.forEach(r => {
+    const sizes = [1, 2, 3].map(i => fitSample(cal, r.k, i)), pick = [1, 2, 3].find(i => Math.abs(sizes[i - 1] - F[r.k]) < 0.005);
+    const what = { rib:"how far the ribs press in", clip:"how far the hook reaches over", gap:"the room round the tile", loop:"the room under the loop",
+      pin:"how much thinner than the hole", insert:"added to the insert hole", pilot:"added to the pilot hole" }[r.k];
+    note(p, `<b>${r.name}</b> · ${r.what}. ${r.ask} <span class="sub">(${what}: ${sizes.map((v, i) => `${i + 1} = ${fitMm(v)}`).join(", ")}${pick ? "" : `; yours now ${fitMm(F[r.k])}`})</span>`);
+    segField(p, [["1","1"],["2","2"],["3","3"]], ()=>pick ? String(pick) : "", v=>{ fitSave({ [r.k]:fitSample(cal, r.k, +v) }); renderTab(); });
+  });
+  const moved = FIT_ROWS.some(r => Math.abs(cal[r.k] - F[r.k]) > 0.005);
+  note(p, moved ? "None fitted just right? Pick the closest one, make a new card round your picks and print that: each card moves on from the last." : "Picked 1 or 3 on a row? Make a new card round your picks and print it again until the middle one fits.");
+  buttonRow(p, [...(moved ? [["Make a new card round my picks", ()=>{ E.cal = cleanFit(printerFit()); baseChanged(); renderTab(); pushHistory(); notify("A new card: its middle sizes are your picks."); }]] : []),
+    ...(state.printer.fit ? [["Back to the standard fits", ()=>{ delete state.printer.fit; savePrinterPref(); E.cal = cleanFit(printerFit()); baseChanged(); renderTab(); notify("Your printer uses the standard fits again."); }]] : [])]);
+  if (F.when) note(p, `Your printer's fits were last changed on ${esc(F.when)}. They are on the Colours tab too, under Fits, as numbers.`);
+}
+// the fits as numbers, in Settings → Printer
+function fitSettingsGroup(p){
+  group(p, "Fits (from the calibration card)", g => {
+    note(g, "Set by the calibration card (Make → a project box → Print a fit test first → The holders, on a card), or typed here. Every box uses them; the lid gap and openings are where a new box starts.");
+    const L = { gap:"Room round a board in a cradle", rib:"Crush ribs press in", clip:"Snap clip's hook reaches over", pin:"Snap pins thinner than the hole", insert:"Added to heat-insert holes",
+      pilot:"Added to self-tapping pilot holes", loop:"Room under a strap loop", lid:"A new box's lid gap", clear:"A new box's clearance in openings" };
+    Object.keys(FIT_DEFAULT).forEach(k => numField(g, { label:`${L[k]} (mm)`, min:FIT_RANGE[k][0], max:FIT_RANGE[k][1], step:0.05, def:FIT_DEFAULT[k], get:()=>printerFit()[k], set:v=>fitSave({ [k]:v }),
+      onChange:()=>{ if (state.base.type === "enclosure") baseChanged(); } }));
+  });
+}
 let encSel = null, encPlanFloor = 0;
 // a move in the plan (dx right, dy back) as a move of a part on a face: along it (u) and, under the lid, front to back (v)
 const encFaceDelta = (face, dx, dy) => face === "front" ? [dx, 0] : face === "back" ? [-dx, 0] : face === "left" ? [-dy, 0] : face === "right" ? [dy, 0] : [dx, dy];
@@ -13147,9 +13315,13 @@ function enclosureFields(p){
   const E = state.base.enclosure, I = enclosureInfo;
   renderedEncWarn = encPanelSig(I);
   checkField(p, "Print a fit test first", ()=>E.test === true, v=>{ E.test = v; renderTab(); baseChanged(); });
-  if (E.test) segField(p, [["box","A small box"],["holders","The holders, on a card"]], ()=>E.testKind === "holders" ? "holders" : "box", v=>{ E.testKind = v; renderTab(); baseChanged(); }, "two");
-  if (E.test && E.testKind === "holders"){ note(p, `<b>Fit test for the holders:</b> one card (${ENC_HOLDERS.w} × ${ENC_HOLDERS.d} mm) with a cradle with ribs and one with snap clips (push the 25 × 18 mm tiles in), a standoff with a snap pin (push the plate with the hole over it), a strap loop (thread a 20 mm strap through) and a scrap of wall with a sideways standoff (as on a wall in a box: does an M3 screw bite?). Print it in the filament for your box, try each, then untick this.`); return; }
-  if (E.test) note(p, `<b>Fit test:</b> a small box${I && I.test ? ` (${mm(I.size[0])} × ${mm(I.size[1])} × ${mm(I.size[2])})` : ""} with your walls, lid, lip gap, screws or magnets, and one of each opening. Print it, try your parts and the lid, adjust the clearances, then untick this to make the real box.`);
+  if (E.test) segField(p, [["box","A small box"],["holders","The holders, on a card"]], ()=>E.testKind === "holders" ? "holders" : "box", v=>{ E.testKind = v; if (v === "holders" && !E.cal) E.cal = cleanFit(printerFit()); renderTab(); baseChanged(); }, "two");
+  if (E.test && E.testKind === "holders"){ encCalibrationPanel(p, E); return; }
+  if (E.test){ note(p, `<b>Fit test:</b> a small box${I && I.test ? ` (${mm(I.size[0])} × ${mm(I.size[1])} × ${mm(I.size[2])})` : ""} with your walls, lid, lip gap, screws or magnets, and one of each opening. Print it, try your parts and the lid, adjust the clearances, then untick this to make the real box.`);
+    const F = printerFit(), same = Math.abs(F.lid - (+E.fit || 0)) < 0.005 && Math.abs(F.clear - (+E.clear || 0)) < 0.005;
+    buttonRow(p, [[same ? "These gaps are your printer's (new boxes start with them)" : `Keep these gaps for every new box (lid ${+E.fit || 0} mm, openings ${+E.clear || 0} mm)`, ()=>{
+      fitSave({ lid:+E.fit || 0, clear:+E.clear || 0 }); renderTab(); notify("Saved with your printer: every new box starts with this lid gap and openings' clearance."); }]]);
+  }
   encSortLevels(E, false);                              // a project from before Session 61 may list its levels out of order
   // the box's size, outside or inside (Session 61: type the room your parts need, the walls are added)
   segField(p, [["out","Outside sizes"],["in","Inside sizes"]], ()=>viewOpts.encInside ? "in" : "out", v=>{ viewOpts.encInside = v === "in"; renderTab(); }, "two");
@@ -13244,7 +13416,7 @@ function enclosureFields(p){
         if (E.lid === "screw") segField(g, [["sink","Countersunk"],["bore","Counterbored"],["plain","Plain hole"]], ()=>E.head, v=>{ E.head = v; baseChanged(); });
         encPostStyleField(g);
         encGasketField(g);
-        const s = encHas(SCREWS, E.screw) ? SCREWS[E.screw] : SCREWS.M3;
+        const s = encScrew(E.screw);
         note(g, (E.fasten === "insert"
           ? `${E.screw} heat inserts: the posts get a ${s.insert} mm hole, at least ${s.insertDepth} mm deep. Press the insert in with a soldering iron at about 220 °C, flush with the top.`
           : `${E.screw} self-tapping screws: the posts get a ${s.pilot} mm pilot hole. Good for a few openings; use heat inserts for a lid you open often.`)
@@ -15317,6 +15489,7 @@ function tabColour(p){
     numField(g2,{ label:"Layer height (mm)", min:0.05,max:0.4,step:0.01, get:()=>state.printer.layer, set:v=>state.printer.layer=v, onChange:()=>{ savePrinterPref(); runChecks(); } });
     selField(g2,"Units",[["mm","Millimetres"],["in","Inches"]],()=>state.view.units, v=>{ state.view.units = v; refreshScene(); renderTab(); });
   });
+  fitSettingsGroup(p);
 }
 function removeSlot(i){
   state.slots.splice(i,1);
@@ -16582,7 +16755,8 @@ function cleanPrinter(pr){
     colors: Math.round(num(P.colors, 1, 16, d.colors)), flow: num(P.flow, 1, 60, d.flow),
     currency: cleanStr(P.currency, 4, "").replace(/[<>&"']/g, ""),
     overhang: num(P.overhang, 20, 80, d.overhang), bridge: num(P.bridge, 0, 60, d.bridge),
-    purge: num(P.purge, 0, 5, d.purge), swap: num(P.swap, 0, 600, d.swap) };
+    purge: num(P.purge, 0, 5, d.purge), swap: num(P.swap, 0, 600, d.swap),
+    ...(P.fit && typeof P.fit === "object" && Object.keys(cleanFit(P.fit)).length ? { fit:cleanFit(P.fit) } : {}) };
 }
 // a photo's hand fixes from a project file: at most 2000 strokes and 100 000 numbers in all, every point on
 // the photo, the brush between 0.2% and 25% of the photo's height
@@ -16829,6 +17003,7 @@ function sanitizeProject(data){
     const has = k => Object.prototype.hasOwnProperty.call(E, k);
     if (has("edge")) E.edge = ["chamfer","round"].includes(E.edge) ? E.edge : ""; if (has("texture")) E.texture = ["grooves","hex"].includes(E.texture) ? E.texture : ""; if (has("band")) E.band = E.band === true;     // the style (Session 63)
     if (has("testKind")) E.testKind = E.testKind === "holders" ? "holders" : "box";
+    if (has("cal")){ const c2 = cleanFit(E.cal); if (Object.keys(c2).length) E.cal = c2; else delete E.cal; }
     if (has("boardFace")) E.boardFace = ENC_MOUNT_FACES.includes(E.boardFace) ? E.boardFace : ""; if (has("boardSide")) E.boardSide = E.boardSide === "out" ? "out" : "in"; if (has("boardStrapBy")) E.boardStrapBy = E.boardStrapBy === "loops" ? "loops" : "slots";
     if (E.boardWatts != null && E.boardWatts !== "") E.boardWatts = Math.min(500, Math.max(0, cleanNum(+E.boardWatts, 0))); else delete E.boardWatts;
     E.boardX = Math.min(200, Math.max(-200, cleanNum(E.boardX, 0))); E.boardY = Math.min(250, Math.max(-200, cleanNum(E.boardY, 0)));
@@ -16999,7 +17174,7 @@ async function loadProject(data){
   if (!data || !data.state) return false;
   const cameWithModel = !!data.model;          // a model in the file, even one the cleaning refuses: not looked up below
   data = sanitizeProject(data);
-  const def = DEFAULTS();
+  const def = DEFAULTS(), myFit = state && state.printer && state.printer.fit;   // (Session 64) a project made before the fits keeps this printer's
   state = Object.assign(def, data.state);
   state.base = Object.assign(def.base, data.state.base||{});
   for (const k of Object.keys(DEFAULTS().base)){          // fill in groups added by later versions
@@ -17007,6 +17182,7 @@ async function loadProject(data){
     if (d0 && typeof d0 === "object" && !Array.isArray(d0)) state.base[k] = Object.assign(d0, state.base[k]||{});
   }
   state.printer = Object.assign(DEFAULTS().printer, data.state.printer||{});
+  if (!state.printer.fit && myFit) state.printer.fit = myFit;
   state.model = Object.assign(DEFAULTS().model, data.state.model||{});
   state.view = Object.assign(DEFAULTS().view, data.state.view||{});
   stlData = data.model ? data.model.tris : null; stlPaint = data.model ? data.model.paint : null; stlColour = data.model ? data.model.colour : null; stlCache = null;
@@ -17474,7 +17650,7 @@ window.MakerForge = {
   get enclosure(){ return enclosureInfo; },
   get cutouts(){ return CUTOUTS; }, get boards(){ return BOARDS; }, boardPorts:BOARD_PORTS, addBoardPorts:encAddBoardPorts, arrange:encArrange,
   // room for parts (Session 61), for the tests
-  boxRoom:{ place:encPlace, freeU:encFreeU, onFace:encRoomOnFace, shrink:encShrinkWrap, fixAll:encFixAll, makeRoom:encMakeRoom, busy:encBusy, assembly:encAssembly, kicad:kicadParse, importKicad:encImportKicad, heat:encHeat, wires:encWires, kits:ENC_KITS, startKit:encStartKit }, boxDrag:{ pick:boxDragPick, start:h => { boxDrag = Object.assign(h, { id:-1, moved:false, t:0 }); }, to:lr => { const ok = boxDragTo(lr); if (ok && boxDrag) boxDrag.moved = true; return ok; }, end:boxDragEnd }, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
+  boxRoom:{ place:encPlace, freeU:encFreeU, onFace:encRoomOnFace, shrink:encShrinkWrap, fixAll:encFixAll, makeRoom:encMakeRoom, busy:encBusy, assembly:encAssembly, kicad:kicadParse, importKicad:encImportKicad, heat:encHeat, wires:encWires, kits:ENC_KITS, startKit:encStartKit, fit:{ printer:printerFit, sample:fitSample, defaults:FIT_DEFAULT, clean:cleanFit, rows:FIT_ROWS, save:fitSave, screw:encScrew, card:ENC_HOLDERS } }, boxDrag:{ pick:boxDragPick, start:h => { boxDrag = Object.assign(h, { id:-1, moved:false, t:0 }); }, to:lr => { const ok = boxDragTo(lr); if (ok && boxDrag) boxDrag.moved = true; return ok; }, end:boxDragEnd }, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
   get jigsaw(){ return jigsawInfo; },
   get lithophane(){ return lithoInfo; },
   get print(){ return printFresh() ? printInfo : null; },

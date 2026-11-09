@@ -9736,6 +9736,9 @@ const CUTOUTS = {
   display:{ g:"screen", label:"Display window (my size) + 4 screws", kind:"display", w:40, h:30, hw:48, hh:38, hd:3 },
   esp32cam:{ g:"sensor", label:"ESP32-CAM / XIAO ESP32-S3 Sense camera lens (OV2640)", kind:"round", dia:8.5 },
   // (Session 64) on the lid: the lens hole and, on the lid's inside, a frame that holds the camera (an OV2640 is 8.5 mm square)
+  // (Session 64) no hole to press through: a tongue cut free on three sides bends under your finger, a nub under its tip presses the
+  // board's button; for the lid (it prints face down, so the nub stands up)
+  flexbtn:{ g:"button", label:"Flexing button in the lid (a tongue that bends, no hole)", k:"flex flexible living hinge tongue press tact switch membrane", kind:"flex", w:9, h:16 },
   camholder:{ g:"sensor", label:"Camera holder in the lid (OV2640): lens hole + a frame inside", k:"esp32-cam esp32cam ov2640 camera holder bird house nest lens frame", kind:"round", dia:8.6 },
   picam:{ g:"sensor", label:"Raspberry Pi camera module: lens + 4 screws", kind:"camera", dia:9, hw:21, hh:12.5, hd:2.2, holeShift:1.2 },
   pir501:{ g:"sensor", label:"Motion sensor HC-SR501: dome + 2 screws", kind:"pir", dia:23.2, hw:28, hd:2.2, deep:15, body:33 },
@@ -9955,6 +9958,9 @@ function openingRings(c, wall, E){
       }
       break;
     }
+    case "flex": {                                   // (Session 64) a flexing button: a U-shaped slot round a tongue, its tip at +v
+      const tw = pos(c.w), tl = pos(c.h), g = 0.8, x0 = -tw/2, x1 = tw/2, y0 = -tl/2, y1 = tl/2;
+      out.push([[x0 - g, y0], [x0, y0], [x0, y1], [x1, y1], [x1, y0], [x1 + g, y0], [x1 + g, y1 + g], [x0 - g, y1 + g]]); break; }
     case "iec": { const w = pos(c.w) + cl, h = pos(c.h) + cl, ch = Math.min(3, h/3);
       out.push([[-w/2,-h/2],[w/2,-h/2],[w/2,h/2-ch],[w/2-ch,h/2],[-w/2+ch,h/2],[-w/2,h/2-ch]]); break; }
     case "display": {
@@ -12296,6 +12302,16 @@ function encSolarRect(E, W, D, t){
 const ENC_DIAL_KINDS = new Set(["pot", "encoder", "rotary"]);
 // a 1/4-20 UNC tripod nut: 7/16 inch (11.1 mm) across its flats, 5.6 mm thick, and the screw's hole (Session 64)
 const ENC_TRIPOD = { af:11.1, t:5.6, hole:6.6 };
+// outlines drawn on a wall, (u, v) as the openings', made a slab from n0 to n1 outwards from the wall's outside plane, in world
+// coordinates, outward-facing (Session 64: clear windows)
+function encFaceSlab(face, rings, n0, n1, W, D){
+  const map = { front:[[1,0,0, 0,0,-1, 0,1,0], [0, 0, D/2]], back:[[-1,0,0, 0,0,-1, 0,-1,0], [0, 0, -D/2]],
+    left:[[0,-1,0, 0,0,-1, 1,0,0], [-W/2, 0, 0]], right:[[0,1,0, 0,0,-1, -1,0,0], [W/2, 0, 0]] }[face];
+  const sol = C.affineSolid(C.extrudePolysAt(rings.map(L => ({ outer:encOrient(L, true), holes:[] })), n0, n1), map[0], map[1]);
+  if (C.signedVolume(sol) < 0) for (let i = 0; i < sol.idx.length; i += 3){ const q = sol.idx[i + 1]; sol.idx[i + 1] = sol.idx[i + 2]; sol.idx[i + 2] = q; }
+  return sol;
+}
+const encClearSlot = E => { const k = state.slots.findIndex(sl => /clear|transparent|translucent|natural/i.test(`${sl.name} ${sl.mat || ""}`)); return k >= 0 ? k : clamp(+E.boxSlot || 0, 0, state.slots.length - 1); };
 // a corner post's slice with a nut pocket (Session 64): the post's circle (radius r round x, y) less a hex nut (af across its
 // flats, with the gap fit) and the slot it slides in by, towards the middle of the box; one outline, no holes
 const ENC_NUT = { above:3 };
@@ -13229,6 +13245,31 @@ function buildEnclosure(){
   }
   // battery doors (Session 57), printed flat in front of the box
   doorParts.forEach(dp => { insideParts.push(Object.assign(dp, { solid:C.affineSolid(dp.solid, [1,0,0, 0,1,0, 0,0,1], [0, 0, frontZ + dp.dd/2]) })); frontZ += dp.dd + 10; });
+  // button plungers and light pipes (Session 64): for a tactile button or an LED on a board behind a wall or the lid, a printed
+  // part that goes through the hole: a cap standing proud outside (a plunger) or a rod (a light pipe), a flange inside that
+  // stops it falling out, on a 45° step, and a stem as long as its reach to the switch or LED. Printed standing on their outer
+  // ends, in a row in front of the box: plungers in the box's filament, light pipes in a clear one
+  if (!state.base.enclosure.test){
+    const plg = [], lps = [];
+    placedOpen.filter(po => (po.c.kind === "tact" || po.c.kind === "tact12" || po.c.kind === "btn") && po.c.plunger === true || po.c.kind === "lightpipe" && po.c.pipe === true).forEach(po => {
+      const pipe = po.c.kind === "lightpipe", dh = Math.min(po.bb[2] - po.bb[0], (po.bb[3] - po.bb[1]) || 99), wallT = po.face === "top" ? lidT : po.face === "bottom" ? fl : t;
+      const d = Math.max(1.6, dh - (pipe ? 0.2 : 0.5)), df = d + 3, reach = clamp(+po.c.reach || (pipe ? 6 : 5), 0.5, 60), out = pipe ? 0.5 : 1.5;
+      const cap = wallT + out, cone = (df - d)/2, stem = pipe ? d : Math.min(3, d), list = [];
+      const cyl = (r, z0, z1) => C.extrudePolysAt([{ outer:encOrient(C.ringCircle(r, 32), true), holes:[] }], z0, z1);
+      list.push(cyl(d/2, 0, cap + 0.01), encLoft(C.ringCircle(d/2, 32), cap, C.ringCircle(df/2, 32), cap + cone), cyl(df/2, cap + cone - 0.01, cap + cone + 1.2), cyl(stem/2, cap + cone + 1.19, cap + cone + 1.2 + reach));
+      (pipe ? lps : plg).push({ sol:C.mergeSolids(list), r:df/2, h:cap + cone + 1.2 + reach, i:po.i, len:+(cap + cone + 1.2 + reach).toFixed(1) });
+    });
+    const row = (items, name, slot) => { if (!items.length) return null;
+      const step = Math.max(...items.map(q => 2*q.r)) + 4, pcs = items.map((q, k) => C.affineSolid(q.sol, [1,0,0, 0,1,0, 0,0,1], [(k - (items.length - 1)/2)*step, 0, 0]));
+      insideParts.push({ inside:true, name, slot, solid:C.affineSolid(C.mergeSolids(pcs), [1,0,0, 0,1,0, 0,0,1], [0, 0, frontZ + step/2]) }); frontZ += step + 8;
+      return items.map(q => ({ i:q.i, len:q.len })); };
+    const clearSlot = (() => { const k = state.slots.findIndex(sl => /clear|transparent|translucent|natural/i.test(`${sl.name} ${sl.mat || ""}`)); return k >= 0 ? k : clamp(+E.boxSlot || 0, 0, state.slots.length - 1); })();
+    extraInfo.plungers = row(plg, `Button plunger${plg.length === 1 ? "" : "s"}`, clamp(+E.boxSlot || 0, 0, state.slots.length - 1)) || [];
+    extraInfo.pipes = row(lps, `Light pipe${lps.length === 1 ? "" : "s"} (clear)`, clearSlot) || [];
+  }
+  // clear windows in wall openings (Session 64): a 0.8 mm plate of clear filament at the outside of the hole, printed with the box
+  const winWalls = placedOpen.filter(po => po.c.window === true && ENC_WALLS.has(po.face) && !po.c.notch && !state.base.enclosure.test);
+  if (winWalls.length) insideParts.push({ name:"Windows (clear)", slot:encClearSlot(E), solid:C.mergeSolids(winWalls.map(po => encFaceSlab(po.face, placedRings(po.c, E), -Math.min(0.8, t - 0.4), 0, W, D))) });
   // a gasket printed in TPU (Session 64), instead of a cord: a ring the cord's width along the groove (0.15 mm clear of each of
   // its sides), standing half the cord proud of it so the screws squeeze it; printed flat in front of the box, in its own filament
   if (gasket && E.gasketPrint === true && !state.base.enclosure.test){
@@ -13351,6 +13392,12 @@ function buildEnclosure(){
     // a camera held in the lid (Session 64): a three-sided frame round the lens hole on the lid's inside face holds an OV2640
     // (8.5 mm square, ENC_CAM) with its lens through the hole, open on one side for its ribbon cable (towards the front, or the
     // right when turned); it stands up as the lid prints face down, so no support
+    // flexing buttons (Session 64): a nub under each tongue's tip, standing on the lid's inside face (its reach is c.reach, to the button)
+    placedOpen.filter(po => po.face === "top" && po.c.kind === "flexbtn").forEach(po => {
+      const c = po.c, tl = Math.max(0.5, +c.h || 16), x = +c.u || 0, y = (+c.v || 0) + tl/2 - 2.5, reach = clamp(+c.reach || 3, 0.5, 40);
+      lid.push(C.extrudePolysAt([{ outer:encOrient(C.ringCircle(1.6, 24).map(([a, b]) => [a + x, b - y]), true), holes:[] }], lidT - 0.01, lidT + reach));
+      if (tl < 10) warn.push({ t:`${po.lab}: a short tongue`, s:"Under 10 mm long it hardly bends: make it longer, or the lid thinner, or print it in PETG." });
+    });
     camFrames.forEach(cf => {
       const CM = ENC_CAM, a = CM.side/2 + encFit().gap/2, w = CM.wall, X = cf.x, Y = -cf.y, h = CM.h;
       if (cf.x - a - w < cf.lim[0] || cf.x + a + w > cf.lim[2] || cf.y - a - w < cf.lim[1] || cf.y + a + w > cf.lim[3]){
@@ -13411,6 +13458,10 @@ function buildEnclosure(){
     if (logo) logo.colours.forEach(c => parts.push({ name:`Lid logo (${state.slots[c.slot].name})`, slot:c.slot, lid:true,
       solid:C.affineSolid(C.extrudePolysAt(flipY(c.polys), 0, logoDepth), [1,0,0, 0,1,0, 0,0,1], beside) }));
     if (logo) enclosureLogo = { size:logo.size, colours:logo.colours.length, depth:logoDepth };
+    // clear windows in the lid's openings (Session 64): a 0.8 mm plate at its outside face, the first layers as it prints face down
+    const winTop = placedOpen.filter(po => po.c.window === true && po.face === "top");
+    if (winTop.length) parts.push({ name:"Lid windows (clear)", slot:encClearSlot(E), lid:true,
+      solid:C.affineSolid(C.extrudePolysAt(winTop.flatMap(po => placedRings(po.c, E)).map(L => ({ outer:encOrient(L.map(([x, y]) => [x, -y]), true), holes:[] })), 0, Math.min(0.8, lidT - 0.4)), [1,0,0, 0,1,0, 0,0,1], beside) });
   }
   parts.push(...insideParts);
   const fastenText = slide ? "Sliding lid: it slides in from the front along 45° grooves in the side walls, no screws needed." : magnet ? `Magnet lid: pockets for eight ${mg.d} × ${mg.t} mm magnets (${pocketD.toFixed(1)} mm wide, ${pocketH.toFixed(1)} mm deep), four in the posts and four in the lid.`
@@ -21630,6 +21681,28 @@ function enclosureFields(p){
       }
       if (k.kind === "vent") segField(box, [["slots","Slots"],["honeycomb","Honeycomb"],["holes","Round holes"]], ()=>c.style, v=>{ c.style = v; baseChanged(); });
       if (k.kind !== "round" && k.kind !== "grille") checkField(box, "Turn it 90°", ()=>c.rot, v=>{ c.rot = v; renderTab(); encOpeningChanged(i); });
+      // a clear window in it (Session 64): over an LED, a screen or a sensor
+      if ((k.g === "light" || k.g === "screen" || /^(led|ldr|irrx)/.test(c.kind)) && c.face !== "bottom" && !c.notch && c.kind !== "lightpipe"){
+        checkField(box, "A clear window in it (a clear filament fills its outside 0.8 mm)", ()=>c.window === true, v=>{ c.window = v; renderTab(); baseChanged(); });
+        if (c.window === true) note(box, "Printed with the box (or the lid) in one go, in your clear filament (one named clear, transparent or natural; else the box's own, so load one): it lets the light through and keeps dust and splashes out. A multi-colour printer does both together; on one colour, pause after the window's layers.");
+      }
+      // a flexing button's tongue and the nub's reach (Session 64)
+      if (c.kind === "flexbtn"){
+        numField(box, { label:"Tongue width (mm)", min:5, max:30, step:0.5, def:9, get:()=>+c.w || 9, set:v=>c.w = v, onChange:()=>encOpeningChanged(i) });
+        numField(box, { label:"Tongue length (mm)", min:6, max:40, step:0.5, def:16, get:()=>+c.h || 16, set:v=>c.h = v, onChange:()=>encOpeningChanged(i) });
+        numField(box, { label:"From the lid's inside to the button (mm)", min:0.5, max:40, step:0.5, def:3, get:()=>+c.reach || 3, set:v=>c.reach = v, onChange:baseChanged,
+          sub:()=>"The nub under the tongue's tip is this long: measure from the lid's inside to the top of the button, less half a millimetre." });
+        note(box, c.face === "top" ? "A slot 0.8 mm wide round three sides frees a tongue that bends when you press it; its tip is towards the back. Thin lids (2 mm) and PETG bend best." : "Put it on the lid: the nub stands on the lid's inside, which prints facing up.");
+      }
+      // a printed plunger or light pipe for it (Session 64)
+      if (c.kind === "tact" || c.kind === "tact12" || c.kind === "btn" || c.kind === "lightpipe"){
+        const pipe = c.kind === "lightpipe", on = pipe ? c.pipe === true : c.plunger === true;
+        checkField(box, pipe ? "Print the light pipe (in a clear filament)" : "Print a plunger for it (for a button on a board behind)", ()=>on, v=>{ if (pipe) c.pipe = v; else c.plunger = v; renderTab(); baseChanged(); });
+        if (on){ numField(box, { label:pipe ? "From the wall's inside to the LED (mm)" : "From the wall's inside to the button (mm)", min:0.5, max:60, step:0.5, def:pipe ? 6 : 5, get:()=>+c.reach || (pipe ? 6 : 5), set:v=>c.reach = v, onChange:baseChanged,
+          sub:()=>pipe ? "Measure from the inside of the wall (or the lid) to the LED's top. It prints standing up, in your clear filament (one named clear, transparent or natural, else the box's)." : "Measure from the inside of the wall (or the lid) to the button's top. The plunger stands 1.5 mm proud outside; a flange inside keeps it from falling out." });
+          const ex = (enclosureInfo && enclosureInfo.extras || {})[pipe ? "pipes" : "plungers"] || [], me = ex.find(q => q.i === i);
+          if (me) note(box, `${pipe ? "The light pipe" : "The plunger"} is ${me.len} mm long, shown as its own part.`); }
+      }
       // a scale round its knob (Session 64)
       if (ENC_DIAL_KINDS.has(c.kind) && c.face !== "bottom"){
         selField(box, "Scale round the knob", [["","None"],["ticks","Ticks"],["0-10","0 to 10"],["minmax","MIN to MAX"]], ()=>c.dial || "", v=>{ c.dial = v; renderTab(); baseChanged(); });
@@ -24848,6 +24921,7 @@ function sanitizeProject(data){
       if (c.auto === "ports"){ o.auto = "ports"; if (encHas(BOARDS, c.board)) o.board = c.board; if (Number.isInteger(c.port) && c.port >= 0 && c.port < 32) o.port = c.port; }
       if (okId(c.id)) o.id = c.id;
       if (c.hood === true) o.hood = true;
+      if (c.window === true) o.window = true; if (c.plunger === true) o.plunger = true; if (c.pipe === true) o.pipe = true; if (c.reach != null && isFinite(+c.reach)) o.reach = Math.min(60, Math.max(0.5, +c.reach));
       if (["ticks","0-10","minmax"].includes(c.dial)) o.dial = c.dial; if (c.knob != null && isFinite(+c.knob)) o.knob = Math.min(60, Math.max(6, +c.knob));
       return o;
     });

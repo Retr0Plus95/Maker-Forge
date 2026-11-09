@@ -130,7 +130,7 @@ function insideMesh(s, p) {
     Object.defineProperty(inp, "files", { value: [f], configurable: true }); inp.dispatchEvent(new win.Event("change"));
     for (let i = 0; i < 100 && MF.rev === r0; i++) await sleep(30); await settle();
     const E = MF.state.base.enclosure;
-    check(E.boardHold === "holes" && E.more.length === 4 && E.more.every(m => m.kind === "relay1" && m.x === 0 && m.y === 150 && m.h === 1 && m.rot === false && m.hold === "holes"),
+    check(E.boardHold === "holes" && E.more.length === 4 && E.more.every(m => m.kind === "relay1" && m.x === 0 && m.y === 250 && m.h === 1 && m.rot === false && m.hold === "holes"),
       "a hold that does not exist, 100 extra boards of nonsense: on screw holes; of the first 12, the 4 known boards kept, each number clamped", `${E.more.length} kept`);
     // one with numbers that are not numbers
     s0.base.enclosure.more = [{ kind: "relay1", x: "far", y: 1e9, h: -5, rot: "yes", hold: 7 }];
@@ -138,7 +138,7 @@ function insideMesh(s, p) {
     Object.defineProperty(inp, "files", { value: [f2], configurable: true }); inp.dispatchEvent(new win.Event("change"));
     for (let i = 0; i < 100 && MF.rev === r1; i++) await sleep(30); await settle(); await sleep(1500); await settle();
     const m = MF.state.base.enclosure.more[0];
-    check(MF.state.base.enclosure.more.length === 1 && m.x === 0 && m.y === 150 && m.h === 1 && m.rot === false && m.hold === "holes", "a relay at a position that is a word, a billion mm back and a negative height: kept, each number clamped", JSON.stringify(m));
+    check(MF.state.base.enclosure.more.length === 1 && m.x === 0 && m.y === 250 && m.h === 1 && m.rot === false && m.hold === "holes", "a relay at a position that is a word, a billion mm back and a negative height: kept, each number clamped", JSON.stringify(m));
   }
 
   const errs = env.errors.slice(e0).filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));

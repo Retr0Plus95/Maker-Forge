@@ -2570,7 +2570,204 @@ on a corner post after the box grew both ways, in a box made in parts); its repl
 by `encMainPicked` keeps its turn (`keepRot`): its ports face the walls they do; modules may be turned to fit. Pictures: `docs/images/box-plan.jpg`, `box-parts.jpg`. Not done: dragging openings along the walls in the plan; a
 real print of the strap loops (3 mm under a 45° gable: check the strap slides through).
 
-## Next: 0.55 (planned, not started)
+## Session 63: project boxes, boards on walls, wiring, KiCad, heat, recipes, style (v0.55.0)
+
+The owner asked "What else to make it even better", was given nine ideas, and answered "Do all of them". All nine are in:
+
+- **Boards on a wall or under the lid** (`ENC_MOUNT_FACES`, `boardFace`/`boardSide` for the main board, `face`/`side` on a module,
+  `encMountField`): boards with screw holes only. In `encBoardList` such a part has `lvl -1` (on no floor) and `x, y` on its face
+  (along it seen from outside, and the height of its middle; under the lid across and front to back). `faceMount` in
+  `buildEnclosure` builds the standoffs: on a wall a teardrop pointing down with a teardrop hole pointing up, extruded inwards in
+  the wall's frame (`faceInfo[f].M/T`); under the lid circles on the lid's inside face (`lidMounts`, built with the lid). A board
+  with its parts in is seen from outside the other way round (`mir`). Its info has `face`, `bb` (its plan footprint, with what
+  stands off the face), `z` (its heights), `faceOver` when it runs off its face (`encMakeRoom` grows that face's sides). Checked
+  in 3D against every other part and the levels; `encBusy` keeps new floor parts out from under it where it reaches their floor;
+  `encShiftAll` moves it as an opening on its face; Arrange, ports and the 3D drag leave it alone (its floor port openings go when
+  it moves to a wall). In the plan it is drawn and dragged along its wall (`encFaceDelta`).
+- **The plan's tools**: openings picked (`encSel.cut`), dragged along their wall or on the floor, moved with the keys; distance
+  lines from the picked part; snapping (`snapTo`, within 2 mm, guides, Alt to drag freely); Tab through `[data-pick]`.
+- **Wiring** (`E.wires`, `encWireEnds`, `encWireAt`, `encPassAt`, `encWires`, `encWiringText`): ends are ids (`encId`, given to
+  modules and openings as the panel is drawn and kept in the project; copies get new ones), routed across then front to back,
+  through each level's cable pass; `wiring.txt` in the download.
+- **KiCad** (`kicadParse`, `KICAD_PORTS`, `KICAD_PANEL`, `encSyncCustomBoards`, `encImportKicad`): a small S-expression reader; the
+  outline from Edge.Cuts (or the footprints when there is none), holes, edge connectors as ports (`BOARD_PORTS["kc_<id>"]`), LEDs,
+  buttons and knobs as `panel` parts. `E.customBoards` (up to 8) are clamped and made into `BOARDS["kc_<id>"]` on load, before each
+  build and each panel; the group "Your own boards" is added to `BOARD_GROUPS`.
+- **Shapes** (`BOARD_SHAPES` for 11 boards, `boardShapesAt`, `encTopIn`, `info.shapes`, `info.reach`): drawn as `feat` ghosts, in the
+  plan and the catalogue; used by the bracket and short-lid-post checks, `encBusy` (the reach of overhanging sockets) and a check
+  after every part is placed for a socket past its board's edge into another part.
+- **Heat** (`ENC_WATTS`, `encWattsOf`, `encPartWatts`, `encHeat`, `encAddCooling`, `ENC_FAN_FLOW`): watts per part (typical, set by
+  `watts` / `boardWatts`), a closed box's 5 W/m²K × 15 K, vents' open area from `placedRings`, ~3 cm²/W over that, a fan above
+  15 W (3.1 × W ÷ 10 K m³/h). Vents are sized by their real open area (honeycomb or slots, whichever is more), a second pair on the
+  short walls when the long ones cannot take enough.
+- **Recipes** (`ENC_KITS`, `encStartKit`): defaults, the kit's settings, `aiFromWords` with faces set per kind and extra openings,
+  `encApplyPlan`, a minimum size (the pedal), labels, `encFixAll`, `encTidyLabels`. All six build with no warnings.
+- **Style** (`E.edge`/`edgeSize`, `E.texture`/`textureDepth`, `E.band`/`bandZ`/`bandH`/`bandSlot`): the lid's edge as 0.2 mm slabs
+  inset from the bed (kept clear of a gasket groove); grooves (pointed tops) and hexagons (a corner up) cut into the walls' outer
+  skin through the existing `wc` layers, clear of `taken`; the band inlaid the same way with a part of its own.
+- **The fit test for the holders** (`E.testKind` "holders", `encHolderCard`, `ENC_HOLDERS`): a 130 × 82 mm card and its tiles.
+
+**Fixed:** `sanitizeProject` rebuilt each module, level and opening from a fixed list of fields, so a reopened project lost a
+module's `strapBy` (0.54), a level's `bracketWalls` (0.54), an opening's `auto`/`board`/`port` (0.54: port openings stopped
+following the board, and Arrange made them again) and pulled modules back within ±150 mm. All kept now, with the new fields, and
+`tools-boxpro-test.js` saves and reopens a project with every one. A fan only counted for cooling over 15 W. A label with no room
+is moved above its opening before it is dropped (`encTidyLabels`, also on Label every opening).
+
+Tested: `tools-boxpro-test.js` (45 checks: each face and side, clashes, growth, the panel; the plan's keys and Tab; wiring with a
+pass and a missing end; a KiCad file written for the test; shapes; heat; every recipe; every style and the card without support;
+a saved project and a hostile one), the whole `test:enclosure`, the box's smoke test and audit, `test:project`, the print survey,
+the browser check, and `tools-boxfuzz.js` with the new actions (where a board is mounted, recipes, the heat buttons, wires,
+the style, the holders' card; `DUMP=<folder>` now saves the box before a step that went wrong): seeds 101-104 and 111-113, 5 runs
+of 22 steps each. It found one bug, fixed: a wall chosen for a board, then a board without screw holes picked, left `boardFace`
+set, and `encShiftAll` moved that floor board as a wall part when the box grew (now it asks `encBoardList` where each part
+really is, and picking such a board clears it). Its check after adding a part now looks at warnings that name the part added:
+a box shrunk until everything is left out shows its old clashes again once a new part makes it grow (seed 111). In Chromium: snapping while dragging, the plan with wires and a
+board on a wall, the catalogue's shapes. Not tested: a real KiCad board beyond the test file (other footprint libraries name
+parts differently: the patterns are in `KICAD_PORTS` / `KICAD_PANEL`), and real prints of the wall standoffs, the styles and the card.
+
+## Session 64: calibration, the bird house camera, what sticks out behind a wall (still v0.55.0, the same pull request)
+
+The owner asked what the box maker still misses, was given a list (calibration feed-back, box shapes, plungers and light pipes,
+more board imports and a parts library, drill templates and face drawings, the engine) and answered "Do all of them then we
+calibrate tonight, I need to print a box for a lip 8k mah 126090 and a small dome movment sensor and then add a small esp32 cam
+in another box for a little bird house". This session did what tonight needs, in the 0.55.0 pull request (#47, not merged yet);
+the rest is next (see Next).
+
+- **Your printer's fits** (`FIT_DEFAULT`, `FIT_RANGE`, `FIT_STEP`, `FIT_DIR`, `cleanFit`, `printerFit`, `encFit`, `encFitOver`,
+  `encScrew`, `storedFit`, `fitSave`): `state.printer.fit`, cleaned by `cleanPrinter` (only when there, so a project from before
+  is unchanged), saved with the printer (`makerforge.printer`), carried by a project file; a project without fits keeps this
+  browser's (`loadProject` keeps `myFit`). `gap` (the room round a board in a cradle, was `ENC_CRADLE.gap`), `rib` and `clip`
+  (`ENC_GRIP.into`/`.over`), `pin` (a snap pin this much thinner than the screw's clearance, was 0.3), `pilot` and `insert` (added
+  to every hole from `SCREWS` in the box: every lookup there goes through `encScrew`), `loop` (`ENC_TRAY.loop.gap`), and `lid` /
+  `clear`, where a new box's `fit` and `clear` start (`DEFAULTS` reads them with `storedFit`, which stands alone: DEFAULTS runs
+  before the constants exist). The defaults are the old numbers, so nothing changes until the fits are set: the print survey
+  is unchanged.
+- **The calibration card** (`encHolderCard`, `ENC_HOLDERS` now 172 × 122 mm, `FIT_ROWS`): seven rows (RIBS, CLIPS, RIM, LOOP,
+  PIN, INS, WALL), three sizes each, 1 the tightest, built with `encFitOver` set to each sample's sizes. Its middle sizes are
+  `E.cal` (kept by `sanitizeProject`), set when the card is chosen, so the picks still match the printed card after the fits
+  change; `encCalibrationPanel` has a 1-2-3 pick per row, **Make a new card round my picks** and **Back to the standard fits**.
+  `encLoopAt` is the strap loop on its own (the tray uses it). The small box test has **Keep these gaps for every new box**.
+  Settings: `fitSettingsGroup` on the Colours tab ("Fits (from the calibration card)").
+- **The bird house** (two `ENC_KITS`): the battery box (a `lipo126090`, 94 × 61 × 13 with its protection board, on strap loops;
+  the TP4056 made the main board so `encAddBoardPorts(true, true)` puts its USB-C through the wall; an MT3608; `pirmini` in front;
+  a PG7 gland; gasket, ears) and the camera box (an ESP32-CAM in clips, a `camholder` over it, h 22). Recipes take `holds`,
+  `main`, `over` and `h` now; with `main`, Arrange may make the box bigger (`encArrange(false)` when it does not fit).
+- **The camera holder** (`camholder` in `CUTOUTS`, `ENC_CAM`, `camFrames`, `info.cams`): the lens hole, and a three-sided frame
+  on the lid's inside (8.5 mm + the gap fit, 1.2 mm walls, 3.2 mm tall), open towards the front (or the right, turned); left out
+  with a warning when it would reach the lip, and a warning when a board's parts reach it. A ghost shows the camera.
+- **What sticks out behind a wall** (`deep`, `body` on 45 `CUTOUTS`; `placedOpen`, `info.behind`): a ghost behind each panel
+  part, and a warning when it meets a board on the floor; `encFixAll` grows that wall by the overlap (up to 3 rounds). A board's
+  own port openings (`auto: "ports"`) and a KiCad board's panel parts are skipped. `encFixAll` also takes an opening "behind
+  the lid's lip" down under it (`info.wallV`), or makes the box taller when lower would clash or leave the wall. Recipes with
+  `round: true` (both bird house boxes) get `E.teardrop` "flat" (`encTeardropFlat`): a teardrop cut flat 1 mm over the circle, so
+  no support (a short bridge) and a gland's flange or a dome's lip still covers the hole; the panel's choice is Round / Pointed
+  top / Pointed, cut flat. (They were round at first: the print check then wanted 45 and 26 mm² of support. `tools-boxcal-test.js`
+  read a `supportArea` that does not exist, so its "no support" checks passed whatever; it reads `overhang.area` now.) It found the bench power supply recipe's inlet,
+  switch and sockets inside the LRS-100 (the recipe's box is now 27 mm deeper).
+
+**Fixed on the way** (the bird house boxes in Chromium said "4 walls are thinner than the nozzle"): the screw ears' 45° fins
+ended in a knife-edge at the wall (now a 0.6 mm step); a floor cradle's rim had no bounds, so a board put 1 mm from a wall for its
+ports (Arrange, Add this board's ports) left a free sliver of rim and, on a wall under 1.6 mm, reached through it (floor cradles
+are clipped to the inside now, like a level's); and `sliceMask` in `src/core.js` filled slice rows odd-even, so two overlapping
+shells of one part (the TP4056's rim on the LiPo tray's: Arrange keeps 3 mm between boards, their rims reach 1.9 and 2.2 mm)
+read as a gap with thin walls either side. It now fills by winding (each crossing's way from the triangle's normal), as slicers
+do, with odd-even kept for a row with a crossing whose way is unclear. The version badge was typed by hand and said v0.53.1 in
+0.54.0: `build.py` now writes `package.json`'s version into it (and stops if the badge is not found).
+
+Tested: `tools-boxcal-test.js` (new, in `test:enclosure`): the card (closed, no support, fits a 220 mm bed, three sizes a row,
+1 the tightest), a pick (the printer's fit, stored, the card unchanged, shown picked), a new card round the picks, every fit used
+by a box (ribs, the cradle's room, pilot and insert holes, the panel's words, strap loops still without support), a new box's
+lid gap and clearance, the small box's button, Settings, a project keeping its fits, one from before keeping the browser's, a
+hostile one; both bird house recipes (no warnings, closed, no support), the frame (on the lid, near a wall, over a board),
+a rocker switch in front of an Uno and Make it all fit, a gland behind the lid's lip (lowered; one too big: the box taller),
+a Pi's own audio jack. In Chromium: the card, both boxes (nothing to check but unused filaments) and the manual's pictures
+(`docs/images/box-calibration.jpg`, `box-birdhouse.jpg`, `box-camholder.jpg`). Not tested: a real print of the card (tonight),
+the OV2640 in the frame, the 126090's real size with its protection board, and the body depths (typical datasheet values).
+
+## Session 65: project boxes for outdoors and for bought boxes, battery life, nut pockets, more imports (v0.56.0)
+
+The owner asked for ten more improvements, shared features and engine ideas, then "Do all of them and fix bugs along the way".
+This session is the boxes' part of that, as 0.56.0 (its own pull request after #47). The rest is in Next.
+
+- **Battery life** (`encBattery`, `encBatteryWh`, `ENC_SLEEP_MW`, `encSleepMw`, `encDaysText`; `E.power` {mode, wakes, secs, extW,
+  extSleepMw, eff}, `E.boardWh`/`boardSleepMw`, a module's `wh`/`sleepMw`): energy from the label's mAh and the cells, 80% used,
+  awake = the heat page's watts without chargers, converters and batteries (`encIsPower`, `encIsBattery`), a converter's
+  efficiency (85%) and quiet draw. The bird house battery recipe has `power` (20 wakes a day, 30 s, the camera box's 1 W / 20 mW
+  outside): about 29 days. `ENC_WATTS` has the ESP32-CAM at 1 W (it was 0.5, as an ESP32).
+- **Nut pockets** (`E.fasten` "nut", `SCREWS[..].nutAf/nutT`, `ENC_NUT`, `encNutSlice`): a hex pocket 3 mm under each corner post's
+  top with a slot to the box's middle (one C-shaped outline), and a roof in 0.2 mm steps 0.4 mm narrower each (45°, no support);
+  posts grow round the nut; the lid's screw length, What you'll need and the steps follow. Split flanges keep pilot holes.
+- **A printed TPU gasket** (`E.gasketPrint`, `E.gasketSlot`, `encGasketSlot`: a TPU slot if one is loaded): a ring the cord's width
+  along the groove, half the cord proud; `info.gasket.printed`; no cord in What you'll need.
+- **Outdoors** (a page): `encFaceSolid` (a profile in (out, up) run along a wall, outward-facing) makes **rain hoods** (`c.hood`,
+  `info.hoods`); the **breather** opening (M12, not counted as a vent); the **solar panel** (`E.solar` one of `ENC_SOLAR` or
+  "custom" with `solarW/D/X/Y`, `encSolarRect`): its outline 0.4 mm into the lid's outside (a pocket would face the bed: 4842 mm²
+  of support in the first try) and a 5 mm cable hole under it; round holes that seal (Session 64's "flat" teardrops).
+- **Mounts** (`encMount`): "tripod" (`ENC_TRIPOD`: a 1/4-20 nut's hex through the floor, in a boss with a stepped roof, `info.tripod`,
+  a warning when a board is over it) and "magnets" (four pockets under the floor, cut with the feet, `E.mountMagnet` default 8x3:
+  10 mm pockets were 10.2 mm bridges, over the 10 mm limit).
+- **Knob scales** (`c.dial` ticks / 0-10 / minmax, `c.knob`, `ENC_DIAL_KINDS`): strokes cut like labels, kept in `taken`.
+- **Firmware** (`encFirmware`, `ESPHOME_BOARDS`): esphome.yaml (or pins.h) in the zip and a Copy button on the Wiring page.
+- **Plungers and light pipes** (`c.plunger`, `c.pipe`, `c.reach`; parts in a row in front, `info.extras.plungers/pipes`), **clear
+  windows** (`c.window`; `encFaceSlab` for walls, a lid part shifted with the lid; `encClearSlot`), **a flexing lid button**
+  (`flexbtn`, kind "flex": a U slot; a nub on the lid's inside).
+- **Templates and drawings** (`encFaceDrawings`, `encFaceSVG`, `encFaceDXF`): true size, as cut (`openingRings` with wall false),
+  the floor seen from below; in the zip under cad/.
+- **Imports** (`boardFileParse`: `kicadParse`, `eagleParse` (DOMParser), `easyedaParse` (Standard JSON, 10 mil units, y down);
+  `boardFromFeatures`), `encAddCustomBoard` shared, and **your parts** (`myParts`, `myPartsSave`, `encMeasuredBoard`;
+  `makerforge.parts`, up to 40; adding copies into `E.customBoards`). `KICAD_PORTS`/`KICAD_PANEL` know TYPE-C, SW-TH, TS, KEY-6X6.
+- **A board from a photo** (`openPhotoBoard`, `boardFromPhoto`, `PHOTO_PORTS`): two opposite corners and the real width and depth set
+  a linear map (the photo taken from straight above); holes and edge ports clicked; `encAddCustomBoard`.
+
+Shared features (the "make it global" answer, begun here):
+- **A QR code on anything** (`cleanQr`, `qrCanvas`, `qrSrc`, `addQrItem`, `qrPanel`; an item's `qr` {text, ec, quiet}, `_qrSig` a
+  runtime key, kept in share links like icons): drawn from C.qrEncode like an icon from its recipe, through the picture pipeline.
+  `tools-qrart-test.js` (in `test:card`) reads it back with jsQR from a name plate's and a plain box's printed geometry.
+- **Calibration per material and in one place** (`FIT_MATS`, `fitMaterial` (the box's slot, else the object's), `cleanFitMat`,
+  `printer.fitMat[mat]` over `printer.fit`, `fitSave` per material, the lid/openings/move gaps shared): 0.55's picks (in
+  `printer.fit`) stay for every material. `move` is the moving parts' gap (`DEFAULTS().base.fit.gap` reads it; **Keep … for every
+  new part** on a mechanism's Fit page). The Fits page has the test prints (`chooseObject`).
+
+Engine: **geometry fingerprints** (`tools-fingerprint.js`, `npm run fingerprint` / `fingerprint:update`, `tools-fingerprints.json`):
+every object and quick start's parts (triangles, volume to 0.1 mm³, size to 0.01 mm), stable run to run; any change is listed.
+
+**Fixed on the way (Session 65):** Arrange's 3 mm between parts let a cradle's rim (1.9 mm) and a strap tray's (2.2 mm) overlap:
+each part now takes `max(0, rim - gap/2 + 0.2)` more room a side (`rimOf`, `dimsR` in `encArrange`). That moved the LED strip
+controller recipe's ESP32 so its USB port landed on a screw ear: the ears' `taken` was the whole ear up to the fins' old top
+(Session 64 lowered the fins 1.1 mm), now the plate band and two 2.3 mm fin strips as high as each reaches; `encFixAll` slides
+the main board along its port's wall (2 mm steps each way, kept when warnings drop), else tries four ears; the recipe has
+`earN: 4`. The final run of the whole suite caught it (`tools-boxpro-test.js`'s recipe check). Testing that found `encFixAll`'s
+`encRoomOnFace` step moving a board's own port opening (`auto: "ports"`) away from its port: those are skipped there now.
+
+Tested: `tools-boxplus-test.js` (new, 41 checks, in `test:enclosure`): each feature closed and without support of its own, the
+numbers (battery days, the gasket's height, the plungers' lengths), the warnings (a board over the tripod nut, a thin floor for
+magnets, a scale with no room, a panel bigger than the lid), the files (ESPHome, pins, SVG, DXF), Eagle and EasyEDA boards written
+for the test, your parts saved, added and removed, a project saved and opened twice, a hostile one. Not tested: real prints (the
+nut pockets' fit, the TPU gasket's squeeze, the hoods, the flexing button's spring), a real EasyEDA or Eagle file beyond the
+test ones, the ESPHome file on a real ESP32-CAM, and windows on a split box (they would go on a plate of their own).
+
+## Next (no plan yet)
+
+Left from the owner's Session 64-65 lists (each for a release of its own):
+- **Box shapes:** a sloped lid (a console), round and hexagonal boxes, a clamshell. Not started on purpose: every lid feature
+  (posts, the lip, the gasket, labels, art, windows, the camera holder, boards under the lid) and every wall feature (openings,
+  hoods, the behind-the-wall check, ears, levels, ducts, templates) assumes a flat lid in plan coordinates and four named flat
+  walls. A sloped lid needs the lid built in its own (along-the-slope) frame and the side walls as trapezoids; round and
+  hexagonal boxes need N faces (openings on a curved wall want real booleans: Manifold). Stretching the box's geometry was
+  tried in thought and dropped: round holes would come out oval. Do it with the engine work below.
+- **Shared features still to do:** embed a magnet, NFC tag, nut or coin with a pause in any object (a closed cavity: needs
+  booleans, or each generator's own pocket); threads on other objects (round lids, lamps, tea lights: `threadSolid`); split any
+  model too big for the bed with pins or dovetails (boxes have join flanges; `cutFlat` cuts imported models); assembly steps,
+  What you'll need and names in 3D for the other multi-part objects; the box's style (edges, textures) on signs, plaques and
+  phone cases.
+- **Engine:** the body as one solid with Manifold (true unions, exact volumes, real rounded edges; it loads only for cuts now);
+  builds cached per feature (a wall, a post, a cradle) so a drag rebuilds only what moved; every build on the helper thread with
+  cancelling and a rough preview first; signed-distance modelling for smooth shapes; one layout solver for Arrange, plates and the
+  jigsaw; the picking BVH reused for clash and thin-wall checks; 3MF files with slicer settings and pauses inside (Bambu/Orca's
+  custom G-code per layer, PrusaSlicer's per print height: write them, then check them in each slicer).
+The calibration card's real print (the owner, Session 64) may move `FIT_DEFAULT`.
+
+## Earlier plan: 0.55 (done in 0.54.0)
 
 Done in Session 62 (0.54.0), kept here for the record; the next release needs a new plan. The three items were:
 1. **Strap loops instead of floor slots** for a battery's strap tray: a loop standing on the floor each side of the battery
@@ -2726,7 +2923,7 @@ with the real mouse in Chromium.
 
 - Enclosure opening sizes are typical datasheet values: modules differ between makers, verify with calipers (Session 11).
 - Enclosure: wall openings wider than the bridge limit (default 10 mm, e.g. USB-A, LCD bezels) are reported as needing support; the Openings page offers a pointed top or a notch for ports and rectangles (Session 12), but snap-in parts keep their flat tops. Since Session 47 the PSU box quick start reads about 184 mm² (the IEC inlet, rocker and voltmeter keep flat tops for their bezels); fan grilles default to slots and honeycomb in walls is flat-topped, both without support.
-- Enclosure: artwork goes on the lid only (inlay or engraved), not on the walls.
+- Enclosure: artwork goes on every face since Session 54 (words, icons and the Art tab picture; engraved, inlaid or raised); this line said "the lid only" until Session 64.
 - Enclosure, Session 40 not yet printed: the join flanges (an M3 insert in a 4.0 mm hole with a pointed top, M3 × 14 screws through 3.4 mm holes), the lid posts on them and the lid in parts. Print a small box in two parts first (**Always**, 2 parts).
 - Cutting (Session 32) needs a closed model: one with gaps is refused, and the app does not repair it. Pieces of a model that overlap (eyes set into a head, the shell's floor inside its walls) are joined before a cut, so its volume reading drops by the overlap. On a 300 000-triangle model each change to engraved artwork takes about a second on the page. An inlay's pieces touch the object exactly; how each slicer takes that is still to be seen.
 - Enclosure, Session 12 fits not yet printed: magnet pockets (+0.2 mm on diameter and depth), the sliding lid's 0.2 mm gap and 45° rails, foot recesses, 0.4 mm label depth and 0.6 mm label lines, the lid logo in its first layers. Print the fit test first.

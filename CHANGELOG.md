@@ -3,6 +3,78 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.56.0
+
+Project boxes: battery life, boxes for outdoors, nut pockets, printed plungers and windows, templates for a bought box, and boards from EasyEDA and Eagle.
+
+- **Battery life:** how long the batteries run what is in the box (and what it powers outside), always on or waking now and then, with what uses most of it. The bird house battery box: about a month on the 126090.
+
+![The Battery life page](docs/images/box-battery.jpg)
+
+- **Nut pockets:** the lid's screws go into M2–M4 nuts slid into pockets in the corner posts: no soldering iron.
+- **Print the gasket in TPU:** a ring for the lid's groove, so there is no cord to buy.
+- **Outdoors** (its own page): round holes that seal, a rain hood over any wall opening, a breather vent against condensation, and a solar panel's place and cable hole on the lid.
+
+![A box for outdoors with a rain hood over its motion sensor](docs/images/box-outdoors.jpg)
+
+- **Mounts:** a 1/4-inch tripod nut, or magnets, under the floor.
+- **Scales round knobs:** ticks, 0 to 10, or MIN to MAX, cut round a pot, an encoder or a rotary switch.
+- **Printed plungers and light pipes** for buttons and LEDs on a board behind a wall or the lid, **clear windows** over LEDs and screens (in a clear filament), and **a flexing button** in the lid.
+- **Templates and drawings:** each face at true size with its openings, to print and tape on a bought box and drill, and as a DXF for CAD or a laser cutter.
+- **Boards from EasyEDA and Eagle** as well as KiCad, **a board measured from a photo** (click its corners, holes and ports), and **your own parts**: boards you import or measure, kept in your browser for every project.
+- **A firmware starter:** an ESPHome file (or Arduino pins) made from the wiring plan, in the download.
+- **A QR code on anything:** the Art tab's **A QR code** puts a code (a link, text or a WiFi login) on any object, in two filaments: name plates, signs, box lids, keychains.
+
+![A name keychain with a QR code](docs/images/qr-art.jpg)
+
+- **Fix what it can** (Export → Printability): one button that runs what the object can fix by itself: a project box's Make it all fit, an imported model's repair, and the turn that needs the least support.
+- **Calibration in one place, per material:** every test print (the box card, the moving parts' fit test, the phone case rim, the lithophane strip) is on the printer's Fits page, and what you pick is kept for the material you printed it in: PETG and TPU fit differently from PLA. The moving parts' gap is kept with the printer too, so new mechanisms and fix-it parts start with it.
+
+**Fixed**
+- Arrange put boards in cradles and batteries in strap trays 3 mm apart, so their rims overlapped; each now leaves room for its rim.
+- An opening on a side with screw ears had to keep clear of the whole ear up to its fins' old height; it now keeps clear of the ear's plate and its two fins as they are. When a board's own port still lands on an ear, Make it all fit slides the board along the wall, or moves to four ears near the corners.
+- Make it all fit could move a board's own port opening along the wall, away from the port it was for: it now leaves it in front of the port and moves the board, or the ears, instead.
+- An imported board's USB-C connector named TYPE-C, and tactile buttons named SW-TH, TS or KEY-6X6, were not recognised: they become a port and panel buttons now (KiCad as well).
+
+## 0.55.0
+
+Project boxes: boards on the walls and the lid, wiring, your own boards from KiCad, heat, recipes and style.
+
+- **Boards on a wall or under the lid:** any board with screw holes can stand on standoffs from a wall or hang under the lid, its parts facing in, or out through a window (cut for you, or holes for a KiCad board's LEDs, buttons and knobs). The wall's standoffs are teardrops, so nothing needs support.
+- **Wiring:** say what connects to what; each wire is drawn in the plan through the levels' cable passes, with a length to cut, and the download has wiring.txt.
+
+![The plan with wires between a barrel jack, a buck converter, an Uno, a relay and a Pi on the back wall](docs/images/box-wiring.jpg)
+
+- **Import a board from KiCad:** a .kicad_pcb file becomes a board, with its outline, mounting holes, edge connectors as ports, and its LEDs, buttons and knobs.
+- **The parts' real shapes:** common boards show their sockets, headers, relays and heatsinks, and the checks use them.
+- **Heat and air:** how warm the parts run, what the box can shed, and the vents or fan it needs, added in one click.
+- **Recipes:** a weather station, an ESP32 sensor box, a bench power supply, an LED strip controller, a Raspberry Pi server or a guitar pedal, in one click.
+- **Style:** a chamfered or rounded lid edge, grooved or hexagon walls, and a band of another colour.
+- **The plan:** drag openings too, distances to the walls and neighbours, snapping (Alt to drag freely), and Tab between parts.
+- **Calibrate once, every box fits:** the calibration card has every way a box holds a part in three sizes (crush ribs, snap clips, the rim, snap pins, heat-insert holes, screw standoffs, strap loops). Pick the one that fitted best on each row, and your printer remembers it: every box after uses your sizes. The small test box can keep its lid gap and openings' clearance for every new box, and all the fits are numbers on the Colours tab.
+
+![The calibration card: cradles with ribs, clips and the rim alone, strap loops, snap pins, insert holes and screw standoffs, each in three sizes](docs/images/box-calibration.jpg)
+
+- **A bird house camera, in two recipes:** a battery box (an 8000 mAh 126090 LiPo on strap loops, a TP4056 charger with USB-C through the wall, an MT3608 boost, a small dome motion sensor) and a camera box (an ESP32-CAM in snap clips), both with a gasket and screw ears.
+
+![The bird house battery box: the LiPo on strap loops, the charger and the boost converter in cradles, the motion sensor's hole in front](docs/images/box-birdhouse.jpg)
+
+- **A camera holder in the lid:** the lens hole and a frame inside that holds an OV2640 camera with its lens through the lid, printed without support.
+- **What sticks out behind the wall:** switches, jacks, sockets, pilot lights, pots and motion sensors show their body inside the box, the box says when one meets a board, and Make it all fit moves the wall out.
+- **Make it all fit** also lowers an opening that reaches behind the lid's lip, or makes the box taller when it cannot go lower.
+- **Round holes, pointed and cut flat:** a third choice for round holes in the walls: 45° sides and a flat top just 1 mm over the circle, so they print without support and a cable gland's flange or a sensor's lip still seals all round. The bird house boxes use it.
+- **The 126090 LiPo** (8000 mAh) is in the batteries.
+
+**Fixed**
+- A saved project, opened again, lost a module's strap loops, a level's brackets on the front and back walls, and the link between the main board and its port openings (so they no longer followed it, and Arrange made them again); modules more than 150 mm from the middle came back nearer.
+- A fan in a wall only counted for cooling when the parts gave off over 15 W.
+- The version in the header said v0.53.1 in 0.54.0: it now always shows the version you have.
+- The little fins under screw ears ended in a knife-edge where they met the wall: the print check counted it as walls thinner than the nozzle, and a slicer could leave it out. They now end in a small step.
+- A board in a cradle put close to a wall for its ports left a sliver of its rim standing between the board and the wall, and on a thin wall the rim reached through to the outside. The rim now stops at the wall.
+- The print check saw thin walls where two parts of one piece overlapped (a board's rim on a battery tray's, for one), as if the overlap were a gap. It now reads them the way slicers do.
+- The bench power supply recipe put its inlet, switch and sockets right in front of the power supply: their bodies had no room behind the front wall. The box is now deep enough.
+- A label too long for its place next to an opening was simply left out: it now goes above the opening, and is only dropped when there is no room there either (Label every opening and the recipes).
+
 ## 0.54.0
 
 Project boxes: room for what you add, a plan of the inside, a parts catalogue with pictures, assembly steps, and a lot less fiddling.

@@ -2022,14 +2022,26 @@
           const zj = g.z0 + (j + 0.5) * g.c;
           if (!((za <= zj && zj < zb) || (zb <= zj && zj < za))) continue;
           const x = xa + (xb - xa) * (zj - za) / (zb - za);
-          let r = rows.get(j); if (!r) rows.set(j, r = []); r.push(x);
+          // which way the surface faces says whether the row goes into the solid there or out of it (an outward normal
+          // pointing to -x: in). Session 64: rows were filled odd-even, so where two shells of one part overlapped (a board's
+          // rim on a battery tray's, a post in a wall) the overlap read as empty and the check saw thin walls round it;
+          // slicers fill the union, and so does this now (the old way for a row with a crossing whose way is unclear)
+          const nx = F.N[t * 3];
+          let r = rows.get(j); if (!r) rows.set(j, r = []); r.push(x, nx < -1e-12 ? 1 : nx > 1e-12 ? -1 : 0);
         }
       }
       for (const [j, r] of rows) {
-        r.sort((a, b) => a - b);
-        for (let k = 0; k + 1 < r.length; k += 2) {
-          const i0 = Math.max(0, Math.ceil((r[k] - g.x0) / g.c - 0.5)), i1 = Math.min(g.w - 1, Math.floor((r[k + 1] - g.x0) / g.c - 0.5));
+        const n = r.length / 2, ord = Array.from({ length: n }, (_, k) => k).sort((a, b) => r[2 * a] - r[2 * b]);
+        const fill = (x0, x1) => {
+          const i0 = Math.max(0, Math.ceil((x0 - g.x0) / g.c - 0.5)), i1 = Math.min(g.w - 1, Math.floor((x1 - g.x0) / g.c - 0.5));
           for (let i = i0; i <= i1; i++) out[j * g.w + i] = 1;
+        };
+        let wind = 0, from = 0, sure = true;
+        for (let k = 0; k < n; k++) if (r[2 * ord[k] + 1] === 0) { sure = false; break; }
+        if (!sure) { for (let k = 0; k + 1 < n; k += 2) fill(r[2 * ord[k]], r[2 * ord[k + 1]]); continue; }
+        for (let k = 0; k < n; k++) {
+          const x = r[2 * ord[k]], w0 = wind; wind += r[2 * ord[k] + 1];
+          if (w0 <= 0 && wind > 0) from = x; else if (w0 > 0 && wind <= 0) fill(from, x);
         }
       }
     }

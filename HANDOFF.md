@@ -2657,7 +2657,9 @@ the rest is next (see Next).
   with a warning when it would reach the lip, and a warning when a board's parts reach it. A ghost shows the camera.
 - **What sticks out behind a wall** (`deep`, `body` on 45 `CUTOUTS`; `placedOpen`, `info.behind`): a ghost behind each panel
   part, and a warning when it meets a board on the floor; `encFixAll` grows that wall by the overlap (up to 3 rounds). A board's
-  own port openings (`auto: "ports"`) and a KiCad board's panel parts are skipped. It found the bench power supply recipe's inlet,
+  own port openings (`auto: "ports"`) and a KiCad board's panel parts are skipped. `encFixAll` also takes an opening "behind
+  the lid's lip" down under it (`info.wallV`), or makes the box taller when lower would clash or leave the wall. Recipes with
+  `round: true` (both bird house boxes) keep round wall holes round (`E.teardrop` false), so a gland or a dome seals. It found the bench power supply recipe's inlet,
   switch and sockets inside the LRS-100 (the recipe's box is now 27 mm deeper).
 
 **Fixed on the way** (the bird house boxes in Chromium said "4 walls are thinner than the nozzle"): the screw ears' 45° fins
@@ -2674,7 +2676,9 @@ Tested: `tools-boxcal-test.js` (new, in `test:enclosure`): the card (closed, no 
 by a box (ribs, the cradle's room, pilot and insert holes, the panel's words, strap loops still without support), a new box's
 lid gap and clearance, the small box's button, Settings, a project keeping its fits, one from before keeping the browser's, a
 hostile one; both bird house recipes (no warnings, closed, no support), the frame (on the lid, near a wall, over a board),
-a rocker switch in front of an Uno and Make it all fit, a Pi's own audio jack. Not tested: a real print of the card (tonight),
+a rocker switch in front of an Uno and Make it all fit, a gland behind the lid's lip (lowered; one too big: the box taller),
+a Pi's own audio jack. In Chromium: the card, both boxes (nothing to check but unused filaments) and the manual's pictures
+(`docs/images/box-calibration.jpg`, `box-birdhouse.jpg`, `box-camholder.jpg`). Not tested: a real print of the card (tonight),
 the OV2640 in the frame, the 126090's real size with its protection board, and the body depths (typical datasheet values).
 
 ## Next (no plan yet)

@@ -19,9 +19,16 @@ Project boxes: boards on the walls and the lid, wiring, your own boards from KiC
 - **Style:** a chamfered or rounded lid edge, grooved or hexagon walls, and a band of another colour.
 - **The plan:** drag openings too, distances to the walls and neighbours, snapping (Alt to drag freely), and Tab between parts.
 - **Calibrate once, every box fits:** the calibration card has every way a box holds a part in three sizes (crush ribs, snap clips, the rim, snap pins, heat-insert holes, screw standoffs, strap loops). Pick the one that fitted best on each row, and your printer remembers it: every box after uses your sizes. The small test box can keep its lid gap and openings' clearance for every new box, and all the fits are numbers on the Colours tab.
+
+![The calibration card: cradles with ribs, clips and the rim alone, strap loops, snap pins, insert holes and screw standoffs, each in three sizes](docs/images/box-calibration.jpg)
+
 - **A bird house camera, in two recipes:** a battery box (an 8000 mAh 126090 LiPo on strap loops, a TP4056 charger with USB-C through the wall, an MT3608 boost, a small dome motion sensor) and a camera box (an ESP32-CAM in snap clips), both with a gasket and screw ears.
+
+![The bird house battery box: the LiPo on strap loops, the charger and the boost converter in cradles, the motion sensor's hole in front](docs/images/box-birdhouse.jpg)
+
 - **A camera holder in the lid:** the lens hole and a frame inside that holds an OV2640 camera with its lens through the lid, printed without support.
 - **What sticks out behind the wall:** switches, jacks, sockets, pilot lights, pots and motion sensors show their body inside the box, the box says when one meets a board, and Make it all fit moves the wall out.
+- **Make it all fit** also lowers an opening that reaches behind the lid's lip, or makes the box taller when it cannot go lower.
 - **The 126090 LiPo** (8000 mAh) is in the batteries.
 
 **Fixed**

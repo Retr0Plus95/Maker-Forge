@@ -133,6 +133,14 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
     check(!!w1, "a rocker switch's body that meets the Uno behind the wall: a warning", w1 && w1.s.slice(0, 70));
     const rf = MF.boxRoom.fixAll(E()); MF.rebuild(false); await settle();
     check(!MF.enclosure.warn.length && E().d > d0 && closed(), "Make it all fit moves the front wall out by enough", `${d0} → ${E().d} mm deep`);
+    // an opening behind the lid's lip: Make it all fit lowers it (or makes the box taller when it cannot go lower)
+    await fresh({ w:90, d:70, h:24, lid:"screw", lipH:3, cut:[{ kind:"gland", face:"back", u:0, v:16, dia:12.6 }] });
+    const lw = MF.enclosure.warn.some(w => /is behind the lid's lip/.test(w.t)), h0 = E().h;
+    MF.boxRoom.fixAll(E()); MF.rebuild(false); await settle();
+    check(lw && !MF.enclosure.warn.length && E().cut[0].v < 16 && E().h === h0, "a gland behind the lid's lip: Make it all fit lowers it under the lip", `v 16 → ${E().cut[0].v}, h ${E().h}`);
+    await fresh({ w:90, d:70, h:16, lid:"screw", lipH:3, cut:[{ kind:"gland16", face:"back", u:0, v:11, dia:22.7 }] });
+    MF.boxRoom.fixAll(E()); MF.rebuild(false); await settle();
+    check(!MF.enclosure.warn.some(w => /lid's lip|left out/.test(w.t)) && E().h > 16, "one too big to go lower: the box gets taller", `h 16 → ${E().h}, ${MF.enclosure.warn.map(w => w.t).join("; ")}`);
     // a board's own port is not a panel part
     await fresh({ w:110, d:80, h:40, lid:"screw", board:"pi", cut:[] });
     [...document.querySelectorAll("#secrail button")].find(b => b.dataset.title === "Board mounts").click(); await sleep(30);

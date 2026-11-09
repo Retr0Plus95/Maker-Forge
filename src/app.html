@@ -5225,9 +5225,11 @@ function buildEnclosure(){
       standoffs.filter(so => so.bd === bd).forEach(so => { dst.push(post(so.x, so.y, so.r, 0, base - (bd.lvl ? 0.01 : 0), base + sh)); dst.push(...encSnapPin(so.x, so.y, (sc.clear - encFit().pin)/2, base + sh)); });
     }
     else if (bd.holes) standoffs.filter(so => so.bd === bd).forEach(so => dst.push(post(so.x, so.y, so.r, so.hole/2, base - (bd.lvl ? 0.01 : 0), base + sh)));
-    // (Session 64: on the floor too, the rim stops at the walls' inside: a board put 1 mm from a wall for its ports left a sliver
-    // of rim standing free there, and on a thin wall the rim reached through it)
-    else dst.push(...encCradle(bd.x, bd.y, bw, bdp, base, sh, bd.lvl ? ENC_CRADLE.fence : Math.min(ENC_CRADLE.fence, t + 0.4), bd.lvl ? plateB : [-iw/2, -id/2, iw/2, id/2], bd.grip));
+    // (Session 64: on the floor too, the rim stops at the walls' inside when it reaches them: a board put 1 mm from a wall for
+    // its ports left a sliver of rim standing free there, and on a thin wall the rim reached through it)
+    else { const fence = bd.lvl ? ENC_CRADLE.fence : Math.min(ENC_CRADLE.fence, t + 0.4), rimOut = encFit().gap + fence + 0.01;
+      const nearWall = bd.x - bw/2 - rimOut < -iw/2 || bd.x + bw/2 + rimOut > iw/2 || bd.y - bdp/2 - rimOut < -id/2 || bd.y + bdp/2 + rimOut > id/2;
+      dst.push(...encCradle(bd.x, bd.y, bw, bdp, base, sh, fence, bd.lvl ? plateB : nearWall ? [-iw/2, -id/2, iw/2, id/2] : null, bd.grip)); }
     // its see-through parts: the board, the room its parts take above it, and its ports (Session 46)
     const tall = boardTall(bd.key, B), solidBody = B.g === "battery" || /^lrs/.test(bd.key);
     const g0 = ghosts.length, shp = solidBody ? [] : boardShapesAt(bd.key, B, bd.x, bd.y, bd.rot, base + sh + 1.6);

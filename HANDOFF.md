@@ -2684,6 +2684,46 @@ a Pi's own audio jack. In Chromium: the card, both boxes (nothing to check but u
 (`docs/images/box-calibration.jpg`, `box-birdhouse.jpg`, `box-camholder.jpg`). Not tested: a real print of the card (tonight),
 the OV2640 in the frame, the 126090's real size with its protection board, and the body depths (typical datasheet values).
 
+## Session 65: project boxes for outdoors and for bought boxes, battery life, nut pockets, more imports (v0.56.0)
+
+The owner asked for ten more improvements, shared features and engine ideas, then "Do all of them and fix bugs along the way".
+This session is the boxes' part of that, as 0.56.0 (its own pull request after #47). The rest is in Next.
+
+- **Battery life** (`encBattery`, `encBatteryWh`, `ENC_SLEEP_MW`, `encSleepMw`, `encDaysText`; `E.power` {mode, wakes, secs, extW,
+  extSleepMw, eff}, `E.boardWh`/`boardSleepMw`, a module's `wh`/`sleepMw`): energy from the label's mAh and the cells, 80% used,
+  awake = the heat page's watts without chargers, converters and batteries (`encIsPower`, `encIsBattery`), a converter's
+  efficiency (85%) and quiet draw. The bird house battery recipe has `power` (20 wakes a day, 30 s, the camera box's 1 W / 20 mW
+  outside): about 29 days. `ENC_WATTS` has the ESP32-CAM at 1 W (it was 0.5, as an ESP32).
+- **Nut pockets** (`E.fasten` "nut", `SCREWS[..].nutAf/nutT`, `ENC_NUT`, `encNutSlice`): a hex pocket 3 mm under each corner post's
+  top with a slot to the box's middle (one C-shaped outline), and a roof in 0.2 mm steps 0.4 mm narrower each (45°, no support);
+  posts grow round the nut; the lid's screw length, What you'll need and the steps follow. Split flanges keep pilot holes.
+- **A printed TPU gasket** (`E.gasketPrint`, `E.gasketSlot`, `encGasketSlot`: a TPU slot if one is loaded): a ring the cord's width
+  along the groove, half the cord proud; `info.gasket.printed`; no cord in What you'll need.
+- **Outdoors** (a page): `encFaceSolid` (a profile in (out, up) run along a wall, outward-facing) makes **rain hoods** (`c.hood`,
+  `info.hoods`); the **breather** opening (M12, not counted as a vent); the **solar panel** (`E.solar` one of `ENC_SOLAR` or
+  "custom" with `solarW/D/X/Y`, `encSolarRect`): its outline 0.4 mm into the lid's outside (a pocket would face the bed: 4842 mm²
+  of support in the first try) and a 5 mm cable hole under it; round holes that seal (Session 64's "flat" teardrops).
+- **Mounts** (`encMount`): "tripod" (`ENC_TRIPOD`: a 1/4-20 nut's hex through the floor, in a boss with a stepped roof, `info.tripod`,
+  a warning when a board is over it) and "magnets" (four pockets under the floor, cut with the feet, `E.mountMagnet` default 8x3:
+  10 mm pockets were 10.2 mm bridges, over the 10 mm limit).
+- **Knob scales** (`c.dial` ticks / 0-10 / minmax, `c.knob`, `ENC_DIAL_KINDS`): strokes cut like labels, kept in `taken`.
+- **Firmware** (`encFirmware`, `ESPHOME_BOARDS`): esphome.yaml (or pins.h) in the zip and a Copy button on the Wiring page.
+- **Plungers and light pipes** (`c.plunger`, `c.pipe`, `c.reach`; parts in a row in front, `info.extras.plungers/pipes`), **clear
+  windows** (`c.window`; `encFaceSlab` for walls, a lid part shifted with the lid; `encClearSlot`), **a flexing lid button**
+  (`flexbtn`, kind "flex": a U slot; a nub on the lid's inside).
+- **Templates and drawings** (`encFaceDrawings`, `encFaceSVG`, `encFaceDXF`): true size, as cut (`openingRings` with wall false),
+  the floor seen from below; in the zip under cad/.
+- **Imports** (`boardFileParse`: `kicadParse`, `eagleParse` (DOMParser), `easyedaParse` (Standard JSON, 10 mil units, y down);
+  `boardFromFeatures`), `encAddCustomBoard` shared, and **your parts** (`myParts`, `myPartsSave`, `encMeasuredBoard`;
+  `makerforge.parts`, up to 40; adding copies into `E.customBoards`). `KICAD_PORTS`/`KICAD_PANEL` know TYPE-C, SW-TH, TS, KEY-6X6.
+
+Tested: `tools-boxplus-test.js` (new, 41 checks, in `test:enclosure`): each feature closed and without support of its own, the
+numbers (battery days, the gasket's height, the plungers' lengths), the warnings (a board over the tripod nut, a thin floor for
+magnets, a scale with no room, a panel bigger than the lid), the files (ESPHome, pins, SVG, DXF), Eagle and EasyEDA boards written
+for the test, your parts saved, added and removed, a project saved and opened twice, a hostile one. Not tested: real prints (the
+nut pockets' fit, the TPU gasket's squeeze, the hoods, the flexing button's spring), a real EasyEDA or Eagle file beyond the
+test ones, the ESPHome file on a real ESP32-CAM, and windows on a split box (they would go on a plate of their own).
+
 ## Next (no plan yet)
 
 The owner's list from Session 64, still to do (each for a release of its own, from main after #47 is merged): box shapes (a

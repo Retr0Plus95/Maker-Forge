@@ -5520,15 +5520,16 @@ function buildEnclosure(){
       for (let k = 1; ; k++){ const af = screw.nutAf - 0.4*k; if (af/2 + encFit().gap/2 <= bossHole/2 + 0.05 || zr + 0.2 > H - 0.8) break; solids.push(encNutSlice(x, y, bossR, af, zr, zr + 0.2)); zr += 0.2; }
       solids.push(post(x, y, bossR, bossHole/2, zr, H)); });
   } else bosses.forEach(([x, z]) => solids.push(post(x, -z, bossR, bossHole/2, postBot, H)));
-  // rain hoods (Session 64): a little roof over a wall opening, outside: its underside rises at 45° from the wall, so it prints
+  // rain hoods (Session 65): a little roof over a wall opening, outside: its underside rises at 45° from the wall, so it prints
   // without support, and its top slopes down and away, so rain runs off past the opening
   placedOpen.filter(po => po.c.hood === true && ENC_WALLS.has(po.face)).forEach(po => {
-    const bb = po.bb, vb = bb[3] + 0.8, room = H - vb - 1.7;
-    const P = Math.min(10, Math.max(4, (bb[3] - bb[1])/2 + 2), room/2);
-    if (P < 2.5){ warn.push({ t:`${po.lab}: no room for its rain hood`, s:"Its hood would reach past the top of the wall: lower the opening, or make the box taller." }); return; }
-    const prof = [[-0.5, vb - 0.5], [P, vb + P], [P, vb + P + 1.2], [-0.5, vb + 2*P + 1.7]];
+    // (its top slopes down and out at 15°; it may reach the lid's top edge, being outside the lid)
+    const bb = po.bb, vb = bb[3] + 0.8, top = H + (lidOn && !slide ? lidT : 0), room = top - vb - 1;
+    const P = Math.min(10, Math.max(4, (bb[3] - bb[1])/2 + 2), room/1.27);
+    if (P < 3){ warn.push({ t:`${po.lab}: no room for its rain hood`, s:"Its hood would reach past the top of the box: lower the opening, or make the box taller." }); return; }
+    const prof = [[-0.5, vb - 0.5], [P, vb + P], [P, vb + P + 1], [-0.5, vb + P + 1 + 0.27*P]];
     solids.push(encFaceSolid(po.face, prof, bb[0] - 2, bb[2] + 2, W, D));
-    hoodInfo.push({ i:po.i, face:po.face, out:P, bb:[bb[0] - 2, vb, bb[2] + 2, vb + 2*P + 1.7] });
+    hoodInfo.push({ i:po.i, face:po.face, out:P, bb:[bb[0] - 2, vb, bb[2] + 2, vb + 1.27*P + 1] });
   });
   if (postHang) bosses.forEach(([x, z]) => solids.push(encLoft(C.ringCircle(0.4, 40).map(p => [p[0] + x, p[1] - z]), postFree, C.ringCircle(bossR, 40).map(p => [p[0] + x, p[1] - z]), postBot + 0.01)));
   let board = null, boardNeed = null;

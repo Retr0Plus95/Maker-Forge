@@ -3,6 +3,30 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.56.0
+
+Project boxes: battery life, boxes for outdoors, nut pockets, printed plungers and windows, templates for a bought box, and boards from EasyEDA and Eagle.
+
+- **Battery life:** how long the batteries run what is in the box (and what it powers outside), always on or waking now and then, with what uses most of it. The bird house battery box: about a month on the 126090.
+
+![The Battery life page](docs/images/box-battery.jpg)
+
+- **Nut pockets:** the lid's screws go into M2–M4 nuts slid into pockets in the corner posts: no soldering iron.
+- **Print the gasket in TPU:** a ring for the lid's groove, so there is no cord to buy.
+- **Outdoors** (its own page): round holes that seal, a rain hood over any wall opening, a breather vent against condensation, and a solar panel's place and cable hole on the lid.
+
+![A box for outdoors with a rain hood over its motion sensor](docs/images/box-outdoors.jpg)
+
+- **Mounts:** a 1/4-inch tripod nut, or magnets, under the floor.
+- **Scales round knobs:** ticks, 0 to 10, or MIN to MAX, cut round a pot, an encoder or a rotary switch.
+- **Printed plungers and light pipes** for buttons and LEDs on a board behind a wall or the lid, **clear windows** over LEDs and screens (in a clear filament), and **a flexing button** in the lid.
+- **Templates and drawings:** each face at true size with its openings, to print and tape on a bought box and drill, and as a DXF for CAD or a laser cutter.
+- **Boards from EasyEDA and Eagle** as well as KiCad, and **your own parts**: boards you import or measure, kept in your browser for every project.
+- **A firmware starter:** an ESPHome file (or Arduino pins) made from the wiring plan, in the download.
+
+**Fixed**
+- An imported board's USB-C connector named TYPE-C, and tactile buttons named SW-TH, TS or KEY-6X6, were not recognised: they become a port and panel buttons now (KiCad as well).
+
 ## 0.55.0
 
 Project boxes: boards on the walls and the lid, wiring, your own boards from KiCad, heat, recipes and style.

@@ -2740,11 +2740,24 @@ test ones, the ESPHome file on a real ESP32-CAM, and windows on a split box (the
 
 ## Next (no plan yet)
 
-The owner's list from Session 64, still to do (each for a release of its own, from main after #47 is merged): box shapes (a
-sloped front, round and hexagonal boxes, a clamshell split), printed button plungers, a flexing button in the lid and printed
-light pipes, EasyEDA and Eagle board imports, a board measured from a photo, your own parts library kept across projects,
-paper drilling templates for a bought box and each face as SVG/DXF, and the engine (the body built with Manifold, builds on the
-helper thread). The calibration card's real print (the owner, tonight) may move `FIT_DEFAULT`.
+Left from the owner's Session 64-65 lists (each for a release of its own):
+- **Box shapes:** a sloped lid (a console), round and hexagonal boxes, a clamshell. Not started on purpose: every lid feature
+  (posts, the lip, the gasket, labels, art, windows, the camera holder, boards under the lid) and every wall feature (openings,
+  hoods, the behind-the-wall check, ears, levels, ducts, templates) assumes a flat lid in plan coordinates and four named flat
+  walls. A sloped lid needs the lid built in its own (along-the-slope) frame and the side walls as trapezoids; round and
+  hexagonal boxes need N faces (openings on a curved wall want real booleans: Manifold). Stretching the box's geometry was
+  tried in thought and dropped: round holes would come out oval. Do it with the engine work below.
+- **Shared features still to do:** embed a magnet, NFC tag, nut or coin with a pause in any object (a closed cavity: needs
+  booleans, or each generator's own pocket); threads on other objects (round lids, lamps, tea lights: `threadSolid`); split any
+  model too big for the bed with pins or dovetails (boxes have join flanges; `cutFlat` cuts imported models); assembly steps,
+  What you'll need and names in 3D for the other multi-part objects; the box's style (edges, textures) on signs, plaques and
+  phone cases.
+- **Engine:** the body as one solid with Manifold (true unions, exact volumes, real rounded edges; it loads only for cuts now);
+  builds cached per feature (a wall, a post, a cradle) so a drag rebuilds only what moved; every build on the helper thread with
+  cancelling and a rough preview first; signed-distance modelling for smooth shapes; one layout solver for Arrange, plates and the
+  jigsaw; the picking BVH reused for clash and thin-wall checks; 3MF files with slicer settings and pauses inside (Bambu/Orca's
+  custom G-code per layer, PrusaSlicer's per print height: write them, then check them in each slicer).
+The calibration card's real print (the owner, Session 64) may move `FIT_DEFAULT`.
 
 ## Earlier plan: 0.55 (done in 0.54.0)
 

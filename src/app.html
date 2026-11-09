@@ -5124,13 +5124,502 @@ function encHolderCard(E){
     lidPosts:{ n:0, at:[] }, mount:[], wallH:{}, faceU:{}, takenOn:{}, clashes:[], count:0, extras:{}, wall:2, ceil:20, lipH:0, ri:0, ductRects:[] };
   return [{ name:"Holder test card", slot, solid:C.mergeSolids(solids) }, { name:"Test tiles", slot, solid:C.mergeSolids(tiles) }];
 }
+/* Box shapes (Session 66): round (or oval, with a twist-on lid), hexagonal, octagonal, a sloped top (a console) and a
+   clamshell (two halves), made as solids by the cutting tool (Manifold). The box engine lays everything out as it does for a
+   rectangular box (openings, labels, boards, checks), with each side given the room the shape has there; the solid stage
+   (encShapeSolid, after the build) then makes the shape's walls, top and lid, and cuts every opening, label and engraving
+   into them square to its own face, so round holes stay round on a round wall. A wall opening's place (u) is measured round
+   the wall from the middle of its side. Plan coordinates are (x, -z) here too, outlines anticlockwise. */
+const ENC_SHAPES = { rect:"Rectangle", round:"Round", hex:"Hexagon", oct:"Octagon", slope:"Sloped top", clam:"Clamshell" };
+const ENC_SHAPE_NAME = { rect:"box", round:"round box", hex:"hexagonal box", oct:"octagonal box", slope:"sloped box", clam:"clamshell" };
+const ENC_SHAPE_FACE = { front:[0, -1], back:[0, 1], right:[1, 0], left:[-1, 0] };
+const ENC_TWIST = { minR:12, skirt:1.6, neck:1.6, rise:0.28 };      // a twist lid's skirt and neck walls; thread depth per pitch (about 42°)
+const encShapeKind = E => E && E.test !== true && encHas(ENC_SHAPES, E.shape) ? E.shape : "rect";
+// a convex outline moved in by d (out when d < 0): each side moved along its normal, the corners where they meet
+function encInset(L, d){
+  const n = L.length, ln = [];
+  for (let i = 0; i < n; i++){ const a = L[i], b = L[(i + 1) % n], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, nx = dy/l, ny = -dx/l;
+    ln.push({ nx, ny, c:nx*a[0] + ny*a[1] - d }); }
+  return L.map((p0, i) => { const p = ln[(i + n - 1) % n], q = ln[i], det = p.nx*q.ny - p.ny*q.nx;
+    return Math.abs(det) < 1e-9 ? [p0[0] - d*q.nx, p0[1] - d*q.ny] : [(p.c*q.ny - q.c*p.ny)/det, (p.nx*q.c - q.nx*p.c)/det]; });
+}
+// a convex outline with its corners rounded (each as round as its sides allow)
+function encRoundCorners(L, r){
+  if (!(r > 0.01)) return L.slice();
+  const n = L.length, out = [];
+  for (let i = 0; i < n; i++){
+    const A = L[(i + n - 1) % n], V = L[i], B = L[(i + 1) % n], la = Math.hypot(V[0] - A[0], V[1] - A[1]), lb = Math.hypot(B[0] - V[0], B[1] - V[1]);
+    const e1 = [(V[0] - A[0])/la, (V[1] - A[1])/la], e2 = [(B[0] - V[0])/lb, (B[1] - V[1])/lb];
+    const turn = Math.atan2(e1[0]*e2[1] - e1[1]*e2[0], e1[0]*e2[0] + e1[1]*e2[1]);
+    if (turn < 1e-6){ out.push(V); continue; }
+    const rr = Math.min(r, 0.49*Math.min(la, lb)/Math.tan(turn/2)), k = rr*Math.tan(turn/2), T1 = [V[0] - e1[0]*k, V[1] - e1[1]*k];
+    const Cc = [T1[0] - e1[1]*rr, T1[1] + e1[0]*rr], a0 = Math.atan2(T1[1] - Cc[1], T1[0] - Cc[0]), steps = Math.max(2, Math.ceil(turn/(Math.PI/16)));
+    for (let j = 0; j <= steps; j++){ const a = a0 + turn*j/steps; out.push([Cc[0] + rr*Math.cos(a), Cc[1] + rr*Math.sin(a)]); }
+  }
+  return out;
+}
+// how far a point is inside a convex outline (negative outside)
+function encInsideBy(L, q){
+  let m = Infinity;
+  for (let i = 0; i < L.length; i++){ const a = L[i], b = L[(i + 1) % L.length], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy);
+    if (l < 1e-9) continue; m = Math.min(m, ((q[0] - a[0])*dy - (q[1] - a[1])*dx)/-l); }
+  return m;
+}
+// The shape's outlines and sides. ring(d): the outline d mm in from the outside. frame(s): the point s mm round the outside
+// (anticlockwise from the first corner), the way along and the way out there. faces: for each side, where its middle is
+// (s0) and how far an opening may reach either way (lo, hi), with the corners in between (breaks) where none may sit.
+function encShapeGeo(E){
+  const kind = encShapeKind(E); if (kind === "rect") return null;
+  let W = clamp(+E.w || 100, 20, 400); const D = clamp(+E.d || 60, 20, 400), H = clamp(+E.h || 30, 8, 300);
+  const t = clamp(+E.wall || 2, 0.8, Math.min(W, D)/4), fl = clamp(+E.floor || 2, 0.6, H/2), notes = [];
+  const G = { kind, D, H, t, fl, notes, curved:false };
+  if (kind === "round"){
+    const a = W/2, b = D/2, n = Math.max(72, Math.min(192, 4*Math.round(Math.PI*(a + b)/4.8)));
+    G.ring = d => { const L = []; for (let i = 0; i < n; i++){ const th = -Math.PI/2 + 2*Math.PI*i/n, c = Math.cos(th), s = Math.sin(th), nx = b*c, ny = a*s, l = Math.hypot(nx, ny);
+      L.push([a*c - d*nx/l, b*s - d*ny/l]); } return L; };
+    G.curved = true; G.bend = Math.min(a, b)*Math.min(a, b)/Math.max(a, b);   // the tightest bend's radius
+    G.circle = Math.abs(W - D) < 0.01;
+  } else if (kind === "hex" || kind === "oct"){
+    let base;
+    if (kind === "hex"){
+      const need = D/Math.sqrt(3) + 6;
+      if (W < need){ notes.push(`A hexagon ${D} mm deep is at least ${need.toFixed(0)} mm wide: it is made that wide.`); W = Math.ceil(need); }
+      const F = W - D/Math.sqrt(3);
+      base = [[F/2, -D/2], [W/2, 0], [F/2, D/2], [-F/2, D/2], [-W/2, 0], [-F/2, -D/2]];
+    } else {
+      const auto = Math.min(W, D)/(2 + Math.SQRT2), c = clamp(+E.cornerCut > 0 ? +E.cornerCut : auto, 2, Math.min(W, D)/2 - 4);
+      base = [[W/2 - c, -D/2], [W/2, -D/2 + c], [W/2, D/2 - c], [W/2 - c, D/2], [-W/2 + c, D/2], [-W/2, D/2 - c], [-W/2, -D/2 + c], [-W/2 + c, -D/2]];
+      G.cut = c;
+    }
+    const r = clamp(+E.radius || 0, 0, 30);
+    G.ring = d => encRoundCorners(encInset(base, d), Math.max(0, r - d));
+    G.base = base;
+  } else {
+    // a rectangle's outline, its corners as the box engine rounds them
+    const R = E.radius > 0 ? clamp(Math.max(+E.radius, t), t, Math.min(W, D)/2 - 1) : 0;
+    G.ring = d => encOrient(C.ringRect(W - 2*d, D - 2*d, Math.max(0, R - d), 8), true);
+    G.R = R;
+  }
+  G.W = W;
+  const O = G.ring(0), n = O.length, cum = [0];
+  for (let i = 0; i < n; i++){ const a = O[i], b = O[(i + 1) % n]; cum.push(cum[i] + Math.hypot(b[0] - a[0], b[1] - a[1])); }
+  const P = cum[n], segN = i => { const a = O[i], b = O[(i + 1) % n], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return [(b[1] - a[1])/l, -(b[0] - a[0])/l]; };
+  const vN = O.map((_, i) => { const p = segN((i + n - 1) % n), q = segN(i), x = p[0] + q[0], y = p[1] + q[1], l = Math.hypot(x, y) || 1; return [x/l, y/l]; });
+  G.outer = O; G.P = P;
+  G.frame = s => {
+    s = ((s % P) + P) % P;
+    let lo = 0, hi = n - 1; while (lo < hi){ const m = (lo + hi + 1) >> 1; if (cum[m] <= s) lo = m; else hi = m - 1; }
+    const a = O[lo], b = O[(lo + 1) % n], l = cum[lo + 1] - cum[lo] || 1, f = (s - cum[lo])/l, tg = [(b[0] - a[0])/l, (b[1] - a[1])/l];
+    const nm = G.curved ? (() => { const p = vN[lo], q = vN[(lo + 1) % n], x = p[0] + (q[0] - p[0])*f, y = p[1] + (q[1] - p[1])*f, k = Math.hypot(x, y) || 1; return [x/k, y/k]; })() : [tg[1], -tg[0]];
+    return { p:[a[0] + (b[0] - a[0])*f, a[1] + (b[1] - a[1])*f], t:G.curved ? [-nm[1], nm[0]] : tg, n:nm };
+  };
+  // where a ray from the middle meets the outline, as s
+  const hit = dir => { for (let i = 0; i < n; i++){ const a = O[i], b = O[(i + 1) % n], ex = b[0] - a[0], ey = b[1] - a[1], det = dir[0]*(-ey) - dir[1]*(-ex);
+    if (Math.abs(det) < 1e-12) continue; const k = (a[0]*(-ey) - a[1]*(-ex))/det, u = (dir[0]*a[1] - dir[1]*a[0])/det;
+    if (k > 0 && u >= -1e-9 && u <= 1 + 1e-9) return cum[i] + u*(cum[i + 1] - cum[i]); } return 0; };
+  // the flat runs: sides whose way along stays the same for 2 mm or more
+  const flats = [];
+  if (!G.curved){ let i = 0; while (i < n){ const d0 = segN(i); let j = i + 1; while (j < n){ const d1 = segN(j); if (d0[0]*d1[0] + d0[1]*d1[1] < 1 - 1e-9) break; j++; }
+    if (cum[j] - cum[i] >= 2) flats.push([cum[i], cum[j]]); i = j; } }
+  const halfTurn = kind === "hex" ? Math.tan(Math.PI/6) : 0.42, edge = 0.6 + halfTurn*t;
+  G.faces = {};
+  for (const [f, dir] of Object.entries(ENC_SHAPE_FACE)){
+    const s0 = hit(dir), F = { s0, breaks:[] };
+    if (G.curved){ F.lo = -P/8; F.hi = P/8; }
+    else {
+      const rel = q => { let x = q - s0; if (x > P/2) x -= P; if (x < -P/2) x += P; return x; };
+      const on = flats.find(([a, b]) => rel(a) <= 1e-6 && rel(b) >= -1e-6);
+      if (on){ F.lo = rel(on[0]) + edge; F.hi = rel(on[1]) - edge; }
+      else {
+        const prev = flats.filter(q => rel(q[1]) <= 1e-6).sort((p, q) => rel(q[1]) - rel(p[1]))[0], next = flats.filter(q => rel(q[0]) >= -1e-6).sort((p, q) => rel(p[0]) - rel(q[0]))[0];
+        F.lo = prev ? rel(prev[0]) + edge : -2; F.hi = next ? rel(next[1]) - edge : 2;
+        if (prev && next) F.breaks.push([rel(prev[1]) - edge, rel(next[0]) + edge]);
+      }
+    }
+    G.faces[f] = F;
+  }
+  // what the box engine is told each side is long (its openings stay within half of it either way)
+  G.faceL = Object.fromEntries(Object.entries(G.faces).map(([f, F]) => [f, Math.max(4, 2*Math.min(-F.lo, F.hi) + 1.6)]));
+  return G;
+}
+// a solid from flat rings (u, v) mapped through map(d) for d at its two ends
+function encMapSolid(polys, map, d0, d1, maxLen){
+  if (!polys.length) return null;
+  const { pts, tris } = C.triangulate(polys, maxLen || 0);
+  return C.solidFromTris(pts, tris, map(d1), map(d0));
+}
+const encPlanTo3 = (q, y) => [q[0], y, -q[1]];
+function encPrism(L, y0, y1){ return C.extrudePolysAt([{ outer:encOrient(L, true), holes:[] }], y0, y1); }
+function encRingPrism(outer, inner, y0, y1){ return C.extrudePolysAt([{ outer:encOrient(outer, true), holes:[encOrient(inner, false)] }], y0, y1); }
+function encCyl(x, y, r, y0, y1, n){ return encPrism(C.ringCircle(r, n || 32).map(q => [q[0] + x, q[1] + y]), y0, y1); }
+// a post for the lid's screws, n mm in from the outline along the way to the middle: as far in as keeps it `keep` mm inside
+function encShapePost(O, dir, keep){
+  const far = Math.max(...O.map(q => Math.abs(q[0]) + Math.abs(q[1]))) + 1;
+  let lo = 0, hi = far, best = null;
+  for (let k = 0; k < 40; k++){ const m = (lo + hi)/2, q = [dir[0]*m, dir[1]*m]; if (encInsideBy(O, q) >= keep){ best = q; lo = m; } else hi = m; }
+  return best;
+}
+/* What the box engine is told when it lays out a shaped box: the lid it builds is a flat plate (the shape's lid is made by the
+   solid stage), no corner posts of its own (the shape has its own), and what only a rectangle's walls carry is left out. */
+function encShapeRun(E, G){
+  const k = G.kind, walls = ["round","hex","oct"].includes(k), o = { w:G.W, fasten:"none", snap:false, hinge:false, gasket:0, gasketPrint:false, split:"off", lipH:0, pull:false,
+    lid:E.lid === "none" && k !== "clam" ? "none" : "press", _faceL:walls ? G.faceL : null };
+  if (k === "slope"){ const sl = encSlope(E, G); o._topLim = [-(G.W/2 - G.t) + 0.8, -sl.half + 0.8, G.W/2 - G.t - 0.8, sl.half - 0.8]; }
+  if (walls){
+    Object.assign(o, { levels:[], walls:[], ducts:[], feet:"none", texture:"", band:false, edge:"",
+      mount:["tripod","din"].includes(E.mount) ? E.mount : "none",
+      more:(Array.isArray(E.more) ? E.more : []).filter(m => !(m && ENC_MOUNT_FACES.includes(m.face))) });
+    if (ENC_MOUNT_FACES.includes(E.boardFace)) o.board = "none";
+  }
+  if (k === "slope" && E.boardFace === "top") o.boardFace = "";
+  if (k === "slope") o.more = (Array.isArray(E.more) ? E.more : []).filter(m => !(m && m.face === "top"));
+  return Object.assign({}, E, o);
+}
+// a sloped top: the front's height, the slope, and the lid's half length along it
+function encSlope(E, G){
+  const H = G.H, D = G.D, lo = Math.max(G.fl + 6, H - D*Math.tan(40*Math.PI/180));
+  const Hf = clamp(+E.frontH > 0 ? +E.frontH : Math.round(Math.max(lo, H*0.45)), lo, H - 2), k = (H - Hf)/D, q = Math.sqrt(1 + k*k);
+  return { Hf, k, q, a:Math.atan(k), y0:(H + Hf)/2, n:[0, 1/q, k/q], o:(H + Hf)/2/q, half:(D/2 - G.t)*q, wanted:+E.frontH > 0 ? +E.frontH : 0 };
+}
+// a clamshell's halves: the lower one's height, the lip between them
+function encClam(E, G, lidT){
+  const top = G.H + lidT, lip = clamp(+E.lipH > 0 ? +E.lipH : 3, 2, 8), lo = G.fl + 4, hi = top - lidT - lip - 2;
+  const hs = clamp(+E.splitAt > 0 ? +E.splitAt : Math.round(top/2), lo, Math.max(lo, hi));
+  return { hs, lip, top, ok:hi >= lo };
+}
+// a twist-on lid's thread, for a round box (Session 66): pitch, depth (flanks at about 42°, so neither part needs support),
+// the neck it is cut on and where it starts
+function encTwist(G, fit){
+  const R = G.W/2, p = R < 25 ? 3 : 4, dp = ENC_TWIST.rise*p, g = clamp(fit, 0.15, 0.6) + 0.1, rM = R - ENC_TWIST.skirt - g;
+  const neckIn = rM - dp - Math.max(ENC_TWIST.neck, G.t*0.8), rIn = R - G.t, len = clamp(2.5*p, 6, 12), Hn = G.H - len, cone = Math.max(0, rIn - neckIn);
+  return { R, p, dp, g, rM, neckIn, rIn, len, Hn, cone, ok:R >= ENC_TWIST.minR && Hn - cone >= G.fl + 3 && neckIn > 4 };
+}
+/* The checks of a shaped box, once the box engine has placed everything (X: what it worked out). Openings that cannot be on
+   the shape are left out with a word, as the engine does; what only a rectangle's walls carry is listed. Returns the shape's
+   facts for the job and the panel. */
+function encShapeCheck(G, X){
+  const E0 = X.E0, k = G.kind, warn = X.warn, left = X.left, walls = ["round","hex","oct"].includes(k), name = ENC_SHAPE_NAME[k];
+  const H = G.H, t = G.t, fit = clamp(+E0.fit || 0, 0, 1), lipW = clamp(+E0.lipW || 1.2, 0.8, 6), lidT = X.lidT;
+  const S = { kind:k, name:ENC_SHAPES[k], notes:G.notes.slice(), dropped:[], posts:[], out:new Set(), noLabel:new Set() };
+  let lid = E0.lid === "none" && k !== "clam" ? "none" : k === "round" && E0.lid === "twist" ? "twist" : E0.lid === "screw" && E0.fasten !== "none" ? "screw" : "press";
+  if (lid === "twist" && !G.circle){ lid = "press"; warn.push({ t:"A twist lid needs a round box", s:"Make the width and the depth the same for a lid that screws on: an oval box gets a press-fit lid." }); }
+  if (lid === "twist"){ S.tw = encTwist(G, fit);
+    if (!S.tw.ok){ warn.push({ t:"No room for a twist lid", s:`A twist lid needs a round box at least ${2*ENC_TWIST.minR} mm across and about ${Math.ceil(S.tw.len + S.tw.cone + G.fl + 3)} mm tall: it gets a press-fit lid.` }); lid = "press"; S.tw = null; } }
+  if (E0.lid === "magnet") S.dropped.push("the magnet lid (press-fit instead)");
+  if (E0.lid === "slide") S.dropped.push("the sliding lid (press-fit instead)");
+  if (E0.lid === "twist" && k !== "round") S.notes.push("A twist lid is for a round box: this one has a press-fit lid.");
+  if (E0.hinge === true && E0.lid === "press") S.dropped.push("the hinge");
+  if (E0.snap === true && E0.lid === "press") S.dropped.push("the snap catches");
+  if (+E0.gasket > 0) S.dropped.push("the gasket groove");
+  if (lid === "screw" && E0.fasten === "nut") S.notes.push("Nut pockets are for rectangular boxes: the posts take self-tapping screws.");
+  S.lipH = lid === "press" || lid === "screw" ? (k === "clam" ? 0 : clamp(+E0.lipH || 0, 0, H - G.fl - 1)) : 0;
+  S.lidT = lidT; S.fit = fit; S.lipW = lipW;
+  if (k === "slope"){ S.sl = encSlope(E0, G); if (S.sl.wanted && Math.abs(S.sl.wanted - S.sl.Hf) > 0.05) S.notes.push(`The front is ${S.sl.Hf.toFixed(1)} mm tall: a slope steeper than 40° would need support, and the front must clear the floor.`); }
+  if (k === "clam"){ S.cl = encClam(E0, G, lidT);
+    if (t < 1.6) warn.push({ t:"Walls too thin for a clamshell", s:"The halves meet on a lip half the wall thick: make the walls at least 1.6 mm." });
+    if (!S.cl.ok) warn.push({ t:"Box too shallow for a clamshell", s:"Make it taller: each half needs room for the lip between them." }); }
+  // the lid's screws: posts in the shape's corners
+  const screw = encScrew(E0.screw), bossHole = E0.fasten === "insert" ? screw.insert : screw.pilot, bossR = Math.max(bossHole/2 + 1.6, 2.6);
+  Object.assign(S, { screw, bossHole, bossR });
+  if (lid === "screw"){
+    let pts = [];
+    if (k === "slope" || k === "clam"){
+      const R = G.R, ri = Math.max(0, R - t), iw = G.W - 2*t, id = G.D - 2*t, ov = 0.5;
+      if (iw >= 4*bossR + 4 && id >= 4*bossR + 4) for (const sx of [-1,1]) for (const sy of [-1,1])
+        pts.push(ri > bossR ? [sx*(G.W/2 - R + (ri - bossR + ov)/Math.SQRT2), sy*(G.D/2 - R + (ri - bossR + ov)/Math.SQRT2)] : [sx*(iw/2 - bossR + ov), sy*(id/2 - bossR + ov)]);
+    } else {
+      const dirs = k === "hex" ? [0, 2, 3, 5].map(i => G.base[i]) : k === "oct" ? [[1,1],[-1,1],[-1,-1],[1,-1]].map(([a, b]) => [a*(G.W/2 - G.cut/2), b*(G.D/2 - G.cut/2)]) : [[1,1],[-1,1],[-1,-1],[1,-1]].map(([a, b]) => [a*G.W, b*G.D]);
+      pts = dirs.map(d => { const l = Math.hypot(d[0], d[1]); return encShapePost(G.outer, [d[0]/l, d[1]/l], bossR + 0.8); }).filter(Boolean);
+      if (pts.some(q => encInsideBy(G.ring(t), q) > bossR + 6)) pts = [];        // a tiny box: the posts would stand out in the middle
+    }
+    if (pts.length < 4){ warn.push({ t:"Screw posts do not fit", s:`The ${name} is too small for four screw posts: make it bigger, use a smaller screw, or a press-fit lid.` }); lid = "press"; S.lipH = k === "clam" ? 0 : clamp(+E0.lipH || 0, 0, H - G.fl - 1); }
+    else S.posts = pts;
+  }
+  S.lid = lid;
+  // on a sloped top the screws go in square to the lid (Session 66), so the countersink is a 45° cone as the lid prints face
+  // down: each hole leans back down into its post, which is as long, front to back, as the hole drifts. top: where each
+  // screw meets the slope; reach: how far back its hole's foot is
+  if (k === "slope" && S.posts.length){
+    S.dep = E0.fasten === "insert" ? screw.insertDepth + 1 : 10; S.drift = (S.dep + 2)*Math.sin(S.sl.a);
+    S.tops = S.posts.map(([x, y]) => [x, y > 0 ? y - S.drift : y]);
+  }
+  // what a rectangle's walls carry, left out here
+  if (walls){
+    const has = (v, what) => { if (v) S.dropped.push(what); };
+    has(Array.isArray(E0.levels) && E0.levels.length, "levels"); has(Array.isArray(E0.walls) && E0.walls.length, "dividers"); has(Array.isArray(E0.ducts) && E0.ducts.length, "cable channels");
+    has(["ears","tabs","straps","skadis","pegboard"].includes(E0.mount), "the mounting " + (E0.mount === "ears" || E0.mount === "tabs" ? "ears" : E0.mount === "straps" ? "strap loops" : "hooks"));
+    has(E0.texture === "grooves" || E0.texture === "hex", "the wall texture"); has(E0.band === true, "the band"); has(E0.pull === true, "the finger pull");
+    has(ENC_MOUNT_FACES.includes(E0.boardFace) || (Array.isArray(E0.more) && E0.more.some(m => m && ENC_MOUNT_FACES.includes(m.face))), "boards on a wall or under the lid");
+    has((E0.cut || []).some(c => c && ENC_WALLS.has(c.face) && c.hood === true), "rain hoods"); has((E0.cut || []).some(c => c && c.window === true), "clear windows");
+    has((Array.isArray(E0.art) ? E0.art : []).some(a => a && a.finish !== "engrave"), "inlaid and raised art (engraved instead)");
+  }
+  if (k !== "clam"){
+    if (E0.logo && E0.logo.on && E0.logo.mode !== "engrave") S.notes.push("The lid's logo is engraved on a shaped lid.");
+    if ((E0.cut || []).some(c => c && c.face === "top" && ["camholder","flexbtn"].includes(c.kind))) S.dropped.push("the camera holder's frame and the flexing button's nub (their holes are cut)");
+    if (E0.solar) S.dropped.push("the solar panel's outline");
+    if (k === "slope" && (E0.boardFace === "top" || (Array.isArray(E0.more) && E0.more.some(m => m && m.face === "top")))) S.dropped.push("boards under the lid");
+  }
+  if (E0.split === "parts") S.dropped.push("splitting into parts");
+  if (S.dropped.length) warn.push({ t:`Not on a ${name} yet`, s:`Left out: ${S.dropped.join(", ")}. They are for rectangular boxes for now.` });
+  // openings on the walls
+  const leave = (po, s) => { if (!left.includes(po.i)) left.push(po.i); S.out.add(po.i); warn.push({ t:`${po.lab} left out`, s }); };
+  const planeAt = py => S.sl.y0 + S.sl.k*py;
+  X.placedOpen.forEach(po => {
+    if (left.includes(po.i)) return;
+    const wall = ENC_WALLS.has(po.face), notch = wall && po.c.notch === true && ENC_POINTABLE.has(po.c.kind), bb = po.bb, lb = po.labBB;
+    if (wall && walls){
+      const F = G.faces[po.face], g0 = Math.min(bb[0], lb ? lb[0] : Infinity), g1 = Math.max(bb[2], lb ? lb[2] : -Infinity);
+      if (F.breaks.some(([a, b]) => g0 < b && g1 > a)) return leave(po, `It would sit across a corner of the ${name} (in the middle of the ${ENC_FACE_NAME[po.face]}): move it along (u) so it is on one side of the corner, or put it on another side.`);
+      if (S.tw && (notch || bb[3] > S.tw.Hn - S.tw.cone - 0.8)) return leave(po, `It reaches up to the neck the lid screws onto (from ${(S.tw.Hn - S.tw.cone).toFixed(1)} mm up): lower it, or make the box taller.`);
+      if (!notch && S.lipH > 0 && bb[3] > H - S.lipH - 0.3) warn.push({ t:`${po.lab} is behind the lid's lip`, s:`The lid's lip covers the top ${S.lipH.toFixed(1)} mm of the inside of the walls. Lower ${po.lab.toLowerCase()} or make the lip shorter.` });
+    }
+    if (wall && k === "slope" && !notch){
+      const F = G.faces[po.face], y = Math.min(...[bb[0], bb[2]].map(u => planeAt(G.frame(F.s0 + u).p[1]))) - 0.8 - (S.lipH > 0 ? S.lipH + 0.3 : 0);
+      if (bb[3] > y) warn.push({ t:`${po.lab} runs into the sloped top`, s:`The top slopes down to ${S.sl.Hf.toFixed(1)} mm at the front: here it is ${(y + 0.8).toFixed(1)} mm${S.lipH > 0 ? " under the lid's lip" : ""}. Lower ${po.lab.toLowerCase()}, or move it back.` });
+    }
+    if (po.face === "top" && k !== "clam" && lid !== "none"){
+      const rings = placedRings(po.c, X.E), pts = rings.flat();
+      let ok;
+      if (k === "slope"){ const ax = G.W/2 - t - (S.lipH > 0 ? fit + lipW : 0) - 0.8, av = S.sl.half - (S.lipH > 0 ? (fit + lipW)*S.sl.q : 0) - 0.8;
+        ok = pts.every(([x, v]) => Math.abs(x) <= ax && Math.abs(v) <= av); }
+      else if (S.tw) ok = pts.every(([x, y]) => Math.hypot(x, y) <= S.tw.neckIn - 0.8);
+      else { const L = G.ring(S.lipH > 0 ? t + fit + lipW + 0.8 : t + 0.8); ok = pts.every(q => encInsideBy(L, q) >= 0); }
+      if (!ok) return leave(po, `It runs past the inside of the ${name}'s lid${S.lipH > 0 ? " (over the lip)" : ""}: move it in, or make the box bigger.`);
+      const hr = screw.head/2 + 0.5;
+      if ((S.tops || S.posts).some(q => { const c = k === "slope" ? [q[0], q[1]*S.sl.q] : q; return bb[0] < c[0] + hr && bb[2] > c[0] - hr && bb[1] < c[1] + hr && bb[3] > c[1] - hr; }))
+        return leave(po, `It runs into a screw hole of the ${name}'s lid: move it.`);
+      if (lb){ const L = k === "slope" || S.tw ? null : G.ring(t + 0.8), corners = [[lb[0], lb[1]], [lb[2], lb[1]], [lb[2], lb[3]], [lb[0], lb[3]]];
+        if (L ? corners.some(q => encInsideBy(L, q) < 0) : S.tw ? corners.some(([x, y]) => Math.hypot(x, y) > S.tw.neckIn - 0.8) : false){
+          S.noLabel.add(po.i); warn.push({ t:`Label of opening ${po.i + 1} left out`, s:`It runs past the edge of the ${name}'s lid: put it on the other side, or make it smaller.` }); } }
+    }
+    if (po.face === "bottom" && walls){
+      const L = G.ring(t + 0.8), rings = placedRings(po.c, X.E);
+      if (rings.flat().some(([x, y]) => encInsideBy(L, [x, -y]) < 0)) warn.push({ t:`${po.lab} runs under the wall`, s:`On a ${name} the floor's corners are cut off: move it in.` });
+    }
+  });
+  // the boards
+  (X.boardsInfo || []).forEach(b => {
+    if (!b.bb || b.face || b.fits === false) return;
+    const cs = [[b.bb[0], b.bb[1]], [b.bb[2], b.bb[1]], [b.bb[2], b.bb[3]], [b.bb[0], b.bb[3]]];
+    if (walls){ const L = G.ring(t); if (cs.some(q => encInsideBy(L, q) < -0.2)) warn.push({ t:`${b.label} goes through the wall`, s:`A ${name}'s corners are cut off, so ${b.label} reaches through its wall: move it towards the middle, or make the box bigger.` }); }
+    if (S.posts.length && S.posts.some(([x, y]) => x > b.bb[0] - bossR && x < b.bb[2] + bossR && y > b.bb[1] - bossR && y < b.bb[3] + bossR) && (b.base || 0) < H - 1)
+      warn.push({ t:`${b.label} is under a lid post`, s:`The lid's screw posts stand in the ${name}'s corners, from the floor up: move ${b.label} in.` });
+    if (k === "slope"){ const ceil = planeAt(b.bb[1]) - (S.lipH > 0 ? S.lipH : 0) - 0.3, top = b.partsTop || b.top || 0;
+      if (top > ceil) warn.push({ t:`${b.label} reaches the sloped lid`, s:`Its parts stand ${top.toFixed(1)} mm high where the lid is ${ceil.toFixed(1)} mm up: move it back, or make the front taller.` }); }
+  });
+  return S;
+}
+/* The solid program of a shaped box (X: what the box engine made and worked out, S: encShapeCheck's facts): the shape's
+   walls round what the engine put inside, the posts, the lid, every cut, for encShapeSolid to run with the cutting tool. */
+function encShapeJob(G, S, X){
+  const E0 = X.E0, k = G.kind, walls = ["round","hex","oct"].includes(k), H = G.H, t = G.t, fl = G.fl, lidT = S.lidT, fit = S.fit, lipW = S.lipW;
+  const box = X.parts.find(p => p.name === "Box"), lidPart = X.parts.find(p => p.name === "Lid" && p.lid);
+  if (!box) return null;
+  const O = G.outer, defs = {}, def = (nm, node) => { defs[nm] = node; return { ref:nm }; }, sol = (s, what, pieces) => s ? { solid:s, what, pieces:!!pieces } : null;
+  const screw = S.screw, labDepth = th => clamp(+E0.labelDepth || 0.4, 0.2, Math.max(0.2, th - 0.6)), notes = [];
+  // a wall's openings: a straight prism at the opening's middle, through the wall square to it (deeper on a curve)
+  const straight = (face, rings, extra) => {
+    const F = G.faces[face], bb = ringsBounds(rings), uc = (bb[0] + bb[2])/2, fr = G.frame(F.s0 + uc);
+    const sag = Math.max(0, ...[bb[0], bb[2]].map(u => { const q = G.frame(F.s0 + u).p; return -((q[0] - fr.p[0])*fr.n[0] + (q[1] - fr.p[1])*fr.n[1]); }));
+    const map = d => q => { const du = q[0] - uc; return [fr.p[0] + du*fr.t[0] + d*fr.n[0], q[1], -(fr.p[1] + du*fr.t[1] + d*fr.n[1])]; };
+    return encMapSolid(rings.map(L => ({ outer:encOrient(L, true), holes:[] })), map, -(t + sag + (extra || 0.6)), 1.5);
+  };
+  // labels and engravings follow the wall round
+  const wrapped = (face, polys, depth) => { const s0 = G.faces[face].s0;
+    return encMapSolid(polys, d => q => { const fr = G.frame(s0 + q[0]); return [fr.p[0] + d*fr.n[0], q[1], -(fr.p[1] + d*fr.n[1])]; }, -depth, 1, G.curved ? 1.2 : 0); };
+  const wallCuts = [], wallLabels = [];
+  const wallPO = X.placedOpen.filter(po => ENC_WALLS.has(po.face) && !X.left.includes(po.i));
+  wallPO.forEach(po => {
+    const notch = po.c.notch === true && ENC_POINTABLE.has(po.c.kind);
+    const rings = notch ? [encRect(po.bb[0], po.bb[1], po.bb[2], H + lidT + 2)] : placedRings(po.c, X.E);
+    const s = straight(po.face, rings, walls ? 0.6 : fit + lipW + 0.8); if (s) wallCuts.push(def(`open${po.i}`, sol(s, `opening ${po.i + 1}`)));
+  });
+  if (walls) for (const f of ENC_WALLS){
+    const skip = new Set(X.placedOpen.filter(po => S.out.has(po.i) && po.labPolys).flatMap(po => po.labPolys));
+    const labs = (X.labelsOn[f] || []).filter(q => !skip.has(q));
+    if (labs.length && t >= 0.8){ const s = wrapped(f, labs, labDepth(t)); if (s) wallLabels.push(sol(s, "a label", true)); }
+    (X.artOn[f] || []).forEach(a => { const s = wrapped(f, a.union, clamp(a.depth, 0.2, Math.max(0.2, t - 0.6))); if (s) wallLabels.push(sol(s, "art", true)); });
+  }
+  // posts for the lid's screws, and what keeps the lip and the halves' rebate clear of them
+  // (on a slope each post is a stadium from where its screw meets the lid back to where the hole's foot is)
+  const stadium = (x, y, r, y0, y1) => S.tops ? encPrism(C.convexHull([...C.ringCircle(r, 40).map(q => [q[0] + x, q[1] + y]), ...C.ringCircle(r, 40).map(q => [q[0] + x, q[1] + y + S.drift])]), y0, y1) : encCyl(x, y, r, y0, y1, 40);
+  const postAt = S.tops || S.posts;
+  const posts = postAt.map(([x, y]) => sol(stadium(x, y, S.bossR, fl - 0.01, k === "slope" ? H + 2 : k === "clam" ? H + 0.01 : H), "a post"));
+  const keepOut = (y0, y1) => postAt.map(([x, y]) => sol(stadium(x, y, S.bossR + fit + 0.3, y0, y1), "room round a post"));
+  const out = {}, place = [];
+  // the lid's top face: its openings, labels, art and logo, as rings on it (u across, v front to back, back positive)
+  const topPO = X.placedOpen.filter(po => po.face === "top" && !X.left.includes(po.i));
+  const topRings = topPO.flatMap(po => placedRings(po.c, X.E));
+  const skipTop = new Set(X.placedOpen.filter(po => (S.out.has(po.i) || S.noLabel.has(po.i)) && po.labPolys).flatMap(po => po.labPolys));
+  const topEngr = [];
+  const labsTop = (X.labelsOn.top || []).filter(q => !skipTop.has(q));
+  if (labsTop.length) topEngr.push({ polys:labsTop, depth:labDepth(lidT) });
+  (X.artOn.top || []).forEach(a => topEngr.push({ polys:a.union, depth:clamp(a.depth, 0.2, Math.max(0.2, lidT - 0.6)) }));
+  if (X.lidLogo) topEngr.push({ polys:X.lidLogo.union, depth:clamp(X.lidLogo.depth, 0.2, Math.max(0.2, lidT - 0.6)) });
+  const flipPrint = [1,0,0, 0,-1,0, 0,0,-1], bx = X.beside[0], bz = X.beside[2];
+  const headCut = (x, y, yTop) => {           // a screw's head in a flat lid, its top face at yTop
+    if (E0.head === "sink"){ const dep = Math.min((screw.head - screw.clear)/2, lidT - 0.6), r0 = screw.clear/2 + dep;
+      let c = C.revolveLoop([[0, yTop - dep - 0.01], [screw.clear/2, yTop - dep - 0.01], [r0, yTop], [r0 + 1, yTop + 1], [0, yTop + 1]], 40); if (C.signedVolume(c) < 0) c = C.revolveLoop([[0, yTop + 1], [r0 + 1, yTop + 1], [r0, yTop], [screw.clear/2, yTop - dep - 0.01], [0, yTop - dep - 0.01]], 40);
+      return sol(C.affineSolid(c, [1,0,0, 0,1,0, 0,0,1], [x, 0, -y]), "a screw's head"); }
+    if (E0.head === "bore"){ const dep = Math.min(screw.headH, lidT - 0.8); return dep > 0 ? sol(encCyl(x, y, screw.head/2 + 0.2, yTop - dep, yTop + 1, 40), "a screw's head") : null; }
+    return null;
+  };
+  if (walls){
+    const tw = S.tw, nT = tw ? Math.max(96, 6*Math.round(2*Math.PI*tw.R/1.6/6)) : 0;
+    let shell, cavity, cavPlus;
+    if (tw){
+      const prof = e => [[0, -1], [tw.rIn + e, -1], [tw.rIn + e, tw.Hn - tw.cone], [tw.neckIn + e, tw.Hn], [tw.neckIn + e, H + 1], [0, H + 1]];
+      const rev = e => { let s = C.revolveLoop(prof(e), nT); if (C.signedVolume(s) < 0) s = C.revolveLoop(prof(e).slice().reverse(), nT); return s; };
+      cavity = rev(0); cavPlus = rev(0.3);
+      shell = { union:[sol(encPrism(O, 0, tw.Hn), "the walls"), sol(C.threadSolid({ rMajor:tw.rM, pitch:tw.p, depth:tw.dp, y0:tw.Hn, y1:H, segs:nT }), "the thread"),
+        sol(encCyl(0, 0, tw.rM - tw.dp - 0.05, tw.Hn - 0.5, tw.Hn + 0.5, nT), "the neck")] };
+    } else { cavity = encPrism(G.ring(t), -1, H + 1); cavPlus = encPrism(G.ring(t - 0.3), -1, H + 1); shell = sol(encPrism(O, 0, H), "the walls"); }
+    const under = [];
+    const footDirs = (k === "hex" ? [0, 2, 3, 5].map(i => G.base[i]) : k === "oct" ? [[1,1],[-1,1],[-1,-1],[1,-1]].map(([a, b]) => [a*(G.W/2 - G.cut/2), b*(G.D/2 - G.cut/2)]) : [[1,1],[-1,1],[-1,-1],[1,-1]].map(([a, b]) => [a*G.W, b*G.D]))
+      .map(d => { const l = Math.hypot(d[0], d[1]); return [d[0]/l, d[1]/l]; });
+    const inner = G.ring(t);
+    if (E0.feet === "recess"){ const fr = (FEET[encHas(FEET, E0.footSize) ? E0.footSize : "8"].d + 0.3)/2, dep = clamp(+E0.footDepth || 1, 0.4, Math.max(0.4, fl - 0.6));
+      const at = footDirs.map(d => encShapePost(inner, d, fr + 2)).filter(Boolean);
+      if (at.length === 4){ at.forEach(([x, y]) => under.push(sol(encCyl(x, y, fr, -1, dep, 40), "a foot's recess"))); X.need.push([4, `stick-on rubber feet, ${FEET[encHas(FEET, E0.footSize) ? E0.footSize : "8"].d} mm`]); }
+      else notes.push("No room for the feet's recesses."); }
+    if (E0.mount === "magnets"){ const mg = MAGNETS[encHas(MAGNETS, E0.mountMagnet) ? E0.mountMagnet : "8x3"], mr = (mg.d + 0.3)/2, dep = Math.min(mg.t + 0.2, fl - 0.6);
+      const k2 = E0.feet === "recess" ? 2*((FEET[encHas(FEET, E0.footSize) ? E0.footSize : "8"].d + 0.3)/2) + 3 : 0;
+      const at = footDirs.map(d => encShapePost(inner, d, mr + 3 + k2)).filter(Boolean);
+      if (dep < mg.t) notes.push(`The floor is too thin for ${mg.d} × ${mg.t} mm magnets: make it at least ${(mg.t + 0.8).toFixed(1)} mm.`);
+      else if (at.length === 4){ at.forEach(([x, y]) => under.push(sol(encCyl(x, y, mr, -1, dep, 40), "a magnet's pocket"))); X.need.push([4, `round magnets ${mg.d} × ${mg.t} mm, for under the floor`]); } }
+    const holes = S.posts.map(([x, y]) => sol(encCyl(x, y, S.bossHole/2, fl, H + 1, 28), "a post's hole"));
+    if (S.posts.length){ const ln = [6, 8, 10, 12, 16, 20, 25, 30].find(v => v >= lidT + screw.insertDepth - 1) || 30;
+      X.need.push([S.posts.length, `${E0.screw} screws, ${ln} mm long, for the lid`]); if (E0.fasten === "insert") X.need.push([S.posts.length, `${E0.screw} heat inserts for the lid`]); }
+    const body = def("body", { union:[{ subtract:[shell, sol(cavity, "the inside")] }, { intersect:[sol(box.solid, "the box"), sol(cavPlus, "the inside")] }, ...posts] });
+    out.box = { subtract:[body, ...wallCuts, ...wallLabels, ...holes, ...under] };
+    if (S.lid === "twist"){
+      const nut = C.threadSolid({ rMajor:tw.rM, pitch:tw.p, depth:tw.dp, y0:tw.Hn, y1:H + 0.02, inside:true, gap:tw.g, outside:() => tw.R, segs:nT });
+      const grips = [];
+      for (let i = 0; i < 36; i++){ const a = 2*Math.PI*i/36, c = Math.cos(a), s = Math.sin(a), q = [[tw.R - 0.5, -0.6], [tw.R + 1, -0.6], [tw.R + 1, 0.6], [tw.R - 0.5, 0.6]].map(([u, v]) => [u*c - v*s, u*s + v*c]);
+        grips.push(encPrism(q, tw.Hn + 0.4 - 1, H + lidT - 0.6)); }
+      out.lid = { subtract:[{ union:[sol(encPrism(C.ringCircle(tw.R, nT), H, H + lidT), "the lid"), { trim:sol(nut, "the lid's thread"), normal:[0, 1, 0], offset:tw.Hn + 0.4 }] },
+        ...topRings.map(L => sol(encPrism(L, H - 1, H + lidT + 1), "a lid opening")), ...topEngr.map(e => sol(encMapSolid(e.polys, d => q => [q[0], H + lidT + d, -q[1]], -e.depth, 1), "a label", true)),
+        sol(C.mergeSolids(grips), "the grip", true)] };
+      notes.push(`The lid screws on: a ${tw.p} mm thread, ${tw.len} mm long, its flanks at about 42° so neither part needs support.`);
+    } else if (S.lid !== "none"){
+      const lip = S.lipH > 0 ? { subtract:[sol(encRingPrism(G.ring(t + fit), G.ring(t + fit + lipW), H - S.lipH, H + 0.01), "the lip"), ...keepOut(H - S.lipH - 1, H + 1), ...wallCuts] } : null;
+      out.lid = { subtract:[{ union:[sol(encPrism(O, H, H + lidT), "the lid"), lip].filter(Boolean) },
+        ...topRings.map(L => sol(encPrism(L, H - S.lipH - 1, H + lidT + 1), "a lid opening")), ...topEngr.map(e => sol(encMapSolid(e.polys, d => q => [q[0], H + lidT + d, -q[1]], -e.depth, 1), "a label", true)),
+        ...S.posts.flatMap(([x, y]) => [sol(encCyl(x, y, screw.clear/2, H - 1, H + lidT + 1, 32), "a screw hole"), headCut(x, y, H + lidT)])] };
+    }
+    if (out.lid) place.push({ key:"lid", name:"Lid", slot:clamp(+E0.lidSlot || 0, 0, state.slots.length - 1), M:flipPrint, T:[bx, H + lidT, bz], lid:true });
+    place.push({ key:"box", name:"Box", slot:clamp(+E0.boxSlot || 0, 0, state.slots.length - 1) });
+  } else if (k === "slope"){
+    const sl = S.sl, nUp = sl.n, nDn = nUp.map(v => -v), q = sl.q;
+    const body = def("body", { union:[sol(box.solid, "the box"), ...posts] });
+    // on the slope: u across, v up the slope from the middle, d out of the lid's face (0 its inside)
+    const onSlope = d => p => [p[0], sl.y0 + p[1]*sl.k/q + d/q, -p[1]/q + d*sl.k/q];
+    const circ = (x, v, r) => [{ outer:C.ringCircle(r, 32).map(c => [c[0] + x, c[1] + v]), holes:[] }];
+    const tops = S.tops || [];
+    out.box = { subtract:[{ trim:body, normal:nDn, offset:-sl.o }, ...tops.map(([x, y]) => sol(encMapSolid(circ(x, y*q, S.bossHole/2), onSlope, -S.dep, 5), "a post's hole"))] };
+    if (S.lid !== "none"){
+      const slab = { trim:{ trim:sol(encPrism(O, sl.Hf - 5, H + lidT*q + 5), "the lid"), normal:nUp, offset:sl.o }, normal:nDn, offset:-(sl.o + lidT) };
+      const lip = S.lipH > 0 ? { subtract:[{ trim:{ trim:sol(encRingPrism(G.ring(t + fit), G.ring(t + fit + lipW), sl.Hf - S.lipH*q - 5, H + 5), "the lip"), normal:nUp, offset:sl.o - S.lipH }, normal:nDn, offset:-(sl.o + 0.01) },
+        ...keepOut(sl.Hf - 30, H + 30), ...wallCuts] } : null;
+      // each screw square to the lid: its hole, and its head's countersink (a 45° cone) or counterbore, in the lid's own frame
+      const toSlope = [1,0,0, 0,1/q,-sl.k/q, 0,sl.k/q,1/q];
+      if (tops.length){ const ln = [6, 8, 10, 12, 16, 20, 25, 30].find(v => v >= lidT + S.dep - 2) || 30;
+        X.need.push([tops.length, `${E0.screw} screws, ${ln} mm long, for the lid`]); if (E0.fasten === "insert") X.need.push([tops.length, `${E0.screw} heat inserts for the lid`]); }
+      const screwCuts = tops.flatMap(([x, y]) => {
+        const at = onSlope(lidT)([x, y*q]), cuts = [sol(encMapSolid(circ(x, y*q, screw.clear/2), onSlope, -S.lipH - 1, lidT + 1), "a screw hole")];
+        if (E0.head === "sink"){ const dc = Math.min((screw.head - screw.clear)/2, lidT - 0.6), r0 = screw.clear/2 + dc;
+          cuts.push(sol(C.affineSolid(C.revolveLoop([[0, -dc - 0.01], [screw.clear/2, -dc - 0.01], [r0, 0], [r0 + 1, 1], [0, 1]], 40), toSlope, at), "a screw's head")); }
+        else if (E0.head === "bore"){ const db = Math.min(screw.headH, lidT - 0.8); if (db > 0) cuts.push(sol(encMapSolid(circ(x, y*q, screw.head/2 + 0.2), onSlope, lidT - db, lidT + 1), "a screw's head")); }
+        return cuts;
+      });
+      if (tops.length && E0.head === "sink" && (screw.head - screw.clear)/2 > lidT - 0.6) X.warn.push({ t:"Lid too thin for countersunk screws", s:`The heads will stand ${((screw.head - screw.clear)/2 - (lidT - 0.6)).toFixed(1)} mm proud. Make the lid at least ${((screw.head - screw.clear)/2 + 0.6).toFixed(1)} mm thick, or use counterbored or plain holes.` });
+      if (tops.length && E0.head === "bore" && screw.headH > lidT - 0.8) X.warn.push({ t:"Lid too thin for counterbored screws", s:`The heads will stand ${(screw.headH - (lidT - 0.8)).toFixed(1)} mm proud. Make the lid at least ${(screw.headH + 0.8).toFixed(1)} mm thick.` });
+      out.lid = { subtract:[{ union:[slab, lip].filter(Boolean) }, ...topRings.map(L => sol(encMapSolid([{ outer:encOrient(L, true), holes:[] }], onSlope, -S.lipH - 1, lidT + 1), "a lid opening")),
+        ...topEngr.map(e => sol(encMapSolid(e.polys, onSlope, lidT - e.depth, lidT + 1), "a label", true)), ...screwCuts] };
+      // printed outside face down: turned about the x axis until the slope lies on the bed
+      const ca = Math.cos(sl.a), sa = Math.sin(sl.a);
+      place.push({ key:"lid", name:"Lid", slot:clamp(+E0.lidSlot || 0, 0, state.slots.length - 1), M:[1,0,0, 0,-ca,-sa, 0,sa,-ca], drop:true, at:[bx, 0, bz], lid:true });
+    }
+    place.push({ key:"box", name:"Box", slot:clamp(+E0.boxSlot || 0, 0, state.slots.length - 1) });
+    notes.push(`The top slopes at ${(sl.a*180/Math.PI).toFixed(0)}°, from ${sl.Hf.toFixed(1)} mm at the front to ${H.toFixed(1)} mm at the back; the lid prints face down, its openings square to it.`);
+  } else if (k === "clam" && lidPart){
+    const cl = S.cl, hs = cl.hs, lip = cl.lip;
+    const lidBox = C.affineSolid(lidPart.solid, flipPrint, [-bx, H + lidT, bz]);
+    const shell = def("shell", { union:[sol(box.solid, "the box"), sol(lidBox, "the lid"), ...posts] });
+    const below = [], above = [];
+    if (S.posts.length){
+      const dep = Math.min(E0.fasten === "insert" ? screw.insertDepth + 1 : 8, H - hs - 0.6), cb = Math.min(screw.headH + 0.2, hs - 3);
+      if (hs - cb < 3) notes.push("The lower half is short for screws from below: make it taller.");
+      // (its roof steps in at 45° to the screw's hole, so the lower half prints without support)
+      const hr = screw.head/2 + 0.2, roof = C.revolveLoop([[0, -1], [hr, -1], [hr, cb], [screw.clear/2, cb + hr - screw.clear/2], [0, cb + hr - screw.clear/2]], 40);
+      S.posts.forEach(([x, y]) => { below.push(sol(encCyl(x, y, screw.clear/2, -1, hs + 0.01, 32), "a screw hole"), sol(C.affineSolid(roof, [1,0,0, 0,1,0, 0,0,1], [x, 0, -y]), "a screw's head"));
+        above.push(sol(encCyl(x, y, S.bossHole/2, hs - 0.01, hs + dep, 28), "a post's hole")); });
+      const len = [6, 8, 10, 12, 16, 20, 25, 30, 35, 40, 50].find(v => v >= hs - cb + dep*0.7) || 50;
+      X.need.push([S.posts.length, `${E0.screw} screws, ${len} mm long, from under the floor into the upper half`]);
+      if (E0.fasten === "insert") X.need.push([S.posts.length, `${E0.screw} heat inserts for the upper half`]);
+    }
+    const lipSol = { subtract:[sol(encRingPrism(G.ring(t/2 + fit/2), G.ring(t), hs - 0.01, hs + lip), "the lip"), ...keepOut(hs - 1, hs + lip + 1), ...wallCuts] };
+    const rebate = { subtract:[sol(encRingPrism(G.ring(t/2 - fit/2), G.ring(t + 0.4), hs - 1, hs + lip + 0.3), "the rebate"), ...S.posts.map(([x, y]) => sol(encCyl(x, y, S.bossR + fit + 0.3, hs - 2, hs + lip + 2, 40), "room round a post"))] };
+    out.box = { subtract:[{ union:[{ trim:{ ref:"shell" }, normal:[0, -1, 0], offset:-hs }, lipSol] }, ...below] };
+    out.lid = { subtract:[{ trim:{ ref:"shell" }, normal:[0, 1, 0], offset:hs }, rebate, ...above] };
+    place.push({ key:"box", name:"Lower half", slot:clamp(+E0.boxSlot || 0, 0, state.slots.length - 1) },
+      { key:"lid", name:"Upper half", slot:clamp(+E0.lidSlot || 0, 0, state.slots.length - 1), M:flipPrint, T:[bx, H + lidT, bz], lid:true });
+    notes.push(`Two halves, ${hs.toFixed(1)} mm and ${(H + lidT - hs).toFixed(1)} mm tall, meet on a ${lip} mm lip; each prints open side up.`);
+  } else return null;
+  // the parts the shape takes the place of
+  const drop = p => p === box || p === lidPart || (k !== "clam" && (p.lid === true || /^Lid( |$)/.test(p.name))) ||
+    (walls && (/^Band \(/.test(p.name) || /^(Front|Back|Left side|Right side) art \(/.test(p.name) || p.name === "Windows (clear)"));
+  // the cache's key: everything the program depends on (the settings, the fits and the slots, as the box engine read them)
+  // (an opening's id and the wiring plan do not change the solids; the app adds them after a first build)
+  const sig = JSON.stringify([JSON.parse(JSON.stringify(E0, (key, v) => key === "id" || key === "wires" ? undefined : v)), state.printer && state.printer.fit, state.printer && state.printer.fitMat, state.printer && state.printer.bed, state.slots.length, X.beside]);
+  return { sig, kind:k, prog:{ defs, out }, place, drop, notes };
+}
+// The solid stage (Session 66): runs a shaped box's program with the cutting tool (downloaded once, as for engraving), and
+// puts the parts it makes in place of the rectangle's. The last result is kept, so a change elsewhere (a colour, the view)
+// does not cut the box again. If the tool cannot be had, the box stays as the box engine laid it out, with a word why.
+let encShapeJobNow = null, encShapeCache = null;
+async function encShapeSolid(parts){
+  const job = encShapeJobNow; encShapeJobNow = null;
+  if (!job) return parts;
+  const I = enclosureInfo, fail = why => { if (I){ I.warn.push({ t:"The box is shown as a rectangle", s:why }); if (I.shape) I.shape.error = why; } return parts; };
+  let res = encShapeCache && encShapeCache.sig === job.sig ? encShapeCache.res : null;
+  if (!res){
+    try { await cutReady(); }
+    catch (err){ return fail(`Its ${ENC_SHAPE_NAME[job.kind]} shape is made by the cutting tool (0.6 MB, downloaded once), which could not be loaded: ${cutState.error || err.message}.`); }
+    try { res = C.csgRun(cutState.M, job.prog); }
+    catch (err){ console.error(err); return fail(`Its shape could not be made (${err.message}). Try a small change, or tell us how it happened.`); }
+    if (!res.box) return fail("Its shape came out empty: make the box bigger.");
+    encShapeCache = { sig:job.sig, res };
+  }
+  return encShapeParts(job, res, parts);
+}
+function encShapeParts(job, res, parts){
+  const made = [];
+  job.place.forEach(pl => {
+    const r = res[pl.key]; if (!r) return;
+    let s = { pos:r.solid.pos, idx:r.solid.idx }, pose = null;      // pose: where it prints, from where it sits (p' = M p + T)
+    if (pl.drop){
+      s = C.affineSolid(s, pl.M, [0, 0, 0]);
+      const b = C.solidBounds(s), behind = pl.at[2] < 0, D = enclosureInfo && enclosureInfo.size ? enclosureInfo.size[1] : 60;
+      const T = [pl.at[0] - (b.mn[0] + b.mx[0])/2, -b.mn[1], behind ? -(D/2 + 10) - b.mx[2] : pl.at[2] - (b.mn[2] + b.mx[2])/2];
+      s = C.affineSolid(s, [1,0,0, 0,1,0, 0,0,1], T); pose = { M:pl.M, T };
+    } else if (pl.M){ s = C.affineSolid(s, pl.M, pl.T); pose = { M:pl.M, T:pl.T }; }
+    made.push(Object.assign({ name:pl.name, slot:pl.slot, solid:s }, pl.lid ? { lid:true } : {}, pose ? { pose } : {}));
+  });
+  if (enclosureInfo && enclosureInfo.shape){ enclosureInfo.shape.built = true; enclosureInfo.shape.volume = res.box ? +res.box.volume.toFixed(1) : 0; }
+  const boxP = made.find(p => p.name === "Box" || p.name === "Lower half");
+  return [boxP, ...made.filter(p => p !== boxP), ...parts.filter(p => !job.drop(p))].filter(Boolean);
+}
 function buildEnclosure(){
   if (!state.base.enclosure) state.base.enclosure = DEFAULTS().base.enclosure;
   encSyncCustomBoards(state.base.enclosure);                      // (imported boards, after an undo or a load)
   if (state.base.enclosure.test === true && state.base.enclosure.testKind === "holders") return encHolderCard(state.base.enclosure);
   enclosureLogo = null;
   let lidShift = [0, 0, 0];                             // where the lid prints, from where it sits on the box
-  const E = state.base.enclosure.test ? encTestSettings(state.base.enclosure) : state.base.enclosure, warn = [], left = [];
+  const E0 = state.base.enclosure.test ? encTestSettings(state.base.enclosure) : state.base.enclosure;
+  // a shaped box (Session 66): laid out as a rectangle with the shape's room on each side; encShapeSolid makes its shape
+  const SG = state.base.enclosure.test ? null : encShapeGeo(E0), E = SG ? encShapeRun(E0, SG) : E0.lid === "twist" ? Object.assign({}, E0, { lid:"press" }) : E0, warn = [], left = [];
+  let lidLogo = null; encShapeJobNow = null;
   const W = clamp(+E.w || 100, 20, 400), D = clamp(+E.d || 60, 20, 400), H = clamp(+E.h || 30, 8, 300);
   const t = clamp(+E.wall || 2, 0.8, Math.min(W, D)/4), fl = clamp(+E.floor || 2, 0.6, H/2);
   // a sliding lid runs in 45° grooves along the tops of the side walls: those need square corners
@@ -5166,10 +5655,10 @@ function buildEnclosure(){
   const postBot = postHang ? H - postLen : fl, postFree = postHang ? postBot - postCone : fl;
   // walls: local x runs along the face (to the right seen from outside), local -z is up, local y is the thickness
   const faceInfo = {
-    front:{ L: R ? W - 2*R : W,     M:[1,0,0, 0,0,-1, 0,1,0],  T:[0,0,D/2 - t] },
-    back: { L: R ? W - 2*R : W,     M:[-1,0,0, 0,0,-1, 0,-1,0], T:[0,0,-(D/2 - t)] },
-    right:{ L: R ? D - 2*R : D - 2*t, M:[0,1,0, 0,0,-1, -1,0,0], T:[W/2 - t,0,0] },
-    left: { L: R ? D - 2*R : D - 2*t, M:[0,-1,0, 0,0,-1, 1,0,0], T:[-(W/2 - t),0,0] }
+    front:{ L: E._faceL ? E._faceL.front : R ? W - 2*R : W,     M:[1,0,0, 0,0,-1, 0,1,0],  T:[0,0,D/2 - t] },
+    back: { L: E._faceL ? E._faceL.back : R ? W - 2*R : W,     M:[-1,0,0, 0,0,-1, 0,-1,0], T:[0,0,-(D/2 - t)] },
+    right:{ L: E._faceL ? E._faceL.right : R ? D - 2*R : D - 2*t, M:[0,1,0, 0,0,-1, -1,0,0], T:[W/2 - t,0,0] },
+    left: { L: E._faceL ? E._faceL.left : R ? D - 2*R : D - 2*t, M:[0,-1,0, 0,0,-1, 1,0,0], T:[-(W/2 - t),0,0] }
   };
   const holesOn = { front:[], back:[], left:[], right:[], top:[], bottom:[] }, taken = { front:[], back:[], left:[], right:[], top:[], bottom:[] };
   const camFrames = [];                                   // camera holders in the lid (Session 64)
@@ -5271,7 +5760,7 @@ function buildEnclosure(){
   });
   const lipTop = lidOn && lipH > 0 ? H - lipH - 0.3 : Infinity, lipEdge = lidOn && lipH > 0 ? fit + lipW + 0.8 : 0.8, misfit = [], clashes = [];
   // how far along each face an opening may reach (Session 61), for finding a free place on it
-  const slideA0 = iw/2 + gr - fit - lidT, faceU = { top: slide ? [-slideA0 + 0.8, slideA0 - 0.8] : [-iw/2 + lipEdge, iw/2 - lipEdge], bottom:[-iw/2 + 0.8, iw/2 - 0.8] };
+  const slideA0 = iw/2 + gr - fit - lidT, faceU = { top: slide ? [-slideA0 + 0.8, slideA0 - 0.8] : E._topLim ? [E._topLim[0], E._topLim[2]] : [-iw/2 + lipEdge, iw/2 - lipEdge], bottom:[-iw/2 + 0.8, iw/2 - 0.8] };
   for (const f of ["front","back","left","right"]) faceU[f] = [-faceInfo[f].L/2 + 0.8, faceInfo[f].L/2 - 0.8];
   (Array.isArray(E.cut) ? E.cut : []).forEach((c, i) => {
     const face = encHas(holesOn, c.face) ? c.face : "front", wall = ENC_WALLS.has(face), lab = `Opening ${i+1} (${(encHas(CUTOUTS, c.kind) ? CUTOUTS[c.kind] : CUTOUTS.round).label})`;
@@ -5282,11 +5771,11 @@ function buildEnclosure(){
     const slideA = iw/2 + gr - fit - lidT;                  // half the width of a sliding lid's top face
     const lim = wall ? [-faceInfo[face].L/2 + 0.8, 0.8, faceInfo[face].L/2 - 0.8, wallH(face) - 0.8]
       : face === "top" && slide ? [-slideA + 0.8, -D/2 + 0.8, slideA - 0.8, D/2 - t - fit - 0.8]
-      : face === "top" ? [-iw/2 + lipEdge, -id/2 + lipEdge, iw/2 - lipEdge, id/2 - lipEdge]
+      : face === "top" ? (E._topLim || [-iw/2 + lipEdge, -id/2 + lipEdge, iw/2 - lipEdge, id/2 - lipEdge])
       : [-iw/2 + 0.8, -id/2 + 0.8, iw/2 - 0.8, id/2 - 0.8];
     if (bb[0] < lim[0] || bb[1] < lim[1] || bb[2] > lim[2] || (!notch && bb[3] > lim[3])){
       misfit.push({ i, face, wall, bb, lim: wall && !notch && isFinite(lipTop) ? [lim[0], lim[1], lim[2], Math.min(lim[3], lipTop)] : lim });
-      left.push(i); warn.push({ t:`${lab} left out`, s:`${lab} does not fit on the ${ENC_FACE_NAME[face]}${wall && R ? " (the rounded corners are not flat)" : ""}: move it, or make the box bigger.` }); return;
+      left.push(i); warn.push({ t:`${lab} left out`, s:`${lab} does not fit on the ${ENC_FACE_NAME[face]}${wall && SG && E._faceL ? (SG.curved ? " (each side has a quarter of the way round)" : ` (openings sit on the ${ENC_SHAPE_NAME[SG.kind]}'s flat faces)`) : wall && R ? " (the rounded corners are not flat)" : ""}: move it, or make the box bigger.` }); return;
     }
     const clash = taken[face].find(o => bb[0] < o.bb[2] + 0.8 && o.bb[0] < bb[2] + 0.8 && bb[1] < o.bb[3] + 0.8 && o.bb[1] < bb[3] + 0.8);
     if (clash){ left.push(i); if (clash.n) clashes.push({ i, with:clash.n - 1 }); warn.push({ t:`${lab} left out`, s:`${lab} overlaps ${clash.n ? "opening " + clash.n : clash.what} on the ${ENC_FACE_NAME[face]}. Move one of them.` }); return; }
@@ -5318,7 +5807,9 @@ function buildEnclosure(){
     taken[face].push({ n:i+1, bb:out });
     let segs = C.strokeText(text, cx, cy, lh).segs;
     if (flip) segs = segs.map(q => [q[0], -q[1], q[2], -q[3]]);
-    labelsOn[face].push(...C.strokePolys(segs, lhalf, 0.04));
+    const lp = C.strokePolys(segs, lhalf, 0.04), po = placedOpen.find(q => q.i === i);
+    labelsOn[face].push(...lp);
+    if (po){ po.labPolys = lp; po.labBB = out; }                  // (a shaped box leaves an opening out with its label)
   });
   // a scale round a knob (Session 64): ticks over 270° outside the knob, from lower left round the top to lower right, with
   // 0 and 10 (or MIN and MAX) at the ends, cut like the labels; left out with a word when it would run into something
@@ -6086,7 +6577,7 @@ function buildEnclosure(){
     if (lidLabs.length) lidCuts.push({ depth: labDepth(lidT), holes: labHoles(lidLabs), islands: labIslands(lidLabs) });
     const logo = E.logo && E.logo.on ? encLogo(E, clamp(+E.lidSlot || 0, 0, state.slots.length - 1), [-W/2, -D/2, W/2, D/2], R, taken.top, warn) : null;
     const logoDepth = clamp(+(E.logo && E.logo.depth) || 0.6, 0.2, Math.max(0.2, lidT - 0.6));
-    if (logo){ const u = flipY(logo.union); lidCuts.push({ depth: logoDepth, holes: labHoles(u), islands: labIslands(u) }); }
+    if (logo){ const u = flipY(logo.union); lidCuts.push({ depth: logoDepth, holes: labHoles(u), islands: labIslands(u) }); lidLogo = { union:logo.union, depth:logoDepth }; }
     artOn.top.forEach(x => { const u = flipY(x.union); lidCuts.push({ depth: x.depth, holes: labHoles(u), islands: labIslands(u) }); });
     if (solar && solar.fits){ const r0 = [[solar.x - solar.w/2, -(solar.y - solar.d/2)], [solar.x + solar.w/2, -(solar.y - solar.d/2)], [solar.x + solar.w/2, -(solar.y + solar.d/2)], [solar.x - solar.w/2, -(solar.y + solar.d/2)]];
       // (a pocket the panel's size would face the bed as the lid prints, and need support: an outline 0.8 mm wide marks it instead)
@@ -6217,6 +6708,7 @@ function buildEnclosure(){
     : `Corner posts for ${E.screw} self-tapping screws (${screw.pilot} mm pilot holes).`;
   // printed pilot lights: a faceted jewel lens per opening, printed flange down in front of the box. It
   // goes through its hole from inside (the flange stops it), and the LED pushes into its back.
+  const shapeS = SG ? encShapeCheck(SG, { E0, E, warn, left, lidT, placedOpen, boardsInfo }) : null;
   const lensOpen = state.base.enclosure.test ? [] : (Array.isArray(E.cut) ? E.cut : []).map((c, i) => ({ c, i, k:CUTOUTS[encHas(CUTOUTS, c.kind) ? c.kind : "round"] }))
     .filter(o => o.k.lensFor && !left.includes(o.i) && ENC_WALLS.has(o.c.face));
   let lenses = null;
@@ -6310,7 +6802,16 @@ function buildEnclosure(){
     behind.push({ i:po.i, face:f, rect:r, z:[z0, z1], hit:hit ? hit.label : null, pen:+pen.toFixed(2) });
     if (hit) warn.push({ t:`${po.lab} reaches ${hit.label}`, s:`Its body goes about ${dp} mm into the box (shown in the 3D view) and meets ${hit.label}: move one of them, or make the box bigger. (Typical sizes: check yours.)` });
   });
-  enclosureInfo = { test: !!state.base.enclosure.test, wallH:{ front:wallH("front"), back:wallH("back"), left:wallH("left"), right:wallH("right") }, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, gasket:gasket ? { cord:gasket.cord, length:gasket.length, depth:gasket.gd, width:gasket.gw, printed:gasket.printed || null } : null, snap:!!snap, hinge:hinge ? { length:hinge.Lh, knuckles:hinge.segs.length } : null, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR, at:bosses.map(([x, z]) => [x, -z]) }, ceil:ceilZ, ri, lipH, wall:t, anchors:anchorsMade, faceU, clashes, wallV:Object.fromEntries(["front","back","left","right"].map(f => [f, [0.8, Math.min(wallH(f) - 0.8, lipTop)]])), cams:camInfo, behind, hoods:hoodInfo, solar:solar && solar.fits ? solar : null, tripod:mount.tripod || null, ducts:ductInfo.length, ductRects:ductInfo.map(du => ({ fp:du.fp.slice(), isY:du.isY })),
+  let shapeInfo = null;
+  if (SG && shapeS){
+    const job = encShapeJob(SG, shapeS, { E0, E, parts:out, placedOpen, labelsOn, artOn, left, need, warn, beside:lidShift, lidLogo });
+    encShapeJobNow = job;
+    const tot = SG.kind === "slope" && shapeS.lid !== "none" ? H + lidT*shapeS.sl.q : SG.kind === "clam" || shapeS.lid !== "none" ? H + lidT : H;
+    shapeInfo = { kind:SG.kind, name:ENC_SHAPES[SG.kind], lid:shapeS.lid, posts:shapeS.posts.length, notes:[...shapeS.notes, ...(job ? job.notes : [])], dropped:shapeS.dropped,
+      W:SG.W, D:SG.D, total:tot, front:shapeS.sl ? shapeS.sl.Hf : null, angle:shapeS.sl ? shapeS.sl.a*180/Math.PI : null, split:shapeS.cl ? shapeS.cl.hs : null,
+      thread:shapeS.tw ? { pitch:shapeS.tw.p, len:shapeS.tw.len, neck:shapeS.tw.Hn } : null, faces:SG.faces, built:false };
+  }
+  enclosureInfo = { test: !!state.base.enclosure.test, shape:shapeInfo, wallH:{ front:wallH("front"), back:wallH("back"), left:wallH("left"), right:wallH("right") }, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: shapeInfo ? shapeInfo.total : H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, gasket:gasket ? { cord:gasket.cord, length:gasket.length, depth:gasket.gd, width:gasket.gw, printed:gasket.printed || null } : null, snap:!!snap, hinge:hinge ? { length:hinge.Lh, knuckles:hinge.segs.length } : null, lidPosts:shapeS ? { n:shapeS.posts.length, hang:false, free:fl, r:shapeS.bossR, at:shapeS.posts.map(q => q.slice()) } : { n:bosses.length, hang:postHang, free:postFree, r:bossR, at:bosses.map(([x, z]) => [x, -z]) }, ceil:ceilZ, ri, lipH, wall:t, anchors:anchorsMade, faceU, clashes, wallV:Object.fromEntries(["front","back","left","right"].map(f => [f, [0.8, Math.min(wallH(f) - 0.8, lipTop)]])), cams:camInfo, behind, hoods:hoodInfo, solar:solar && solar.fits ? solar : null, tripod:mount.tripod || null, ducts:ductInfo.length, ductRects:ductInfo.map(du => ({ fp:du.fp.slice(), isY:du.isY })),
     takenOn:Object.fromEntries(Object.entries(taken).map(([f, l]) => [f, l.map(o => ({ n:o.n || 0, bb:o.bb.slice() }))])), count:(E.cut || []).length - left.length,
     split: splitInfo };
   return out;
@@ -10955,7 +11456,7 @@ async function rebuildAll(resetItems){
     else if (t === "tracer") parts = await buildTracer();
     else if (t === "jigsaw") parts = await buildJigsaw();
     else if (t === "lithophane") parts = buildLithophane();
-    else if (t === "enclosure") parts = buildEnclosure();
+    else if (t === "enclosure") parts = await encShapeSolid(buildEnclosure());
     else if (t === "phonecase") parts = buildPhoneCase();
     else if (t === "card") parts = await buildCard();
     else if (t === "mech") parts = buildMech();
@@ -13571,8 +14072,13 @@ function encPlanSVG(E, I, k, onPick, onPickCut){
   const svg = svgEl("svg", { viewBox:`${-W/2 - pad} ${-D/2 - pad} ${W + 2*pad} ${D + 2*pad}`, class:"boxplan", role:"img", tabindex:"0",
     "aria-label":`The inside of the box from above, ${k ? "level " + k : "the floor"}: ${(I.boards || []).filter(b => (b.lvl || 0) === k).map(b => b.label).join(", ") || "nothing on it yet"}` });
   const Y = y => -y, line = { "vector-effect":"non-scaling-stroke" };
+  // a shaped box (Session 66): its own outline, and its wall openings where they are round it
+  const SGp = I.shape ? encShapeGeo(E) : null, curvedWalls = SGp && ["round","hex","oct"].includes(SGp.kind), pts = L => L.map(([x, y]) => `${x.toFixed(2)},${Y(y).toFixed(2)}`).join(" ");
+  if (SGp){ svgEl("polygon", { points:pts(SGp.ring(0)), class:"pl-wall", ...line }, svg); svgEl("polygon", { points:pts(SGp.ring(SGp.t)), class:"pl-floor", ...line }, svg); }
+  else {
   svgEl("rect", { x:-W/2, y:-D/2, width:W, height:D, rx:E.lid === "slide" ? 0 : R, class:"pl-wall", ...line }, svg);
   svgEl("rect", { x:-iw/2, y:-id/2, width:iw, height:id, rx:Math.max(0, (E.lid === "slide" ? 0 : R) - t), class:"pl-floor", ...line }, svg);
+  }
   const txt = (x, y, s, cls, size, anchor = "middle") => { const e = svgEl("text", { x, y, class:cls, "font-size":size, "text-anchor":anchor, "dominant-baseline":"middle" }, svg); e.textContent = s; return e; };
   txt(0, D/2 + pad*0.55, `FRONT · ${mm(W)} × ${mm(D)} outside`, "pl-lab", fs*0.9); txt(0, -D/2 - pad*0.55, "BACK", "pl-lab", fs*0.9);
   // the openings in the walls, as marks in the wall; the floor's openings drawn on the floor
@@ -13583,6 +14089,8 @@ function encPlanSVG(E, I, k, onPick, onPickCut){
     if (c.face === "front") r = [a, D/2 - tk, b - a, tk]; else if (c.face === "back") r = [-b, -D/2, b - a, tk];
     else if (c.face === "left") r = [-W/2, a, tk, b - a]; else if (c.face === "right") r = [W/2 - tk, -b, tk, b - a];
     const picked = encSel && encSel.cut === c, hook = el => { el.dataset.pick = "c" + ci; if (onPickCut) el.addEventListener("pointerdown", e => onPickCut(e, c, ci, el)); };
+    if (r && curvedWalls){ const F = SGp.faces[c.face], fr = SGp.frame(F.s0 + (a + b)/2), h = (b - a)/2, q = (u, d) => [fr.p[0] + u*fr.t[0] - d*fr.n[0], fr.p[1] + u*fr.t[1] - d*fr.n[1]];
+      const e = svgEl("polygon", { points:pts([q(-h, -0.3), q(h, -0.3), q(h, tk), q(-h, tk)]), class:"pl-hole pl-cut" + (picked ? " pl-sel" : "") }, svg); svgEl("title", {}, e).textContent = `Opening ${ci + 1}: ${lab}`; hook(e); return; }
     if (r){ const e = svgEl("rect", { x:r[0], y:r[1], width:Math.max(0.6, r[2]), height:Math.max(0.6, r[3]), class:"pl-hole pl-cut" + (picked ? " pl-sel" : "") }, svg); svgEl("title", {}, e).textContent = `Opening ${ci + 1}: ${lab}`; hook(e); return; }
     if (c.face === "bottom" && k === 0){ const g = svgEl("g", { class:"pl-cut" + (picked ? " pl-sel" : "") }, svg); hook(g);
       placedRings(c, E).forEach(L => { const e = svgEl("polygon", { points:L.map(([x, y]) => `${x},${Y(y)}`).join(" "), class:"pl-floorhole", ...line }, g); svgEl("title", {}, e).textContent = `Opening ${ci + 1} in the floor: ${lab}`; }); }
@@ -13928,6 +14436,25 @@ function enclosureFields(p){
     numField(p,{ label:"Height of the box (mm)", min:8,max:250,step:1, get:()=>E.h, set:v=>E.h=v, onChange:baseChanged,
       sub:()=> I ? `Inside: ${mm(I.inner[0])} × ${mm(I.inner[1])} × ${mm(I.inner[2])}. With the lid on: ${mm(I.total)} tall.` : "" });
   }
+  // the box's shape (Session 66)
+  if (!E.test){
+    segField(p, Object.entries(ENC_SHAPES), ()=>encShapeKind(E), v=>{ const was = encShapeKind(E); E.shape = v;
+      // a first pick of round makes it round (as wide as it is deep), with a lid that twists on; a hexagon is made even
+      if (v === "round" && was !== "round"){ const s0 = Math.max(+E.w || 100, +E.d || 60); E.w = s0; E.d = s0; if (["screw","press"].includes(E.lid)) E.lid = "twist"; }
+      if (v === "hex" && was !== "hex") E.w = Math.round(2*(+E.d || 60)/Math.sqrt(3));
+      if (v !== "round" && E.lid === "twist") E.lid = "press";
+      renderTab(); baseChanged(); });
+    const shp = encShapeKind(E), SI = I && I.shape;
+    if (shp === "round") note(p, `${Math.abs((+E.w || 0) - (+E.d || 0)) < 0.01 ? "A round box" : "An oval box"}, ${+E.w || 0} × ${+E.d || 0} mm. Make the width and the depth the same for a lid that twists on. A wall opening's place is measured round the wall from the middle of its side.`);
+    if (shp === "hex") note(p, `Flat at the front and the back, pointed at the sides: for a regular hexagon make the width ${(2*(+E.d || 60)/Math.sqrt(3)).toFixed(1)} mm. Openings on the left and right go on one of the two faces either side of the point.`);
+    if (shp === "oct"){ numField(p,{ label:"Corners cut off (mm, 0 = even sides)", min:0,max:150,step:0.5, noReset:true, get:()=>+E.cornerCut || 0, set:v=>E.cornerCut=v, onChange:baseChanged,
+      sub:()=>`Each corner is cut this far along both sides${SI && SI.kind === "oct" ? "" : ""}. Openings sit on the four long sides.` }); }
+    if (shp === "slope") numField(p,{ label:"Height at the front (mm)", min:6,max:250,step:0.5, noReset:true, get:()=>+E.frontH || (SI && SI.front) || Math.round((+E.h || 30)*0.45), set:v=>E.frontH=v, onChange:baseChanged,
+      sub:()=> SI && SI.front ? `The top slopes at ${SI.angle.toFixed(0)}° from ${mm(SI.front)} at the front to ${mm(+E.h || 30)} at the back (40° at most, so the lid prints face down without support). Openings on the lid sit square to it.` : "" });
+    if (shp === "clam") numField(p,{ label:"Height of the lower half (mm)", min:4,max:320,step:0.5, noReset:true, get:()=>+E.splitAt || (SI && SI.split) || Math.round((+E.h || 30)/2), set:v=>E.splitAt=v, onChange:baseChanged,
+      sub:()=> SI && SI.split ? `Two halves, ${mm(SI.split)} and ${mm(SI.total - SI.split)} tall, on a lip half the wall thick (the lid's lip height sets it). Openings across the join are cut in both.` : "" });
+    if (SI && SI.notes.length) note(p, SI.notes.map(esc).join(" "));
+  }
   // what the box does when something is added that it cannot hold (Session 61; it was a tick box on the Openings page)
   segField(p, [["grow","Grows to fit what I add"],["fixed","Stays this size"]], ()=>E.grow === false ? "fixed" : "grow", v=>{ E.grow = v !== "fixed"; renderTab(); }, "two");
   note(p, E.grow === false ? "A part or an opening that does not fit is left out, with a warning."
@@ -13974,7 +14501,22 @@ function enclosureFields(p){
     }
   }, !!(E.edge || E.texture || E.band));
   group(p, "Lid and screws", g => {
-    segField(g, [["screw","Screwed lid"],["press","Press-fit lid"],["magnet","Magnet lid"],["slide","Sliding lid"],["none","No lid"]], ()=>E.lid, v=>{ E.lid = v; renderTab(); baseChanged(); }, "two");
+    const shp = encShapeKind(E);
+    if (shp !== "rect"){
+      const opts = [["screw","Screwed lid"],["press","Press-fit lid"]];
+      if (shp === "round") opts.unshift(["twist","Twist-on lid"]);
+      if (shp !== "clam") opts.push(["none","No lid"]);
+      segField(g, opts, ()=>opts.some(o => o[0] === E.lid) ? E.lid : "press", v=>{ E.lid = v; renderTab(); baseChanged(); }, "two");
+      if (shp === "clam") note(g, "A clamshell's top is its upper half: a screwed lid means screws from under the floor into the upper half's posts; press-fit holds on the lip between the halves.");
+    } else
+    segField(g, [["screw","Screwed lid"],["press","Press-fit lid"],["magnet","Magnet lid"],["slide","Sliding lid"],["none","No lid"]], ()=>E.lid === "twist" ? "press" : E.lid, v=>{ E.lid = v; renderTab(); baseChanged(); }, "two");
+    if (E.lid === "twist" && shp === "round"){
+      const T = I && I.shape && I.shape.thread;
+      note(g, T ? `The lid screws onto a neck at the top of the box: a ${T.pitch} mm thread, ${T.len} mm long, its flanks at about 42°, so the box and the lid print without support. The gap is your lid gap (below).` : "The lid screws onto a neck at the top of the box (a round box, as wide as it is deep).");
+      numField(g,{ label:"Lid thickness (mm)", min:1,max:8,step:0.1, get:()=>E.lidThick, set:v=>E.lidThick=v, onChange:baseChanged });
+      numField(g,{ label:"Gap in the thread (mm)", min:0.1,max:0.6,step:0.05, get:()=>E.fit, set:v=>E.fit=v, onChange:baseChanged, sub:()=>"0.2 turns smoothly on most printers; more if it binds." });
+      return;
+    }
     if (E.lid === "slide"){
       numField(g,{ label:"Lid thickness (mm)", min:1.2,max:6,step:0.1, get:()=>E.lidThick, set:v=>E.lidThick=v, onChange:baseChanged,
         sub:()=>"The side walls end this far below the top, and the grooves are as tall." });
@@ -14346,6 +14888,7 @@ function enclosureFields(p){
   });
   // drawings of the faces (Session 64): for a bought box, a laser cutter or CAD
   if (I && !E.test && (E.cut || []).length) group(p, "Templates and drawings", g => {
+    if (I.shape && !["slope","clam"].includes(I.shape.kind)){ note(g, `Templates are drawn for a rectangular box's flat sides: a ${ENC_SHAPE_NAME[I.shape.kind]}'s are not drawn yet.`); return; }
     note(g, "Each face with its openings at true size, as they are cut (no pointed tops). For a bought box (Hammond and the like): set the box's outside sizes to it, place the openings, print the templates at 100% (not \"fit to page\"), check the 50 mm bar with a ruler, tape them on and drill at the red crosses. The DXF is the same for CAD or a laser cutter (a front panel in acrylic or aluminium). The download has both, in cad/.");
     buttonRow(g, [["Drilling templates (SVG)", ()=>offerDownload("drilling-templates.svg", encFaceSVG(E, I, "my box"), "image/svg+xml")], ["The faces (DXF)", ()=>offerDownload("faces.dxf", encFaceDXF(E, I), "application/dxf")]]);
   });
@@ -17715,7 +18258,7 @@ function sanitizeProject(data){
   if (st.base && "card" in st.base) st.base.card = cleanCard(st.base.card);
   if (st.base && st.base.enclosure && typeof st.base.enclosure === "object"){
     const E = st.base.enclosure, one = (v, list) => list.includes(v) ? v : list[0];
-    E.lid = one(E.lid, ["screw","press","magnet","slide","none"]); E.postStyle = one(E.postStyle, ["full","hang"]); E.snap = E.snap === true; E.hinge = E.hinge === true; E.gasket = [1.5, 2, 2.5, 3].includes(+E.gasket) ? +E.gasket : 0; E.fasten = one(E.fasten, ["insert","screw","nut","none"]); E.head = one(E.head, ["sink","bore","plain"]);
+    E.lid = one(E.lid, ["screw","press","magnet","slide","none","twist"]); E.postStyle = one(E.postStyle, ["full","hang"]); E.snap = E.snap === true; E.hinge = E.hinge === true; E.gasket = [1.5, 2, 2.5, 3].includes(+E.gasket) ? +E.gasket : 0; E.fasten = one(E.fasten, ["insert","screw","nut","none"]); E.head = one(E.head, ["sink","bore","plain"]);
     E.magnet = encHas(MAGNETS, E.magnet) ? E.magnet : "6x2"; E.feet = one(E.feet, ["none","recess"]); E.mount = one(E.mount, ["none","ears","tabs","din","straps","skadis","pegboard","tripod","magnets"], "none"); E.tabN = E.tabN === 1 ? 1 : 2;
     E.earN = E.earN === 4 ? 4 : 2; E.strapDir = one(E.strapDir, ["across","up"], "across"); E.footSize = encHas(FEET, E.footSize) ? String(E.footSize) : "8";
     const L0 = E.logo && typeof E.logo === "object" ? E.logo : {};
@@ -17728,6 +18271,9 @@ function sanitizeProject(data){
     const has = k => Object.prototype.hasOwnProperty.call(E, k);
     if (has("edge")) E.edge = ["chamfer","round"].includes(E.edge) ? E.edge : ""; if (has("texture")) E.texture = ["grooves","hex"].includes(E.texture) ? E.texture : ""; if (has("band")) E.band = E.band === true;     // the style (Session 63)
     if (has("testKind")) E.testKind = E.testKind === "holders" ? "holders" : "box";
+    // the box's shape (Session 66)
+    if (has("shape")) E.shape = encHas(ENC_SHAPES, E.shape) ? E.shape : "rect";
+    for (const [k2, hi] of [["cornerCut", 150], ["frontH", 300], ["splitAt", 320]]) if (has(k2)) E[k2] = Math.min(hi, Math.max(0, cleanNum(E[k2], 0)));
     if (has("solar")){ E.solar = E.solar === "custom" || encHas(ENC_SOLAR, E.solar) ? E.solar : "";
       for (const [k, lo, hi] of [["solarW", 10, 300], ["solarD", 10, 300], ["solarX", -200, 200], ["solarY", -200, 200]]) if (E[k] != null && isFinite(+E[k])) E[k] = Math.min(hi, Math.max(lo, +E[k])); else delete E[k]; }
     if (has("mountMagnet")) E.mountMagnet = encHas(MAGNETS, E.mountMagnet) ? E.mountMagnet : "8x3";
@@ -18397,7 +18943,7 @@ window.MakerForge = {
   get enclosure(){ return enclosureInfo; },
   get cutouts(){ return CUTOUTS; }, get boards(){ return BOARDS; }, boardPorts:BOARD_PORTS, addBoardPorts:encAddBoardPorts, arrange:encArrange,
   // room for parts (Session 61), for the tests
-  boxRoom:{ place:encPlace, freeU:encFreeU, onFace:encRoomOnFace, shrink:encShrinkWrap, fixAll:encFixAll, makeRoom:encMakeRoom, busy:encBusy, assembly:encAssembly, kicad:kicadParse, importKicad:encImportKicad, heat:encHeat, wires:encWires, kits:ENC_KITS, startKit:encStartKit, battery:encBattery, batteryWh:encBatteryWh, firmware:encFirmware, boardFromPhoto, openPhotoBoard, boardFile:boardFileParse, addCustomBoard:encAddCustomBoard, myParts, myPartsSave, measuredBoard:encMeasuredBoard, faceSVG:encFaceSVG, faceDXF:encFaceDXF, faceDrawings:encFaceDrawings, fit:{ printer:printerFit, sample:fitSample, defaults:FIT_DEFAULT, clean:cleanFit, rows:FIT_ROWS, save:fitSave, screw:encScrew, card:ENC_HOLDERS } }, boxDrag:{ pick:boxDragPick, start:h => { boxDrag = Object.assign(h, { id:-1, moved:false, t:0 }); }, to:lr => { const ok = boxDragTo(lr); if (ok && boxDrag) boxDrag.moved = true; return ok; }, end:boxDragEnd }, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
+  boxRoom:{ shape:{ kinds:ENC_SHAPES, geo:encShapeGeo, twist:encTwist, slope:encSlope, clam:encClam, cache:() => encShapeCache }, place:encPlace, freeU:encFreeU, onFace:encRoomOnFace, shrink:encShrinkWrap, fixAll:encFixAll, makeRoom:encMakeRoom, busy:encBusy, assembly:encAssembly, kicad:kicadParse, importKicad:encImportKicad, heat:encHeat, wires:encWires, kits:ENC_KITS, startKit:encStartKit, battery:encBattery, batteryWh:encBatteryWh, firmware:encFirmware, boardFromPhoto, openPhotoBoard, boardFile:boardFileParse, addCustomBoard:encAddCustomBoard, myParts, myPartsSave, measuredBoard:encMeasuredBoard, faceSVG:encFaceSVG, faceDXF:encFaceDXF, faceDrawings:encFaceDrawings, fit:{ printer:printerFit, sample:fitSample, defaults:FIT_DEFAULT, clean:cleanFit, rows:FIT_ROWS, save:fitSave, screw:encScrew, card:ENC_HOLDERS } }, boxDrag:{ pick:boxDragPick, start:h => { boxDrag = Object.assign(h, { id:-1, moved:false, t:0 }); }, to:lr => { const ok = boxDragTo(lr); if (ok && boxDrag) boxDrag.moved = true; return ok; }, end:boxDragEnd }, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
   get jigsaw(){ return jigsawInfo; },
   get lithophane(){ return lithoInfo; },
   get print(){ return printFresh() ? printInfo : null; },

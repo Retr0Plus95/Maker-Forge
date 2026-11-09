@@ -5,7 +5,11 @@ Every release of Maker Forge, newest first. The [README](README.md) describes th
 
 ## 0.56.0
 
-Project boxes: battery life, boxes for outdoors, nut pockets, printed plungers and windows, templates for a bought box, and boards from EasyEDA and Eagle.
+Project boxes in new shapes, battery life, boxes for outdoors, nut pockets, printed plungers and windows, templates for a bought box, and boards from EasyEDA and Eagle.
+
+- **Box shapes:** round (with a lid that twists on), oval, hexagonal, octagonal, a sloped top (a console) or a clamshell (two halves). Every opening and label is cut square to its own face, so round holes stay round on a curved wall and labels follow it; each shape prints without support. The walls, top and lid are made as solids by the cutting tool (downloaded once, as for engraved art).
+
+![Round with a twist-on lid, a hexagon, an octagon, a sloped console and a clamshell](docs/images/box-shapes.jpg)
 
 - **Battery life:** how long the batteries run what is in the box (and what it powers outside), always on or waking now and then, with what uses most of it. The bird house battery box: about a month on the 126090.
 

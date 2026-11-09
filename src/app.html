@@ -3747,8 +3747,24 @@ function encFixAll(E){
   const mis = [...new Set((enclosureInfo.misfit || []).map(m => m.i))];
   if (mis.length){ const g = encGrowToFit(E, mis); if (g.grew || g.moved) n += mis.length; }
   buildEnclosure();
-  (enclosureInfo.left || []).slice().forEach(i => { const q = encRoomOnFace(E, i); if (q.grew || q.moved) n++; });
+  // (Session 65: not a board's own port: it must stay in front of the port, so it is the board that moves, below)
+  (enclosureInfo.left || []).slice().forEach(i => { if (E.cut[i] && E.cut[i].auto === "ports") return; const q = encRoomOnFace(E, i); if (q.grew || q.moved) n++; });
   buildEnclosure();
+  // (Session 65) a board's own port left out (on a mounting ear, a post): the board slides along that wall, 2 mm at a time each
+  // way, to the nearest place where the port has room and nothing new goes wrong
+  const portOut = (enclosureInfo.left || []).map(i => E.cut[i]).filter(c => c && c.auto === "ports" && (c.board == null || c.board === E.board));
+  if (portOut.length){
+    const c = portOut[0], along = c.face === "left" || c.face === "right" ? "boardY" : "boardX", v0 = +E[along] || 0, w0 = enclosureInfo.warn.length, lim = (along === "boardY" ? enclosureInfo.inner[1] : enclosureInfo.inner[0])/2;
+    let ok = false;
+    for (let k = 1; k <= 20 && !ok; k++) for (const sg of [1, -1]){ const v = v0 + sg*2*k; if (Math.abs(v) > lim) continue;
+      E[along] = v; encPortsFollow(E); buildEnclosure();
+      if (enclosureInfo.warn.length < w0 && !(enclosureInfo.left || []).includes(E.cut.indexOf(c))){ ok = true; n++; break; } }
+    if (!ok){ E[along] = v0; encPortsFollow(E); buildEnclosure(); }
+    // two ears in the middle of the sides: four, near the corners, leave the middle (where a board's ports often are) free
+    if (!ok && E.mount === "ears" && E.earN !== 4 && enclosureInfo.warn.some(w => /mounting ear/.test(w.s))){
+      E.earN = 4; buildEnclosure();
+      if (enclosureInfo.warn.length < w0 && !enclosureInfo.warn.some(w => /Room for two ears, not four/.test(w.t))) n++; else { E.earN = 2; buildEnclosure(); } }
+  }
   // (Session 64) an opening behind the lid's lip: lower it under the lip, or (when that makes it clash or leave the wall)
   // make the box taller by enough
   (enclosureInfo.warn || []).map(w => (w.t.match(/^Opening (\d+) \(.*\) is behind the lid's lip$/) || [])[1]).filter(Boolean).forEach(k => {
@@ -4226,7 +4242,7 @@ const ENC_KITS = [
     words:"Mean Well LRS-100, IEC power inlet, rocker switch, voltmeter, banana socket, 40 mm fan", extra:[{ kind:"banana", face:"front" }],
     set:{ lid:"screw", fasten:"insert", wall:2.4, floor:2.4, lidThick:3, feet:"recess", radius:4 }, faces:{ volt:"front", banana:"front" } },
   { name:"LED strip controller", what:"An ESP32 switching an LED strip through a MOSFET, fed by a buck converter from a barrel jack; a magnet lid and screw ears.",
-    words:"ESP32 DevKit, MOSFET switch module, LM2596 buck converter, DC barrel jack, cable gland, push button", set:{ lid:"magnet", lidThick:3, radius:3, mount:"ears" } },
+    words:"ESP32 DevKit, MOSFET switch module, LM2596 buck converter, DC barrel jack, cable gland, push button", set:{ lid:"magnet", lidThick:3, radius:3, mount:"ears", earN:4 } },
   { name:"Raspberry Pi server", what:"A Raspberry Pi 4 with a 60 mm fan blowing out, a vent on the other side, a power switch and an LED; short lid posts.",
     words:"Raspberry Pi 4, 60 mm fan, vent, rocker switch, LED", set:{ lid:"screw", fasten:"insert", feet:"recess", postStyle:"hang", radius:4 }, faces:{ vent:"left" } },
   { name:"Guitar pedal", what:"An Arduino Nano under a footswitch, a knob and an LED on the lid, jacks in and out on the sides, power at the back.",
@@ -4649,7 +4665,11 @@ function encMount(E, B, warn){
         const z1 = zc + e*w/2, z0 = z1 - e*2;
         out.solids.push(sideways(prof, Math.min(z0, z1), Math.max(z0, z1)));
       }
-      out.taken.push([sx > 0 ? "right" : "left", "a mounting ear", [-zc - w/2, 0, -zc + w/2, T + fin + 0.5]]);
+      // (Session 65: what an opening must keep clear of is the ear's plate along the wall's foot and its two 2 mm fins, each as high
+      // as it reaches: not the whole width up to the fins' top, which left out a port between the fins)
+      const fside = sx > 0 ? "right" : "left", fTop = (fin > 1 ? T + fin - 0.6 : T) + 0.3;
+      out.taken.push([fside, "a mounting ear", [-zc - w/2, 0, -zc + w/2, T + 0.3]]);
+      if (fin > 1){ out.taken.push([fside, "a mounting ear's fin", [-zc - w/2, 0, -zc - w/2 + 2.3, fTop]]); out.taken.push([fside, "a mounting ear's fin", [-zc + w/2 - 2.3, 0, -zc + w/2, fTop]]); }
     }
     out.out = L;
     out.lines.push(`${zs.length*2} ears with ${hole.toFixed(1)} mm holes, ${T.toFixed(1)} mm thick: screw the box to a wall, a shelf or a board.`);

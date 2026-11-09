@@ -32,6 +32,8 @@ Project boxes: battery life, boxes for outdoors, nut pockets, printed plungers a
 
 **Fixed**
 - Arrange put boards in cradles and batteries in strap trays 3 mm apart, so their rims overlapped; each now leaves room for its rim.
+- An opening on a side with screw ears had to keep clear of the whole ear up to its fins' old height; it now keeps clear of the ear's plate and its two fins as they are. When a board's own port still lands on an ear, Make it all fit slides the board along the wall, or moves to four ears near the corners.
+- Make it all fit could move a board's own port opening along the wall, away from the port it was for: it now leaves it in front of the port and moves the board, or the ears, instead.
 - An imported board's USB-C connector named TYPE-C, and tactile buttons named SW-TH, TS or KEY-6X6, were not recognised: they become a port and panel buttons now (KiCad as well).
 
 ## 0.55.0

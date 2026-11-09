@@ -2731,6 +2731,14 @@ Shared features (the "make it global" answer, begun here):
 Engine: **geometry fingerprints** (`tools-fingerprint.js`, `npm run fingerprint` / `fingerprint:update`, `tools-fingerprints.json`):
 every object and quick start's parts (triangles, volume to 0.1 mm³, size to 0.01 mm), stable run to run; any change is listed.
 
+**Fixed on the way (Session 65):** Arrange's 3 mm between parts let a cradle's rim (1.9 mm) and a strap tray's (2.2 mm) overlap:
+each part now takes `max(0, rim - gap/2 + 0.2)` more room a side (`rimOf`, `dimsR` in `encArrange`). That moved the LED strip
+controller recipe's ESP32 so its USB port landed on a screw ear: the ears' `taken` was the whole ear up to the fins' old top
+(Session 64 lowered the fins 1.1 mm), now the plate band and two 2.3 mm fin strips as high as each reaches; `encFixAll` slides
+the main board along its port's wall (2 mm steps each way, kept when warnings drop), else tries four ears; the recipe has
+`earN: 4`. The final run of the whole suite caught it (`tools-boxpro-test.js`'s recipe check). Testing that found `encFixAll`'s
+`encRoomOnFace` step moving a board's own port opening (`auto: "ports"`) away from its port: those are skipped there now.
+
 Tested: `tools-boxplus-test.js` (new, 41 checks, in `test:enclosure`): each feature closed and without support of its own, the
 numbers (battery days, the gasket's height, the plungers' lengths), the warnings (a board over the tripod nut, a thin floor for
 magnets, a scale with no room, a panel bigger than the lid), the files (ESPHome, pins, SVG, DXF), Eagle and EasyEDA boards written

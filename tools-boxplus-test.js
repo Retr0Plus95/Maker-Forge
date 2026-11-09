@@ -96,6 +96,16 @@ const EASYEDA = JSON.stringify({ head:{ docType:"3", c_para:{ name:"Weather node
     check(warnT().includes("Floor too thin for the magnets"), "a floor too thin for them says so");
   }
 
+  console.log("\na board's port on a mounting ear");
+  {
+    MF.boxRoom.startKit(MF.boxRoom.kits.find(k => k.name === "LED strip controller")); MF.rebuild(false); await settle();
+    check(E().earN === 4 && !warnT().length, "the LED strip controller: four ears near the corners leave the ESP32's USB port free");
+    E().earN = 2; MF.rebuild(false); await settle();
+    const blocked = warnT().some(t => /Micro-USB port\) left out/.test(t));
+    R.fixAll(E()); MF.rebuild(false); await settle();
+    check(blocked && E().earN === 4 && !warnT().length, "with two ears in the middle the port is blocked; Make it all fit goes to four", `${blocked}, ${E().earN}`);
+  }
+
   console.log("\nknob scales, the firmware starter");
   {
     await fresh({ w:120, d:80, h:45, cut:[{ kind:"pot", face:"front", u:-25, v:22, dia:7.3 }, { kind:"encoder", face:"top", u:20, v:0, dia:7.3, knob:24 }] });

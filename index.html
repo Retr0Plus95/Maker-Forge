@@ -10905,10 +10905,10 @@ function encWiringText(E, I){
    unplated holes of 2.5 mm and more), the connectors at its edges as ports (USB, barrel jack, RJ45, HDMI, audio, SD, SMA),
    and the LEDs, buttons, knobs and switches on its top as "panel" parts (holes cut in a wall or the lid in front of them when
    it is mounted there facing out). Kept in the project as E.customBoards and made boards "kc_<id>" like the built-in ones. */
-const KICAD_PORTS = [[/USB[_-]?C/i, "usbc", 1.6], [/USB[_-]?Micro|Micro[_-]?B/i, "micro", 1.6], [/USB[_-]?Mini|Mini[_-]?B/i, "usbmini", 2], [/USB[_-]?A/i, "usba", 3.5],
+const KICAD_PORTS = [[/USB[_-]?C|TYPE[_-]?C/i, "usbc", 1.6], [/USB[_-]?Micro|Micro[_-]?B/i, "micro", 1.6], [/USB[_-]?Mini|Mini[_-]?B/i, "usbmini", 2], [/USB[_-]?A/i, "usba", 3.5],
   [/USB[_-]?B/i, "usbb", 5.5], [/Barrel|DC[_-]?Jack|PJ-?0\d\d/i, "dcpcb", 5.6], [/RJ45|8P8C/i, "rj45", 6.9], [/HDMI/i, "hdmi", 3.2], [/Jack[_-]?3\.5|Audio[_-]?Jack|PJ-?3\d\d|SJ-?3/i, "jack35", 3],
   [/micro[_-]?SD|TF[_-]?Card|SD[_-]?Card/i, "sd", 1.5], [/SMA/i, "sma", 3]];
-const KICAD_PANEL = [[/LED[_-]?D?5(\.0)?mm|LED_D5/i, "led5"], [/^LED|:LED|LED_/i, "led3"], [/SW[_-]?Push.*12x12|Tactile.*12x12/i, "tact12"], [/SW[_-]?Push|SW[_-]?Tactile|Button|TL\d{4}/i, "tact"],
+const KICAD_PANEL = [[/LED[_-]?D?5(\.0)?mm|LED_D5/i, "led5"], [/^LED|:LED|LED_/i, "led3"], [/SW[_-]?Push.*12x12|Tactile.*12x12/i, "tact12"], [/SW[_-]?Push|SW[_-]?Tactile|Button|TL\d{4}|SW-TH_4P|KEY[_-]?6X6|TS[_-]?\d{3,4}/i, "tact"],
   [/Rotary[_-]?Encoder|EC11/i, "encoder"], [/Potentiometer|[^a-z]Pot[_-]|^Pot/i, "pot"], [/SW[_-]?Slide|SS12/i, "slide"], [/Toggle/i, "toggle"], [/Buzzer/i, "buzzer"]];
 function kicadParse(text){
   if (typeof text !== "string" || !/\(kicad_pcb/.test(text.slice(0, 2000))) return { ok:false, why:"That is not a KiCad board file (.kicad_pcb)." };
@@ -10960,35 +10960,134 @@ function kicadParse(text){
   const name = (String((kid(pcb, "title_block") && (kid(kid(pcb, "title_block"), "title") || [])[1]) || "") || "My board").replace(/[<>&"]/g, "").slice(0, 30);
   return { ok:true, board:{ label:name, w:+w.toFixed(2), d:+d.toFixed(2), holes:holes.slice(0, 16), screw, ports:ports.slice(0, 16), panel:panel.slice(0, 32), tall:10 } };
 }
+/* Boards from EasyEDA and Eagle (Session 64), made the same board as one from KiCad: the outline, the mounting holes (2.5 mm and
+   more, the screw from the hole), the connectors at the edges as ports and the LEDs, buttons and knobs as panel parts, by the
+   same names as KiCad's (KICAD_PORTS, KICAD_PANEL). Each reader gives the outline's points, the holes and the parts' boxes,
+   in mm with y up; boardFromFeatures does the rest. */
+function boardFromFeatures(label, pts, holes, parts){
+  let mn = [Infinity, Infinity], mx = [-Infinity, -Infinity]; const grow = p => { mn = [Math.min(mn[0], p[0]), Math.min(mn[1], p[1])]; mx = [Math.max(mx[0], p[0]), Math.max(mx[1], p[1])]; };
+  pts.forEach(grow); if (!isFinite(mn[0])) parts.forEach(q => { grow([q.bb[0], q.bb[1]]); grow([q.bb[2], q.bb[3]]); });
+  if (!isFinite(mn[0])) return { ok:false, why:"The board has no outline and no parts." };
+  const w = mx[0] - mn[0], d = mx[1] - mn[1];
+  if (!(w >= 5 && d >= 5 && w <= 300 && d <= 300)) return { ok:false, why:`The board is ${w.toFixed(0)} × ${d.toFixed(0)} mm: boards from 5 to 300 mm can go in a box.` };
+  const local = p => [+(p[0] - mn[0]).toFixed(2), +(p[1] - mn[1]).toFixed(2)], hs = [], ports = [], panel = []; let screw = "M3", big = 0;
+  holes.filter(h => h.dia >= 2.5).forEach(h => { hs.push(local([h.x, h.y])); if (h.dia > big){ big = h.dia; screw = h.dia >= 4.2 ? "M4" : h.dia >= 3.1 ? "M3" : h.dia >= 2.6 ? "M2.5" : "M2"; } });
+  parts.forEach(q => { if (q.back) return; const hay = `${q.name} ${q.ref || ""}`, lo = local([q.bb[0], q.bb[1]]), hi = local([q.bb[2], q.bb[3]]), cx = (lo[0] + hi[0])/2, cy = (lo[1] + hi[1])/2;
+    if (/MountingHole|^HOLE|MOUNT[_-]?HOLE/i.test(q.name) && q.drill >= 2.5){ hs.push([+cx.toFixed(2), +cy.toFixed(2)]); return; }
+    const port = KICAD_PORTS.find(([re]) => re.test(hay));
+    if (port){ const dist = { x0:lo[0], x1:w - hi[0], y0:lo[1], y1:d - hi[1] }, edge = Object.keys(dist).sort((a2, b2) => dist[a2] - dist[b2])[0];
+      if (dist[edge] < 8){ ports.push([edge, +(edge[0] === "x" ? cy : cx).toFixed(2), port[1], port[2]]); return; } }
+    const pn = KICAD_PANEL.find(([re]) => re.test(hay)); if (pn) panel.push([+cx.toFixed(2), +cy.toFixed(2), pn[1]]); });
+  return { ok:true, board:{ label:String(label || "My board").replace(/[<>&"]/g, "").slice(0, 30) || "My board", w:+w.toFixed(2), d:+d.toFixed(2), holes:hs.slice(0, 16), screw, ports:ports.slice(0, 16), panel:panel.slice(0, 32), tall:10 } };
+}
+// Eagle (.brd, XML, mm, y up): the outline on layer 20 (Dimension), holes in <plain> and in the parts' packages, each element's
+// box from its package's pads, SMDs and placement lines, turned and placed; M in its rot is the bottom side
+function eagleParse(text){
+  if (typeof text !== "string" || !/<eagle[\s>]/.test(text.slice(0, 5000))) return { ok:false, why:"That is not an Eagle board file (.brd)." };
+  let doc; try { doc = new DOMParser().parseFromString(text.slice(0, 20e6), "application/xml"); } catch (e) { return { ok:false, why:"That Eagle file could not be read." }; }
+  const board = doc.querySelector("board"); if (!board) return { ok:false, why:"That Eagle file has no board (a schematic?)." };
+  const n = (el, a) => { const v = parseFloat(el.getAttribute(a)); return isFinite(v) ? v : 0; }, pts = [], holes = [], parts = [];
+  board.querySelectorAll("plain > wire").forEach(wr => { if (wr.getAttribute("layer") === "20") pts.push([n(wr, "x1"), n(wr, "y1")], [n(wr, "x2"), n(wr, "y2")]); });
+  board.querySelectorAll("plain > hole").forEach(h => holes.push({ x:n(h, "x"), y:n(h, "y"), dia:n(h, "drill") }));
+  const pk = new Map(); board.querySelectorAll("libraries > library").forEach(lib => lib.querySelectorAll("packages > package").forEach(pg => pk.set(`${lib.getAttribute("name")}/${pg.getAttribute("name")}`, pg)));
+  board.querySelectorAll("elements > element").forEach(el => {
+    const pg = pk.get(`${el.getAttribute("library")}/${el.getAttribute("package")}`), rot = el.getAttribute("rot") || "R0", mir = /M/.test(rot), a = (parseFloat(rot.replace(/[^\d.]/g, "")) || 0)*Math.PI/180;
+    const x0 = n(el, "x"), y0 = n(el, "y"), at = (x, y) => { const xm = mir ? -x : x; return [x0 + xm*Math.cos(a) - y*Math.sin(a), y0 + xm*Math.sin(a) + y*Math.cos(a)]; };
+    let lo = [Infinity, Infinity], hi = [-Infinity, -Infinity], drill = 0; const add = p => { lo = [Math.min(lo[0], p[0]), Math.min(lo[1], p[1])]; hi = [Math.max(hi[0], p[0]), Math.max(hi[1], p[1])]; };
+    if (pg){ pg.querySelectorAll("smd").forEach(sm => { const x = n(sm, "x"), y = n(sm, "y"), dx = n(sm, "dx")/2, dy = n(sm, "dy")/2; [[-dx, -dy], [dx, dy], [-dx, dy], [dx, -dy]].forEach(([u, v]) => add(at(x + u, y + v))); });
+      pg.querySelectorAll("pad").forEach(pd => { const r = Math.max(n(pd, "drill"), 0.8); [[-r, -r], [r, r]].forEach(([u, v]) => add(at(n(pd, "x") + u, n(pd, "y") + v))); });
+      pg.querySelectorAll("wire").forEach(wr => { if (["21", "51", "39"].includes(wr.getAttribute("layer"))){ add(at(n(wr, "x1"), n(wr, "y1"))); add(at(n(wr, "x2"), n(wr, "y2"))); } });
+      pg.querySelectorAll("hole").forEach(h => { const dr = n(h, "drill"); drill = Math.max(drill, dr); if (dr >= 2.5) holes.push({ x:at(n(h, "x"), n(h, "y"))[0], y:at(n(h, "x"), n(h, "y"))[1], dia:dr }); }); }
+    if (!isFinite(lo[0])) add([x0, y0]);
+    parts.push({ name:el.getAttribute("package") || "", ref:el.getAttribute("name") || "", bb:[lo[0], lo[1], hi[0], hi[1]], back:mir, drill:0 });
+  });
+  const title = (doc.querySelector("description") || {}).textContent || "";
+  return boardFromFeatures(title.trim().split("\n")[0] || "Eagle board", pts, holes, parts);
+}
+// EasyEDA Standard (.json, the PCB's "shape" strings, in units of 10 mil, y down): the outline is on layer 10, HOLE~x~y~r, and each
+// LIB (a footprint, its package name in its attributes) has its pads after "#@$"; pads on layer 2 are on the bottom
+function easyedaParse(text){
+  let J; try { J = JSON.parse(text); } catch (e) { return { ok:false, why:"That is not an EasyEDA board file (.json)." }; }
+  const shapes = J && (Array.isArray(J.shape) ? J.shape : J.dataStr && Array.isArray(J.dataStr.shape) ? J.dataStr.shape : null);
+  if (!shapes || !(J.head && String(J.head.docType) === "3" || J.dataStr && J.dataStr.head && String(J.dataStr.head.docType) === "3")) return { ok:false, why:"That EasyEDA file is not a PCB (save the PCB as EasyEDA Standard JSON)." };
+  const U = 0.254, mm = (x, y) => [x*U, -y*U], pts = [], holes = [], parts = [], nums = str => (String(str).match(/-?\d+(\.\d+)?/g) || []).map(Number);
+  shapes.slice(0, 50000).forEach(sh => { if (typeof sh !== "string") return; const f = sh.split("~");
+    if ((f[0] === "TRACK" || f[0] === "ARC") && f[2] === "10"){ const q = nums(f[0] === "TRACK" ? f[4] : f[4]); for (let i = 0; i + 1 < q.length; i += 2) pts.push(mm(q[i], q[i + 1])); }
+    else if (f[0] === "HOLE"){ const [x, y] = mm(+f[1], +f[2]); holes.push({ x, y, dia:2*(+f[3] || 0)*U }); }
+    else if (f[0] === "LIB"){
+      const subs = sh.split("#@$"), head = subs[0].split("~"), name = (/package`([^`]*)`/.exec(head[3] || "") || [])[1] || "", ref = (/(?:^|`)pre`([^`]*)`/.exec(head[3] || "") || [])[1] || "";
+      let lo = [Infinity, Infinity], hi = [-Infinity, -Infinity], back = false; const add = p => { lo = [Math.min(lo[0], p[0]), Math.min(lo[1], p[1])]; hi = [Math.max(hi[0], p[0]), Math.max(hi[1], p[1])]; };
+      subs.slice(1).forEach(ss => { const g = ss.split("~");
+        if (g[0] === "PAD"){ const x = +g[2], y = +g[3], w2 = +g[4]/2, h2 = +g[5]/2; if (g[6] === "2") back = true; [[-w2, -h2], [w2, h2]].forEach(([u, v]) => add(mm(x + u, y + v)));
+          const hr = +g[9]; if (g[6] === "11" && hr*2*U >= 2.5 && /HOLE|MOUNT/i.test(name)) holes.push({ x:mm(x, y)[0], y:mm(x, y)[1], dia:2*hr*U }); }
+        else if (g[0] === "HOLE"){ const [x, y] = mm(+g[1], +g[2]); holes.push({ x, y, dia:2*(+g[3] || 0)*U }); } });
+      if (!isFinite(lo[0])) add(mm(+head[1], +head[2]));
+      parts.push({ name, ref, bb:[lo[0], lo[1], hi[0], hi[1]], back });
+    } });
+  const title = (J.head && J.head.c_para && J.head.c_para.name) || J.title || "EasyEDA board";
+  return boardFromFeatures(title, pts, holes, parts);
+}
+// any board file: KiCad, Eagle or EasyEDA, by what is in it
+function boardFileParse(text){
+  const head = String(text || "").slice(0, 5000);
+  if (/\(kicad_pcb/.test(head)) return kicadParse(text);
+  if (/<eagle[\s>]/.test(head)) return eagleParse(text);
+  if (/^\s*\{/.test(head)) return easyedaParse(text);
+  return { ok:false, why:"That is not a board file Maker Forge reads: a KiCad .kicad_pcb, an Eagle .brd or an EasyEDA Standard .json." };
+}
 // the imported boards as boards (BOARDS, BOARD_PORTS), each number clamped: from a project as much as from a file
 function encSyncCustomBoards(E){
   const list = Array.isArray(E.customBoards) ? E.customBoards : [];
-  const clean = list.slice(0, 8).filter(b => b && typeof b === "object").map(b => {
+  const clean = encCleanBoards(list, 8);
+  if ("customBoards" in E) E.customBoards = clean;           // (a project without any keeps no empty list)
+  Object.keys(BOARDS).filter(k => /^kc_/.test(k)).forEach(k => { delete BOARDS[k]; delete BOARD_PORTS[k]; });
+  clean.forEach(b => { BOARDS["kc_" + b.id] = { g:"custom", label:`${b.label} (imported)`, w:b.w, d:b.d, holes:b.holes.length ? b.holes : undefined, screw:b.screw, tall:b.tall, panel:b.panel, imported:true };
+    if (b.ports.length) BOARD_PORTS["kc_" + b.id] = b.ports; });
+  if (!BOARD_GROUPS.some(([g]) => g === "custom")) BOARD_GROUPS.push(["custom", "Your own boards (imported or from your parts)"]);
+}
+// boards of your own, each number clamped (a project's, or your parts library's)
+function encCleanBoards(list, max){
+  return (Array.isArray(list) ? list : []).slice(0, max).filter(b => b && typeof b === "object").map(b => {
     const w = clamp(cleanNum(+b.w, 50), 5, 300), d = clamp(cleanNum(+b.d, 40), 5, 300), pt = q => Array.isArray(q) && q.length >= 2 ? [clamp(cleanNum(+q[0], 0), 0, w), clamp(cleanNum(+q[1], 0), 0, d)] : null;
     return { id:typeof b.id === "string" && /^[a-z0-9]{4,10}$/.test(b.id) ? b.id : Math.random().toString(36).slice(2, 8).replace(/[^a-z0-9]/g, "a").padEnd(6, "x"), label:encWireText(b.label) || "My board", w, d,
       holes:(Array.isArray(b.holes) ? b.holes : []).slice(0, 16).map(pt).filter(Boolean), screw:encHas(SCREWS, b.screw) ? b.screw : "M3", tall:clamp(cleanNum(+b.tall, 10), 1, 60),
       ports:(Array.isArray(b.ports) ? b.ports : []).slice(0, 16).filter(q => Array.isArray(q) && ["x0","x1","y0","y1"].includes(q[0]) && encHas(CUTOUTS, q[2])).map(q => [q[0], clamp(cleanNum(+q[1], 0), 0, q[0][0] === "x" ? d : w), q[2], clamp(cleanNum(+q[3], 2), 0, 30)]),
       panel:(Array.isArray(b.panel) ? b.panel : []).slice(0, 32).filter(q => Array.isArray(q) && encHas(CUTOUTS, q[2])).map(q => [clamp(cleanNum(+q[0], 0), 0, w), clamp(cleanNum(+q[1], 0), 0, d), q[2]]) };
   });
-  if ("customBoards" in E) E.customBoards = clean;           // (a project without any keeps no empty list)
-  Object.keys(BOARDS).filter(k => /^kc_/.test(k)).forEach(k => { delete BOARDS[k]; delete BOARD_PORTS[k]; });
-  clean.forEach(b => { BOARDS["kc_" + b.id] = { g:"custom", label:`${b.label} (imported)`, w:b.w, d:b.d, holes:b.holes.length ? b.holes : undefined, screw:b.screw, tall:b.tall, panel:b.panel, imported:true };
-    if (b.ports.length) BOARD_PORTS["kc_" + b.id] = b.ports; });
-  if (!BOARD_GROUPS.some(([g]) => g === "custom")) BOARD_GROUPS.push(["custom", "Your own boards (from KiCad)"]);
+}
+/* Your parts (Session 64): boards of your own kept in this browser for every project (makerforge.parts, up to 40): one imported
+   from KiCad, EasyEDA or Eagle, or the board you measured ("My own board"). Adding one puts a copy in the project (E.customBoards),
+   so the project still opens anywhere. */
+function myParts(){ try { return encCleanBoards(JSON.parse(localStorage.getItem("makerforge.parts") || "[]"), 40); } catch (e) { return []; } }
+function myPartsSet(list){ try { localStorage.setItem("makerforge.parts", JSON.stringify(list.slice(0, 40))); return true; } catch (e) { notify("This browser would not keep it (storage is full or blocked)."); return false; } }
+function myPartsSave(b){ const list = myParts().filter(q => q.id !== b.id); if (list.length >= 40){ notify("Your parts are full (40): remove one first."); return false; }
+  list.push(encCleanBoards([b], 1)[0]); return myPartsSet(list); }
+// the measured board (Board mounts → My own board) as a board of your own: its size and the four holes from their spacing
+function encMeasuredBoard(E){
+  const w = clamp(+E.bw || 60, 5, 300), d = clamp(+E.bd || 40, 5, 300), sx = clamp(+E.bsx || 0, 0, w), sy = clamp(+E.bsy || 0, 0, d);
+  const holes = sx > 0 && sy > 0 ? [[(w - sx)/2, (d - sy)/2], [(w + sx)/2, (d - sy)/2], [(w - sx)/2, (d + sy)/2], [(w + sx)/2, (d + sy)/2]].map(q => q.map(v => +v.toFixed(2))) : [];
+  return { label:"My board", w, d, holes, screw:encHas(SCREWS, E.bscrew) ? E.bscrew : "M3", ports:[], panel:[], tall:10 };
 }
 // a file picked: read, made a board, and put in the box (the main board when there is none)
+// a board of your own into the project (from a file or your parts), the main board when there is none (Session 64: shared)
+function encAddCustomBoard(E, B, id){
+  E.customBoards = Array.isArray(E.customBoards) ? E.customBoards : [];
+  if (id && E.customBoards.some(b => b && b.id === id)) id = null;            // already there under that id: add it again as a copy
+  if (E.customBoards.length >= 8){ notify("Up to eight boards of your own in a project: remove one first (Board mounts)."); return false; }
+  id = id || Math.random().toString(36).slice(2, 8).replace(/[^a-z0-9]/g, "a").padEnd(6, "x");
+  E.customBoards.push(Object.assign({}, JSON.parse(JSON.stringify(B)), { id })); encSyncCustomBoards(E);
+  const key = "kc_" + id;
+  if (!E.board || E.board === "none"){ const old = E.board; E.board = key; encMainPicked(old); if ((B.ports || []).length) encAddBoardPorts(true); }
+  else encAddPart(E, { kind:key, x:0, y:0, h:3, rot:false, hold:"holes" });
+  return key;
+}
 function encImportKicad(file){
   const E = state.base.enclosure;
   if (!file || file.size > 20e6){ notify("That file is too big for a board (over 20 MB)."); return; }
   const rd = new FileReader();
-  rd.onload = () => { const r = kicadParse(String(rd.result || ""));
+  rd.onload = () => { const r = boardFileParse(String(rd.result || ""));
     if (!r.ok){ notify(r.why); return; }
-    E.customBoards = Array.isArray(E.customBoards) ? E.customBoards : [];
-    if (E.customBoards.length >= 8){ notify("Up to eight imported boards in a project: remove one first (Board mounts)."); return; }
-    const id = Math.random().toString(36).slice(2, 8).replace(/[^a-z0-9]/g, "a").padEnd(6, "x"); E.customBoards.push(Object.assign({ id }, r.board)); encSyncCustomBoards(E);
-    const key = "kc_" + id, B = r.board;
-    if (!E.board || E.board === "none"){ const old = E.board; E.board = key; encMainPicked(old); if (B.ports.length) encAddBoardPorts(true); }
-    else encAddPart(E, { kind:key, x:0, y:0, h:3, rot:false, hold:"holes" });
+    const B = r.board; if (!encAddCustomBoard(E, B)) return;
     notify(`${B.label}: ${B.w} × ${B.d} mm, ${B.holes.length} mounting hole${B.holes.length === 1 ? "" : "s"}${B.ports.length ? `, ${B.ports.length} port${B.ports.length === 1 ? "" : "s"} at its edges (${B.ports.map(q => (CUTOUTS[q[2]] || {}).label.replace(/[,:(].*$/, "")).join(", ")})` : ""}${B.panel.length ? `, ${B.panel.length} LEDs, buttons or knobs on top` : ""}. Check its parts' height on Board mounts.`);
     renderTab(); baseChanged(); pushHistory(); };
   rd.readAsText(file);
@@ -21483,8 +21582,20 @@ function enclosureFields(p){
     }
     if (more.length < 12){
       const add = document.createElement("div"); add.style.cssText = "margin-top:12px"; g.appendChild(add);
-      buttonRow(add, [["Browse the parts, with pictures", ()=>openPartsBrowser("boards")], ["Import a board from KiCad", ()=>{ const fi = document.createElement("input"); fi.type = "file"; fi.accept = ".kicad_pcb";
+      buttonRow(add, [["Browse the parts, with pictures", ()=>openPartsBrowser("boards")], ["Import a board (KiCad, EasyEDA, Eagle)", ()=>{ const fi = document.createElement("input"); fi.type = "file"; fi.accept = ".kicad_pcb,.brd,.json";
         fi.onchange = () => encImportKicad(fi.files && fi.files[0]); fi.click(); }]]);
+      // your parts (Session 64)
+      const mine = myParts(), have = new Set(mine.map(q => q.id)), own = (Array.isArray(E.customBoards) ? E.customBoards : []).filter(b => b && !have.has(b.id));
+      const saveRow = [...own.map(b => [`Save “${b.label}” to my parts`, ()=>{ if (myPartsSave(b)){ notify(`${b.label} is in your parts: Add from my parts puts it in any project.`); renderTab(); } }]),
+        ...(E.board === "custom" ? [["Save my measured board to my parts", ()=>{ const b = Object.assign(encMeasuredBoard(E), { id:Math.random().toString(36).slice(2, 8).replace(/[^a-z0-9]/g, "a").padEnd(6, "x") });
+          b.label = `My board ${b.w} × ${b.d}`; if (myPartsSave(b)){ notify(`${b.label} is in your parts.`); renderTab(); } }]] : [])];
+      if (saveRow.length) buttonRow(add, saveRow);
+      if (mine.length){
+        encAddBoard.mine = mine.some(q => q.id === encAddBoard.mine) ? encAddBoard.mine : mine[0].id;
+        selField(add, "Add from my parts", mine.map(q => [q.id, `${q.label} (${q.w} × ${q.d} mm)`]), ()=>encAddBoard.mine, v=>{ encAddBoard.mine = v; renderTab(); });
+        buttonRow(add, [["Add it from my parts", ()=>{ const b = mine.find(q => q.id === encAddBoard.mine); if (b && encAddCustomBoard(E, b, b.id)){ notify(`${b.label} added.`); renderTab(); baseChanged(); pushHistory(); } }],
+          ["Remove it from my parts", ()=>{ const b = mine.find(q => q.id === encAddBoard.mine); if (b){ myPartsSet(mine.filter(q => q.id !== b.id)); renderTab(); notify(`${b.label} is out of your parts (projects that use it keep their copy).`); } }]]);
+      }
       const addIt = k => encAddPart(E, { kind:k, x:0, y:0, h:3, rot:false, hold:"holes" });
       searchSelField(add, "Add another board or module", Object.fromEntries(Object.entries(BOARDS).filter(([k]) => k !== "none" && k !== "custom")), BOARD_GROUPS,
         ()=>encAddBoard.kind, v=>{ encAddBoard.kind = v; }, { pick:true, hint:"relay, buck, 18650", onEnter:addIt });
@@ -25580,7 +25691,7 @@ window.MakerForge = {
   get enclosure(){ return enclosureInfo; },
   get cutouts(){ return CUTOUTS; }, get boards(){ return BOARDS; }, boardPorts:BOARD_PORTS, addBoardPorts:encAddBoardPorts, arrange:encArrange,
   // room for parts (Session 61), for the tests
-  boxRoom:{ place:encPlace, freeU:encFreeU, onFace:encRoomOnFace, shrink:encShrinkWrap, fixAll:encFixAll, makeRoom:encMakeRoom, busy:encBusy, assembly:encAssembly, kicad:kicadParse, importKicad:encImportKicad, heat:encHeat, wires:encWires, kits:ENC_KITS, startKit:encStartKit, battery:encBattery, batteryWh:encBatteryWh, firmware:encFirmware, faceSVG:encFaceSVG, faceDXF:encFaceDXF, faceDrawings:encFaceDrawings, fit:{ printer:printerFit, sample:fitSample, defaults:FIT_DEFAULT, clean:cleanFit, rows:FIT_ROWS, save:fitSave, screw:encScrew, card:ENC_HOLDERS } }, boxDrag:{ pick:boxDragPick, start:h => { boxDrag = Object.assign(h, { id:-1, moved:false, t:0 }); }, to:lr => { const ok = boxDragTo(lr); if (ok && boxDrag) boxDrag.moved = true; return ok; }, end:boxDragEnd }, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
+  boxRoom:{ place:encPlace, freeU:encFreeU, onFace:encRoomOnFace, shrink:encShrinkWrap, fixAll:encFixAll, makeRoom:encMakeRoom, busy:encBusy, assembly:encAssembly, kicad:kicadParse, importKicad:encImportKicad, heat:encHeat, wires:encWires, kits:ENC_KITS, startKit:encStartKit, battery:encBattery, batteryWh:encBatteryWh, firmware:encFirmware, boardFile:boardFileParse, addCustomBoard:encAddCustomBoard, myParts, myPartsSave, measuredBoard:encMeasuredBoard, faceSVG:encFaceSVG, faceDXF:encFaceDXF, faceDrawings:encFaceDrawings, fit:{ printer:printerFit, sample:fitSample, defaults:FIT_DEFAULT, clean:cleanFit, rows:FIT_ROWS, save:fitSave, screw:encScrew, card:ENC_HOLDERS } }, boxDrag:{ pick:boxDragPick, start:h => { boxDrag = Object.assign(h, { id:-1, moved:false, t:0 }); }, to:lr => { const ok = boxDragTo(lr); if (ok && boxDrag) boxDrag.moved = true; return ok; }, end:boxDragEnd }, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
   get jigsaw(){ return jigsawInfo; },
   get lithophane(){ return lithoInfo; },
   get print(){ return printFresh() ? printInfo : null; },

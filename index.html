@@ -9819,6 +9819,8 @@ const CUTOUTS = {
   spk77:{ g:"sound", label:"Speaker 77 mm: grille", kind:"grille", dia:70, hd:2.4 },
   piezo27:{ g:"sound", label:"Piezo disc 27 mm: grille", kind:"grille", dia:20, hd:1.6 },
   gland:{ g:"mount", label:"Cable gland PG7", kind:"round", dia:12.6 },
+  // (Session 64) a pressure-equalising vent: a membrane plug (M12) that lets damp air out and keeps water out
+  breather:{ g:"mount", label:"Breather vent M12 (keeps out water, lets damp out)", k:"vent membrane plug gore ip67 condensation outdoor pressure", kind:"round", dia:12.2, deep:10 },
   gland11:{ g:"mount", label:"Cable gland PG11", kind:"round", dia:18.8 },
   gland135:{ g:"mount", label:"Cable gland PG13.5", kind:"round", dia:20.5 },
   gland16:{ g:"mount", label:"Cable gland PG16", kind:"round", dia:22.7 },
@@ -10657,7 +10659,7 @@ function encHeat(E, I){
   const [W, D, H] = I.size, area = 2*(W*D + W*H + D*H)/1e6, sealed = 5*area*15;
   let vent = 0, fans = 0;
   (E.cut || []).forEach((c, i) => { if (I.left.includes(i) || !encHas(CUTOUTS, c.kind)) return; const k = CUTOUTS[c.kind];
-    if (k.g !== "air" && !/grille|vent|honeycomb/.test(c.kind)) return;
+    if (c.kind === "breather" || (k.g !== "air" && !/grille|vent|honeycomb/.test(c.kind))) return;
     if (c.kind === "fan" && ENC_WALLS.has(c.face)) fans += ENC_FAN_FLOW[c.size] || 10;
     vent += placedRings(c, E).reduce((a, L) => a + Math.abs(C.area2(L))/2, 0); });
   encDividers(E).forEach(d => { if (d.fan) fans += 0; });                 // (a fan in a divider moves air inside, not out)
@@ -11872,6 +11874,21 @@ function encMount(E, B, warn){
     }
     out.out = L;
     out.lines.push(`${zs.length*2} ears with ${hole.toFixed(1)} mm holes, ${T.toFixed(1)} mm thick: screw the box to a wall, a shelf or a board.`);
+  } else if (E.mount === "tripod"){
+    // a 1/4-inch tripod nut (Session 64): its hex through the floor from below, in a boss on the floor's inside; the nut presses
+    // in from below (a drop of glue), the camera screw goes up through it. The pocket's roof steps in at 45°: no support
+    const fl = B.fl, nut = ENC_TRIPOD, hf = nut.af/2 + encFit().gap/2, ro = hf*2/Math.sqrt(3) + 2.4, zt = nut.t + 0.3, hexAt = h2 => C.ringCircle(h2*2/Math.sqrt(3), 6).map(([x, y]) => [x, y]);
+    if (zt + 4 > H - 4) { warn.push({ t:"Too shallow for a tripod nut", s:"The box needs to be at least 14 mm tall for the nut's boss." }); return out; }
+    out.floorHoles.push(hexAt(hf));
+    out.solids.push(C.extrudePolysAt([{ outer:encOrient(C.ringCircle(ro, 40), true), holes:[encOrient(hexAt(hf), false)] }], fl - 0.01, zt));
+    let z = zt, h2 = hf;
+    while (h2 - 0.2 > nut.hole/2 + 0.05){ h2 -= 0.2; out.solids.push(C.extrudePolysAt([{ outer:encOrient(C.ringCircle(ro, 40), true), holes:[encOrient(hexAt(h2), false)] }], z, z + 0.2)); z += 0.2; }
+    out.solids.push(C.extrudePolysAt([{ outer:encOrient(C.ringCircle(ro, 40), true), holes:[encOrient(C.ringCircle(nut.hole/2, 32), false)] }], z, z + 2));
+    out.taken.push(["bottom", "the tripod nut", [-ro, -ro, ro, ro]]); out.tripod = { r:ro, top:z + 2 };
+    out.lines.push(`A 1/4-inch tripod nut (${nut.af} mm across its flats) presses into the floor from below, in a boss ${(z + 2 - fl).toFixed(1)} mm tall inside: the box screws onto a tripod, a camera clamp or a GoPro adapter.`);
+  } else if (E.mount === "magnets"){
+    // magnets in the floor's underside (Session 64): four pockets, for a fridge, a car or a steel shelf (cut with the feet, below)
+    out.lines.push("Four magnets in pockets under the floor: glue them in, all the same way up, and the box holds onto steel.");
   } else if (E.mount === "din"){
     const need = DIN.rail + 2*(DIN.play + DIN.wall);
     if (D < need + 2 || W < DIN.len + 4){ warn.push({ t:"Too small for a DIN rail clip", s:`The clip is ${DIN.len} × ${need.toFixed(0)} mm under the floor: make the box at least ${DIN.len + 4} × ${Math.ceil(need + 2)} mm.` }); return out; }
@@ -12207,6 +12224,28 @@ function encSplitReadme(){
     "Print the box parts open side up and the lid parts outside face down, as they lie in the files.",
     "Heat inserts: press each in with a soldering iron at about 220 °C, flush with the face, before the parts go together."];
 }
+// a profile drawn in (out from the wall's outside, up from the bed) run along a wall from u0 to u1 (u as the openings' u, seen
+// from outside), as a solid in world coordinates; turned outward-facing whichever way the mapping turns it (Session 64)
+function encFaceSolid(face, prof, u0, u1, W, D){
+  const map = { front:[[0,1,0, 0,0,-1, 1,0,0], [0, 0, D/2]], back:[[0,-1,0, 0,0,-1, -1,0,0], [0, 0, -D/2]],
+    left:[[-1,0,0, 0,0,-1, 0,1,0], [-W/2, 0, 0]], right:[[1,0,0, 0,0,-1, 0,-1,0], [W/2, 0, 0]] }[face];
+  const sol = C.affineSolid(C.extrudePolysAt([{ outer:encOrient(prof, true), holes:[] }], Math.min(u0, u1), Math.max(u0, u1)), map[0], map[1]);
+  if (C.signedVolume(sol) < 0) for (let i = 0; i < sol.idx.length; i += 3){ const q = sol.idx[i + 1]; sol.idx[i + 1] = sol.idx[i + 2]; sol.idx[i + 2] = q; }
+  return sol;
+}
+// small solar panels (Session 64): width × depth × thickness, mm; the lid gets its outline cut 0.4 mm into its outside, to place it
+// by, and a cable hole under it
+const ENC_SOLAR = { "68x37":[68, 37, 2.5, "0.6 W"], "80x80":[80, 80, 2.5, "1 W"], "110x60":[110, 60, 2.5, "1 W"], "136x110":[136, 110, 3, "2 W"], "165x135":[165, 135, 3, "3.5 W"] };
+function encSolarRect(E, W, D, t){
+  if (!E.solar) return null;
+  const sz = E.solar === "custom" ? [clamp(+E.solarW || 60, 10, 300), clamp(+E.solarD || 40, 10, 300)] : encHas(ENC_SOLAR, E.solar) ? ENC_SOLAR[E.solar].slice(0, 2) : null; if (!sz) return null;
+  let [w, d] = sz.map(v => v + 0.6); const roomW = W - 2*t - 2, roomD = D - 2*t - 2;
+  if ((w > roomW || d > roomD) && d <= roomW && w <= roomD) [w, d] = [d, w];                // turned, when it fits that way
+  const x = clamp(+E.solarX || 0, -200, 200), y = clamp(+E.solarY || 0, -200, 200);
+  return { x, y, w, d, fits:w <= roomW && d <= roomD, depth:0.4, hole:[x + w/2 - Math.min(10, w/4), y] };
+}
+// a 1/4-20 UNC tripod nut: 7/16 inch (11.1 mm) across its flats, 5.6 mm thick, and the screw's hole (Session 64)
+const ENC_TRIPOD = { af:11.1, t:5.6, hole:6.6 };
 // a corner post's slice with a nut pocket (Session 64): the post's circle (radius r round x, y) less a hex nut (af across its
 // flats, with the gap fit) and the slot it slides in by, towards the middle of the box; one outline, no holes
 const ENC_NUT = { above:3 };
@@ -12324,6 +12363,7 @@ function buildEnclosure(){
   const holesOn = { front:[], back:[], left:[], right:[], top:[], bottom:[] }, taken = { front:[], back:[], left:[], right:[], top:[], bottom:[] };
   const camFrames = [];                                   // camera holders in the lid (Session 64)
   const placedOpen = [];                                  // the openings placed, for what their parts take up behind the wall
+  const hoodInfo = [];                                    // rain hoods over openings (Session 64)
   const labelsOn = { front:[], back:[], left:[], right:[], top:[], bottom:[] }, labelQueue = [];
   const notchesOn = { front:[], back:[], left:[], right:[] };     // [left, right, bottom] in the face's own coordinates
   // things on the floor that an opening in the floor must keep clear of
@@ -12336,10 +12376,25 @@ function buildEnclosure(){
       feet.push([sx*inX, sy*inY]); taken.bottom.push({ n:0, what:"a foot recess", bb:[sx*inX - footR, sy*inY - footR, sx*inX + footR, sy*inY + footR] });
     }
   }
+  // magnets under the floor (Session 64, "Magnets on the back"): four pockets near the corners, further in when there are feet
+  const backMags = [], bmg = MAGNETS[encHas(MAGNETS, E.mountMagnet) ? E.mountMagnet : "8x3"], bmR = (bmg.d + 0.3)/2;
+  if (E.mount === "magnets"){
+    const k = feet.length ? 2*footR + 3 : 0, inX = iw/2 - bmR - 3 - ri*0.3 - k, inY = id/2 - bmR - 3 - ri*0.3 - k;
+    if (inX < bmR + 1 || inY < bmR + 1) warn.push({ t:"No room for the magnets", s:"The floor is too small for four magnet pockets: make the box bigger or the magnets smaller." });
+    else for (const sx of [-1,1]) for (const sy of [-1,1]){ backMags.push([sx*inX, sy*inY]); taken.bottom.push({ n:0, what:"a magnet pocket", bb:[sx*inX - bmR, sy*inY - bmR, sx*inX + bmR, sy*inY + bmR] }); }
+  }
   // Mounting (Session 39): screw ears on the floor's sides, a DIN rail clip screwed under the floor, or loops for a
   // strap on the back. Worked out before the openings, so an opening never lands under one.
   const mount = encMount(E, { W, D, H: Hs, R, t, fl, top: H + (lidOn && !slide ? lidT : 0) }, warn);
   mount.taken.forEach(([face, what, bb]) => taken[face].push({ n:0, what, bb }));
+  // a solar panel in a pocket on the lid (Session 64): its cable goes through a hole under the panel, so the panel covers it
+  const solar = lidOn && !slide && !state.base.enclosure.test ? encSolarRect(E, W, D, t) : null;
+  if (E.solar && !lidOn) warn.push({ t:"No lid for the solar panel", s:"The panel sits in a pocket on the lid: give the box a lid." });
+  if (solar){
+    if (!solar.fits) warn.push({ t:"Solar panel bigger than the lid", s:`It needs ${solar.w.toFixed(0)} × ${solar.d.toFixed(0)} mm on the lid, inside the walls: make the box bigger or the panel smaller.` });
+    else { holesOn.top.push(C.ringCircle(2.5, 24).map(([u, v]) => [u + solar.hole[0], v + solar.hole[1]]));
+      taken.top.push({ n:0, what:"the solar panel", bb:[solar.x - solar.w/2, solar.y - solar.d/2, solar.x + solar.w/2, solar.y + solar.d/2] }); }
+  }
   // a hinge at the back (Session 56), for a press-fit lid: knuckles on the back wall and on the lid's back edge, in turn, on a
   // 1.75 mm filament pin. The axis is r behind the back and lidT - r above the top, so the lid's knuckles print standing on the
   // bed beside it, and the box's have a 45° gusset under them; the pin holes are teardrops pointing up as each part prints
@@ -12657,6 +12712,11 @@ function buildEnclosure(){
       if (depth < want - 1e-6) warn.push({ t:"Floor too thin for the foot recesses", s:`The recesses are ${depth.toFixed(1)} mm deep instead of ${want.toFixed(1)}. Make the floor at least ${(want + 0.6).toFixed(1)} mm thick.` });
       if (depth > 0) cuts.push({ depth, holes: feet.map(([x, y]) => encOrient(C.ringCircle(footR, 40).map(q => [q[0] + x, q[1] + y]), false)), islands: [] });
     }
+    if (backMags.length){
+      const want = bmg.t + 0.2, depth = Math.min(want, Math.max(0, fl - 0.6));
+      if (depth < want - 1e-6) warn.push({ t:"Floor too thin for the magnets", s:`Their pockets are ${depth.toFixed(1)} mm deep instead of ${want.toFixed(1)}: the magnets stand proud. Make the floor at least ${(want + 0.6).toFixed(1)} mm thick (Basics), or use thinner magnets.` });
+      if (depth > 0) cuts.push({ depth, holes: backMags.map(([x, y]) => encOrient(C.ringCircle(bmR, 40).map(q => [q[0] + x, q[1] + y]), false)), islands: [] });
+    }
     // the boards' names are cut into the floor's top (Session 54), 0.4 mm deep
     const nameD = floorNames.length && fl >= 1.2 ? 0.4 : 0, names = floorNames.flatMap(f => f.polys), top = nameD ? { from: fl - nameD, holes: labHoles(names), islands: labIslands(names) } : null;
     const levels = [...new Set([0, ...cuts.map(c => c.depth), ...(top ? [top.from] : []), fl])].filter(v => v <= fl).sort((a, b) => a - b);
@@ -12685,6 +12745,16 @@ function buildEnclosure(){
       for (let k = 1; ; k++){ const af = screw.nutAf - 0.4*k; if (af/2 + encFit().gap/2 <= bossHole/2 + 0.05 || zr + 0.2 > H - 0.8) break; solids.push(encNutSlice(x, y, bossR, af, zr, zr + 0.2)); zr += 0.2; }
       solids.push(post(x, y, bossR, bossHole/2, zr, H)); });
   } else bosses.forEach(([x, z]) => solids.push(post(x, -z, bossR, bossHole/2, postBot, H)));
+  // rain hoods (Session 64): a little roof over a wall opening, outside: its underside rises at 45° from the wall, so it prints
+  // without support, and its top slopes down and away, so rain runs off past the opening
+  placedOpen.filter(po => po.c.hood === true && ENC_WALLS.has(po.face)).forEach(po => {
+    const bb = po.bb, vb = bb[3] + 0.8, room = H - vb - 1.7;
+    const P = Math.min(10, Math.max(4, (bb[3] - bb[1])/2 + 2), room/2);
+    if (P < 2.5){ warn.push({ t:`${po.lab}: no room for its rain hood`, s:"Its hood would reach past the top of the wall: lower the opening, or make the box taller." }); return; }
+    const prof = [[-0.5, vb - 0.5], [P, vb + P], [P, vb + P + 1.2], [-0.5, vb + 2*P + 1.7]];
+    solids.push(encFaceSolid(po.face, prof, bb[0] - 2, bb[2] + 2, W, D));
+    hoodInfo.push({ i:po.i, face:po.face, out:P, bb:[bb[0] - 2, vb, bb[2] + 2, vb + 2*P + 1.7] });
+  });
   if (postHang) bosses.forEach(([x, z]) => solids.push(encLoft(C.ringCircle(0.4, 40).map(p => [p[0] + x, p[1] - z]), postFree, C.ringCircle(bossR, 40).map(p => [p[0] + x, p[1] - z]), postBot + 0.01)));
   let board = null, boardNeed = null;
   const boardsInfo = [], doorParts = [], camInfo = [];
@@ -13165,6 +13235,10 @@ function buildEnclosure(){
     const logoDepth = clamp(+(E.logo && E.logo.depth) || 0.6, 0.2, Math.max(0.2, lidT - 0.6));
     if (logo){ const u = flipY(logo.union); lidCuts.push({ depth: logoDepth, holes: labHoles(u), islands: labIslands(u) }); }
     artOn.top.forEach(x => { const u = flipY(x.union); lidCuts.push({ depth: x.depth, holes: labHoles(u), islands: labIslands(u) }); });
+    if (solar && solar.fits){ const r0 = [[solar.x - solar.w/2, -(solar.y - solar.d/2)], [solar.x + solar.w/2, -(solar.y - solar.d/2)], [solar.x + solar.w/2, -(solar.y + solar.d/2)], [solar.x - solar.w/2, -(solar.y + solar.d/2)]];
+      // (a pocket the panel's size would face the bed as the lid prints, and need support: an outline 0.8 mm wide marks it instead)
+      const k = 0.8, r1 = [[solar.x - solar.w/2 + k, -(solar.y - solar.d/2 + k)], [solar.x + solar.w/2 - k, -(solar.y - solar.d/2 + k)], [solar.x + solar.w/2 - k, -(solar.y + solar.d/2 - k)], [solar.x - solar.w/2 + k, -(solar.y + solar.d/2 - k)]];
+      lidCuts.push({ depth: solar.depth, holes:[encOrient(r0, false)], islands:[{ outer:encOrient(r1, true), holes:[] }] }); }
     // the lid in slabs; each cut into its outside (labels, the logo) runs from the bed up to its own depth
     // the gasket groove (Session 57) runs down from the inside face: there the lid is a rim outside it and an island inside it
     const gz = gasket ? lidT - gasket.gd : Infinity;
@@ -13352,6 +13426,10 @@ function buildEnclosure(){
     if (split) nAdd(split.pins ? split.pins.length : 0, `${E.splitScrew || "M3"} screws and heat inserts for the joins`);
     const parts2 = {}; boardList.forEach(bd => { parts2[bd.B.label] = (parts2[bd.B.label] || 0) + 1; }); Object.entries(parts2).forEach(([k, n]) => nAdd(n, k));
   }
+  // a board over the tripod nut's boss (Session 64)
+  if (mount.tripod){ const tr = mount.tripod.r;
+    const on = boardsInfo.find(b => b.bb && !b.face && !(b.lvl > 0) && b.bb[0] < tr && b.bb[2] > -tr && b.bb[1] < tr && b.bb[3] > -tr && (b.base || 0) < mount.tripod.top);
+    if (on) warn.push({ t:`${on.label} is over the tripod nut`, s:`The nut's boss stands ${(mount.tripod.top - fl).toFixed(1)} mm above the floor in the middle: move the board aside, or raise it on standoffs at least that tall.` }); }
   // what a panel part takes up behind its wall (Session 64): a switch's or a jack's body, a motion sensor's, `deep` mm in from
   // the wall's inside and `body` wide (or the hole's size): shown in the 3D view, and checked against the boards on the floor
   const behind = [];
@@ -13369,7 +13447,7 @@ function buildEnclosure(){
     behind.push({ i:po.i, face:f, rect:r, z:[z0, z1], hit:hit ? hit.label : null, pen:+pen.toFixed(2) });
     if (hit) warn.push({ t:`${po.lab} reaches ${hit.label}`, s:`Its body goes about ${dp} mm into the box (shown in the 3D view) and meets ${hit.label}: move one of them, or make the box bigger. (Typical sizes: check yours.)` });
   });
-  enclosureInfo = { test: !!state.base.enclosure.test, wallH:{ front:wallH("front"), back:wallH("back"), left:wallH("left"), right:wallH("right") }, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, gasket:gasket ? { cord:gasket.cord, length:gasket.length, depth:gasket.gd, width:gasket.gw, printed:gasket.printed || null } : null, snap:!!snap, hinge:hinge ? { length:hinge.Lh, knuckles:hinge.segs.length } : null, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR, at:bosses.map(([x, z]) => [x, -z]) }, ceil:ceilZ, ri, lipH, wall:t, anchors:anchorsMade, faceU, clashes, wallV:Object.fromEntries(["front","back","left","right"].map(f => [f, [0.8, Math.min(wallH(f) - 0.8, lipTop)]])), cams:camInfo, behind, ducts:ductInfo.length, ductRects:ductInfo.map(du => ({ fp:du.fp.slice(), isY:du.isY })),
+  enclosureInfo = { test: !!state.base.enclosure.test, wallH:{ front:wallH("front"), back:wallH("back"), left:wallH("left"), right:wallH("right") }, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, gasket:gasket ? { cord:gasket.cord, length:gasket.length, depth:gasket.gd, width:gasket.gw, printed:gasket.printed || null } : null, snap:!!snap, hinge:hinge ? { length:hinge.Lh, knuckles:hinge.segs.length } : null, lidPosts:{ n:bosses.length, hang:postHang, free:postFree, r:bossR, at:bosses.map(([x, z]) => [x, -z]) }, ceil:ceilZ, ri, lipH, wall:t, anchors:anchorsMade, faceU, clashes, wallV:Object.fromEntries(["front","back","left","right"].map(f => [f, [0.8, Math.min(wallH(f) - 0.8, lipTop)]])), cams:camInfo, behind, hoods:hoodInfo, solar:solar && solar.fits ? solar : null, tripod:mount.tripod || null, ducts:ductInfo.length, ductRects:ductInfo.map(du => ({ fp:du.fp.slice(), isY:du.isY })),
     takenOn:Object.fromEntries(Object.entries(taken).map(([f, l]) => [f, l.map(o => ({ n:o.n || 0, bb:o.bb.slice() }))])), count:(E.cut || []).length - left.length,
     split: splitInfo };
   return out;
@@ -18831,7 +18909,7 @@ document.querySelectorAll(".viewtools button[title]").forEach(b => { if (!b.getA
    active page is shown, so panels stay short, and the active page plus its scroll position are
    remembered per tab and object, so changing a setting never loses your place. */
 const SECTION_ICONS = [
-  [/^plan of the inside/i,"⊞"], [/^heat and air/i,"♨"], [/^start from a recipe/i,"★"], [/^style$/i,"✎"], [/^wiring$/i,"⌇"],
+  [/^plan of the inside/i,"⊞"], [/^heat and air/i,"♨"], [/^battery life/i,"🔋"], [/^outdoors$/i,"☂"], [/^start from a recipe/i,"★"], [/^style$/i,"✎"], [/^wiring$/i,"⌇"],
   [/^art, words and icons/i,"✦"], [/^floor, names and extras/i,"▦"], [/^what you'll need/i,"≡"],
   [/hanging hole/i,"◎"], [/^thickness$/i,"⇕"], [/^feet$/i,"⊥"], [/cut it flat/i,"✂"],
   [/piece shape/i,"🧩"], [/thickness and gap/i,"⇕"], [/labels on the back/i,"#"], [/cut lines/i,"✂"], [/frame or tray/i,"◫"],
@@ -21096,7 +21174,11 @@ function enclosureFields(p){
   }, E.feet === "recess");
   group(p, "Mounting", g => {
     selField(g, "How it hangs", [["none","Not mounted"],["ears","Screw ears on the sides"],["tabs","Hanging tabs above the back"],["din","DIN rail clip"],
-      ["straps","Strap or zip-tie loops"],["skadis","Hooks for IKEA SKÅDIS"],["pegboard","Pegs for pegboard (1/4-inch holes, 1-inch grid)"]], ()=>E.mount || "none", v=>{ E.mount = v; renderTab(); baseChanged(); });
+      ["straps","Strap or zip-tie loops"],["skadis","Hooks for IKEA SKÅDIS"],["pegboard","Pegs for pegboard (1/4-inch holes, 1-inch grid)"],
+      ["tripod","A tripod nut (1/4-inch) under the floor"],["magnets","Magnets on the back (under the floor)"]], ()=>E.mount || "none", v=>{ E.mount = v; renderTab(); baseChanged(); });
+    if (E.mount === "magnets"){ selField(g, "Magnets", Object.keys(MAGNETS).map(k => [k, `${k.replace("x", " × ")} mm`]), ()=>encHas(MAGNETS, E.mountMagnet) ? E.mountMagnet : "8x3", v=>{ E.mountMagnet = v; renderTab(); baseChanged(); });
+      const mg2 = MAGNETS[encHas(MAGNETS, E.mountMagnet) ? E.mountMagnet : "8x3"]; note(g, `Four pockets under the floor, ${(mg2.t + 0.2).toFixed(1)} mm deep: the floor needs to be at least ${(mg2.t + 0.8).toFixed(1)} mm thick (it is ${(+E.floor || 2)} mm). Glue the magnets in, all the same way up.` + (mg2.d + 0.3 > (state.printer.bridge ?? 10) ? ` Their pockets' tops are ${(mg2.d + 0.3).toFixed(1)} mm bridges, longer than your printer's ${state.printer.bridge ?? 10} mm: most printers manage, or pick a smaller magnet.` : "")); }
+    if (E.mount === "tripod") note(g, "A boss on the floor's inside holds a 1/4-inch (1/4-20) nut pressed in from below. Keep the middle of the floor clear for it: boards go round it.");
     if (E.mount === "ears"){
       segField(g, [["2","Two ears"],["4","Four ears"]], ()=>String(E.earN === 4 ? 4 : 2), v=>{ E.earN = +v; baseChanged(); }, "two");
       numField(g,{ label:"Screw hole (mm)", min:2,max:8,step:0.1, get:()=>E.earHole ?? 4.5, set:v=>E.earHole=v, onChange:baseChanged,
@@ -21278,6 +21360,28 @@ function enclosureFields(p){
     }
     note(g, "Awake power is the Heat page's watts. Rules of thumb: cold weather and old cells give less, so test yours with a USB power meter.");
   });
+  // outdoors (Session 64): the things a box out in the weather needs, in one place
+  if (I && !E.test) group(p, "Outdoors", g => {
+    note(g, "For a box out in the rain: a gasket under the lid, round holes that seal, hoods over the openings, a breather so damp can get out, and a solar panel on the lid if you like.");
+    encGasketField(g);
+    const walls = (E.cut || []).filter(c => ENC_WALLS.has(c.face) && !c.notch), hooded = walls.filter(c => c.hood === true).length;
+    buttonRow(g, [
+      ...(E.teardrop !== "flat" ? [["Round holes that seal (pointed, cut flat)", ()=>{ E.teardrop = "flat"; baseChanged(); renderTab(); pushHistory(); notify("Round holes in the walls now have 45° sides and a flat top 1 mm over the circle: no support, and a gland's flange covers them."); }]] : []),
+      ...(walls.length && hooded < walls.length ? [[`Rain hoods over ${walls.length === 1 ? "the wall opening" : `all ${walls.length} wall openings`}`, ()=>{ walls.forEach(c => { c.hood = true; }); baseChanged(); renderTab(); pushHistory(); notify("Each wall opening has a little roof over it now (the Openings page turns each off)."); }]] : []),
+      ...(!(E.cut || []).some(c => c.kind === "breather") ? [["Add a breather vent", ()=>{ E.cut = Array.isArray(E.cut) ? E.cut : []; const lo = (I.size[0] >= I.size[1]) ? "front" : "left", c = newOpening("breather", lo);
+        c.v = Math.round((I.size[2] - I.inner[2]) + 9); E.cut.push(c); c.u = freeSpot(E, c); encOpeningChanged(E.cut.length - 1); baseChanged(); renderTab(); pushHistory();
+        notify("A breather vent low on the front: an M12 membrane plug lets damp air out and keeps water out, so the box does not fog up inside."); }]] : [])]);
+    selField(g, "Solar panel in the lid", [["","None"], ...Object.entries(ENC_SOLAR).map(([k, v]) => [k, `${v[0]} × ${v[1]} mm (${v[3]})`]), ["custom","My own size"]], ()=>E.solar || "", v=>{ E.solar = v; renderTab(); baseChanged(); });
+    if (E.solar === "custom"){
+      numField(g, { label:"Panel width (mm)", min:10, max:300, step:1, def:60, get:()=>+E.solarW || 60, set:v=>E.solarW = v, onChange:baseChanged });
+      numField(g, { label:"Panel depth (mm)", min:10, max:300, step:1, def:40, get:()=>+E.solarD || 40, set:v=>E.solarD = v, onChange:baseChanged });
+    }
+    if (E.solar){
+      numField(g, { label:"Panel across (mm, right is +)", min:-150, max:150, step:1, def:0, get:()=>+E.solarX || 0, set:v=>E.solarX = v, onChange:baseChanged });
+      numField(g, { label:"Panel front to back (mm, back is +)", min:-150, max:150, step:1, def:0, get:()=>+E.solarY || 0, set:v=>E.solarY = v, onChange:baseChanged });
+      note(g, I.solar ? `Its outline (${I.solar.w.toFixed(0)} × ${I.solar.d.toFixed(0)} mm) is cut ${I.solar.depth} mm into the lid's outside, to place it by, with a 5 mm hole under the panel for its wires. Bed the panel in a bead of clear silicone round its edge: that holds it and seals the hole. (A pocket would face the bed as the lid prints and need support.) A 5–6 V panel can feed a TP4056's input.` : "No room on the lid for it: see the warning.");
+    }
+  });
   // wiring (Session 63)
   if (I && !E.test) group(p, "Wiring", g => {
     const wires = Array.isArray(E.wires) ? E.wires : (E.wires = []), ends = encWireEnds(E, I), info = encWires(E, I);
@@ -21456,6 +21560,9 @@ function enclosureFields(p){
       }
       if (k.kind === "vent") segField(box, [["slots","Slots"],["honeycomb","Honeycomb"],["holes","Round holes"]], ()=>c.style, v=>{ c.style = v; baseChanged(); });
       if (k.kind !== "round" && k.kind !== "grille") checkField(box, "Turn it 90°", ()=>c.rot, v=>{ c.rot = v; renderTab(); encOpeningChanged(i); });
+      // a rain hood over it, outside (Session 64)
+      if (wall && !c.notch){ checkField(box, "Rain hood over it (for boxes outdoors)", ()=>c.hood === true, v=>{ c.hood = v; renderTab(); baseChanged(); });
+        if (c.hood === true) note(box, "A little roof over it outside: rain runs off past the opening. Its underside rises at 45°, so it prints without support."); }
       if (wall && ENC_POINTABLE.has(c.kind)){
         const b = ringsBounds(placedRings({ ...c, top:"flat" }, E)), span = b[2] - b[0], lim = state.printer.bridge ?? 10;
         if (!c.notch){
@@ -24584,7 +24691,7 @@ function sanitizeProject(data){
   if (st.base && st.base.enclosure && typeof st.base.enclosure === "object"){
     const E = st.base.enclosure, one = (v, list) => list.includes(v) ? v : list[0];
     E.lid = one(E.lid, ["screw","press","magnet","slide","none"]); E.postStyle = one(E.postStyle, ["full","hang"]); E.snap = E.snap === true; E.hinge = E.hinge === true; E.gasket = [1.5, 2, 2.5, 3].includes(+E.gasket) ? +E.gasket : 0; E.fasten = one(E.fasten, ["insert","screw","nut","none"]); E.head = one(E.head, ["sink","bore","plain"]);
-    E.magnet = encHas(MAGNETS, E.magnet) ? E.magnet : "6x2"; E.feet = one(E.feet, ["none","recess"]); E.mount = one(E.mount, ["none","ears","tabs","din","straps","skadis","pegboard"], "none"); E.tabN = E.tabN === 1 ? 1 : 2;
+    E.magnet = encHas(MAGNETS, E.magnet) ? E.magnet : "6x2"; E.feet = one(E.feet, ["none","recess"]); E.mount = one(E.mount, ["none","ears","tabs","din","straps","skadis","pegboard","tripod","magnets"], "none"); E.tabN = E.tabN === 1 ? 1 : 2;
     E.earN = E.earN === 4 ? 4 : 2; E.strapDir = one(E.strapDir, ["across","up"], "across"); E.footSize = encHas(FEET, E.footSize) ? String(E.footSize) : "8";
     const L0 = E.logo && typeof E.logo === "object" ? E.logo : {};
     E.logo = { on: L0.on === true, mode: one(L0.mode, ["inlay","engrave"]), width: Math.min(300, Math.max(5, cleanNum(L0.width, 40))),
@@ -24596,6 +24703,9 @@ function sanitizeProject(data){
     const has = k => Object.prototype.hasOwnProperty.call(E, k);
     if (has("edge")) E.edge = ["chamfer","round"].includes(E.edge) ? E.edge : ""; if (has("texture")) E.texture = ["grooves","hex"].includes(E.texture) ? E.texture : ""; if (has("band")) E.band = E.band === true;     // the style (Session 63)
     if (has("testKind")) E.testKind = E.testKind === "holders" ? "holders" : "box";
+    if (has("solar")){ E.solar = E.solar === "custom" || encHas(ENC_SOLAR, E.solar) ? E.solar : "";
+      for (const [k, lo, hi] of [["solarW", 10, 300], ["solarD", 10, 300], ["solarX", -200, 200], ["solarY", -200, 200]]) if (E[k] != null && isFinite(+E[k])) E[k] = Math.min(hi, Math.max(lo, +E[k])); else delete E[k]; }
+    if (has("mountMagnet")) E.mountMagnet = encHas(MAGNETS, E.mountMagnet) ? E.mountMagnet : "8x3";
     if (has("gasketPrint")) E.gasketPrint = E.gasketPrint === true; if (has("gasketSlot")){ const k = Math.round(+E.gasketSlot); if (Number.isInteger(k) && k >= 0 && k < 16) E.gasketSlot = k; else delete E.gasketSlot; }
     if (has("cal")){ const c2 = cleanFit(E.cal); if (Object.keys(c2).length) E.cal = c2; else delete E.cal; }
     if (has("boardFace")) E.boardFace = ENC_MOUNT_FACES.includes(E.boardFace) ? E.boardFace : ""; if (has("boardSide")) E.boardSide = E.boardSide === "out" ? "out" : "in"; if (has("boardStrapBy")) E.boardStrapBy = E.boardStrapBy === "loops" ? "loops" : "slots";
@@ -24661,6 +24771,7 @@ function sanitizeProject(data){
       // a board's port openings keep their link to it (Session 61), and each opening its id for the wiring (Session 63)
       if (c.auto === "ports"){ o.auto = "ports"; if (encHas(BOARDS, c.board)) o.board = c.board; if (Number.isInteger(c.port) && c.port >= 0 && c.port < 32) o.port = c.port; }
       if (okId(c.id)) o.id = c.id;
+      if (c.hood === true) o.hood = true;
       return o;
     });
     // the wiring (Session 63): up to 40 wires, each end an id, pins plain text, a colour from the list

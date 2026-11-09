@@ -10792,6 +10792,61 @@ function encWires(E, I){
     return { i, w, ok, why, colour, a, b, A, B, path, len:Math.ceil((len*1.1 + 20)/10)*10, fromPin:encWireText(w.fromPin), toPin:encWireText(w.toPin) };
   }).filter(Boolean);
 }
+/* Drawings of the faces (Session 64): each face at true size with its openings, as they are cut (no pointed tops: for a drill
+   or a laser), seen from outside, the floor turned over. As an SVG to print at 100% and tape on a bought box (a cross and the
+   distances from the face's left and bottom edges at each opening's middle, a 50 mm bar to check the print's scale), and as
+   a DXF for CAD or a laser cutter. */
+function encFaceDrawings(E, I){
+  if (!I) return null;
+  const [W, D, H] = I.size, faces = [["front", W, H], ["back", W, H], ["left", D, H], ["right", D, H], ["top", W, D], ["bottom", W, D]];
+  const out = [];
+  faces.forEach(([f, w, h]) => {
+    const flat = f === "top" || f === "bottom", holes = [];
+    (E.cut || []).forEach((c, i) => { if (c.face !== f || I.left.includes(i)) return;
+      // the opening's true shape: as on the lid (no pointed top), then turned and placed; the floor seen from below
+      let rings = openingRings(c, false, E); if (c.rot) rings = rings.map(L => L.map(([x, y]) => [-y, x]));
+      const u = +c.u || 0, v = +c.v || 0;
+      rings = rings.map(L => L.map(([x, y]) => flat ? [x + u, f === "bottom" ? -(y + v) : y + v] : [x + u, y + v]));
+      const k = encHas(CUTOUTS, c.kind) ? CUTOUTS[c.kind] : CUTOUTS.round;
+      const nm = encLabelText(c.label) || k.label.replace(/[:(,/].*$/, "").trim();
+      holes.push({ rings, at:[u, flat ? (f === "bottom" ? -v : v) : v], name:nm.length > 22 ? nm.slice(0, 21).trim() + "…" : nm, i });
+    });
+    // the face's outline: x from -w/2, y from 0 (a wall's bottom edge) or -h/2 (the lid and the floor)
+    out.push({ face:f, w, h, y0:flat ? -h/2 : 0, holes });
+  });
+  return out;
+}
+function encFaceSVG(E, I, title){
+  const F = encFaceDrawings(E, I); if (!F) return null;
+  const used = F.filter(f => f.holes.length), list = used.length ? used : F.slice(0, 1), gap = 18, pad = 12, colW = Math.max(...list.map(f => f.w)) + 2*pad;
+  let y = 24; const parts = [], fmt = v => +v.toFixed(2);
+  list.forEach(f => {
+    const ox = pad + f.w/2, oy = y + 6 + f.y0 + f.h, X = x => fmt(ox + x), Y = v => fmt(oy - v);     // the face's top edge 6 mm under its title
+    parts.push(`<text x="${pad}" y="${fmt(y + 2)}" font-size="4" font-family="sans-serif">${esc(ENC_FACE_NAME[f.face].replace(/^the /, "").replace(/^./, ch => ch.toUpperCase()))}, seen from outside${f.face === "bottom" ? " (the box upside down)" : ""}: ${fmt(f.w)} × ${fmt(f.h)} mm</text>`);
+    parts.push(`<rect x="${X(-f.w/2)}" y="${Y(f.y0 + f.h)}" width="${fmt(f.w)}" height="${fmt(f.h)}" fill="none" stroke="#000" stroke-width="0.3"/>`);
+    f.holes.forEach(hh => {
+      hh.rings.forEach(L => parts.push(`<path d="M${L.map(([a, b]) => `${X(a)} ${Y(b)}`).join(" L")} Z" fill="none" stroke="#000" stroke-width="0.25"/>`));
+      const [a, b] = hh.at, fromL = a + f.w/2, fromB = b - f.y0;
+      parts.push(`<path d="M${X(a - 3)} ${Y(b)} L${X(a + 3)} ${Y(b)} M${X(a)} ${Y(b - 3)} L${X(a)} ${Y(b + 3)}" stroke="#c00" stroke-width="0.2"/>`);
+      parts.push(`<text x="${X(a + 1.2)}" y="${Y(b) - 1.2}" font-size="2.2" font-family="sans-serif" fill="#c00">${esc(hh.name)}: ${fmt(fromL)} from left, ${fmt(fromB)} from ${f.face === "top" || f.face === "bottom" ? "front" : "bottom"}</text>`);
+    });
+    y += 6 + f.h + gap;
+  });
+  // a 50 mm bar: measure it on the paper to check it printed at 100%
+  parts.push(`<path d="M${pad} ${fmt(y)} H${pad + 50} M${pad} ${fmt(y - 2)} V${fmt(y + 2)} M${pad + 50} ${fmt(y - 2)} V${fmt(y + 2)}" stroke="#000" stroke-width="0.4"/><text x="${pad + 52}" y="${fmt(y + 1.2)}" font-size="3" font-family="sans-serif">50 mm: measure it, print at 100% (no fit to page)</text>`);
+  const Wp = Math.max(colW + 62, 140), Hp = y + 10;                // room on the right for the last opening's words
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${fmt(Wp)}mm" height="${fmt(Hp)}mm" viewBox="0 0 ${fmt(Wp)} ${fmt(Hp)}">\n<title>${esc(title || "Box")}: drilling templates, true size</title>\n<rect width="100%" height="100%" fill="#fff"/>\n${parts.join("\n")}\n</svg>\n`;
+}
+function encFaceDXF(E, I){
+  const F = encFaceDrawings(E, I); if (!F) return null;
+  let x0 = 0; const polys = [];
+  F.forEach(f => {                                     // the faces side by side, 10 mm apart, each from its own lower left corner
+    const dx = x0 + f.w/2, dy = -f.y0, rect = [[-f.w/2, f.y0], [f.w/2, f.y0], [f.w/2, f.y0 + f.h], [-f.w/2, f.y0 + f.h]];
+    polys.push({ outer:rect.map(([a, b]) => [a + dx, b + dy]), holes:f.holes.flatMap(h => h.rings.map(L => L.map(([a, b]) => [a + dx, b + dy]))) });
+    x0 += f.w + 10;
+  });
+  return C.outlineDXF(polys);
+}
 /* A firmware starter from the wiring (Session 64): for an ESP32 or ESP8266 main board, an ESPHome file with a component for
    each part wired to it (relays as switches, motion sensors and buttons as binary sensors, LEDs as lights, a DHT or a BME280,
    the ESP32-CAM's camera with its usual AI-Thinker pins); for other boards, the pins as Arduino #defines. A starting point:
@@ -19026,7 +19081,7 @@ document.querySelectorAll(".viewtools button[title]").forEach(b => { if (!b.getA
    active page is shown, so panels stay short, and the active page plus its scroll position are
    remembered per tab and object, so changing a setting never loses your place. */
 const SECTION_ICONS = [
-  [/^plan of the inside/i,"⊞"], [/^heat and air/i,"♨"], [/^battery life/i,"🔋"], [/^outdoors$/i,"☂"], [/^start from a recipe/i,"★"], [/^style$/i,"✎"], [/^wiring$/i,"⌇"],
+  [/^plan of the inside/i,"⊞"], [/^heat and air/i,"♨"], [/^battery life/i,"🔋"], [/^outdoors$/i,"☂"], [/^templates and drawings/i,"⌖"], [/^start from a recipe/i,"★"], [/^style$/i,"✎"], [/^wiring$/i,"⌇"],
   [/^art, words and icons/i,"✦"], [/^floor, names and extras/i,"▦"], [/^what you'll need/i,"≡"],
   [/hanging hole/i,"◎"], [/^thickness$/i,"⇕"], [/^feet$/i,"⊥"], [/cut it flat/i,"✂"],
   [/piece shape/i,"🧩"], [/thickness and gap/i,"⇕"], [/labels on the back/i,"#"], [/cut lines/i,"✂"], [/frame or tray/i,"◫"],
@@ -21498,6 +21553,11 @@ function enclosureFields(p){
       numField(g, { label:"Panel front to back (mm, back is +)", min:-150, max:150, step:1, def:0, get:()=>+E.solarY || 0, set:v=>E.solarY = v, onChange:baseChanged });
       note(g, I.solar ? `Its outline (${I.solar.w.toFixed(0)} × ${I.solar.d.toFixed(0)} mm) is cut ${I.solar.depth} mm into the lid's outside, to place it by, with a 5 mm hole under the panel for its wires. Bed the panel in a bead of clear silicone round its edge: that holds it and seals the hole. (A pocket would face the bed as the lid prints and need support.) A 5–6 V panel can feed a TP4056's input.` : "No room on the lid for it: see the warning.");
     }
+  });
+  // drawings of the faces (Session 64): for a bought box, a laser cutter or CAD
+  if (I && !E.test && (E.cut || []).length) group(p, "Templates and drawings", g => {
+    note(g, "Each face with its openings at true size, as they are cut (no pointed tops). For a bought box (Hammond and the like): set the box's outside sizes to it, place the openings, print the templates at 100% (not \"fit to page\"), check the 50 mm bar with a ruler, tape them on and drill at the red crosses. The DXF is the same for CAD or a laser cutter (a front panel in acrylic or aluminium). The download has both, in cad/.");
+    buttonRow(g, [["Drilling templates (SVG)", ()=>offerDownload("drilling-templates.svg", encFaceSVG(E, I, "my box"), "image/svg+xml")], ["The faces (DXF)", ()=>offerDownload("faces.dxf", encFaceDXF(E, I), "application/dxf")]]);
   });
   // wiring (Session 63)
   if (I && !E.test) group(p, "Wiring", g => {
@@ -25184,6 +25244,8 @@ async function buildZip(parts, title){
   const wiring = state.base.type === "enclosure" && enclosureInfo && !state.base.enclosure.test ? encWiringText(state.base.enclosure, enclosureInfo) : null;
   if (wiring) zip.file("wiring.txt", wiring.join("\r\n"));
   const fw = state.base.type === "enclosure" && enclosureInfo && !state.base.enclosure.test && (state.base.enclosure.wires || []).length ? encFirmware(state.base.enclosure, enclosureInfo, title) : null;
+  if (state.base.type === "enclosure" && enclosureInfo && !state.base.enclosure.test && (state.base.enclosure.cut || []).length){
+    zip.file("cad/faces-drilling-templates.svg", encFaceSVG(state.base.enclosure, enclosureInfo, title)); zip.file("cad/faces.dxf", encFaceDXF(state.base.enclosure, enclosureInfo)); }
   if (fw) zip.file(fw.file, fw.text.join("\n") + "\n");
   if (asm.length) zip.file("how-to-assemble.txt", [`How to put ${title} together`, "", ...asm.map((t, k) => `${k + 1}. ${t}`), "",
     ...(enclosureInfo.need && enclosureInfo.need.length ? ["What you'll need:", ...enclosureInfo.need.map(([n, w]) => `  ${n} x ${w}`)] : [])].join("\r\n"));
@@ -25214,6 +25276,7 @@ async function buildZip(parts, title){
     ...(cardNfcText(title) ? ["An NFC tag goes inside: nfc-tag.txt says where to pause and put it in."] : []),
     ...(asm.length ? ["A project box: how-to-assemble.txt has the steps and what you'll need."] : []),
     ...(wiring ? ["wiring.txt lists every wire, end to end, with its colour and length."] : []),
+    ...(state.base.type === "enclosure" && (state.base.enclosure.cut || []).length && !state.base.enclosure.test ? ["cad/faces-drilling-templates.svg has each face with its openings at true size: print it at 100% and tape it on a bought box to drill. cad/faces.dxf is the same for CAD or a laser cutter."] : []),
     ...(fw ? [fw.kind === "esphome" ? "esphome.yaml is a starting point for the firmware (ESPHome), from the wiring: check every pin." : "pins.h has the pins from the wiring as Arduino #defines: check every pin."] : []),
     ...(nPlates ? [`It prints on ${nPlates} plates: open plates/plate-1-prusa-orca.3mf (or -bambu.3mf) and so on, one plate at a time.`,
       "  The model files above hold every plate side by side. how-it-goes-together.txt says how the parts join."] : []),
@@ -25517,7 +25580,7 @@ window.MakerForge = {
   get enclosure(){ return enclosureInfo; },
   get cutouts(){ return CUTOUTS; }, get boards(){ return BOARDS; }, boardPorts:BOARD_PORTS, addBoardPorts:encAddBoardPorts, arrange:encArrange,
   // room for parts (Session 61), for the tests
-  boxRoom:{ place:encPlace, freeU:encFreeU, onFace:encRoomOnFace, shrink:encShrinkWrap, fixAll:encFixAll, makeRoom:encMakeRoom, busy:encBusy, assembly:encAssembly, kicad:kicadParse, importKicad:encImportKicad, heat:encHeat, wires:encWires, kits:ENC_KITS, startKit:encStartKit, battery:encBattery, batteryWh:encBatteryWh, firmware:encFirmware, fit:{ printer:printerFit, sample:fitSample, defaults:FIT_DEFAULT, clean:cleanFit, rows:FIT_ROWS, save:fitSave, screw:encScrew, card:ENC_HOLDERS } }, boxDrag:{ pick:boxDragPick, start:h => { boxDrag = Object.assign(h, { id:-1, moved:false, t:0 }); }, to:lr => { const ok = boxDragTo(lr); if (ok && boxDrag) boxDrag.moved = true; return ok; }, end:boxDragEnd }, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
+  boxRoom:{ place:encPlace, freeU:encFreeU, onFace:encRoomOnFace, shrink:encShrinkWrap, fixAll:encFixAll, makeRoom:encMakeRoom, busy:encBusy, assembly:encAssembly, kicad:kicadParse, importKicad:encImportKicad, heat:encHeat, wires:encWires, kits:ENC_KITS, startKit:encStartKit, battery:encBattery, batteryWh:encBatteryWh, firmware:encFirmware, faceSVG:encFaceSVG, faceDXF:encFaceDXF, faceDrawings:encFaceDrawings, fit:{ printer:printerFit, sample:fitSample, defaults:FIT_DEFAULT, clean:cleanFit, rows:FIT_ROWS, save:fitSave, screw:encScrew, card:ENC_HOLDERS } }, boxDrag:{ pick:boxDragPick, start:h => { boxDrag = Object.assign(h, { id:-1, moved:false, t:0 }); }, to:lr => { const ok = boxDragTo(lr); if (ok && boxDrag) boxDrag.moved = true; return ok; }, end:boxDragEnd }, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
   get jigsaw(){ return jigsawInfo; },
   get lithophane(){ return lithoInfo; },
   get print(){ return printFresh() ? printInfo : null; },

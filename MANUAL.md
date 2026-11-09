@@ -511,6 +511,8 @@ The paint goes into the 3mf files as slicer paint, so there is nothing to paint 
 
 **Before you print** lists what the app checked: that every part is closed, fits on your bed, has no walls thinner than your nozzle, uses no more colours than your printer loads, and so on. Fix anything red first; yellow items are advice. The **Printability** page shows where the model needs support, and **Optimize** turns it to need the least.
 
+**Fix what it can** (new in 0.56, on the Printability page) does in one go what the object can fix by itself: a project box's **Make it all fit**, an imported model's repair (when the model doctor finds holes or flipped faces), and **Optimize for printing** when it needs support. It says what it did; Undo takes it back.
+
 **Material and time** gives the grams, metres and cost of each filament and a rough print time.
 
 **Colour swap heights** is for printers that load one colour at a time. It lists the colour to start with, then each layer where the printer should pause so you can load the next spool. Painted colours count too: each height band or stripe is a swap. To add the pauses:

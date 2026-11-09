@@ -24,9 +24,11 @@ Project boxes: battery life, boxes for outdoors, nut pockets, printed plungers a
 - **Boards from EasyEDA and Eagle** as well as KiCad, **a board measured from a photo** (click its corners, holes and ports), and **your own parts**: boards you import or measure, kept in your browser for every project.
 - **A firmware starter:** an ESPHome file (or Arduino pins) made from the wiring plan, in the download.
 - **A QR code on anything:** the Art tab's **A QR code** puts a code (a link, text or a WiFi login) on any object, in two filaments: name plates, signs, box lids, keychains.
+- **Fix what it can** (Export → Printability): one button that runs what the object can fix by itself: a project box's Make it all fit, an imported model's repair, and the turn that needs the least support.
 - **Calibration in one place, per material:** every test print (the box card, the moving parts' fit test, the phone case rim, the lithophane strip) is on the printer's Fits page, and what you pick is kept for the material you printed it in: PETG and TPU fit differently from PLA. The moving parts' gap is kept with the printer too, so new mechanisms and fix-it parts start with it.
 
 **Fixed**
+- Arrange put boards in cradles and batteries in strap trays 3 mm apart, so their rims overlapped; each now leaves room for its rim.
 - An imported board's USB-C connector named TYPE-C, and tactile buttons named SW-TH, TS or KEY-6X6, were not recognised: they become a port and panel buttons now (KiCad as well).
 
 ## 0.55.0

@@ -2825,6 +2825,10 @@ function encArrange(keepSize){
   const nLv = Array.isArray(E.levels) ? E.levels.length : 0, main = list.find(b => b.main);
   const portFaces = main && encHas(BOARD_PORTS, main.key) ? new Set(BOARD_PORTS[main.key].map(pt => boardPortPlace(Object.assign({}, main, { x:0, y:0 }), pt).face)) : new Set();
   const dims = (b, rot) => { const w = b.B.w, d = b.B.d; return rot ? [d, w] : [w, d]; };
+  // (Session 65) a holder's rim reaches past its part (a cradle's 1.9 mm, a strap tray's 2.2): with 3 mm between parts two rims
+  // overlapped, so each part takes a little more room, enough that its rim and its neighbour's stay apart
+  const rimOf = b => b.hold === "strap" ? ENC_TRAY.gap + ENC_TRAY.fence : (!b.B.holes || b.hold === "edges" || b.hold === "door") ? encFit().gap + ENC_CRADLE.fence : 0;
+  const dimsR = (b, rot) => { const k = Math.max(0, rimOf(b) - gap/2 + 0.2), [w, d] = dims(b, rot); return [w + 2*k, d + 2*k]; };
   const pad = 2.2;                                            // from a wall: a cradle's fence (1.6) and its gap, with room to spare
   // one floor at inner width iw: positions from the front-left inner corner, and the depth it needs
   const packFloor = (items, iw, withMain, cX, cY, cB = cY) => {      // cY: kept from the front corners, cB: from the back ones
@@ -2860,7 +2864,7 @@ function encArrange(keepSize){
     for (const b of rest){
       let best = null;
       for (const rot of [false, true]){
-        const [w, d] = dims(b, rot);
+        const [w, d] = dimsR(b, rot);
         for (let i=0;i<sky.length;i++){
           let x = Math.max(sky[i].x, pad), wsum = 0, y = 0, j = i;
           while (wsum < w && j < sky.length){ y = Math.max(y, sky[j].y); wsum += sky[j].w - (j === i ? x - sky[i].x : 0); j++; }
@@ -11297,6 +11301,26 @@ function refreshOverlay(){
 }
 // Optimize: lie the model on whichever side needs the least support, then add a brim if it still stands poorly
 let optimizing = false;
+/* Fix what it can (Session 65): one button for each object's own fixes: a project box's Make it all fit, an imported model's
+   repair when the doctor finds holes or flipped faces, and the turn that needs the least support when it needs any; it says
+   what it did, and Undo takes it back. */
+async function fixWhatItCan(){
+  const done = [];
+  if (state.base.type === "enclosure" && !state.base.enclosure.test){
+    const r = encFixAll(state.base.enclosure); if (r.n){ done.push(`the box: ${r.n} thing${r.n === 1 ? "" : "s"} given room (${r.before.join(" × ")} → ${r.after.join(" × ")} mm)`); baseChanged(); }
+  }
+  if (state.base.type === "stl" && stlCache && stlCache.data === stlData){
+    const rep = C.meshReport(stlCache.solid);
+    if (rep && (rep.open || rep.flipped || rep.degenerate || rep.duplicates || rep.nonManifold)){ await doctorRun("repair"); done.push("the model repaired"); }
+  }
+  await new Promise(r => setTimeout(r, 0));
+  for (let i = 0; i < 400 && (busy || queued || rebuildPending); i++) await new Promise(r => setTimeout(r, 25));
+  if (!printFresh()) { runPrintability(); for (let i = 0; i < 400 && !printFresh(); i++) await new Promise(r => setTimeout(r, 25)); }
+  const info = printFresh() ? printInfo : null;
+  if (!info || (info.overhang && info.overhang.area >= 3)){ await optimizePrint(); done.push("turned to need the least support"); }
+  pushHistory(); renderTab();
+  notify(done.length ? `Done: ${done.join("; ")}. Undo takes it back.` : "Nothing to fix that it knows how to: see the checks.");
+}
 async function optimizePrint(){
   if (!modelParts.length || optimizing || busy) return;
   const P = state.printer, before = { orient:state.model.orient, brim:state.model.brim }, ver0 = partsVer;
@@ -16972,7 +16996,7 @@ function tabPrintability(p){
       row("Orientation", state.model.orient ? "turned for printing" : "as designed");
     p.appendChild(tb);
   }
-  const btns = [["Optimize for printing", optimizePrint, "primary"]];
+  const btns = [["Optimize for printing", optimizePrint, "primary"], ["Fix what it can", fixWhatItCan]];
   if (optimizeUndo) btns.push(["Revert", revertOptimize]);
   else if (state.model.orient) btns.push(["Stand it as designed", ()=>{ state.model.orient = null; userMoved = false; refreshScene(); runChecks(); pushHistory(); renderTab(); }]);
   buttonRow(p, btns);

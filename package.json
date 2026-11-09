@@ -72,6 +72,8 @@
     "test:aimodel": "node tools-aimodel-test.js index.html",
     "test:speed": "node tools-speed-test.js index.html",
     "test:cut": "node tools-cut-test.js index.html",
+    "fingerprint": "node tools-fingerprint.js index.html",
+    "fingerprint:update": "node tools-fingerprint.js index.html --update",
     "test:card": "node tools-card-test.js index.html && node tools-qrart-test.js index.html",
     "test:fit": "node tools-fit-test.js index.html",
     "test:sign": "node tools-sign-test.js index.html",

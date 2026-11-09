@@ -1,0 +1,1912 @@
+{
+ "object tracer": [
+  {
+   "name": "Traced part",
+   "tris": 840,
+   "vol": 6776.9,
+   "size": [
+    80,
+    5,
+    40.58
+   ]
+  }
+ ],
+ "object lithophane": [
+  {
+   "name": "Lithophane",
+   "tris": 179502,
+   "vol": 24407,
+   "size": [
+    108,
+    80.5,
+    16.83
+   ]
+  }
+ ],
+ "object board": [
+  {
+   "name": "Object",
+   "tris": 636,
+   "vol": 6432.3,
+   "size": [
+    64,
+    2,
+    64
+   ]
+  },
+  {
+   "name": "Cream",
+   "tris": 1360,
+   "vol": 174.8,
+   "size": [
+    27.41,
+    1,
+    17.08
+   ]
+  },
+  {
+   "name": "Charcoal",
+   "tris": 1440,
+   "vol": 112.7,
+   "size": [
+    30.7,
+    1,
+    34
+   ]
+  },
+  {
+   "name": "Fox orange",
+   "tris": 10840,
+   "vol": 628.7,
+   "size": [
+    39.1,
+    1,
+    40
+   ]
+  }
+ ],
+ "object nameplate": [
+  {
+   "name": "Plate",
+   "tris": 1800,
+   "vol": 8507.4,
+   "size": [
+    145.09,
+    2.4,
+    30.26
+   ]
+  },
+  {
+   "name": "Name",
+   "tris": 2008,
+   "vol": 2290.6,
+   "size": [
+    101.73,
+    1.5,
+    22
+   ]
+  },
+  {
+   "name": "Top layer",
+   "tris": 676,
+   "vol": 1087.4,
+   "size": [
+    99.84,
+    0.9,
+    20.24
+   ]
+  },
+  {
+   "name": "Picture (Cream)",
+   "tris": 192,
+   "vol": 9.5,
+   "size": [
+    2,
+    1.5,
+    7.4
+   ]
+  },
+  {
+   "name": "Picture (Charcoal)",
+   "tris": 2120,
+   "vol": 194,
+   "size": [
+    30.47,
+    1.5,
+    23.8
+   ]
+  },
+  {
+   "name": "Picture (Fox orange)",
+   "tris": 1944,
+   "vol": 525,
+   "size": [
+    25.27,
+    1.5,
+    21.53
+   ]
+  }
+ ],
+ "object card": [
+  {
+   "name": "Card",
+   "tris": 71532,
+   "vol": 5438.5,
+   "size": [
+    85.61,
+    1.56,
+    53.99
+   ]
+  },
+  {
+   "name": "Gold",
+   "tris": 12620,
+   "vol": 422.3,
+   "size": [
+    82,
+    1.56,
+    50.25
+   ]
+  },
+  {
+   "name": "Cream",
+   "tris": 18368,
+   "vol": 721.7,
+   "size": [
+    76.38,
+    1.56,
+    42.25
+   ]
+  },
+  {
+   "name": "Red",
+   "tris": 49984,
+   "vol": 611.9,
+   "size": [
+    85.61,
+    1.56,
+    53.99
+   ]
+  }
+ ],
+ "object mech": [
+  {
+   "name": "Gear 1 (24 teeth)",
+   "tris": 2984,
+   "vol": 6194.1,
+   "size": [
+    39,
+    10,
+    39
+   ]
+  },
+  {
+   "name": "Gear 2 (12 teeth)",
+   "tris": 1784,
+   "vol": 1693.5,
+   "size": [
+    21,
+    10,
+    21
+   ]
+  }
+ ],
+ "object fixit": [
+  {
+   "name": "Knob",
+   "tris": 3088,
+   "vol": 12872.6,
+   "size": [
+    31.23,
+    18,
+    32
+   ]
+  }
+ ],
+ "object sign": [
+  {
+   "name": "Letters",
+   "tris": 984,
+   "vol": 77623.6,
+   "size": [
+    233.35,
+    27,
+    99.95
+   ]
+  },
+  {
+   "name": "Diffuser faces",
+   "tris": 84,
+   "vol": 18238.9,
+   "size": [
+    229.8,
+    1,
+    96.4
+   ]
+  }
+ ],
+ "object relief": [
+  {
+   "name": "Relief",
+   "tris": 175324,
+   "vol": 35825.6,
+   "size": [
+    100,
+    7,
+    75
+   ]
+  }
+ ],
+ "object canvas": [
+  {
+   "name": "Panel",
+   "tris": 22628,
+   "vol": 37585.7,
+   "size": [
+    161,
+    1.6,
+    161
+   ]
+  },
+  {
+   "name": "Cream stitches",
+   "tris": 7416,
+   "vol": 10708.7,
+   "size": [
+    152.3,
+    1.2,
+    152.3
+   ]
+  },
+  {
+   "name": "Charcoal stitches",
+   "tris": 1632,
+   "vol": 2356.6,
+   "size": [
+    134.3,
+    1.2,
+    125.3
+   ]
+  },
+  {
+   "name": "Red stitches",
+   "tris": 624,
+   "vol": 901.1,
+   "size": [
+    107.3,
+    1.2,
+    111.8
+   ]
+  },
+  {
+   "name": "Ginger stitches",
+   "tris": 4200,
+   "vol": 6064.8,
+   "size": [
+    116.3,
+    1.2,
+    116.3
+   ]
+  }
+ ],
+ "object jigsaw": [
+  {
+   "name": "Pieces",
+   "tris": 43852,
+   "vol": 38983.3,
+   "size": [
+    150,
+    2.4,
+    112.5
+   ]
+  },
+  {
+   "name": "Sky blue picture",
+   "tris": 32368,
+   "vol": 4973.4,
+   "size": [
+    150,
+    0.6,
+    84.63
+   ]
+  },
+  {
+   "name": "Cream picture",
+   "tris": 19688,
+   "vol": 1762,
+   "size": [
+    150,
+    0.6,
+    98.81
+   ]
+  },
+  {
+   "name": "Red picture",
+   "tris": 8784,
+   "vol": 539.8,
+   "size": [
+    117.17,
+    0.6,
+    54.67
+   ]
+  },
+  {
+   "name": "Green picture",
+   "tris": 17668,
+   "vol": 2466.9,
+   "size": [
+    150,
+    0.6,
+    64
+   ]
+  }
+ ],
+ "object bobble": [
+  {
+   "name": "Head",
+   "tris": 23968,
+   "vol": 42534.5,
+   "size": [
+    44,
+    42,
+    44
+   ]
+  },
+  {
+   "name": "Body",
+   "tris": 13440,
+   "vol": 67608.4,
+   "size": [
+    50,
+    58,
+    50
+   ]
+  },
+  {
+   "name": "Spring neck",
+   "tris": 5208,
+   "vol": 876.3,
+   "size": [
+    11.75,
+    37.6,
+    9.8
+   ]
+  },
+  {
+   "name": "Skin",
+   "tris": 72,
+   "vol": 2.2,
+   "size": [
+    12.15,
+    1.22,
+    1.35
+   ]
+  },
+  {
+   "name": "Navy",
+   "tris": 1052,
+   "vol": 33.6,
+   "size": [
+    15.09,
+    10.32,
+    2.33
+   ]
+  },
+  {
+   "name": "Coral",
+   "tris": 548,
+   "vol": 22.3,
+   "size": [
+    22.79,
+    5.68,
+    3.1
+   ]
+  },
+  {
+   "name": "Brown",
+   "tris": 3440,
+   "vol": 74.8,
+   "size": [
+    28.03,
+    8.85,
+    6.1
+   ]
+  }
+ ],
+ "object cutter": [
+  {
+   "name": "Cutter",
+   "tris": 3024,
+   "vol": 9416.5,
+   "size": [
+    84.79,
+    16,
+    99.96
+   ]
+  }
+ ],
+ "object turned": [
+  {
+   "name": "Turned",
+   "tris": 358656,
+   "vol": 37607.6,
+   "size": [
+    78,
+    90,
+    78
+   ]
+  }
+ ],
+ "object pcb": [
+  {
+   "name": "Board",
+   "tris": 764,
+   "vol": 16064.2,
+   "size": [
+    120,
+    1.6,
+    84
+   ]
+  },
+  {
+   "name": "Copper",
+   "tris": 5168,
+   "vol": 988.8,
+   "size": [
+    100.19,
+    0.8,
+    59.16
+   ]
+  }
+ ],
+ "object lightbox": [
+  {
+   "name": "Diffuser panel",
+   "tris": 108,
+   "vol": 11999.3,
+   "size": [
+    150,
+    0.8,
+    100
+   ]
+  },
+  {
+   "name": "Frame",
+   "tris": 3004,
+   "vol": 7243.3,
+   "size": [
+    150,
+    1.65,
+    82.58
+   ]
+  },
+  {
+   "name": "Red",
+   "tris": 3328,
+   "vol": 7991.8,
+   "size": [
+    150,
+    1.31,
+    80
+   ]
+  },
+  {
+   "name": "Gold",
+   "tris": 924,
+   "vol": 3801.8,
+   "size": [
+    150,
+    0.95,
+    44.4
+   ]
+  },
+  {
+   "name": "Frame",
+   "tris": 256,
+   "vol": 15807.3,
+   "size": [
+    170,
+    3,
+    120
+   ]
+  },
+  {
+   "name": "Stand",
+   "tris": 180,
+   "vol": 70942.7,
+   "size": [
+    36,
+    20,
+    159.8
+   ]
+  }
+ ],
+ "object frame": [
+  {
+   "name": "Frame",
+   "tris": 352,
+   "vol": 47037.9,
+   "size": [
+    120,
+    5,
+    160
+   ]
+  },
+  {
+   "name": "Navy",
+   "tris": 1448,
+   "vol": 234.7,
+   "size": [
+    102.55,
+    1,
+    7.57
+   ]
+  },
+  {
+   "name": "Coral",
+   "tris": 1704,
+   "vol": 128.7,
+   "size": [
+    106.02,
+    1,
+    8.02
+   ]
+  },
+  {
+   "name": "Sage",
+   "tris": 1848,
+   "vol": 80.2,
+   "size": [
+    99.42,
+    1,
+    10.13
+   ]
+  }
+ ],
+ "object shell": [
+  {
+   "name": "Shell",
+   "tris": 2156,
+   "vol": 21606,
+   "size": [
+    70,
+    80,
+    70
+   ]
+  },
+  {
+   "name": "Night blue",
+   "tris": 41796,
+   "vol": 842.8,
+   "size": [
+    52.65,
+    28.85,
+    12.31
+   ]
+  }
+ ],
+ "object box": [
+  {
+   "name": "Object",
+   "tris": 12,
+   "vol": 25200,
+   "size": [
+    90,
+    4,
+    70
+   ]
+  },
+  {
+   "name": "Teal",
+   "tris": 31684,
+   "vol": 753,
+   "size": [
+    83.3,
+    1,
+    61.38
+   ]
+  },
+  {
+   "name": "Gold",
+   "tris": 23932,
+   "vol": 639.2,
+   "size": [
+    69.77,
+    1,
+    49.96
+   ]
+  },
+  {
+   "name": "Cream",
+   "tris": 12048,
+   "vol": 419.6,
+   "size": [
+    78.49,
+    1,
+    49.51
+   ]
+  }
+ ],
+ "object cylinder": [
+  {
+   "name": "Object",
+   "tris": 640,
+   "vol": 346271.6,
+   "size": [
+    70,
+    90,
+    70
+   ]
+  },
+  {
+   "name": "Cream",
+   "tris": 4276,
+   "vol": 60.8,
+   "size": [
+    38.01,
+    23.41,
+    7.91
+   ]
+  },
+  {
+   "name": "Green",
+   "tris": 11340,
+   "vol": 372.9,
+   "size": [
+    42.39,
+    20.41,
+    8.92
+   ]
+  },
+  {
+   "name": "Terracotta",
+   "tris": 8484,
+   "vol": 462.4,
+   "size": [
+    42.4,
+    12.74,
+    8.83
+   ]
+  },
+  {
+   "name": "Pink",
+   "tris": 856,
+   "vol": 33.9,
+   "size": [
+    23.38,
+    11.4,
+    8.18
+   ]
+  }
+ ],
+ "object hex": [
+  {
+   "name": "Object",
+   "tris": 24,
+   "vol": 24941.5,
+   "size": [
+    80,
+    6,
+    69.28
+   ]
+  },
+  {
+   "name": "Honey",
+   "tris": 4788,
+   "vol": 177.6,
+   "size": [
+    17.55,
+    1,
+    20.57
+   ]
+  },
+  {
+   "name": "Dark brown",
+   "tris": 10388,
+   "vol": 308.7,
+   "size": [
+    25.96,
+    1,
+    38.57
+   ]
+  },
+  {
+   "name": "Cream",
+   "tris": 2344,
+   "vol": 107.6,
+   "size": [
+    24.16,
+    1,
+    11.26
+   ]
+  },
+  {
+   "name": "Amber",
+   "tris": 35368,
+   "vol": 860.4,
+   "size": [
+    60.48,
+    1,
+    60.79
+   ]
+  }
+ ],
+ "object sphere": [
+  {
+   "name": "Object",
+   "tris": 91520,
+   "vol": 179479,
+   "size": [
+    70,
+    70,
+    70
+   ]
+  }
+ ],
+ "object enclosure": [
+  {
+   "name": "Box",
+   "tris": 2084,
+   "vol": 37583.8,
+   "size": [
+    100,
+    36,
+    64
+   ]
+  },
+  {
+   "name": "Lid",
+   "tris": 10180,
+   "vol": 15935.7,
+   "size": [
+    100,
+    5.4,
+    64
+   ]
+  },
+  {
+   "name": "Lid logo (Cream)",
+   "tris": 296,
+   "vol": 20.2,
+   "size": [
+    7.99,
+    0.6,
+    14.08
+   ]
+  },
+  {
+   "name": "Lid logo (Gold)",
+   "tris": 1292,
+   "vol": 154.6,
+   "size": [
+    29.03,
+    0.6,
+    29.03
+   ]
+  },
+  {
+   "name": "Pilot light lenses (1)",
+   "tris": 112,
+   "vol": 216.1,
+   "size": [
+    12.66,
+    6.66,
+    12.66
+   ]
+  }
+ ],
+ "object phonecase": [
+  {
+   "name": "Case",
+   "tris": 117192,
+   "vol": 20398.1,
+   "size": [
+    75.6,
+    11.75,
+    153.7
+   ]
+  },
+  {
+   "name": "Back picture (Cream TPU)",
+   "tris": 2800,
+   "vol": 114.4,
+   "size": [
+    51.32,
+    0.6,
+    81.75
+   ]
+  },
+  {
+   "name": "Back picture (Coral TPU)",
+   "tris": 1212,
+   "vol": 174.8,
+   "size": [
+    44.15,
+    0.6,
+    18.58
+   ]
+  },
+  {
+   "name": "Back picture (Yellow TPU)",
+   "tris": 1456,
+   "vol": 497.5,
+   "size": [
+    44.93,
+    0.6,
+    25.52
+   ]
+  }
+ ],
+ "preset Name keychain": [
+  {
+   "name": "Plate",
+   "tris": 1800,
+   "vol": 8507.4,
+   "size": [
+    145.09,
+    2.4,
+    30.26
+   ]
+  },
+  {
+   "name": "Name",
+   "tris": 2008,
+   "vol": 2290.6,
+   "size": [
+    101.73,
+    1.5,
+    22
+   ]
+  },
+  {
+   "name": "Top layer",
+   "tris": 676,
+   "vol": 1087.4,
+   "size": [
+    99.84,
+    0.9,
+    20.24
+   ]
+  },
+  {
+   "name": "Picture (Black TPU)",
+   "tris": 2124,
+   "vol": 194.1,
+   "size": [
+    30.47,
+    1.5,
+    23.8
+   ]
+  },
+  {
+   "name": "Picture (Cream TPU)",
+   "tris": 192,
+   "vol": 9.5,
+   "size": [
+    2,
+    1.5,
+    7.4
+   ]
+  },
+  {
+   "name": "Picture (Coral TPU)",
+   "tris": 1920,
+   "vol": 524.9,
+   "size": [
+    25.27,
+    1.5,
+    21.53
+   ]
+  }
+ ],
+ "preset Double-sided tag": [
+  {
+   "name": "Plate",
+   "tris": 5272,
+   "vol": 8044.6,
+   "size": [
+    132.45,
+    3,
+    28.47
+   ]
+  },
+  {
+   "name": "Name",
+   "tris": 2008,
+   "vol": 2290.6,
+   "size": [
+    101.73,
+    1.5,
+    22
+   ]
+  },
+  {
+   "name": "Top layer",
+   "tris": 676,
+   "vol": 1087.4,
+   "size": [
+    99.84,
+    0.9,
+    20.24
+   ]
+  },
+  {
+   "name": "Picture (Yellow TPU)",
+   "tris": 1224,
+   "vol": 181.4,
+   "size": [
+    18.93,
+    1.5,
+    18.4
+   ]
+  },
+  {
+   "name": "Name (back)",
+   "tris": 1928,
+   "vol": 1221.8,
+   "size": [
+    101.73,
+    0.8,
+    22
+   ]
+  }
+ ],
+ "preset Iron-on patch": [
+  {
+   "name": "Object",
+   "tris": 172,
+   "vol": 3444.2,
+   "size": [
+    70,
+    1,
+    50
+   ]
+  },
+  {
+   "name": "Navy",
+   "tris": 12956,
+   "vol": 353,
+   "size": [
+    62.6,
+    1,
+    11.56
+   ]
+  },
+  {
+   "name": "Cream",
+   "tris": 13112,
+   "vol": 550.6,
+   "size": [
+    65.89,
+    1,
+    46.69
+   ]
+  },
+  {
+   "name": "Marigold",
+   "tris": 1788,
+   "vol": 176,
+   "size": [
+    23.39,
+    1,
+    19.36
+   ]
+  },
+  {
+   "name": "Teal",
+   "tris": 10316,
+   "vol": 671.9,
+   "size": [
+    62.44,
+    1,
+    22.06
+   ]
+  }
+ ],
+ "preset Car badge": [
+  {
+   "name": "Object",
+   "tris": 172,
+   "vol": 4813.8,
+   "size": [
+    95,
+    1.6,
+    32
+   ]
+  },
+  {
+   "name": "Silver",
+   "tris": 21612,
+   "vol": 714.1,
+   "size": [
+    86.89,
+    1,
+    26.73
+   ]
+  },
+  {
+   "name": "Red",
+   "tris": 2928,
+   "vol": 314.8,
+   "size": [
+    18.15,
+    1,
+    23.42
+   ]
+  },
+  {
+   "name": "Gunmetal",
+   "tris": 4920,
+   "vol": 155.4,
+   "size": [
+    77.88,
+    1,
+    20.29
+   ]
+  }
+ ],
+ "preset Ornament": [
+  {
+   "name": "Object",
+   "tris": 832,
+   "vol": 11513.6,
+   "size": [
+    70,
+    3,
+    70
+   ]
+  },
+  {
+   "name": "Snow",
+   "tris": 4540,
+   "vol": 265.9,
+   "size": [
+    42.89,
+    1,
+    46.49
+   ]
+  },
+  {
+   "name": "Green",
+   "tris": 6800,
+   "vol": 418.9,
+   "size": [
+    34.48,
+    1,
+    30.29
+   ]
+  },
+  {
+   "name": "Gold",
+   "tris": 8976,
+   "vol": 404.2,
+   "size": [
+    53.25,
+    1,
+    53.09
+   ]
+  }
+ ],
+ "preset Tea light": [
+  {
+   "name": "Shell",
+   "tris": 2156,
+   "vol": 21606,
+   "size": [
+    70,
+    80,
+    70
+   ]
+  },
+  {
+   "name": "Night blue",
+   "tris": 41796,
+   "vol": 842.8,
+   "size": [
+    52.65,
+    28.85,
+    12.31
+   ]
+  }
+ ],
+ "preset Plastic canvas": [
+  {
+   "name": "Panel",
+   "tris": 22628,
+   "vol": 37585.7,
+   "size": [
+    161,
+    1.6,
+    161
+   ]
+  },
+  {
+   "name": "Cream stitches",
+   "tris": 7416,
+   "vol": 10708.7,
+   "size": [
+    152.3,
+    1.2,
+    152.3
+   ]
+  },
+  {
+   "name": "Charcoal stitches",
+   "tris": 1632,
+   "vol": 2356.6,
+   "size": [
+    134.3,
+    1.2,
+    125.3
+   ]
+  },
+  {
+   "name": "Red stitches",
+   "tris": 624,
+   "vol": 901.1,
+   "size": [
+    107.3,
+    1.2,
+    111.8
+   ]
+  },
+  {
+   "name": "Ginger stitches",
+   "tris": 4200,
+   "vol": 6064.8,
+   "size": [
+    116.3,
+    1.2,
+    116.3
+   ]
+  }
+ ],
+ "preset Bobble head": [
+  {
+   "name": "Head",
+   "tris": 23968,
+   "vol": 42534.5,
+   "size": [
+    44,
+    42,
+    44
+   ]
+  },
+  {
+   "name": "Body",
+   "tris": 13440,
+   "vol": 67608.4,
+   "size": [
+    50,
+    58,
+    50
+   ]
+  },
+  {
+   "name": "Spring neck",
+   "tris": 5208,
+   "vol": 876.3,
+   "size": [
+    11.75,
+    37.6,
+    9.8
+   ]
+  },
+  {
+   "name": "Skin",
+   "tris": 72,
+   "vol": 2.2,
+   "size": [
+    12.15,
+    1.22,
+    1.35
+   ]
+  },
+  {
+   "name": "Navy",
+   "tris": 1052,
+   "vol": 33.6,
+   "size": [
+    15.09,
+    10.32,
+    2.33
+   ]
+  },
+  {
+   "name": "Coral",
+   "tris": 548,
+   "vol": 22.3,
+   "size": [
+    22.79,
+    5.68,
+    3.1
+   ]
+  },
+  {
+   "name": "Brown",
+   "tris": 3440,
+   "vol": 74.8,
+   "size": [
+    28.03,
+    8.85,
+    6.1
+   ]
+  }
+ ],
+ "preset Cookie cutter": [
+  {
+   "name": "Cutter",
+   "tris": 3024,
+   "vol": 9416.5,
+   "size": [
+    84.79,
+    16,
+    99.96
+   ]
+  }
+ ],
+ "preset Trace a part": [
+  {
+   "name": "Traced part",
+   "tris": 840,
+   "vol": 6776.9,
+   "size": [
+    80,
+    5,
+    40.58
+   ]
+  }
+ ],
+ "preset Lightbox": [
+  {
+   "name": "Diffuser panel",
+   "tris": 108,
+   "vol": 11999.3,
+   "size": [
+    150,
+    0.8,
+    100
+   ]
+  },
+  {
+   "name": "Frame",
+   "tris": 3004,
+   "vol": 7243.3,
+   "size": [
+    150,
+    1.65,
+    82.58
+   ]
+  },
+  {
+   "name": "Red",
+   "tris": 3328,
+   "vol": 7991.8,
+   "size": [
+    150,
+    1.31,
+    80
+   ]
+  },
+  {
+   "name": "Gold",
+   "tris": 924,
+   "vol": 3801.8,
+   "size": [
+    150,
+    0.95,
+    44.4
+   ]
+  },
+  {
+   "name": "Frame",
+   "tris": 256,
+   "vol": 15807.3,
+   "size": [
+    170,
+    3,
+    120
+   ]
+  },
+  {
+   "name": "Stand",
+   "tris": 180,
+   "vol": 70942.7,
+   "size": [
+    36,
+    20,
+    159.8
+   ]
+  }
+ ],
+ "preset Circuit board": [
+  {
+   "name": "Board",
+   "tris": 764,
+   "vol": 16064.2,
+   "size": [
+    120,
+    1.6,
+    84
+   ]
+  },
+  {
+   "name": "Copper",
+   "tris": 5168,
+   "vol": 988.8,
+   "size": [
+    100.19,
+    0.8,
+    59.16
+   ]
+  }
+ ],
+ "preset Photo frame": [
+  {
+   "name": "Frame",
+   "tris": 352,
+   "vol": 47037.9,
+   "size": [
+    120,
+    5,
+    160
+   ]
+  },
+  {
+   "name": "Navy",
+   "tris": 1448,
+   "vol": 234.7,
+   "size": [
+    102.55,
+    1,
+    7.57
+   ]
+  },
+  {
+   "name": "Coral",
+   "tris": 1704,
+   "vol": 128.7,
+   "size": [
+    106.02,
+    1,
+    8.02
+   ]
+  },
+  {
+   "name": "Sage",
+   "tris": 1848,
+   "vol": 80.2,
+   "size": [
+    99.42,
+    1,
+    10.13
+   ]
+  }
+ ],
+ "preset Frame for a photo": [
+  {
+   "name": "Frame",
+   "tris": 9584,
+   "vol": 78492.8,
+   "size": [
+    130.3,
+    8.75,
+    180.3
+   ]
+  },
+  {
+   "name": "Back panel",
+   "tris": 3492,
+   "vol": 35682.5,
+   "size": [
+    102,
+    9,
+    152
+   ]
+  },
+  {
+   "name": "Stand",
+   "tris": 28,
+   "vol": 5997,
+   "size": [
+    42.95,
+    2.9,
+    88.55
+   ]
+  }
+ ],
+ "preset Jigsaw puzzle": [
+  {
+   "name": "Pieces",
+   "tris": 43852,
+   "vol": 38983.3,
+   "size": [
+    150,
+    2.4,
+    112.5
+   ]
+  },
+  {
+   "name": "Sky blue picture",
+   "tris": 32368,
+   "vol": 4973.4,
+   "size": [
+    150,
+    0.6,
+    84.63
+   ]
+  },
+  {
+   "name": "Cream picture",
+   "tris": 19688,
+   "vol": 1762,
+   "size": [
+    150,
+    0.6,
+    98.81
+   ]
+  },
+  {
+   "name": "Red picture",
+   "tris": 8784,
+   "vol": 539.8,
+   "size": [
+    117.17,
+    0.6,
+    54.67
+   ]
+  },
+  {
+   "name": "Green picture",
+   "tris": 17668,
+   "vol": 2466.9,
+   "size": [
+    150,
+    0.6,
+    64
+   ]
+  }
+ ],
+ "preset Kids' puzzle": [
+  {
+   "name": "Pieces",
+   "tris": 9736,
+   "vol": 39814.8,
+   "size": [
+    120,
+    3.4,
+    100
+   ]
+  },
+  {
+   "name": "Pale blue picture",
+   "tris": 10752,
+   "vol": 3042.8,
+   "size": [
+    120,
+    0.6,
+    80.36
+   ]
+  },
+  {
+   "name": "Sea blue picture",
+   "tris": 6176,
+   "vol": 2235.4,
+   "size": [
+    120,
+    0.6,
+    83.67
+   ]
+  },
+  {
+   "name": "Navy picture",
+   "tris": 6708,
+   "vol": 1429.5,
+   "size": [
+    90.59,
+    0.6,
+    50.36
+   ]
+  },
+  {
+   "name": "Sunflower picture",
+   "tris": 2752,
+   "vol": 317.4,
+   "size": [
+    104.98,
+    0.6,
+    91.6
+   ]
+  },
+  {
+   "name": "Tray",
+   "tris": 756,
+   "vol": 33981.9,
+   "size": [
+    136.6,
+    5.2,
+    116.6
+   ]
+  }
+ ],
+ "preset Lithophane": [
+  {
+   "name": "Lithophane",
+   "tris": 179502,
+   "vol": 24407,
+   "size": [
+    108,
+    80.5,
+    16.83
+   ]
+  }
+ ],
+ "preset Lithophane lamp": [
+  {
+   "name": "Lithophane",
+   "tris": 395820,
+   "vol": 41384.4,
+   "size": [
+    76,
+    80,
+    76
+   ]
+  }
+ ],
+ "preset Project box": [
+  {
+   "name": "Box",
+   "tris": 2084,
+   "vol": 37583.8,
+   "size": [
+    100,
+    36,
+    64
+   ]
+  },
+  {
+   "name": "Lid",
+   "tris": 10180,
+   "vol": 15935.7,
+   "size": [
+    100,
+    5.4,
+    64
+   ]
+  },
+  {
+   "name": "Lid logo (Cream)",
+   "tris": 296,
+   "vol": 20.2,
+   "size": [
+    7.99,
+    0.6,
+    14.08
+   ]
+  },
+  {
+   "name": "Lid logo (Gold)",
+   "tris": 1292,
+   "vol": 154.6,
+   "size": [
+    29.03,
+    0.6,
+    29.03
+   ]
+  },
+  {
+   "name": "Pilot light lenses (1)",
+   "tris": 112,
+   "vol": 216.1,
+   "size": [
+    12.66,
+    6.66,
+    12.66
+   ]
+  }
+ ],
+ "preset Power bank box": [
+  {
+   "name": "Box",
+   "tris": 7464,
+   "vol": 37302.6,
+   "size": [
+    110,
+    30,
+    72
+   ]
+  },
+  {
+   "name": "Lid",
+   "tris": 6440,
+   "vol": 19693.9,
+   "size": [
+    110,
+    5.4,
+    72
+   ]
+  },
+  {
+   "name": "Lid logo (Cream)",
+   "tris": 316,
+   "vol": 162,
+   "size": [
+    37.28,
+    0.6,
+    18.16
+   ]
+  },
+  {
+   "name": "Lid logo (Gold)",
+   "tris": 248,
+   "vol": 36.2,
+   "size": [
+    18.61,
+    0.6,
+    10.71
+   ]
+  },
+  {
+   "name": "Pilot light lenses (4)",
+   "tris": 448,
+   "vol": 556,
+   "size": [
+    48.6,
+    5.76,
+    10.5
+   ]
+  }
+ ],
+ "preset PSU box": [
+  {
+   "name": "Box",
+   "tris": 3336,
+   "vol": 131968.7,
+   "size": [
+    160,
+    75,
+    110
+   ]
+  },
+  {
+   "name": "Lid",
+   "tris": 28080,
+   "vol": 50049.9,
+   "size": [
+    160,
+    6,
+    110
+   ]
+  }
+ ],
+ "preset Raspberry Pi case": [
+  {
+   "name": "Box",
+   "tris": 2652,
+   "vol": 38217.9,
+   "size": [
+    100,
+    34,
+    76
+   ]
+  },
+  {
+   "name": "Lid",
+   "tris": 15012,
+   "vol": 17439.6,
+   "size": [
+    100,
+    5.4,
+    76
+   ]
+  }
+ ],
+ "preset Business card": [
+  {
+   "name": "Card",
+   "tris": 71532,
+   "vol": 5438.5,
+   "size": [
+    85.61,
+    1.56,
+    53.99
+   ]
+  },
+  {
+   "name": "Gold",
+   "tris": 12620,
+   "vol": 422.3,
+   "size": [
+    82,
+    1.56,
+    50.25
+   ]
+  },
+  {
+   "name": "Cream",
+   "tris": 18368,
+   "vol": 721.7,
+   "size": [
+    76.38,
+    1.56,
+    42.25
+   ]
+  },
+  {
+   "name": "Red",
+   "tris": 49984,
+   "vol": 611.9,
+   "size": [
+    85.61,
+    1.56,
+    53.99
+   ]
+  }
+ ],
+ "preset Phone case": [
+  {
+   "name": "Case",
+   "tris": 117192,
+   "vol": 20398.1,
+   "size": [
+    75.6,
+    11.75,
+    153.7
+   ]
+  },
+  {
+   "name": "Back picture (Cream TPU)",
+   "tris": 2800,
+   "vol": 114.4,
+   "size": [
+    51.32,
+    0.6,
+    81.75
+   ]
+  },
+  {
+   "name": "Back picture (Coral TPU)",
+   "tris": 1212,
+   "vol": 174.8,
+   "size": [
+    44.15,
+    0.6,
+    18.58
+   ]
+  },
+  {
+   "name": "Back picture (Yellow TPU)",
+   "tris": 1456,
+   "vol": 497.5,
+   "size": [
+    44.93,
+    0.6,
+    25.52
+   ]
+  }
+ ],
+ "preset Light-up letters": [
+  {
+   "name": "Letters",
+   "tris": 984,
+   "vol": 77623.6,
+   "size": [
+    233.35,
+    27,
+    99.95
+   ]
+  },
+  {
+   "name": "Diffuser faces",
+   "tris": 84,
+   "vol": 18238.9,
+   "size": [
+    229.8,
+    1,
+    96.4
+   ]
+  }
+ ],
+ "preset Neon sign": [
+  {
+   "name": "Board",
+   "tris": 2740,
+   "vol": 26541.1,
+   "size": [
+    227.53,
+    2,
+    79.2
+   ]
+  },
+  {
+   "name": "Walls",
+   "tris": 2060,
+   "vol": 15038.9,
+   "size": [
+    207.53,
+    10.01,
+    59.2
+   ]
+  }
+ ],
+ "preset House number": [
+  {
+   "name": "Sign",
+   "tris": 776,
+   "vol": 285746.9,
+   "size": [
+    199.89,
+    14,
+    139.9
+   ]
+  }
+ ],
+ "preset Photo relief": [
+  {
+   "name": "Relief",
+   "tris": 175324,
+   "vol": 35825.6,
+   "size": [
+    100,
+    7,
+    75
+   ]
+  }
+ ],
+ "preset Gear pair": [
+  {
+   "name": "Gear 1 (24 teeth)",
+   "tris": 2984,
+   "vol": 6194.1,
+   "size": [
+    39,
+    10,
+    39
+   ]
+  },
+  {
+   "name": "Gear 2 (12 teeth)",
+   "tris": 1784,
+   "vol": 1693.5,
+   "size": [
+    21,
+    10,
+    21
+   ]
+  }
+ ],
+ "preset Bolt and nut": [
+  {
+   "name": "Bolt",
+   "tris": 39044,
+   "vol": 3036,
+   "size": [
+    18.48,
+    31.5,
+    16
+   ]
+  },
+  {
+   "name": "Nut",
+   "tris": 13392,
+   "vol": 1257.4,
+   "size": [
+    18.48,
+    8.4,
+    16
+   ]
+  }
+ ],
+ "preset Replacement knob": [
+  {
+   "name": "Knob",
+   "tris": 3088,
+   "vol": 12872.6,
+   "size": [
+    31.23,
+    18,
+    32
+   ]
+  }
+ ]
+}

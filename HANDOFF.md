@@ -2726,6 +2726,9 @@ Shared features (the "make it global" answer, begun here):
   `printer.fit`) stay for every material. `move` is the moving parts' gap (`DEFAULTS().base.fit.gap` reads it; **Keep … for every
   new part** on a mechanism's Fit page). The Fits page has the test prints (`chooseObject`).
 
+Engine: **geometry fingerprints** (`tools-fingerprint.js`, `npm run fingerprint` / `fingerprint:update`, `tools-fingerprints.json`):
+every object and quick start's parts (triangles, volume to 0.1 mm³, size to 0.01 mm), stable run to run; any change is listed.
+
 Tested: `tools-boxplus-test.js` (new, 41 checks, in `test:enclosure`): each feature closed and without support of its own, the
 numbers (battery days, the gasket's height, the plungers' lengths), the warnings (a board over the tripod nut, a thin floor for
 magnets, a scale with no room, a panel bigger than the lid), the files (ESPHome, pins, SVG, DXF), Eagle and EasyEDA boards written

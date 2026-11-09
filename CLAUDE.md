@@ -70,7 +70,7 @@ Plus, depending on what changed:
   the way the website does (Session 28 in `HANDOFF.md`)
 - new settings, `sanitizeProject`, `LIMITS` / `LIMITS_AT`, or `DEFAULTS` → `npm run test:project` (every quick start and object
   must come back unchanged from a saved project, and out-of-range values must not make a build run away)
-- after any generator change → `node tools-print-survey.js index.html` (look for new warnings)
+- after any generator change → `node tools-print-survey.js index.html` (look for new warnings) and `npm run fingerprint` (each object's and quick start's parts: triangles, volume and size against `tools-fingerprints.json`; it lists what moved. When the change is meant, `npm run fingerprint:update` and commit the file)
 - anything visual, text or fonts, the 3D view or view tools → `npm run check:browser` (Chromium via Playwright;
   screenshots and `report.html` land in `browser-check/`, which is git-ignored)
 - an example (`src/examples.js`) or anything that changes how an example looks → `npm run thumbs` (then build again)

@@ -21,7 +21,8 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
   const fresh = async over => { MF.state.base.enclosure = Object.assign(JSON.parse(JSON.stringify(MF.defaults.enclosure)), { mount:"none", cut:[] }, over || {}); MF.rebuild(false); await settle(); await make(); };
   const closed = () => MF.parts.every(p => { const r = C.checkMesh(p.solid); return r.open === 0 && !r.nan && C.signedVolume(p.solid) > 0; });
   const vol = name => C.signedVolume(MF.parts.find(p => p.name === name).solid);
-  const support = async () => { MF.printNow(); await settle(); const pr = MF.print; return pr ? Math.round(pr.supportArea || 0) : -1; };
+  // (the overhang the print check finds, in mm²; under 3 it does not ask for support)
+  const support = async () => { MF.print = null; await MF.printNow(); for (let i = 0; i < 300 && !MF.print; i++) await sleep(30); return MF.print ? Math.round(MF.print.overhang.area*10)/10 : -1; };
   const panelButtons = () => [...document.querySelectorAll("#panel button")];
   const press = async re => { const b = panelButtons().find(b => re.test(b.textContent)); if (!b) { check(false, `a button ${re}`); return; } b.click(); await settle(); await sleep(30); };
   const reload = async state => { const f = new win.File([JSON.stringify({ app:"Maker Forge", v:6, state })], "p.json", { type:"application/json" }), inp = document.querySelector("#projInput"), r0 = MF.rev;
@@ -36,7 +37,7 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
     seg.click(); await settle(); await make();
     check(E().testKind === "holders" && E().cal && E().cal.rib === F.defaults.rib, "choosing the card keeps its middle sizes with it", JSON.stringify(E().cal));
     const s = await support(), I = MF.enclosure, card = F.card;
-    check(MF.parts.map(p => p.name).join() === "Holder test card,Test tiles" && closed() && s === 0, "a card and its tiles, closed, no support", `${s} mm²`);
+    check(MF.parts.map(p => p.name).join() === "Holder test card,Test tiles" && closed() && s >= 0 && s < 3, "a card and its tiles, closed, no support", `${s} mm²`);
     const bb = C.solidBounds ? null : null, b = MF.parts[0].solid.bbox || null;
     let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, z1 = -1e9; const P = MF.parts[0].solid.pos || MF.parts[0].solid.positions || MF.parts[0].solid.p;
     for (const part of MF.parts) { const g = part.geom.attributes.position.array; for (let i = 0; i < g.length; i += 3) { x0 = Math.min(x0, g[i]); x1 = Math.max(x1, g[i]); z1 = Math.max(z1, g[i + 1]); y0 = Math.min(y0, -g[i + 2]); y1 = Math.max(y1, -g[i + 2]); } }
@@ -107,7 +108,7 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
     MF.boxRoom.startKit(kitBat); MF.rebuild(false); await settle(); await make();
     let I = MF.enclosure, s = await support();
     const lipo = E().more.find(m => m.kind === "lipo126090"), usb = E().cut.find(c => c.kind === "usbc" && c.auto === "ports");
-    check(!I.warn.length && closed() && s === 0, "the battery box: no warnings, closed, no support", `${E().w} × ${E().d} × ${E().h}, ${s} mm², ${I.warn.map(w => w.t).join("; ")}`);
+    check(!I.warn.length && closed() && s >= 0 && s < 3, "the battery box: no warnings, closed, no support", `${E().w} × ${E().d} × ${E().h}, ${s} mm², ${I.warn.map(w => w.t).join("; ")}`);
     check(lipo && lipo.hold === "strap" && lipo.strapBy === "loops" && E().board === "tp4056" && usb && E().cut.some(c => c.kind === "pirmini" && c.face === "front") && E().cut.some(c => c.kind === "gland"),
       "a 126090 LiPo on strap loops, the TP4056's USB-C through a wall, the dome in front, a gland", JSON.stringify(E().cut.map(c => c.kind + "@" + c.face)));
     check(I.gasket && I.mount && I.mount.length, "a gasket and screw ears", JSON.stringify(I.gasket));
@@ -115,7 +116,7 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
     MF.boxRoom.startKit(kitCam); MF.rebuild(false); await settle(); await make();
     I = MF.enclosure; s = await support();
     const cam = E().cut.find(c => c.kind === "camholder");
-    check(!I.warn.length && closed() && s === 0, "the camera box: no warnings, closed, no support", `${E().w} × ${E().d} × ${E().h}, ${s} mm², ${I.warn.map(w => w.t).join("; ")}`);
+    check(!I.warn.length && closed() && s >= 0 && s < 3, "the camera box: no warnings, closed, no support", `${E().w} × ${E().d} × ${E().h}, ${s} mm², ${I.warn.map(w => w.t).join("; ")}`);
     check(E().board === "esp32cam" && E().boardGrip === "clips" && cam && cam.face === "top" && Math.abs(cam.u - E().boardX) < 0.1 && Math.abs(cam.v - E().boardY) < 0.1 && I.cams.length === 1,
       "an ESP32-CAM in snap clips, the camera holder in the lid right over it", JSON.stringify({ cam, x:E().boardX, y:E().boardY }));
     check(I.ghosts.some(g => g.label === "Camera (OV2640)"), "the camera shows in the 3D view under the lid");

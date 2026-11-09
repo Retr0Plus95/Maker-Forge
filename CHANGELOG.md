@@ -29,6 +29,7 @@ Project boxes: boards on the walls and the lid, wiring, your own boards from KiC
 - **A camera holder in the lid:** the lens hole and a frame inside that holds an OV2640 camera with its lens through the lid, printed without support.
 - **What sticks out behind the wall:** switches, jacks, sockets, pilot lights, pots and motion sensors show their body inside the box, the box says when one meets a board, and Make it all fit moves the wall out.
 - **Make it all fit** also lowers an opening that reaches behind the lid's lip, or makes the box taller when it cannot go lower.
+- **Round holes, pointed and cut flat:** a third choice for round holes in the walls: 45° sides and a flat top just 1 mm over the circle, so they print without support and a cable gland's flange or a sensor's lip still seals all round. The bird house boxes use it.
 - **The 126090 LiPo** (8000 mAh) is in the batteries.
 
 **Fixed**

@@ -2426,9 +2426,16 @@ function encTeardrop(r, n){
   L.push([0, r*Math.SQRT2]);
   return L;
 }
+// (Session 64) a teardrop with its point cut flat 1 mm over the circle: the sides still 45°, the top a short bridge, and a
+// gland's flange or a sensor's lip still covers it all, so it seals; for boxes outdoors
+function encTeardropFlat(r, n){
+  const L = encTeardrop(r, n), yc = Math.min(r*Math.SQRT2, r + 1), x = r*Math.SQRT2 - yc;
+  if (x < 0.05) return L;
+  L.pop(); L.push([x, yc], [-x, yc]); return L;
+}
 function encRound(dia, wall, tear){
   const r = Math.max(0.25, dia/2);
-  return wall && tear && dia >= 3 ? encTeardrop(r, Math.max(16, Math.round(r*8))) : C.ringCircle(r, Math.max(16, Math.round(r*10)));
+  return wall && tear && dia >= 3 ? (tear === "flat" ? encTeardropFlat : encTeardrop)(r, Math.max(16, Math.round(r*8))) : C.ringCircle(r, Math.max(16, Math.round(r*10)));
 }
 function encHex(s, flat){ const R = s/Math.sqrt(3), L = []; for (let i=0;i<6;i++){ const a = (flat ? 0 : Math.PI/2) + i*Math.PI/3; L.push([Math.cos(a)*R, Math.sin(a)*R]); } return L; }
 // pointy-top hexagons on a lid or floor; on a wall (Session 47) flat-top ones: a pointy top's roof slopes only 30° from
@@ -2457,7 +2464,7 @@ const lensOct = r => r/Math.cos(Math.PI/8);
 function lensMinHole(led){ return Math.ceil((2*(lensOct((led + 0.2)/2) + 0.9) + 0.3)*10)/10; }
 // the holes of one opening, in its face's coordinates, centred on 0 (before turning and moving it)
 function openingRings(c, wall, E){
-  const k = encHas(CUTOUTS, c.kind) ? CUTOUTS[c.kind] : CUTOUTS.round, cl = +E.clear || 0, tear = E.teardrop !== false, out = [];
+  const k = encHas(CUTOUTS, c.kind) ? CUTOUTS[c.kind] : CUTOUTS.round, cl = +E.clear || 0, tear = E.teardrop === "flat" ? "flat" : E.teardrop !== false, out = [];
   const pos = n => Math.max(0.5, +n || 0);
   switch (k.kind){
     case "round": out.push(encRound(Math.max(pos(c.dia), k.lensFor ? lensMinHole(k.lensFor) : 0) + cl, wall, tear)); break;
@@ -3942,8 +3949,9 @@ function encStartKit(kit){
   const E = state.base.enclosure, plan = aiFromWords(kit.words);
   plan.openings.forEach(o => { if (kit.faces && kit.faces[o.kind]) o.face = kit.faces[o.kind]; });
   (kit.extra || []).forEach(o => plan.openings.push(Object.assign({}, o)));
-  E.teardrop = kit.round !== true;                                 // round holes in the walls with pointed tops: less support
-  // (Session 64: not on a box for outdoors, where a gland's seal and a sensor's dome need a round hole; small round holes bridge)
+  // round holes in the walls with pointed tops: no support (Session 64: on a box for outdoors, cut flat 1 mm over the circle, so
+  // a gland's flange or a sensor's lip still seals all round)
+  E.teardrop = kit.round === true ? "flat" : true;
   const r = encApplyPlan(plan); if (!r.ok) return r;
   // (Session 64) how a part is held, a module made the main board (so its ports get openings), an opening over the board
   if (kit.holds) (E.more || []).forEach(m => { if (encHas(kit.holds, m.kind)) Object.assign(m, kit.holds[m.kind]); });
@@ -13912,8 +13920,12 @@ function enclosureFields(p){
     }
   }, true);
   group(p, "Print and colours", g => {
-    checkField(g, "Pointed tops on holes in the walls (prints without support)", ()=>E.teardrop === true, v=>{ E.teardrop = v; baseChanged(); });
-    note(g, "Off: round holes are round. Small ones (LEDs, screws) print fine like that. On: each round hole in a wall gets a pointed 45° top, like a teardrop, so its roof never sags; a round part still fits. Rounded port holes get square top corners.");
+    g.insertAdjacentHTML("beforeend", `<p class="hint" style="margin:8px 0 2px">Round holes in the walls:</p>`);
+    segField(g, [["round","Round"],["point","Pointed top"],["flat","Pointed, cut flat"]], ()=>E.teardrop === "flat" ? "flat" : E.teardrop === true ? "point" : "round",
+      v=>{ E.teardrop = v === "flat" ? "flat" : v === "point"; renderTab(); baseChanged(); });
+    note(g, E.teardrop === "flat" ? "Each round hole in a wall gets 45° sides and a flat top only 1 mm over the circle: a short bridge, so no support, and a gland's flange or a sensor's lip still covers it all, so it seals. For boxes outdoors."
+      : E.teardrop === true ? "Each round hole in a wall gets a pointed 45° top, like a teardrop, so its roof never sags; a round part still fits. Rounded port holes get square top corners. Its point is not covered by a gland's flange: for a box outdoors, choose Pointed, cut flat."
+      : "Round holes are round. Small ones (LEDs, screws) print fine like that; bigger ones sag a little at the top.");
     numField(g,{ label:"Extra clearance in openings (mm)", min:-0.3,max:1,step:0.05, get:()=>E.clear, set:v=>E.clear=v, onChange:baseChanged,
       sub:()=>"Printed holes come out a little small. 0.2 mm suits most printers." });
     slotField(g, "Box colour", ()=>String(E.boxSlot), v=>{ E.boxSlot = +v; baseChanged(); });
@@ -17011,7 +17023,7 @@ function sanitizeProject(data){
     E.boardX = Math.min(200, Math.max(-200, cleanNum(E.boardX, 0))); E.boardY = Math.min(250, Math.max(-200, cleanNum(E.boardY, 0)));
     // until v0.17 every round hole in a wall was a teardrop unless switched off; people read them as
     // misshapen ovals, so older projects open with round holes (the option is still there)
-    E.teardrop = (+data.v || 0) >= 5 ? E.teardrop === true : false; E.grow = E.grow !== false;
+    E.teardrop = (+data.v || 0) >= 5 ? (E.teardrop === "flat" ? "flat" : E.teardrop === true) : false; E.grow = E.grow !== false;
     E.lensSlot = Math.round(Math.min(MAX_SLOTS - 1, Math.max(0, cleanNum(E.lensSlot, 0))));
     E.boardRot = E.boardRot === true; E.test = E.test === true;
     // more boards and modules (Session 45): known ones only, up to 12, each number clamped

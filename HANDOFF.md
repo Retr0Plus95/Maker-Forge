@@ -2659,7 +2659,10 @@ the rest is next (see Next).
   part, and a warning when it meets a board on the floor; `encFixAll` grows that wall by the overlap (up to 3 rounds). A board's
   own port openings (`auto: "ports"`) and a KiCad board's panel parts are skipped. `encFixAll` also takes an opening "behind
   the lid's lip" down under it (`info.wallV`), or makes the box taller when lower would clash or leave the wall. Recipes with
-  `round: true` (both bird house boxes) keep round wall holes round (`E.teardrop` false), so a gland or a dome seals. It found the bench power supply recipe's inlet,
+  `round: true` (both bird house boxes) get `E.teardrop` "flat" (`encTeardropFlat`): a teardrop cut flat 1 mm over the circle, so
+  no support (a short bridge) and a gland's flange or a dome's lip still covers the hole; the panel's choice is Round / Pointed
+  top / Pointed, cut flat. (They were round at first: the print check then wanted 45 and 26 mm² of support. `tools-boxcal-test.js`
+  read a `supportArea` that does not exist, so its "no support" checks passed whatever; it reads `overhang.area` now.) It found the bench power supply recipe's inlet,
   switch and sockets inside the LRS-100 (the recipe's box is now 27 mm deeper).
 
 **Fixed on the way** (the bird house boxes in Chromium said "4 walls are thinner than the nozzle"): the screw ears' 45° fins

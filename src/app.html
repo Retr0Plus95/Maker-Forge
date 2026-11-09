@@ -930,7 +930,7 @@ const DEFAULTS = () => ({
       doubleSided:false, backH:0.8, backSlot:1, backText:"", magnet:"none", magnets:1,
       line2:"", line2Size:0.5, line2Gap:2.5,
       credit:{ on:false, text:"", size:3.5, depth:0.4, inlay:true, slot:1, font:Math.max(0, FONTS.findIndex(f => f.n === "Nunito")) } },
-    fit:{ gap:0.25 },
+    fit:{ gap:storedFit("move", 0.25) },
     relief:{ source:"ai", shape:"rect", width:100, base:2, height:5, subject:true, boost:1, flatten:0.15, contrast:1, smooth:1, invert:false, cell:0.3, border:3, rim:0.6, hole:false, holeDia:4, colour:"one", stand:false },
     sign:{ style:"channel", text:"BAR", font:Math.max(0, FONTS.findIndex(f => f.n === "Anton")), letterH:100, depth:25, wall:1.6, back:2,
       diffuser:1, diffuserSlot:0, wallSlot:0, strip:6, backing:"none", margin:10, mount:"keyhole", holes:true, stand:false },
@@ -2087,8 +2087,8 @@ const SCREWS = {
    gap, the room round a board in a cradle; rib, how far a cradle's crush ribs press into its edge; clip, how far a snap clip's
    hook reaches over it; pin, how much thinner than the screw's hole a snap pin is; pilot and insert, added to every
    self-tapping and heat-insert hole; loop, the height under a strap loop; lid and clear, a new box's lid gap and openings. */
-const FIT_DEFAULT = { gap:0.3, rib:0.15, clip:0.6, pin:0.3, pilot:0, insert:0, loop:3, lid:0.2, clear:0.2 };
-const FIT_RANGE = { gap:[0, 1.2], rib:[0, 0.6], clip:[0.2, 1.6], pin:[0, 1.2], pilot:[-0.8, 0.8], insert:[-0.8, 0.8], loop:[1.5, 6], lid:[0, 0.8], clear:[-0.3, 1] };
+const FIT_DEFAULT = { gap:0.3, rib:0.15, clip:0.6, pin:0.3, pilot:0, insert:0, loop:3, lid:0.2, clear:0.2, move:0.25 };
+const FIT_RANGE = { gap:[0, 1.2], rib:[0, 0.6], clip:[0.2, 1.6], pin:[0, 1.2], pilot:[-0.8, 0.8], insert:[-0.8, 0.8], loop:[1.5, 6], lid:[0, 0.8], clear:[-0.3, 1], move:[0, 1] };
 // the card's three sizes of each, 1 the tightest: the middle one is the fit now, the others a step either side (dir -1: a
 // bigger number holds tighter)
 const FIT_STEP = { gap:0.15, rib:0.1, clip:0.2, pin:0.15, pilot:0.2, insert:0.2, loop:0.5 }, FIT_DIR = { rib:-1, clip:-1 };
@@ -2100,7 +2100,16 @@ function cleanFit(f){
   return out;
 }
 let encFitOver = null;                                   // the card's samples, each built with its own sizes
-const printerFit = () => Object.assign({}, FIT_DEFAULT, state && state.printer && state.printer.fit ? cleanFit(state.printer.fit) : {});
+// (Session 65) fits per material: printer.fit holds those for every material (and all of them before 0.56), printer.fitMat[mat] the
+// ones a material's card found; the material is the box's filament's (or the object's)
+const FIT_MATS = ["PLA", "PETG", "ABS", "ASA", "TPU", "PA", "PC"];
+function fitMaterial(){
+  try { const b = state.base, k = b.type === "enclosure" ? +(b.enclosure || {}).boxSlot || 0 : +b.slot || 0, sl = state.slots[clamp(k, 0, state.slots.length - 1)] || {};
+    const m = String(sl.mat || "PLA").toUpperCase().replace(/[^A-Z]/g, ""); return FIT_MATS.find(x => m.startsWith(x)) || "PLA"; } catch (e) { return "PLA"; }
+}
+function cleanFitMat(fm){ const out = {}; if (fm && typeof fm === "object") FIT_MATS.forEach(m => { const c = cleanFit(fm[m]); if (Object.keys(c).length) out[m] = c; }); return out; }
+const printerFit = mat => { const P = state && state.printer, m = mat || fitMaterial();
+  return Object.assign({}, FIT_DEFAULT, P && P.fit ? cleanFit(P.fit) : {}, P && P.fitMat && P.fitMat[m] ? cleanFit(P.fitMat[m]) : {}); };
 const encFit = () => encFitOver || printerFit();
 // a screw's holes with the printer's pilot and insert fits added
 function encScrew(key){ const b = SCREWS[encHas(SCREWS, key) ? key : "M3"], f = encFit(); return Object.assign({}, b, { pilot:+(b.pilot + f.pilot).toFixed(2), insert:+(b.insert + f.insert).toFixed(2) }); }
@@ -8216,6 +8225,8 @@ function fitGapField(p){
   group(p, "Fit", g2 => {
     numField(g2,{ label:"Fit gap (mm)", min:0, max:1, step:0.05, get:()=>state.base.fit.gap, set:v=>state.base.fit.gap=v, onChange:baseChanged,
       sub:()=>"The play left between parts that move, slide or screw together. Print the fit test (Mechanisms) to find your printer's." });
+    const F = printerFit(), same = Math.abs(F.move - (+state.base.fit.gap || 0)) < 0.005;
+    buttonRow(g2, [[same ? "This is your printer's gap (new parts start with it)" : `Keep ${+state.base.fit.gap || 0} mm for every new part`, ()=>{ fitSave({ move:+state.base.fit.gap || 0 }); renderTab(); notify("Kept with your printer: new mechanisms and fix-it parts start with this gap."); }]]);
   }, true);
 }
 function mechFields(p){
@@ -13456,10 +13467,18 @@ function encMountField(g, o){
 }
 /* Calibration (Session 64): your picks from the calibration card are kept with the printer settings (this browser remembers
    them, a project carries them) and every box after uses them. */
-function fitSave(vals){ state.printer.fit = Object.assign(cleanFit(state.printer.fit), cleanFit(vals), { when:new Date().toISOString().slice(0, 10) }); savePrinterPref(); }
+// a pick or a typed fit goes with the material it was printed in (Session 65); the lid's and openings' gaps and the moving parts'
+// go for every material too, so a new project (which starts before its filament is known) has them
+function fitSave(vals){
+  const m = fitMaterial(), v = cleanFit(vals), when = new Date().toISOString().slice(0, 10), P = state.printer;
+  P.fitMat = cleanFitMat(P.fitMat); P.fitMat[m] = Object.assign(cleanFit(P.fitMat[m]), v, { when });
+  const shared = {}; ["lid", "clear", "move"].forEach(k => { if (k in v) shared[k] = v[k]; });
+  P.fit = Object.assign(cleanFit(P.fit), shared, { when }); savePrinterPref();
+}
 const fitMm = v => `${+(+v).toFixed(2)} mm`;
 function encCalibrationPanel(p, E){
   const H = ENC_HOLDERS, cal = Object.assign(printerFit(), cleanFit(E.cal)), F = printerFit();
+  note(p, `Your picks are kept for <b>${fitMaterial()}</b>, the material of the box's filament (Colours tab): PETG and TPU fit differently from PLA, so calibrate each you use.`);
   note(p, `<b>The calibration card</b> (${H.w} × ${H.d} mm, and its tiles in front): every way a box holds a part, in three sizes, 1 the tightest and 3 the loosest, the middle one your printer's fit now. Print it in the filament you will use for the box (the tiles too), try each, and pick below the one that fitted best: your printer remembers it and every box after uses it.`);
   FIT_ROWS.forEach(r => {
     const sizes = [1, 2, 3].map(i => fitSample(cal, r.k, i)), pick = [1, 2, 3].find(i => Math.abs(sizes[i - 1] - F[r.k]) < 0.005);
@@ -13471,15 +13490,21 @@ function encCalibrationPanel(p, E){
   const moved = FIT_ROWS.some(r => Math.abs(cal[r.k] - F[r.k]) > 0.005);
   note(p, moved ? "None fitted just right? Pick the closest one, make a new card round your picks and print that: each card moves on from the last." : "Picked 1 or 3 on a row? Make a new card round your picks and print it again until the middle one fits.");
   buttonRow(p, [...(moved ? [["Make a new card round my picks", ()=>{ E.cal = cleanFit(printerFit()); baseChanged(); renderTab(); pushHistory(); notify("A new card: its middle sizes are your picks."); }]] : []),
-    ...(state.printer.fit ? [["Back to the standard fits", ()=>{ delete state.printer.fit; savePrinterPref(); E.cal = cleanFit(printerFit()); baseChanged(); renderTab(); notify("Your printer uses the standard fits again."); }]] : [])]);
+    ...(state.printer.fit || state.printer.fitMat ? [["Back to the standard fits", ()=>{ const m = fitMaterial(); if (state.printer.fitMat) delete state.printer.fitMat[m]; delete state.printer.fit; savePrinterPref(); E.cal = cleanFit(printerFit()); baseChanged(); renderTab(); notify("Your printer uses the standard fits again."); }]] : [])]);
   if (F.when) note(p, `Your printer's fits were last changed on ${esc(F.when)}. They are on the Colours tab too, under Fits, as numbers.`);
 }
 // the fits as numbers, in Settings → Printer
 function fitSettingsGroup(p){
   group(p, "Fits (from the calibration card)", g => {
+    // (Session 65) every test print in one place: each opens the object it calibrates, ready to print
+    note(g, `Your printer's fits for <b>${fitMaterial()}</b> (the filament of what you are making). Print each test once per material you use; what you pick is kept here and every project uses it.`);
+    const open = (type, set, msg) => { chooseObject(type); if (set) set(); baseChanged(); tab = "make"; renderTab(); pushHistory(); notify(msg); };
+    buttonRow(g, [["Project boxes: the calibration card", ()=>open("enclosure", ()=>{ const E = state.base.enclosure; E.test = true; E.testKind = "holders"; if (!E.cal) E.cal = cleanFit(printerFit()); }, "The calibration card: print it, then pick on each row what fitted best.")],
+      ["Moving parts: the fit test", ()=>open("mech", ()=>{ state.base.mech.kind = "coupon"; }, "The fit test for moving parts: print it, find the gap that turns freely, set it on the Fit page and keep it.")]]);
+    note(g, "Also: the phone case's fit test rim (Phone case), and the lithophane's test strip (Lithophane), each on its own object's page.");
     note(g, "Set by the calibration card (Make → a project box → Print a fit test first → The holders, on a card), or typed here. Every box uses them; the lid gap and openings are where a new box starts.");
     const L = { gap:"Room round a board in a cradle", rib:"Crush ribs press in", clip:"Snap clip's hook reaches over", pin:"Snap pins thinner than the hole", insert:"Added to heat-insert holes",
-      pilot:"Added to self-tapping pilot holes", loop:"Room under a strap loop", lid:"A new box's lid gap", clear:"A new box's clearance in openings" };
+      pilot:"Added to self-tapping pilot holes", loop:"Room under a strap loop", lid:"A new box's lid gap", clear:"A new box's clearance in openings", move:"Gap for moving parts (mechanisms, fix-it parts)" };
     Object.keys(FIT_DEFAULT).forEach(k => numField(g, { label:`${L[k]} (mm)`, min:FIT_RANGE[k][0], max:FIT_RANGE[k][1], step:0.05, def:FIT_DEFAULT[k], get:()=>printerFit()[k], set:v=>fitSave({ [k]:v }),
       onChange:()=>{ if (state.base.type === "enclosure") baseChanged(); } }));
   });
@@ -17359,7 +17384,8 @@ function cleanPrinter(pr){
     currency: cleanStr(P.currency, 4, "").replace(/[<>&"']/g, ""),
     overhang: num(P.overhang, 20, 80, d.overhang), bridge: num(P.bridge, 0, 60, d.bridge),
     purge: num(P.purge, 0, 5, d.purge), swap: num(P.swap, 0, 600, d.swap),
-    ...(P.fit && typeof P.fit === "object" && Object.keys(cleanFit(P.fit)).length ? { fit:cleanFit(P.fit) } : {}) };
+    ...(P.fit && typeof P.fit === "object" && Object.keys(cleanFit(P.fit)).length ? { fit:cleanFit(P.fit) } : {}),
+    ...(P.fitMat && typeof P.fitMat === "object" && Object.keys(cleanFitMat(P.fitMat)).length ? { fitMat:cleanFitMat(P.fitMat) } : {}) };
 }
 // a photo's hand fixes from a project file: at most 2000 strokes and 100 000 numbers in all, every point on
 // the photo, the brush between 0.2% and 25% of the photo's height
@@ -17793,7 +17819,7 @@ async function loadProject(data){
   if (!data || !data.state) return false;
   const cameWithModel = !!data.model;          // a model in the file, even one the cleaning refuses: not looked up below
   data = sanitizeProject(data);
-  const def = DEFAULTS(), myFit = state && state.printer && state.printer.fit;   // (Session 64) a project made before the fits keeps this printer's
+  const def = DEFAULTS(), myFit = state && state.printer && state.printer.fit, myFitMat = state && state.printer && state.printer.fitMat;   // (Session 64) a project made before the fits keeps this printer's
   state = Object.assign(def, data.state);
   state.base = Object.assign(def.base, data.state.base||{});
   for (const k of Object.keys(DEFAULTS().base)){          // fill in groups added by later versions
@@ -17802,6 +17828,7 @@ async function loadProject(data){
   }
   state.printer = Object.assign(DEFAULTS().printer, data.state.printer||{});
   if (!state.printer.fit && myFit) state.printer.fit = myFit;
+  if (!state.printer.fitMat && myFitMat) state.printer.fitMat = myFitMat;
   state.model = Object.assign(DEFAULTS().model, data.state.model||{});
   state.view = Object.assign(DEFAULTS().view, data.state.view||{});
   stlData = data.model ? data.model.tris : null; stlPaint = data.model ? data.model.paint : null; stlColour = data.model ? data.model.colour : null; stlCache = null;

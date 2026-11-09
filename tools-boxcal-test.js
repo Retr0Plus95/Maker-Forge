@@ -54,7 +54,8 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
     segs()[F.rows.findIndex(r => r.k === "rib")].querySelectorAll("button")[0].click(); await settle(); await make();
     segs()[F.rows.findIndex(r => r.k === "pilot")].querySelectorAll("button")[2].click(); await settle(); await make();
     const fit = F.printer(), st = stored();
-    check(fit.rib === 0.25 && fit.pilot === 0.2 && st && st.fit && st.fit.rib === 0.25 && /^\d{4}-\d\d-\d\d$/.test(st.fit.when), "a pick sets the printer's fit, remembered in this browser", JSON.stringify(st && st.fit));
+    const stp = st && st.fitMat && st.fitMat.PLA;            // (Session 65: kept for the material the card was printed in)
+    check(fit.rib === 0.25 && fit.pilot === 0.2 && stp && stp.rib === 0.25 && /^\d{4}-\d\d-\d\d$/.test(stp.when), "a pick sets the printer's fit for PLA, remembered in this browser", JSON.stringify(stp));
     check(Math.abs(vol("Holder test card") - v0) < 1e-6 && E().cal.rib === F.defaults.rib, "the card stays the one you printed after a pick");
     check(segs()[F.rows.findIndex(r => r.k === "rib")].querySelector('[aria-pressed="true"]').textContent === "1", "the pick shows as picked");
     await press(/^Make a new card round my picks$/); await make();
@@ -64,6 +65,7 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
 
   console.log("\nevery box uses the fits");
   {
+    delete MF.state.printer.fitMat;                          // (the card's picks, kept for PLA, would stand over these)
     // a cradle with ribs: a bigger rib fit makes the ribs reach further in (more plastic)
     const cradle = { w:110, d:80, h:40, lid:"screw", fasten:"screw", board:"esp32cam", boardX:0, boardY:0, boardHold:"edges", boardGrip:"ribs" };
     MF.state.printer.fit = { rib:0.15 }; await fresh(cradle); const vA = vol("Box"), sA = await support();
@@ -92,6 +94,7 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
 
   console.log("\na new box's lid gap and openings");
   {
+    delete MF.state.printer.fitMat;                          // (the card's picks, kept for PLA, would stand over these)
     MF.state.printer.fit = { lid:0.3, clear:0.15 }; MF.state.printer.fit.when = "2026-11-09";
     win.localStorage.setItem("makerforge.printer", JSON.stringify(MF.state.printer));
     check(MF.defaults.enclosure.fit === 0.3 && MF.defaults.enclosure.clear === 0.15, "a new box starts with the printer's lid gap and clearance", `${MF.defaults.enclosure.fit}, ${MF.defaults.enclosure.clear}`);
@@ -149,8 +152,40 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
     check(E().cut.some(c => c.kind === "jack35" && c.auto === "ports") && !MF.enclosure.warn.some(w => /reaches/.test(w.t)), "a board's own audio jack is not checked as a panel jack", MF.enclosure.warn.map(w => w.t).join("; "));
   }
 
+  console.log("\nfits per material, moving parts, every test print in one place (Session 65)");
+  {
+    delete MF.state.printer.fitMat; MF.state.printer.fit = {};
+    await fresh({ test:true, testKind:"holders" });
+    const slot = MF.state.slots[E().boxSlot || 0], mat0 = slot.mat; slot.mat = "PETG"; MF.rebuild(false); await settle(); await make();
+    const segs = () => [...document.querySelectorAll("#panel .seg")].filter(w => [...w.querySelectorAll("button")].map(b => b.textContent).join() === "1,2,3");
+    check([...document.querySelectorAll("#panel .hint")].some(n => /kept for PETG/.test(n.textContent)), "the card says the picks are kept for PETG, the box's filament");
+    segs()[F.rows.findIndex(r => r.k === "gap")].querySelectorAll("button")[2].click(); await settle();
+    const P = MF.state.printer;
+    check(P.fitMat && P.fitMat.PETG && P.fitMat.PETG.gap === 0.45 && F.printer().gap === 0.45 && F.printer("PLA").gap === F.defaults.gap, "a pick on PETG is PETG's: PLA keeps its own", JSON.stringify(P.fitMat));
+    slot.mat = mat0; MF.rebuild(false); await settle();
+    check(F.printer().gap === F.defaults.gap, "back on PLA, the box uses PLA's fits");
+    // moving parts: the mechanisms' gap kept with the printer, and a new one starting with it
+    const sel = document.querySelector("#objectSel"); sel.value = "mech"; sel.dispatchEvent(new win.Event("change")); await settle(); await make();
+    MF.state.base.fit.gap = 0.35; MF.rebuild(false); await settle(); await make();
+    const fitPage = [...document.querySelectorAll("#secrail button")].find(b => b.dataset.title === "Fit"); if (fitPage) { fitPage.click(); await sleep(50); }
+    const kb = [...document.querySelectorAll("#panel button")].find(b => /^Keep 0\.35 mm for every new part$/.test(b.textContent)); if (kb) { kb.click(); await settle(); }
+    check(kb && stored().fit.move === 0.35 && MF.defaults.fit && MF.defaults.fit.gap === 0.35, "the moving parts' gap kept with the printer: new parts start with it", JSON.stringify(stored().fit));
+    // every test print from the printer's page
+    [...document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "colour").click(); await sleep(60);
+    const rail = [...document.querySelectorAll("#secrail button")].find(b => b.dataset.title === "Fits (from the calibration card)"); if (rail) { rail.click(); await sleep(60); }
+    const go = [...document.querySelectorAll("#panel button")].find(b => /^Project boxes: the calibration card$/.test(b.textContent)); if (go) { go.click(); await settle(); }
+    check(go && MF.state.base.type === "enclosure" && E().test === true && E().testKind === "holders", "Project boxes: the calibration card opens it, ready to print");
+    [...document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "colour").click(); await sleep(60);
+    const rail2 = [...document.querySelectorAll("#secrail button")].find(b => b.dataset.title === "Fits (from the calibration card)"); if (rail2) { rail2.click(); await sleep(60); }
+    const go2 = [...document.querySelectorAll("#panel button")].find(b => /^Moving parts: the fit test$/.test(b.textContent)); if (go2) { go2.click(); await settle(); }
+    check(go2 && MF.state.base.type === "mech" && MF.state.base.mech.kind === "coupon", "Moving parts: the fit test opens the mechanisms' fit test");
+    sel.value = "enclosure"; sel.dispatchEvent(new win.Event("change")); await settle();
+    delete MF.state.printer.fitMat; MF.state.printer.fit = {}; win.localStorage.removeItem("makerforge.printer");
+  }
+
   console.log("\nSettings, saved projects, a hostile project");
   {
+    delete MF.state.printer.fitMat;                          // (the card's picks, kept for PLA, would stand over these)
     [...document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "colour").click(); await sleep(60);
     const rail = [...document.querySelectorAll("#secrail button")].find(b => b.dataset.title === "Fits (from the calibration card)");
     if (rail) { rail.click(); await sleep(60); }

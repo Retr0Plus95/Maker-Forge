@@ -2717,6 +2717,15 @@ This session is the boxes' part of that, as 0.56.0 (its own pull request after #
   `boardFromFeatures`), `encAddCustomBoard` shared, and **your parts** (`myParts`, `myPartsSave`, `encMeasuredBoard`;
   `makerforge.parts`, up to 40; adding copies into `E.customBoards`). `KICAD_PORTS`/`KICAD_PANEL` know TYPE-C, SW-TH, TS, KEY-6X6.
 
+Shared features (the "make it global" answer, begun here):
+- **A QR code on anything** (`cleanQr`, `qrCanvas`, `qrSrc`, `addQrItem`, `qrPanel`; an item's `qr` {text, ec, quiet}, `_qrSig` a
+  runtime key, kept in share links like icons): drawn from C.qrEncode like an icon from its recipe, through the picture pipeline.
+  `tools-qrart-test.js` (in `test:card`) reads it back with jsQR from a name plate's and a plain box's printed geometry.
+- **Calibration per material and in one place** (`FIT_MATS`, `fitMaterial` (the box's slot, else the object's), `cleanFitMat`,
+  `printer.fitMat[mat]` over `printer.fit`, `fitSave` per material, the lid/openings/move gaps shared): 0.55's picks (in
+  `printer.fit`) stay for every material. `move` is the moving parts' gap (`DEFAULTS().base.fit.gap` reads it; **Keep … for every
+  new part** on a mechanism's Fit page). The Fits page has the test prints (`chooseObject`).
+
 Tested: `tools-boxplus-test.js` (new, 41 checks, in `test:enclosure`): each feature closed and without support of its own, the
 numbers (battery days, the gasket's height, the plungers' lengths), the warnings (a board over the tripod nut, a thin floor for
 magnets, a scale with no room, a panel bigger than the lid), the files (ESPHome, pins, SVG, DXF), Eagle and EasyEDA boards written

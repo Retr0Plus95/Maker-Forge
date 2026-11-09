@@ -3,6 +3,28 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.55.0
+
+Project boxes: boards on the walls and the lid, wiring, your own boards from KiCad, heat, recipes and style.
+
+- **Boards on a wall or under the lid:** any board with screw holes can stand on standoffs from a wall or hang under the lid, its parts facing in, or out through a window (cut for you, or holes for a KiCad board's LEDs, buttons and knobs). The wall's standoffs are teardrops, so nothing needs support.
+- **Wiring:** say what connects to what; each wire is drawn in the plan through the levels' cable passes, with a length to cut, and the download has wiring.txt.
+
+![The plan with wires between a barrel jack, a buck converter, an Uno, a relay and a Pi on the back wall](docs/images/box-wiring.jpg)
+
+- **Import a board from KiCad:** a .kicad_pcb file becomes a board, with its outline, mounting holes, edge connectors as ports, and its LEDs, buttons and knobs.
+- **The parts' real shapes:** common boards show their sockets, headers, relays and heatsinks, and the checks use them.
+- **Heat and air:** how warm the parts run, what the box can shed, and the vents or fan it needs, added in one click.
+- **Recipes:** a weather station, an ESP32 sensor box, a bench power supply, an LED strip controller, a Raspberry Pi server or a guitar pedal, in one click.
+- **Style:** a chamfered or rounded lid edge, grooved or hexagon walls, and a band of another colour.
+- **The plan:** drag openings too, distances to the walls and neighbours, snapping (Alt to drag freely), and Tab between parts.
+- **Fit test for the holders:** one card with every way a board is held, to try before the real box.
+
+**Fixed**
+- A saved project, opened again, lost a module's strap loops, a level's brackets on the front and back walls, and the link between the main board and its port openings (so they no longer followed it, and Arrange made them again); modules more than 150 mm from the middle came back nearer.
+- A fan in a wall only counted for cooling when the parts gave off over 15 W.
+- A label too long for its place next to an opening was simply left out: it now goes above the opening, and is only dropped when there is no room there either (Label every opening and the recipes).
+
 ## 0.54.0
 
 Project boxes: room for what you add, a plan of the inside, a parts catalogue with pictures, assembly steps, and a lot less fiddling.

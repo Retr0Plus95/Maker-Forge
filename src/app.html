@@ -197,6 +197,10 @@ button,input,select,textarea{font:inherit;color:inherit}
 .pl-key{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px}
 .pl-k1{background:rgba(46,157,91,.55)} .pl-k2{background:rgba(178,64,43,.55)} .pl-k3{background:#e8912a} .pl-k4{background:rgba(99,112,127,.6)}
 .plsel{margin-top:8px}
+.pl-cut{cursor:grab} .pl-hole.pl-sel,.pl-cut.pl-sel .pl-floorhole{stroke:var(--accent);stroke-width:2;fill:#e8912a}
+.pl-dim{stroke:var(--accent);stroke-width:1;stroke-dasharray:2 2} .pl-dimtxt{fill:var(--accent);font-weight:700;font-family:inherit}
+.pl-guide{stroke:#d63aa8;stroke-width:1;stroke-dasharray:3 3}
+.pl-wire{fill:none;stroke-width:2.2;stroke-linejoin:round;pointer-events:visibleStroke;opacity:.9}
 .partgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:10px;margin-top:10px}
 .partcard{border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--panel2);display:flex;flex-direction:column;gap:4px}
 .partcard svg{width:100%;height:96px;display:block;background:var(--field);border-radius:6px}
@@ -205,6 +209,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .pc-board{fill:rgba(46,157,91,.3);stroke:var(--good);stroke-width:1.2} .pc-bat{fill:rgba(232,145,42,.25);stroke:#c47318;stroke-width:1.2}
 .pc-hole{fill:var(--panel);stroke:var(--ink);stroke-width:.6} .pc-port,.pc-bar{fill:#e8912a} .pc-cut{fill:var(--ink);fill-rule:evenodd}
 .pc-plate{fill:var(--line)} .pc-txt{fill:var(--muted);font-family:inherit}
+.pc-feat,.pl-feat{fill:rgba(74,144,217,.35);stroke:rgba(47,111,214,.8);stroke-width:.4}
 .partbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center} .partbar input{flex:1;min-width:160px}
 .drop.loading{pointer-events:none}
 .drop.loading strong::after{content:"";display:inline-block;width:12px;height:12px;margin-left:8px;border-radius:50%;
@@ -2546,6 +2551,8 @@ function encPointed(c, rings){
 }
 // Every board in the box (Session 45): the main one from "Board mounts" and up to 12 extra boards and modules. Each is
 // held on standoffs through its holes, or by its edges in a cradle when it has none here (or "By its edges" is picked).
+const ENC_MOUNT_FACES = ["front","back","left","right","top"];
+const ENC_MOUNT_NAME = { front:"the front wall", back:"the back wall", left:"the left side", right:"the right side", top:"under the lid" };
 function encBoardList(E){
   const out = [], add = (key, o, main) => {
     if (!encHas(BOARDS, key) || key === "none") return;
@@ -2564,9 +2571,12 @@ function encBoardList(E){
     // a battery (Session 51) lies on the floor in a strap tray unless "corner cradle" (edges) is chosen
     out.push({ key, B, main, src:o, x:+o.x || 0, y:+o.y || 0, rot:o.rot === true, sh:bat ? 1 : +o.h || +E.standH || 5, holes,
       grip:["ribs","clips","loose"].includes(o.grip) ? o.grip : "ribs", pins:o.pins === true, loops:o.strapBy === "loops",
+      // on a wall or under the lid, on standoffs from it (Session 63): boards with screw holes only; x, y are then on that face
+      face:holes && ENC_MOUNT_FACES.includes(o.face) && !(o.face === "top" && (E.lid === "none" || E.lid === "slide")) ? o.face : "", side:o.side === "out" ? "out" : "in",
       hold:holes ? "holes" : bat && o.hold === "door" ? "door" : bat && o.hold !== "edges" ? "strap" : "edges", lvl:Math.max(0, Math.round(+(main ? E.boardLvl : o.lvl) || 0)) });
+    if (out[out.length - 1].face) out[out.length - 1].lvl = -1;            // (on a wall or the lid: on no floor)
   };
-  add(E.board, { x:E.boardX, y:E.boardY, rot:E.boardRot, h:E.standH, hold:E.boardHold, bw:E.batW, bd:E.batD, bt:E.batT, grip:E.boardGrip, pins:E.boardPins, strapBy:E.boardStrapBy }, true);
+  add(E.board, { x:E.boardX, y:E.boardY, rot:E.boardRot, h:E.standH, hold:E.boardHold, bw:E.batW, bd:E.batD, bt:E.batT, grip:E.boardGrip, pins:E.boardPins, strapBy:E.boardStrapBy, face:E.boardFace, side:E.boardSide }, true);
   (Array.isArray(E.more) ? E.more : []).slice(0, 12).forEach(m => m && typeof m === "object" && add(m.kind, m, false));
   return out;
 }
@@ -2580,6 +2590,31 @@ const BOARD_TALL = { uno:13, leonardo:12, mega:13, due:13, nano:7, micro:7, prom
   tb6612:4, drv8825:12, mosfet:12, pca9685:10, hx711:4, ds3231:10, sdcard:6, rc522:4, pn532:4, neo6m:10, dfplayer:9, max98357:4,
   pam8403:5, bme280:3, mpu6050:3, ads1115:3, nrf24:4, lora:5, sim800l:5, bat18650x1:21, bat18650x2:21, aax2:16, aax4:30, bat9v:17.5, lipo1000:6 };
 const boardTall = (key, B) => encHas(BOARD_TALL, key) ? BOARD_TALL[key] : B && B.tall > 0 ? B.tall : 10;
+/* The parts on common boards (Session 63), each [x0, y0, x1, y1, height above the board, name] in the board's own drawing
+   (from its lower-left corner, parts side up), typical: they may reach past its edges (an Uno's USB-B socket by 6 mm). They are
+   drawn in the plan, the catalogue and the 3D view, and checked one by one where only part of a board is under something. */
+const BOARD_SHAPES = {
+  uno:[[-6.3, 31.7, 9.9, 43.7, 11, "USB-B socket"], [-1.8, 3.3, 12.6, 12.3, 11, "DC jack"], [17.4, 49.9, 65.3, 52.5, 8.5, "headers"], [27.4, 0.9, 65.3, 3.4, 8.5, "headers"], [33, 17, 68, 27, 4, "ATmega chip"], [14, 13, 22, 21, 10, "capacitors"]],
+  mega:[[-6.3, 31.7, 9.9, 43.7, 11, "USB-B socket"], [-1.8, 3.3, 12.6, 12.3, 11, "DC jack"], [17.4, 49.9, 99, 52.5, 8.5, "headers"], [27.4, 0.9, 93, 3.4, 8.5, "headers"], [92, 5, 99.5, 48, 8.5, "double header"], [40, 18, 62, 38, 2, "chip"]],
+  nano:[[-1.5, 5, 7.5, 13, 4, "USB socket"], [20, 6.5, 26, 11.5, 3.5, "reset button"], [28, 4, 36, 14, 2, "chip"]],
+  pi:[[69.5, 2.5, 87.5, 15.6, 16, "USB-A (two)"], [69.5, 20.5, 87.5, 33.6, 16, "USB-A (two)"], [65, 38.5, 87.5, 54, 13.5, "Ethernet"], [7, 50, 58, 55.5, 8.5, "GPIO header"],
+    [7.5, -1.5, 15, 6, 3.3, "USB-C"], [22, -1.5, 29.5, 6, 3, "micro HDMI"], [36, -1.5, 43, 6, 3, "micro HDMI"], [50.5, -2, 57.5, 12, 6, "audio jack"], [24, 22, 40, 38, 2.5, "processor"]],
+  esp32devkit:[[30, 4.5, 55.5, 23.5, 3.2, "ESP32 module"], [-1, 10, 5, 18, 3, "USB socket"], [8, 8, 14, 13, 2, "buttons"]],
+  esp32doit:[[28, 4.5, 52, 24, 3.2, "ESP32 module"], [-1, 10, 5, 18.5, 3, "USB socket"]],
+  relay1:[[6, 5, 25, 21, 15.5, "relay"], [40, 4, 50, 22, 10, "screw terminals"], [0, 9, 3, 17, 8.5, "header"]],
+  relay2:[[6, 3.5, 25, 18.5, 15.5, "relay"], [6, 20.5, 25, 35.5, 15.5, "relay"], [40, 3, 50, 36, 10, "screw terminals"]],
+  relay4:[[6, 3, 25, 51, 15.5, "relays"], [32, 3, 51, 51, 15.5, "relays"], [63, 3, 75, 52, 10, "screw terminals"]],
+  buck2596:[[2, 3, 15, 16, 8, "inductor"], [17, 1, 25, 9.5, 13, "capacitor"], [17, 11.5, 25, 20, 13, "capacitor"], [30, 12, 39, 20, 10, "trimmer"]],
+  l298n:[[10, 18, 33, 43, 27, "heatsink"], [0, 5, 8, 38, 10, "screw terminals"], [35, 5, 43, 38, 10, "screw terminals"]]
+};
+// a part's shapes placed in the plan: [x0, y0, x1, y1, top] (top: the height of its top above the bed)
+function boardShapesAt(key, B, x, y, rot, top){
+  return (encHas(BOARD_SHAPES, key) ? BOARD_SHAPES[key] : []).map(([a0, b0, a1, b1, h, name]) => {
+    let p = [a0 - B.w/2, b0 - B.d/2], q = [a1 - B.w/2, b1 - B.d/2]; if (rot){ p = [-p[1], p[0]]; q = [-q[1], q[0]]; }
+    return [x + Math.min(p[0], q[0]), y + Math.min(p[1], q[1]), x + Math.max(p[0], q[0]), y + Math.max(p[1], q[1]), top + h, name]; });
+}
+// the highest point of a part over a plan rectangle: its shapes there, or all of it
+const encTopIn = (b, r) => b.shapes && b.shapes.length ? Math.max(b.top, ...b.shapes.filter(f => f[0] < r[2] && r[0] < f[2] && f[1] < r[3] && r[1] < f[3]).map(f => f[4])) : b.partsTop;
 // a board's own ports (Session 45), for "Add this board's ports": [edge, along, opening, up]. edge: the board's edge in its
 // own drawing (x0 left, x1 right, y0 front, y1 back, component side up); along: the port's middle along that edge from the
 // board's lower-left corner (mm); up: its middle above the board's top. Typical boards: check yours.
@@ -2602,6 +2637,7 @@ const BOARD_PORTS = {
 function encAddBoardPorts(quiet){
   const E = state.base.enclosure, list = encHas(BOARD_PORTS, E.board) ? BOARD_PORTS[E.board] : null;
   let bd = encBoardList(E).find(b => b.main); if (!list || !bd) return;
+  if (bd.face){ if (!quiet) notify("Its ports are added for a board on the floor or a level. On a wall, add the openings you need on the Openings page."); return 0; }
   buildEnclosure();
   const I0 = enclosureInfo, iw = I0.inner[0], id = I0.inner[1], B = bd.B, bw = bd.rot ? B.d : B.w, bdp = bd.rot ? B.w : B.d;
   const NORMAL = { x0:[-1,0], x1:[1,0], y0:[0,-1], y1:[0,1] }, faceOf = (nx, ny) => nx < 0 ? "left" : nx > 0 ? "right" : ny < 0 ? "front" : "back";
@@ -2635,6 +2671,8 @@ function encPortsFollow(E){
   const list = encHas(BOARD_PORTS, E.board) ? BOARD_PORTS[E.board] : null;
   E.cut = cuts.filter(c => !(c && c.auto === "ports" && ((c.board != null && c.board !== E.board) || !list)));
   const bd = list && encBoardList(E).find(b => b.main); if (!bd) return 0;
+  // a board on a wall or under the lid (Session 63): its port openings, made for it on the floor, are taken out
+  if (bd.face){ const n0 = E.cut.length; E.cut = E.cut.filter(c => !(c.auto === "ports" && (c.board == null || c.board === E.board))); return n0 - E.cut.length; }
   buildEnclosure();
   const top = enclosureInfo && enclosureInfo.board ? enclosureInfo.board.top : (+E.standH || 5) + 3.6, taken = new Set();
   const mine = E.cut.filter(c => c.auto === "ports");
@@ -2686,8 +2724,8 @@ function encPostStyleField(g){
    lower; the height follows the tallest parts. The main board's port openings ("Add this board's ports") are put back
    where the board ends up. Returns what it did, or why not. */
 function encArrange(keepSize){
-  const E = state.base.enclosure, list = encBoardList(E);
-  if (!list.length) return { ok:false, why:"There are no boards to arrange: pick one in Board mounts first." };
+  const E = state.base.enclosure, list = encBoardList(E).filter(b => !b.face);          // (parts on a wall or the lid stay where they are)
+  if (!list.length) return { ok:false, why:"There are no boards on the floor or a level to arrange: pick one in Board mounts first." };
   const t = +E.wall || 2, fl = +E.floor || 2, bed = state.printer.bed || [256, 256, 256], gap = 3;
   buildEnclosure();
   // corner posts: the same rule as the box's own (bossesOn): a magnet lid, or screws unless the lid presses or slides in
@@ -2894,8 +2932,12 @@ function encPartDims(E, n){
 function encBusy(E, I, k, skip, g){
   const out = [], gp = ENC_ROOM.gap, lv = I.levels || [], G = g || { l:0, r:0, f:0, b:0 };
   const atWall = (r, sx = true, sy = true) => { const dx = sx ? ((r[0] + r[2]) > 0 ? G.r : -G.l) : 0, dy = sy ? ((r[1] + r[3]) > 0 ? G.b : -G.f) : 0; return [r[0] + dx, r[1] + dy, r[2] + dx, r[3] + dy]; };
-  // every other board on this floor, even one that does not fit yet (Session 61: it was left out, and a new part went on it)
-  (I.boards || []).forEach(b => { if ((skip && skip(b)) || (b.lvl || 0) !== k) return; out.push([b.bb[0] - gp, b.bb[1] - gp, b.bb[2] + gp, b.bb[3] + gp]); });
+  // every other board on this floor, even one that does not fit yet (Session 61: it was left out, and a new part went on it);
+  // a part on a wall or under the lid where it reaches down into this floor's room (Session 63)
+  const fl0 = I.size[2] - I.inner[2], zLo = k ? fl0 + lv[k - 1].z : fl0, zHi = k < lv.length ? fl0 + lv[k].z - lv[k].t : (I.ceil ?? I.size[2]);
+  (I.boards || []).forEach(b => { if (skip && skip(b)) return;
+    if (b.face){ if (b.z && b.z[0] < zHi && zLo < b.z[1]) out.push(atWall([b.bb[0] - gp, b.bb[1] - gp, b.bb[2] + gp, b.bb[3] + gp], b.face === "left" || b.face === "right", b.face === "front" || b.face === "back")); return; }
+    if ((b.lvl || 0) !== k) return; const r = b.reach || b.bb; out.push([r[0] - gp, r[1] - gp, r[2] + gp, r[3] + gp]); });
   const lp = I.lidPosts || {};
   if (lp.at && lp.n && !(lp.hang && k === 0)) lp.at.forEach(([x, y]) => out.push(atWall([x - lp.r - 1, y - lp.r - 1, x + lp.r + 1, y + lp.r + 1])));
   // a level's posts stand on the floor (or level) under it; its brackets reach in from the side walls over it
@@ -2999,8 +3041,12 @@ function encPlace(E, n, o = {}){
 function encShiftAll(E, dx, dy){
   const r = v => +(+v || 0).toFixed(2);
   if (dx || dy){
-    if (E.board && E.board !== "none"){ E.boardX = r((+E.boardX || 0) + dx); E.boardY = r((+E.boardY || 0) + dy); }
-    (Array.isArray(E.more) ? E.more : []).forEach(m => { if (m && typeof m === "object"){ m.x = r((+m.x || 0) + dx); m.y = r((+m.y || 0) + dy); } });
+    // a part on a wall or the lid (Session 63) moves along its face as an opening there does
+    const along = (face, o, kx, ky) => { const du = { front:dx, back:-dx, left:-dy, right:dy, top:dx }[face]; if (du != null){ o[kx] = r((+o[kx] || 0) + du); if (face === "top") o[ky] = r((+o[ky] || 0) + dy); return true; } return false; };
+    // (where each part really is mounted, as the board list decides it: a face set for a board without holes is not one)
+    const faceOf = new Map(encBoardList(E).map(b => [b.main ? "main" : b.src, b.face || ""]));
+    if (E.board && E.board !== "none" && !along(faceOf.get("main") || "", E, "boardX", "boardY")){ E.boardX = r((+E.boardX || 0) + dx); E.boardY = r((+E.boardY || 0) + dy); }
+    (Array.isArray(E.more) ? E.more : []).forEach(m => { if (m && typeof m === "object" && !along(faceOf.get(m) || "", m, "x", "y")){ m.x = r((+m.x || 0) + dx); m.y = r((+m.y || 0) + dy); } });
     (Array.isArray(E.levels) ? E.levels : []).forEach(L => (Array.isArray(L && L.at) ? L.at : []).forEach(q => { if (q && typeof q === "object"){ q.x = r((+q.x || 0) + dx); q.y = r((+q.y || 0) + dy); } }));
     (Array.isArray(E.walls) ? E.walls : []).forEach(w => { if (w && typeof w === "object") w.at = r((+w.at || 0) + (w.axis === "y" ? dx : dy)); });
     (Array.isArray(E.ducts) ? E.ducts : []).forEach(u => { if (u && typeof u === "object") u.at = r((+u.at || 0) + (u.face === "left" || u.face === "right" ? dy : dx)); });
@@ -3032,6 +3078,13 @@ function encMakeRoom1(E){
   const [iw, id] = I.inner, g = { l:0, r:0, f:0, b:0 }, nLv = (I.levels || []).length; let hNeed = 0, what = "";
   (I.boards || []).forEach(b => {
     const m = b.m ?? 0.5;
+    if (b.face){                                               // on a wall or the lid (Session 63): grow that face
+      const o = b.faceOver; if (b.fits !== false || !o) return; what = what || b.label;
+      const S = { front:["l","r"], back:["r","l"], left:["b","f"], right:["f","b"], top:["l","r"] }[b.face];
+      g[S[0]] = Math.max(g[S[0]], o.a0); g[S[1]] = Math.max(g[S[1]], o.a1);
+      if (b.face === "top"){ g.f = Math.max(g.f, o.b0); g.b = Math.max(g.b, o.b1); } else if (o.b1 > 0) hNeed = Math.max(hNeed, I.size[2] + o.b1 + 0.5);
+      return;
+    }
     if (b.fits === false){
       g.l = Math.max(g.l, (-iw/2 + m) - b.bb[0]); g.r = Math.max(g.r, b.bb[2] - (iw/2 - m)); g.f = Math.max(g.f, (-id/2 + m) - b.bb[1]); g.b = Math.max(g.b, b.bb[3] - (id/2 - m));
       what = what || b.label;
@@ -3054,6 +3107,7 @@ function encMakeRoom1(E){
 // once it is in: a change the growth itself brings (a level's posts that only fit the bigger box) sends it to look again
 function encAddPart(E, n, at){
   const more = Array.isArray(E.more) ? E.more : (E.more = []); if (more.length >= 12) return;
+  delete n.id;                                                     // (a copy is a part of its own, for the wiring)
   const lab = (BOARDS[n.kind] || {}).label || "It", grew = { l:0, r:0, f:0, b:0 };
   let sp = null, said = "";
   more.splice(at == null ? more.length : at, 0, n);
@@ -3073,6 +3127,205 @@ function encAddPart(E, n, at){
   const r = encBoardChanged(true);
   if (r && r.grew && sp) said += ` It is now ${r.after.join(" × ")} mm.`;
   notify(said); renderTab(); pushHistory();
+}
+/* Heat (Session 63): how warm each part runs (typical heat given off, in watts, each one changeable), what a closed box can
+   shed through its walls, the vent area it has (the open area of its vents, grilles and fan grilles, from their real shapes)
+   and what it needs: vents low and high (about 3 cm² per watt over what the box sheds), or above 15 W a fan (airflow from
+   3.1 × watts ÷ a 10 °C rise, in m³/h). Rules of thumb, so the advice says "about". */
+const ENC_WATTS = [[/^lrs35/, 4], [/^lrs100/, 10], [/^lrs150/, 15], [/^pi$/, 5], [/^pi3a/, 2.5], [/^pizero/, 1], [/^pico/, 0.3], [/^(buck|mp1584|mt3608|xl)/, 1.5],
+  [/^l298n/, 3], [/^(drv8825|a4988|tmc)/, 1.5], [/^mosfet/, 1], [/^(pam8403|max98357)/, 0.8], [/^(esp32|nodemcu|d1mini|xiao|tdisplay)/, 0.5], [/^(uno|mega|leonardo|due)/, 0.4],
+  [/^(tp4056|ip5306)/, 1], [/^sim800/, 1], [/^(bat|aa|lipo)/, 0]];
+const ENC_FAN_FLOW = { 25:3, 30:5, 40:10, 50:17, 60:30, 70:40, 80:50, 92:60, 120:100, 140:130 };
+function encWattsOf(key){
+  const r = /^relay(\d)/.exec(key || ""); if (r) return +r[1]*0.4;
+  const hit = ENC_WATTS.find(([re]) => re.test(key || "")); return hit ? hit[1] : 0.2;
+}
+const encPartWatts = (E, b) => { const src = b.main ? E.boardWatts : b.src && b.src.watts, v = +src; return src != null && src !== "" && isFinite(v) ? clamp(v, 0, 500) : encWattsOf(b.key); };
+function encHeat(E, I){
+  if (!I) return null;
+  const parts = (I.boards || []).map(b => ({ b, w:encPartWatts(E, b) })), P = parts.reduce((a, q) => a + q.w, 0);
+  const [W, D, H] = I.size, area = 2*(W*D + W*H + D*H)/1e6, sealed = 5*area*15;
+  let vent = 0, fans = 0;
+  (E.cut || []).forEach((c, i) => { if (I.left.includes(i) || !encHas(CUTOUTS, c.kind)) return; const k = CUTOUTS[c.kind];
+    if (k.g !== "air" && !/grille|vent|honeycomb/.test(c.kind)) return;
+    if (c.kind === "fan" && ENC_WALLS.has(c.face)) fans += ENC_FAN_FLOW[c.size] || 10;
+    vent += placedRings(c, E).reduce((a, L) => a + Math.abs(C.area2(L))/2, 0); });
+  encDividers(E).forEach(d => { if (d.fan) fans += 0; });                 // (a fan in a divider moves air inside, not out)
+  const extra = Math.max(0, P - sealed), needVent = extra > 0 && P <= 15 ? Math.round(extra*300) : 0, needFlow = P > 15 ? Math.ceil(3.1*P/10) : 0;
+  const fanSize = needFlow ? (Object.entries(ENC_FAN_FLOW).find(([, q]) => q >= needFlow) || ["120"])[0] : null;
+  // a fan blowing out is enough whenever it moves the air the heat needs (smaller heat too: it was only counted over 15 W)
+  const status = P <= sealed || (fans && fans >= Math.ceil(3.1*P/10)) ? "ok" : needFlow ? "fan" : vent >= needVent ? "ok" : "vents";
+  return { parts, P, sealed, vent, fans, needVent, needFlow, fanSize:fanSize ? +fanSize : null, status };
+}
+// vents (or a fan and a vent) put in for the heat (Session 63): low on one wall and high on the one opposite, so warm air
+// rises out; on the long walls, each half the area needed
+function encAddCooling(E, fan){
+  buildEnclosure(); const I = enclosureInfo, h = encHeat(E, I); if (!h) return 0;
+  const [W, D, H] = I.size, fl = H - I.inner[2], top = H - (I.lipH || 0) - 6, long = W >= D, lo = long ? "front" : "left", hi = long ? "back" : "right", n0 = (E.cut || []).length;
+  E.cut = Array.isArray(E.cut) ? E.cut : [];
+  const add = c => { E.cut.push(c); c.u = freeSpot(E, c); encOpeningChanged(E.cut.length - 1); };
+  if (fan){
+    const size = h.fanSize || 40, f = newOpening("fan", hi); f.size = size; f.v = Math.round(Math.max(fl + size/2 + 4, top - size/2)); add(f);
+    const v = newOpening("vent", lo); v.h = Math.min(30, Math.max(12, size*0.5)); v.w = Math.round(Math.min((long ? W : D) - 30, size*1.6)); v.v = Math.round(fl + v.h/2 + 5); add(v);
+  } else {
+    // each vent sized by its real open area (slots are about a quarter open): as wide as the wall allows, then taller
+    const per = Math.max(150, (h.needVent - h.vent)/2), maxW = (long ? W : D) - 30, maxH = Math.max(12, (top - fl)/2 - 8);
+    const openOf = c => placedRings(Object.assign({}, c, { u:0, v:0 }), E).reduce((a2, L) => a2 + Math.abs(C.area2(L))/2, 0);
+    const sized = (face, want, mw) => { let best = null;
+      for (const style of ["honeycomb", "slots"]){ const c = newOpening("vent", face); c.style = style; c.w = Math.round(Math.min(mw, Math.max(20, want/(0.25*12)))); c.h = 12;
+        for (let k = 0; k < 20 && c.h < maxH && openOf(c) < want; k++) c.h = Math.min(maxH, c.h + 4);
+        c.open = openOf(c); if (!best || (best.open < want && c.open > best.open)) best = c; }
+      const got = best.open; delete best.open; return [best, got]; };
+    let [a, ga] = sized(lo, per, maxW); a.v = Math.round(fl + a.h/2 + 5); add(a);
+    let [b, gb] = sized(hi, per, maxW); b.v = Math.round(top - b.h/2); add(b);
+    // not enough on the long walls: a second pair on the short ones
+    const short = (per - Math.min(ga, gb)), lo2 = long ? "left" : "front", hi2 = long ? "right" : "back";
+    if (short > 50){ const [c2] = sized(lo2, short, (long ? D : W) - 30); c2.v = Math.round(fl + c2.h/2 + 5); add(c2); const [d2] = sized(hi2, short, (long ? D : W) - 30); d2.v = Math.round(top - d2.h/2); add(d2); }
+  }
+  return E.cut.length - n0;
+}
+/* Wiring (Session 63): wires between parts and openings, each { from, fromPin, to, toPin, colour }. Parts and openings are
+   named by an id they keep ("main" for the main board), so a wire follows its part when it moves and goes when it is taken
+   out. A wire runs along the floor from one end to the other (across, then front to back), up or down at the ends, and through
+   each level's cable pass on the way to another floor; its length is that, plus 10% and 20 mm to spare, to the next 10 mm. */
+const ENC_WIRE_COLOURS = [["red","#d33"],["black","#222"],["yellow","#e6c200"],["green","#2a9d4b"],["blue","#2f6fd6"],["white","#ddd"],["orange","#f08a1c"],["purple","#8a4fd0"],["grey","#888"]];
+const encId = o => { if (!o || typeof o !== "object") return ""; if (typeof o.id !== "string" || !/^[a-z0-9]{4,10}$/.test(o.id)) o.id = Math.random().toString(36).slice(2, 8).replace(/[^a-z0-9]/g, "a").padEnd(6, "x"); return o.id; };
+const encWireText = v => typeof v === "string" ? v.replace(/[<>&"]/g, "").replace(/\s+/g, " ").trim().slice(0, 20) : "";
+// what a wire can end on: the boards and modules, and the openings that are in the box
+function encWireEnds(E, I){
+  const out = [];
+  (I.boards || []).forEach(b => { if (b.fits === false) return; const id = b.main ? "main" : encId(b.src); if (id) out.push({ id, label:b.label.replace(/\s*\(.*$/, ""), b }); });
+  (E.cut || []).forEach((c, i) => { if (I.left.includes(i)) return; out.push({ id:encId(c), label:`${encLabelText(c.label) || (CUTOUTS[c.kind] || CUTOUTS.round).label.replace(/[:(,].*$/, "").trim()} (${ENC_FACE_NAME[c.face]})`, c }); });
+  return out;
+}
+// where an end is: its point in the plan, its height, and the floor it is on
+function encWireAt(E, I, end){
+  const [iw, id] = I.inner, H = I.size[2], fl = H - I.inner[2], lv = I.levels || [];
+  const floorOf = z => { let k = 0; lv.forEach((L, j) => { if (z > fl + L.z - 0.5) k = j + 1; }); return k; };
+  if (end.b){ const b = end.b, p = [(b.bb[0] + b.bb[2])/2, (b.bb[1] + b.bb[3])/2], z = b.face ? (b.z[0] + b.z[1])/2 : b.top; return { p, z, lvl:b.face ? floorOf(z) : (b.lvl || 0) }; }
+  const c = end.c, u = +c.u || 0, v = +c.v || 0;
+  const p = { front:[u, -id/2], back:[-u, id/2], left:[-iw/2, -u], right:[iw/2, u], top:[u, v], bottom:[u, v] }[c.face] || [0, 0], z = c.face === "top" ? H : c.face === "bottom" ? fl : v;
+  return { p, z, lvl:c.face === "top" ? lv.length : c.face === "bottom" ? 0 : floorOf(z) };
+}
+// a level's cable pass, in the plan (where wires go up through it)
+function encPassAt(I, k){
+  const L = (I.levels || [])[k], [iw, id] = I.inner; if (!L) return null;
+  return { back:[0, id/2 - 12], front:[0, -id/2 + 12], left:[-iw/2 + 12, 0], right:[iw/2 - 12, 0], corners:[iw/2 - 16, id/2 - 16] }[L.pass] || null;
+}
+function encWires(E, I){
+  if (!I) return [];
+  const ends = encWireEnds(E, I), byId = Object.fromEntries(ends.map(e => [e.id, e]));
+  return (Array.isArray(E.wires) ? E.wires : []).slice(0, 40).map((w, i) => {
+    if (!w || typeof w !== "object") return null;
+    const a = byId[w.from], b = byId[w.to], colour = ENC_WIRE_COLOURS.some(([c]) => c === w.colour) ? w.colour : "red";
+    if (!a || !b) return { i, w, ok:false, why:"one end is no longer in the box", colour };
+    const A = encWireAt(E, I, a), B = encWireAt(E, I, b), path = [A.p];
+    let ok = true, why = "";
+    const lo = Math.min(A.lvl, B.lvl), hi = Math.max(A.lvl, B.lvl), passes = [];
+    for (let k = lo; k < hi; k++){ const P = encPassAt(I, k); if (!P){ ok = false; why = `level ${k + 1} has no cable pass`; } else passes.push(P); }
+    if (A.lvl > B.lvl) passes.reverse();
+    let cur = A.p; [...passes, B.p].forEach(q => { path.push([q[0], cur[1]], q); cur = q; });
+    let len = Math.abs(A.z - B.z); for (let j = 1; j < path.length; j++) len += Math.abs(path[j][0] - path[j - 1][0]) + Math.abs(path[j][1] - path[j - 1][1]);
+    return { i, w, ok, why, colour, a, b, A, B, path, len:Math.ceil((len*1.1 + 20)/10)*10, fromPin:encWireText(w.fromPin), toPin:encWireText(w.toPin) };
+  }).filter(Boolean);
+}
+function encWiringText(E, I){
+  const ws = encWires(E, I).filter(w => w.ok); if (!ws.length) return null;
+  const tot = {}; ws.forEach(w => { tot[w.colour] = (tot[w.colour] || 0) + w.len; });
+  return ["Wiring", "", ...ws.map((w, k) => `${k + 1}. ${w.a.label}${w.fromPin ? " " + w.fromPin : ""} -> ${w.b.label}${w.toPin ? " " + w.toPin : ""}: ${w.colour}, about ${w.len} mm`), "",
+    "Wire to cut, by colour (each length has 10% and 20 mm to spare):", ...Object.entries(tot).map(([c, l]) => `  ${c}: ${l} mm`)];
+}
+/* Boards from KiCad (Session 63): a .kicad_pcb read for its outline (Edge.Cuts), its mounting holes (MountingHole footprints, or
+   unplated holes of 2.5 mm and more), the connectors at its edges as ports (USB, barrel jack, RJ45, HDMI, audio, SD, SMA),
+   and the LEDs, buttons, knobs and switches on its top as "panel" parts (holes cut in a wall or the lid in front of them when
+   it is mounted there facing out). Kept in the project as E.customBoards and made boards "kc_<id>" like the built-in ones. */
+const KICAD_PORTS = [[/USB[_-]?C/i, "usbc", 1.6], [/USB[_-]?Micro|Micro[_-]?B/i, "micro", 1.6], [/USB[_-]?Mini|Mini[_-]?B/i, "usbmini", 2], [/USB[_-]?A/i, "usba", 3.5],
+  [/USB[_-]?B/i, "usbb", 5.5], [/Barrel|DC[_-]?Jack|PJ-?0\d\d/i, "dcpcb", 5.6], [/RJ45|8P8C/i, "rj45", 6.9], [/HDMI/i, "hdmi", 3.2], [/Jack[_-]?3\.5|Audio[_-]?Jack|PJ-?3\d\d|SJ-?3/i, "jack35", 3],
+  [/micro[_-]?SD|TF[_-]?Card|SD[_-]?Card/i, "sd", 1.5], [/SMA/i, "sma", 3]];
+const KICAD_PANEL = [[/LED[_-]?D?5(\.0)?mm|LED_D5/i, "led5"], [/^LED|:LED|LED_/i, "led3"], [/SW[_-]?Push.*12x12|Tactile.*12x12/i, "tact12"], [/SW[_-]?Push|SW[_-]?Tactile|Button|TL\d{4}/i, "tact"],
+  [/Rotary[_-]?Encoder|EC11/i, "encoder"], [/Potentiometer|[^a-z]Pot[_-]|^Pot/i, "pot"], [/SW[_-]?Slide|SS12/i, "slide"], [/Toggle/i, "toggle"], [/Buzzer/i, "buzzer"]];
+function kicadParse(text){
+  if (typeof text !== "string" || !/\(kicad_pcb/.test(text.slice(0, 2000))) return { ok:false, why:"That is not a KiCad board file (.kicad_pcb)." };
+  // S-expressions into nested arrays
+  const root = [], stack = [root]; let i = 0;
+  const n = Math.min(text.length, 20e6);
+  while (i < n){ const ch = text[i];
+    if (ch === "("){ const a = []; stack[stack.length - 1].push(a); stack.push(a); i++; }
+    else if (ch === ")"){ if (stack.length > 1) stack.pop(); i++; }
+    else if (ch === '"'){ let j = i + 1, out = ""; while (j < n && text[j] !== '"'){ if (text[j] === "\\") j++; out += text[j]; j++; } stack[stack.length - 1].push(out); i = j + 1; }
+    else if (/\s/.test(ch)) i++;
+    else { let j = i; while (j < n && !/[\s()]/.test(text[j])) j++; stack[stack.length - 1].push(text.slice(i, j)); i = j; } }
+  const pcb = root.find(a => Array.isArray(a) && a[0] === "kicad_pcb"); if (!pcb) return { ok:false, why:"No board in that file." };
+  const kids = (a, tag) => a.filter(q => Array.isArray(q) && q[0] === tag), kid = (a, tag) => kids(a, tag)[0], num = v => { const x = parseFloat(v); return isFinite(x) ? x : 0; };
+  const xy = a => a ? [num(a[1]), num(a[2])] : null, layerOf = a => { const l = kid(a, "layer"); return l ? String(l[1]) : ""; };
+  // the outline: everything on Edge.Cuts
+  let mn = [Infinity, Infinity], mx = [-Infinity, -Infinity];
+  const grow = p => { if (!p) return; mn = [Math.min(mn[0], p[0]), Math.min(mn[1], p[1])]; mx = [Math.max(mx[0], p[0]), Math.max(mx[1], p[1])]; };
+  pcb.forEach(g => { if (!Array.isArray(g) || !/^gr_(line|rect|arc|circle|poly)$/.test(g[0]) || layerOf(g) !== "Edge.Cuts") return;
+    if (g[0] === "gr_circle"){ const c = xy(kid(g, "center")), e = xy(kid(g, "end")); if (c && e){ const r = Math.hypot(e[0] - c[0], e[1] - c[1]); grow([c[0] - r, c[1] - r]); grow([c[0] + r, c[1] + r]); } return; }
+    ["start", "end", "mid"].forEach(t => grow(xy(kid(g, t)))); const pts = kid(g, "pts"); if (pts) kids(pts, "xy").forEach(q => grow(xy(q))); });
+  const fps = [...kids(pcb, "footprint"), ...kids(pcb, "module")];
+  // footprints' outlines on the board: their pads and courtyard lines, turned and placed
+  const place = (fp, lx, ly) => { const at = kid(fp, "at"), x0 = num(at && at[1]), y0 = num(at && at[2]), a = num(at && at[3])*Math.PI/180;
+    return [x0 + lx*Math.cos(a) + ly*Math.sin(a), y0 - lx*Math.sin(a) + ly*Math.cos(a)]; };
+  const fpBox = fp => { let a = [Infinity, Infinity], b = [-Infinity, -Infinity]; const add = p => { a = [Math.min(a[0], p[0]), Math.min(a[1], p[1])]; b = [Math.max(b[0], p[0]), Math.max(b[1], p[1])]; };
+    kids(fp, "pad").forEach(pd => { const at = kid(pd, "at"), sz = kid(pd, "size"); if (!at) return; const w = num(sz && sz[1])/2, h = num(sz && sz[2])/2; [[-w, -h], [w, h], [-w, h], [w, -h]].forEach(([dx, dy]) => add(place(fp, num(at[1]) + dx, num(at[2]) + dy))); });
+    [...kids(fp, "fp_line"), ...kids(fp, "fp_rect")].filter(l => /CrtYd|Fab/.test(layerOf(l))).forEach(l => { ["start", "end"].forEach(t => { const q = xy(kid(l, t)); if (q) add(place(fp, q[0], q[1])); }); });
+    if (!isFinite(a[0])){ const at = kid(fp, "at"); add([num(at && at[1]), num(at && at[2])]); }
+    return [a[0], a[1], b[0], b[1]]; };
+  const fpName = fp => String(fp[1] || ""), refOf = fp => { const p = kids(fp, "property").find(q => q[1] === "Reference"), t = kids(fp, "fp_text").find(q => q[1] === "reference"); return String((p && p[2]) || (t && t[2]) || ""); };
+  if (!isFinite(mn[0])){ fps.forEach(fp => { const bx = fpBox(fp); grow([bx[0], bx[1]]); grow([bx[2], bx[3]]); }); }
+  if (!isFinite(mn[0])) return { ok:false, why:"The board has no outline (nothing on Edge.Cuts) and no parts." };
+  const w = mx[0] - mn[0], d = mx[1] - mn[1];
+  if (!(w >= 5 && d >= 5 && w <= 300 && d <= 300)) return { ok:false, why:`The board is ${w.toFixed(0)} × ${d.toFixed(0)} mm: boards from 5 to 300 mm can go in a box.` };
+  const local = p => [+(p[0] - mn[0]).toFixed(2), +(mx[1] - p[1]).toFixed(2)];          // our board: from its left, from its front (KiCad's y runs down)
+  const holes = [], ports = [], panel = []; let screw = "M3";
+  fps.forEach(fp => {
+    const name = fpName(fp), ref = refOf(fp), at = kid(fp, "at"), c = local([num(at && at[1]), num(at && at[2])]), back = /^B\./.test(layerOf(fp));
+    if (/MountingHole/i.test(name)){ const m = /M(2\.5|2|3|4)\b/.exec(name); if (m) screw = "M" + m[1]; holes.push(c); return; }
+    kids(fp, "pad").forEach(pd => { if (pd[2] !== "np_thru_hole") return; const dr = kid(pd, "drill"), dia = num(dr && dr[1]), pa = kid(pd, "at");
+      if (dia >= 2.5 && pa) holes.push(local(place(fp, num(pa[1]), num(pa[2])))); });
+    const hay = `${name} ${ref}`, bx = fpBox(fp), lo = local([bx[0], bx[3]]), hi = local([bx[2], bx[1]]), cx = (lo[0] + hi[0])/2, cy = (lo[1] + hi[1])/2;
+    const port = KICAD_PORTS.find(([re]) => re.test(hay));
+    if (port && !back){ const dist = { x0:lo[0], x1:w - hi[0], y0:lo[1], y1:d - hi[1] }, edge = Object.keys(dist).sort((p, q) => dist[p] - dist[q])[0];
+      if (dist[edge] < 8){ ports.push([edge, +(edge[0] === "x" ? cy : cx).toFixed(2), port[1], port[2]]); return; } }
+    const pn = KICAD_PANEL.find(([re]) => re.test(hay)); if (pn && !back) panel.push([+cx.toFixed(2), +cy.toFixed(2), pn[1]]);
+  });
+  const name = (String((kid(pcb, "title_block") && (kid(kid(pcb, "title_block"), "title") || [])[1]) || "") || "My board").replace(/[<>&"]/g, "").slice(0, 30);
+  return { ok:true, board:{ label:name, w:+w.toFixed(2), d:+d.toFixed(2), holes:holes.slice(0, 16), screw, ports:ports.slice(0, 16), panel:panel.slice(0, 32), tall:10 } };
+}
+// the imported boards as boards (BOARDS, BOARD_PORTS), each number clamped: from a project as much as from a file
+function encSyncCustomBoards(E){
+  const list = Array.isArray(E.customBoards) ? E.customBoards : [];
+  const clean = list.slice(0, 8).filter(b => b && typeof b === "object").map(b => {
+    const w = clamp(cleanNum(+b.w, 50), 5, 300), d = clamp(cleanNum(+b.d, 40), 5, 300), pt = q => Array.isArray(q) && q.length >= 2 ? [clamp(cleanNum(+q[0], 0), 0, w), clamp(cleanNum(+q[1], 0), 0, d)] : null;
+    return { id:typeof b.id === "string" && /^[a-z0-9]{4,10}$/.test(b.id) ? b.id : Math.random().toString(36).slice(2, 8).replace(/[^a-z0-9]/g, "a").padEnd(6, "x"), label:encWireText(b.label) || "My board", w, d,
+      holes:(Array.isArray(b.holes) ? b.holes : []).slice(0, 16).map(pt).filter(Boolean), screw:encHas(SCREWS, b.screw) ? b.screw : "M3", tall:clamp(cleanNum(+b.tall, 10), 1, 60),
+      ports:(Array.isArray(b.ports) ? b.ports : []).slice(0, 16).filter(q => Array.isArray(q) && ["x0","x1","y0","y1"].includes(q[0]) && encHas(CUTOUTS, q[2])).map(q => [q[0], clamp(cleanNum(+q[1], 0), 0, q[0][0] === "x" ? d : w), q[2], clamp(cleanNum(+q[3], 2), 0, 30)]),
+      panel:(Array.isArray(b.panel) ? b.panel : []).slice(0, 32).filter(q => Array.isArray(q) && encHas(CUTOUTS, q[2])).map(q => [clamp(cleanNum(+q[0], 0), 0, w), clamp(cleanNum(+q[1], 0), 0, d), q[2]]) };
+  });
+  if ("customBoards" in E) E.customBoards = clean;           // (a project without any keeps no empty list)
+  Object.keys(BOARDS).filter(k => /^kc_/.test(k)).forEach(k => { delete BOARDS[k]; delete BOARD_PORTS[k]; });
+  clean.forEach(b => { BOARDS["kc_" + b.id] = { g:"custom", label:`${b.label} (imported)`, w:b.w, d:b.d, holes:b.holes.length ? b.holes : undefined, screw:b.screw, tall:b.tall, panel:b.panel, imported:true };
+    if (b.ports.length) BOARD_PORTS["kc_" + b.id] = b.ports; });
+  if (!BOARD_GROUPS.some(([g]) => g === "custom")) BOARD_GROUPS.push(["custom", "Your own boards (from KiCad)"]);
+}
+// a file picked: read, made a board, and put in the box (the main board when there is none)
+function encImportKicad(file){
+  const E = state.base.enclosure;
+  if (!file || file.size > 20e6){ notify("That file is too big for a board (over 20 MB)."); return; }
+  const rd = new FileReader();
+  rd.onload = () => { const r = kicadParse(String(rd.result || ""));
+    if (!r.ok){ notify(r.why); return; }
+    E.customBoards = Array.isArray(E.customBoards) ? E.customBoards : [];
+    if (E.customBoards.length >= 8){ notify("Up to eight imported boards in a project: remove one first (Board mounts)."); return; }
+    const id = Math.random().toString(36).slice(2, 8).replace(/[^a-z0-9]/g, "a").padEnd(6, "x"); E.customBoards.push(Object.assign({ id }, r.board)); encSyncCustomBoards(E);
+    const key = "kc_" + id, B = r.board;
+    if (!E.board || E.board === "none"){ const old = E.board; E.board = key; encMainPicked(old); if (B.ports.length) encAddBoardPorts(true); }
+    else encAddPart(E, { kind:key, x:0, y:0, h:3, rot:false, hold:"holes" });
+    notify(`${B.label}: ${B.w} × ${B.d} mm, ${B.holes.length} mounting hole${B.holes.length === 1 ? "" : "s"}${B.ports.length ? `, ${B.ports.length} port${B.ports.length === 1 ? "" : "s"} at its edges (${B.ports.map(q => (CUTOUTS[q[2]] || {}).label.replace(/[,:(].*$/, "")).join(", ")})` : ""}${B.panel.length ? `, ${B.panel.length} LEDs, buttons or knobs on top` : ""}. Check its parts' height on Board mounts.`);
+    renderTab(); baseChanged(); pushHistory(); };
+  rd.readAsText(file);
 }
 // the levels kept in height order (Session 61), so Level 1 on the Inside page is the lowest, as it is built. remap: the
 // boards and dividers on each level go with it (after a level's height was changed; before that the list was in order)
@@ -3601,8 +3854,60 @@ const ENC_RECIPES = [
   ["Battery LED controller", "ESP32-C3 SuperMini, TP4056 charger, 18650 holder, slide switch, WS2812 LED ring 12"],
   ["Bench power supply", "Mean Well LRS-100, IEC power inlet, rocker switch, voltmeter, 2 banana sockets, 40 mm fan"],
 ];
+/* Recipes (Session 63): a whole box in one click. Each starts the box again from the defaults with its settings, fills it in
+   from its parts list (the boards arranged, the openings placed, each on the face it suits), then labels the openings. */
+const ENC_KITS = [
+  { name:"Weather station", what:"An ESP32 with a BME280 and a light sensor, on an 18650 battery; a splash-proof lid and strap loops for a post.",
+    words:"ESP32 DevKit, BME280 weather sensor, sensor vent, light sensor hole, 18650 holder, TP4056 charger, cable gland PG9",
+    set:{ lid:"screw", fasten:"insert", wall:3, gasket:1.5, mount:"straps", strapDir:"up", radius:4 }, faces:{ sensorvent:"front", ldr:"top" } },
+  { name:"ESP32 sensor box", what:"An ESP32 DevKit and a BME280 behind a sensor vent, with a status LED; a press-fit lid that clicks shut.",
+    words:"ESP32 DevKit, BME280 weather sensor, sensor vent, a 5 mm LED", set:{ lid:"press", snap:true, lipH:4, feet:"recess", radius:5 } },
+  { name:"Bench power supply", what:"A Mean Well LRS-100 with an IEC inlet, a rocker switch, a voltmeter and two banana sockets, cooled by a 40 mm fan.",
+    words:"Mean Well LRS-100, IEC power inlet, rocker switch, voltmeter, banana socket, 40 mm fan", extra:[{ kind:"banana", face:"front" }],
+    set:{ lid:"screw", fasten:"insert", wall:2.4, floor:2.4, lidThick:3, feet:"recess", radius:4 }, faces:{ volt:"front", banana:"front" } },
+  { name:"LED strip controller", what:"An ESP32 switching an LED strip through a MOSFET, fed by a buck converter from a barrel jack; a magnet lid and screw ears.",
+    words:"ESP32 DevKit, MOSFET switch module, LM2596 buck converter, DC barrel jack, cable gland, push button", set:{ lid:"magnet", lidThick:3, radius:3, mount:"ears" } },
+  { name:"Raspberry Pi server", what:"A Raspberry Pi 4 with a 60 mm fan blowing out, a vent on the other side, a power switch and an LED; short lid posts.",
+    words:"Raspberry Pi 4, 60 mm fan, vent, rocker switch, LED", set:{ lid:"screw", fasten:"insert", feet:"recess", postStyle:"hang", radius:4 }, faces:{ vent:"left" } },
+  { name:"Guitar pedal", what:"An Arduino Nano under a footswitch, a knob and an LED on the lid, jacks in and out on the sides, power at the back.",
+    words:"Arduino Nano, footswitch, 6.35 mm jack, DC barrel jack, 5 mm LED, potentiometer", extra:[{ kind:"jack635", face:"right" }],
+    set:{ lid:"screw", fasten:"insert", wall:2.4, lidThick:3, feet:"recess", radius:3 }, min:{ w:112, d:60, h:38 }, faces:{ footswitch:"top", pot:"top", led5:"top", jack635:"left", barrel:"back" } }
+];
+function encStartKit(kit){
+  const keepAI = state.base.enclosure && state.base.enclosure.logo;
+  state.base.enclosure = Object.assign(DEFAULTS().base.enclosure, { mount:"none", cut:[] }, JSON.parse(JSON.stringify(kit.set || {})));
+  if (keepAI) state.base.enclosure.logo.on = false;
+  const E = state.base.enclosure, plan = aiFromWords(kit.words);
+  plan.openings.forEach(o => { if (kit.faces && kit.faces[o.kind]) o.face = kit.faces[o.kind]; });
+  (kit.extra || []).forEach(o => plan.openings.push(Object.assign({}, o)));
+  E.teardrop = true;                                               // round holes in the walls with pointed tops: less support
+  const r = encApplyPlan(plan); if (!r.ok) return r;
+  if (kit.min){ for (const k of ["w","d","h"]) if (kit.min[k] && (+E[k] || 0) < kit.min[k]) E[k] = kit.min[k]; encArrange(true); }
+  (E.cut || []).forEach(c => { if (!encLabelText(c.label) && encAutoLabel(c.kind)) c.label = encAutoLabel(c.kind); });
+  encFixAll(E); encTidyLabels(E);
+  return Object.assign(r, { size:[E.w, E.d, E.h] });
+}
+// labels with no room (Session 63): above the opening instead of below, and when there is no room there either, none
+function encTidyLabels(E){
+  let n = 0;
+  for (let round = 0; round < 2; round++){
+    buildEnclosure();
+    const out = (enclosureInfo.warn || []).map(w => (w.t.match(/^Label of opening (\d+) left out$/) || [])[1]).filter(Boolean).map(k => E.cut[+k - 1]).filter(Boolean);
+    if (!out.length) break;
+    out.forEach(c => { if (c.labelPos !== "above" && round === 0) c.labelPos = "above"; else { c.label = ""; n++; } });
+  }
+  buildEnclosure();
+  return n;
+}
 // the box's "Describe your project" page
 function encDescribe(p){
+  group(p, "Start from a recipe", g => {
+    note(g, "A whole box in one click: its boards, its openings on the faces that suit them (labelled), its lid and its mounting. It starts the box again; Undo puts yours back.");
+    ENC_KITS.forEach(kit => { const cd = document.createElement("div"); cd.className = "card kit"; g.appendChild(cd);
+      cd.insertAdjacentHTML("beforeend", `<p class="hint" style="margin:0 0 4px"><b>${esc(kit.name)}</b>: ${esc(kit.what)}</p>`);
+      buttonRow(cd, [[`Start a ${kit.name.toLowerCase()}`, ()=>{ const r = encStartKit(kit); if (!r.ok){ notify(r.why); return; }
+        encSel = null; renderTab(); baseChanged(); pushHistory(); notify(`${kit.name}: ${r.boards} board${r.boards === 1 ? "" : "s"} and ${(state.base.enclosure.cut || []).length} openings, the box ${r.size.join(" × ")} mm. Undo puts your box back.`); }]]); });
+  }, false);
   group(p, "Describe your project", g => {
     note(g, "Say what goes in the box and it is filled in for you: the boards arranged in the smallest box that fits your bed, the openings on their walls" + (aiReady() ? ", and an icon for the lid." : ".") +
       " It starts the box's boards and openings again; Undo puts them back.");
@@ -4273,6 +4578,8 @@ function encAssembly(){
   const divOn = k => (I.dividers || []).map((d, i) => Object.assign({ i }, d)).filter(d => (d.lvl || 0) === k);
   const floorList = onFloor(0);
   if (floorList.length) out.push(`On the floor: ${floorList.map(fix).join("; ")}.`);
+  const onFaces = (I.boards || []).filter(b => b.face && b.fits !== false);
+  if (onFaces.length) out.push(`On the walls and the lid: ${onFaces.map(b => `${fix(b)} on ${ENC_MOUNT_NAME[b.face].replace(/^under /, "under ")}, its parts facing ${b.side === "out" ? (b.face === "top" ? "the lid" : "the wall") : "in"}`).join("; ")}.`);
   if ((E.cut || []).some(c => c.auto === "ports")) out.push(`Check that ${lab((I.boards || []).find(b => b.main) || { label:"the board" })}'s ports line up with their openings before tightening anything.`);
   if (I.ducts) out.push(`Press the wires that go up the walls into the cable channel${s(I.ducts)}${E.ductCover ? ", then snap the covers on" : ""}.`);
   divOn(0).forEach(d => out.push(`${d.fan ? `Screw the ${d.fan} into divider ${d.i + 1}, then slide` : "Slide"} divider ${d.i + 1} into its grooves${d.crossings ? " (dividers that cross slot into each other)" : ""}.`));
@@ -4285,7 +4592,8 @@ function encAssembly(){
   const holes = (I.need || []).filter(([, w]) => /in its opening\)$/.test(w));
   if (holes.length) out.push(`Fit the parts in the openings: ${holes.map(([n, w]) => `${n} × ${w.replace(/ \(in its opening\)$/, "")}`).join(", ")}.`);
   if ((E.cut || []).some((c, i) => c.kind === "fan" && !I.left.includes(i))) out.push("Screw the fans on, blowing the way the air should go (the arrow on the fan's side).");
-  out.push("Wire it all up and test it with the lid off.");
+  const nW = encWires(E, I).filter(w => w.ok).length;
+  out.push(nW ? `Wire it up as the wiring list says (${nW} wire${s(nW)}, wiring.txt), and test it with the lid off.` : "Wire it all up and test it with the lid off.");
   if (lidOn) out.push(E.lid === "slide" ? "Slide the lid in from the front." : E.lid === "magnet" ? "Put the lid on: the magnets hold it."
     : E.lid === "press" ? (I.hinge ? `Push a ${I.hinge.length} mm length of 1.75 mm filament through the hinge knuckles as the pin, trim it flush, and close the lid${I.snap ? ": the catches click" : ""}.` : `Press the lid on${I.snap ? ": the catches click" : ""}.`)
     : (I.lidPosts || {}).n ? `Screw the lid on (${(I.need || []).map(([, w]) => w).find(w => /for the lid$/.test(w)) || "the lid screws"}).` : "Put the lid on.");
@@ -4299,8 +4607,41 @@ function encSplitReadme(){
     "Print the box parts open side up and the lid parts outside face down, as they lie in the files.",
     "Heat inserts: press each in with a soldering iron at about 220 °C, flush with the face, before the parts go together."];
 }
+/* The fit test for the holders (Session 63): one flat card with a sample of each way a board is held, labelled, and the
+   tiles that go in them: a cradle with ribs and one with snap clips (each with a 25 × 18 mm tile the size of a board), a
+   standoff with a snap pin (and a plate with an M3 board's hole to push over it), a strap loop beside a little tray, and a
+   scrap of wall with a sideways standoff (the teardrop of a board on a wall). Print it, try each, then set the clearances. */
+const ENC_HOLDERS = { w:130, d:82, t:2, tw:25, td:18 };
+function encHolderCard(E){
+  const H = ENC_HOLDERS, T = H.t, solids = [], slot = clamp(+E.boxSlot || 0, 0, state.slots.length - 1), labels = [], warn = [];
+  const plate = (x0, y0, x1, y1, z0, z1, holes = []) => C.extrudePolysAt([{ outer:encOrient(encRect(x0, y0, x1, y1), true), holes:holes.map(L => encOrient(L, false)) }], z0, z1);
+  const circ = (x, y, r, n = 32) => C.ringCircle(r, n).map(([a, b]) => [a + x, b + y]);
+  const lab = (text, x, y) => labels.push(...C.strokePolys(C.strokeText(text, x, y, 4).segs, 0.35, 0.04));
+  // the cradles (ribs and clips) for a 25 × 18 tile, 2 mm up on their seats
+  [["ribs", -42, "RIBS"], ["clips", -8, "CLIPS"]].forEach(([grip, x, t2]) => { solids.push(...encCradle(x, 16, H.tw, H.td, T, 2, ENC_CRADLE.fence, null, grip)); lab(t2, x, 16 - H.td/2 - 7); });
+  // a standoff with a snap pin for an M3 board's hole
+  const sc = SCREWS.M3; solids.push(C.extrudePolysAt([{ outer:encOrient(circ(30, 16, 3.2), true), holes:[] }], T - 0.01, T + 5)); solids.push(...encSnapPin(30, 16, (sc.clear - 0.3)/2, T + 5)); lab("PIN", 30, 16 - 11);
+  // a strap loop beside a tray for a 40 × 18 battery
+  const tray = encStrapTray(-34, -22, 40, 18, T, 10, null, true); solids.push(...tray.solids); lab("LOOP", -1, -22);
+  // a scrap of wall (24 × 22 mm, 2 mm thick) with a sideways standoff on it, as on a wall in a box: a teardrop pointing down
+  const wx = 30, wy = -32, hole = sc.pilot, r = Math.max(hole/2 + 1.4, 2.4);
+  solids.push(plate(wx - 12, wy - 1, wx + 12, wy + 1, T - 0.01, T + 22));
+  const Mf = [1,0,0, 0,0,-1, 0,1,0], tearDown = rr => encTeardrop(rr, 24).map(([a, b]) => [a, -b]);
+  solids.push(C.affineSolid(C.extrudePolysAt([{ outer:encOrient(tearDown(r).map(([a, b]) => [a + wx, b + T + 12]), true), holes:[encOrient(encTeardrop(hole/2, 16).map(([a, b]) => [a + wx, b + T + 12]), false)] }], -(wy + 1) - 6, -(wy + 1) + 0.01), Mf, [0, 0, 0]));
+  lab("WALL", wx, wy - 5.5);
+  // the card, with the labels cut 0.4 mm into its top
+  const pocket = inlayPocket(labels);
+  solids.push(plate(-H.w/2, -H.d/2, H.w/2, H.d/2, 0, T - 0.4)); solids.push(C.extrudePolysAt([{ outer:encOrient(encRect(-H.w/2, -H.d/2, H.w/2, H.d/2), true), holes:pocket.holes }, ...pocket.islands], T - 0.4, T));
+  // the tiles: two board-sized ones for the cradles and a plate with an M3 board's hole for the pin, in front of the card
+  const ty = -H.d/2 - 18, tiles = [plate(-50, ty - H.td/2, -50 + H.tw, ty + H.td/2, 0, 1.6), plate(-20, ty - H.td/2, -20 + H.tw, ty + H.td/2, 0, 1.6), plate(15, ty - 6, 27, ty + 6, 0, 1.6, [circ(21, ty, 1.6)])];
+  enclosureInfo = { test:true, holders:true, size:[H.w, H.d + 40, T + 22], inner:[H.w, H.d, 20], total:T + 22, warn, left:[], misfit:[], boards:[], ghosts:[], hints:[], levels:[], dividers:[], art:[], need:[],
+    lidPosts:{ n:0, at:[] }, mount:[], wallH:{}, faceU:{}, takenOn:{}, clashes:[], count:0, extras:{}, wall:2, ceil:20, lipH:0, ri:0, ductRects:[] };
+  return [{ name:"Holder test card", slot, solid:C.mergeSolids(solids) }, { name:"Test tiles", slot, solid:C.mergeSolids(tiles) }];
+}
 function buildEnclosure(){
   if (!state.base.enclosure) state.base.enclosure = DEFAULTS().base.enclosure;
+  encSyncCustomBoards(state.base.enclosure);                      // (imported boards, after an undo or a load)
+  if (state.base.enclosure.test === true && state.base.enclosure.testKind === "holders") return encHolderCard(state.base.enclosure);
   enclosureLogo = null;
   let lidShift = [0, 0, 0];                             // where the lid prints, from where it sits on the box
   const E = state.base.enclosure.test ? encTestSettings(state.base.enclosure) : state.base.enclosure, warn = [], left = [];
@@ -4383,6 +4724,7 @@ function buildEnclosure(){
   // flush, two M2 screws through the door into posts at its ends; the battery rests on the door inside a rim
   const ENC_DOOR = { g:0.6, side:3.5, end:9.5, post:3, at:5.5 }, doorCuts = [];
   boardList.forEach(bd => {
+    if (bd.face) return;                                          // (on a wall or the lid: built with the others below)
     const B = bd.B, bw = bd.rot ? B.d : B.w, bdp = bd.rot ? B.w : B.d;
     if (bd.hold === "door"){
       const DR = ENC_DOOR, alongX = bw >= bdp, dt = clamp(fl - 0.8, 0.8, 1.6), gx = alongX ? DR.end : DR.side, gy = alongX ? DR.side : DR.end;
@@ -4547,7 +4889,7 @@ function buildEnclosure(){
   }
   // split into parts (Session 40): planned once every opening and label is in place, so the joins keep clear of them
   // every board's place on the floor (Session 45: all of them, not only one with holes), for the joins to keep clear of
-  const boardRects = boardList.map(bd => { const bw = bd.rot ? bd.B.d : bd.B.w, bdp = bd.rot ? bd.B.w : bd.B.d;
+  const boardRects = boardList.filter(bd => !bd.face).map(bd => { const bw = bd.rot ? bd.B.d : bd.B.w, bdp = bd.rot ? bd.B.w : bd.B.d;
     return { r:[bd.x - bw/2, bd.y - bdp/2, bd.x + bw/2, bd.y + bdp/2], what: bd.main ? "the board" : bd.B.label }; });
   const splitG = { W, D, H, t, fl, R, iw, id, slide, lidOn, lipH, magnet, pocketD, pocketH, bossR, bossHole, screw, bosses, taken, boardRects, warn, test: !!state.base.enclosure.test, mountSolids: mount.solids };
   const split = encSplitPlan(E, splitG);
@@ -4592,6 +4934,8 @@ function buildEnclosure(){
   const labDepth = th => clamp(+E.labelDepth || 0.4, 0.2, Math.max(0.2, th - 0.6));
   const labHoles = list => inlayPocket(list).holes;
   const labIslands = list => inlayPocket(list).islands;
+  const texOn = ["grooves","hex"].includes(E.texture) ? E.texture : "", bandOn = E.band === true, styleOn = !!(texOn || bandOn) && !state.base.enclosure.test;
+  const texD = clamp(+E.textureDepth || 0.6, 0.3, Math.max(0.3, t - 0.8)), bandZ = clamp(+E.bandZ || H/2, 2, H), bandW = clamp(+E.bandH || 8, 2, 60), bandD = clamp(0.6, 0.3, Math.max(0.3, t - 0.8)), bandParts = [];
   for (const [face, F] of Object.entries(faceInfo)){
     const Hw = wallH(face), outer = [[-F.L/2, 0], [F.L/2, 0], [F.L/2, Hw]];
     notchesOn[face].slice().sort((p, q) => q[0] - p[0]).forEach(([x0, x1, yb]) => outer.push([x1, Hw], [x1, yb], [x0, yb], [x0, Hw]));
@@ -4601,6 +4945,33 @@ function buildEnclosure(){
     const wc = [];
     if (labs.length && t >= 0.8) wc.push({ depth: labDepth(t), holes: labHoles(labs), islands: labIslands(labs) });
     artOn[face].filter(x => x.finish !== "raised").forEach(x => wc.push({ depth: x.depth, holes: labHoles(x.union), islands: labIslands(x.union) }));
+    // the style (Session 63): a band of another filament inlaid round the box, and grooves or hexagons cut into the outside,
+    // each kept 2 mm clear of the openings, labels, art and mounts, and of the wall's ends and edges
+    if (styleOn && t >= 1.2){
+      const avoid = taken[face].map(o => [o.bb[0] - 2, o.bb[1] - 2, o.bb[2] + 2, o.bb[3] + 2]), Lh = F.L/2 - 3, top = Hw - 2.5;
+      notchesOn[face].forEach(([a, b2, yb]) => avoid.push([a - 2, yb - 2, b2 + 2, Hw + 1]));
+      const spans = (v0, v1, a0, a1) => { let segs = [[a0, a1]]; avoid.filter(r => r[1] < v1 && v0 < r[3]).forEach(r => { segs = segs.flatMap(([p, q]) => [[p, Math.min(q, r[0])], [Math.max(p, r[2]), q]]).filter(([p, q]) => q - p > 3); }); return segs; };
+      if (bandOn){
+        const v0 = clamp(bandZ - bandW/2, 1.5, top - 2), v1 = clamp(bandZ + bandW/2, v0 + 1, top), rs = spans(v0, v1, -Lh, Lh).map(([p, q]) => [[p, v0], [q, v0], [q, v1], [p, v1]]);
+        if (rs.length){ wc.push({ depth:bandD, holes:rs.map(L => encOrient(L, false)), islands:[] }); avoid.push([-Lh - 5, v0 - 1.5, Lh + 5, v1 + 1.5]);
+          rs.forEach(L => bandParts.push(C.affineSolid(C.extrudePolysAt([{ outer:encOrient(L, true), holes:[] }], t - bandD, t), F.M, F.T))); }
+      }
+      if (texOn === "grooves"){
+        const gw = 1.2, pitch = 4, holes = [];
+        for (let u = -Lh + 2; u <= Lh - 2; u += pitch){
+          // up the wall, broken round whatever is there; each with a pointed top, so no bridge
+          let runs = [[2.5, top]]; avoid.filter(r => r[0] < u + gw/2 && u - gw/2 < r[2]).forEach(r => { runs = runs.flatMap(([p, q]) => [[p, Math.min(q, r[1])], [Math.max(p, r[3]), q]]).filter(([p, q]) => q - p > 4); });
+          runs.forEach(([p, q]) => holes.push(encOrient([[u - gw/2, p], [u + gw/2, p], [u + gw/2, q - gw/2], [u, q], [u - gw/2, q - gw/2]], false)));
+        }
+        if (holes.length) wc.push({ depth:texD, holes, islands:[] });
+      } else if (texOn === "hex"){
+        const cs = 5, gap = 1.3, R0 = cs/Math.sqrt(3), dx = cs + gap, dy = (cs + gap)*Math.sqrt(3)/2, holes = [];
+        for (let j = 0, v = 2.5 + R0; v <= top - R0; j++, v += dy) for (let u = -Lh + R0 + (j % 2 ? dx/2 : 0); u <= Lh - R0; u += dx){
+          if (avoid.some(r => u + R0 > r[0] && u - R0 < r[2] && v + R0 > r[1] && v - R0 < r[3])) continue;
+          holes.push(encOrient(encHex(cs, false).map(([a, b2]) => [a + u, b2 + v]), false)); }           // a corner up, so no flat roof
+        if (holes.length) wc.push({ depth:texD, holes, islands:[] });
+      }
+    }
     // the snap catches' grooves (Session 55), cut into the inside of the front and back walls (local y from 0)
     const ic = snap && (face === "front" || face === "back") ? snap.xs.map(x => encOrient(encRect(x - SN.gLen/2, snap.zc - SN.gH/2, x + SN.gLen/2, snap.zc + SN.gH/2), false)) : [];
     if (wc.length || ic.length){
@@ -4672,7 +5043,50 @@ function buildEnclosure(){
   const levelTop = k => k > 0 && levels[k - 1] ? fl + levels[k - 1].z : fl;
   const plateB = [-(iw/2 - ENC_LEVEL.gap), -(id/2 - ENC_LEVEL.gap), iw/2 - ENC_LEVEL.gap, id/2 - ENC_LEVEL.gap];     // a level plate's extent (Session 51)
   const ceilingOver = k => k < levels.length ? fl + levels[k].z - levels[k].t : ceilZ;
+  // a board on a wall or under the lid (Session 63): standoffs from that face, its plan footprint and height for the checks
+  const lidMounts = [];
+  const faceMount = bd => {
+    const B = bd.B, f = bd.face, wallF = f !== "top", out = bd.side === "out", mir = out ? 1 : -1, bw = bd.rot ? B.d : B.w, bh = bd.rot ? B.w : B.d;
+    const sh = clamp(bd.sh, 1, 40), tall = boardTall(bd.key, B), bs = encHas(SCREWS, B.screw) ? SCREWS[B.screw] : SCREWS.M3, hole = E.fasten === "insert" ? bs.insert : bs.pilot, sr = Math.max(hole/2 + 1.4, 2.4);
+    const info = { w:bw, d:bh, label:B.label, screw:B.screw, hold:"face", face:f, side:out ? "out" : "in", main:bd.main, check:!!B.check, issues:[], lvl:-1, key:bd.key, src:bd.main ? null : bd.src,
+      rot:bd.rot, tall, grip:bd.pins ? "pins" : "screws", m:0.5, at:[bd.x, bd.y], hole };
+    const bwarn = (t2, s2) => { warn.push({ t:t2, s:s2 }); info.issues.push(s2); };
+    const lim = wallF ? [-faceInfo[f].L/2 + 0.8, fl + 0.8, faceInfo[f].L/2 - 0.8, Math.min(wallH(f), lipTop) - 0.8] : [-iw/2 + lipEdge + 0.5, -id/2 + lipEdge + 0.5, iw/2 - lipEdge - 0.5, id/2 - lipEdge - 0.5];
+    const a0 = bd.x - bw/2, a1 = bd.x + bw/2, b0 = bd.y - bh/2, b1 = bd.y + bh/2;
+    // where it is in the box: the plan footprint (with what stands off the face) and its heights
+    const depthIn = sh + 1.6 + (out ? 0 : tall), along = (u, dep) => f === "front" ? [u, -id/2 + dep] : f === "back" ? [-u, id/2 - dep] : f === "left" ? [-iw/2 + dep, -u] : f === "right" ? [iw/2 - dep, u] : [u, 0];
+    if (wallF){ const p = along(a0, 0), q = along(a1, depthIn); info.bb = [Math.min(p[0], q[0]), Math.min(p[1], q[1]), Math.max(p[0], q[0]), Math.max(p[1], q[1])]; info.base = b0; info.top = b1; info.partsTop = b1; info.z = [b0, b1]; }
+    else { info.bb = [a0, b0, a1, b1]; info.z = [H - depthIn, H]; info.base = H - depthIn; info.top = H - sh; info.partsTop = H; }
+    info.room = H;
+    if (a0 < lim[0] || a1 > lim[2] || b0 < lim[1] || b1 > lim[3]){
+      info.fits = false; info.faceOver = { a0:Math.max(0, lim[0] - a0), a1:Math.max(0, a1 - lim[2]), b0:Math.max(0, lim[1] - b0), b1:Math.max(0, b1 - lim[3]) };
+      bwarn(`${B.label} does not fit ${ENC_MOUNT_NAME[f]}`, `At ${bw.toFixed(0)} × ${bh.toFixed(0)} mm it runs past the edge of ${ENC_MOUNT_NAME[f]}${wallF ? " (or under the lid's lip)" : " (clear of the lip)"}: move it, or make the box bigger.`);
+      boardsInfo.push(info); return;
+    }
+    // its screw holes, on the face: seen from outside a board with its parts in is the other way round
+    const pts = B.holes.map(([hx, hy]) => { let lx = hx - B.w/2, ly = hy - B.d/2; if (bd.rot) [lx, ly] = [-ly, lx]; return [bd.x + mir*lx, bd.y + ly]; });
+    if (wallF){
+      // standoffs out of a wall print lying sideways: a teardrop pointing down outside, the screw hole a teardrop pointing up
+      const F = faceInfo[f], tearDown = r => encTeardrop(r, 24).map(([x, y]) => [x, -y]);
+      pts.forEach(([u, v]) => solids.push(C.affineSolid(C.extrudePolysAt([{ outer:encOrient(tearDown(sr).map(([x, y]) => [x + u, y + v]), true), holes:[encOrient(encTeardrop(hole/2, 16).map(([x, y]) => [x + u, y + v]), false)] }], -sh, 0.01), F.M, F.T)));
+      const g0 = ghosts.length, A = along(a0, sh), Bq = along(a1, sh + 1.6), P1 = along(a0 + 1, out ? sh - tall : sh + 1.6), P2 = along(a1 - 1, out ? sh : sh + 1.6 + tall);
+      ghosts.push(ghostBox(Math.min(A[0], Bq[0]), Math.min(A[1], Bq[1]), b0, Math.max(A[0], Bq[0]), Math.max(A[1], Bq[1]), b1, "board", B.label));
+      ghosts.push(ghostBox(Math.min(P1[0], P2[0]), Math.min(P1[1], P2[1]), b0 + 1, Math.max(P1[0], P2[0]), Math.max(P1[1], P2[1]), b1 - 1, "parts", B.label));
+      ghosts.slice(g0).forEach(gh => { gh.who = bd.main ? "main" : bd.src; });
+    } else {
+      // under the lid: standoffs on its inside face (they print standing up, the lid face down); a board hangs from them
+      lidMounts.push({ pts, sr, hole, sh });
+      const g0 = ghosts.length;
+      ghosts.push(ghostBox(a0, b0, H - sh - 1.6, a1, b1, H - sh, "board", B.label));
+      ghosts.push(ghostBox(a0 + 1, b0 + 1, out ? H - sh : H - sh - 1.6 - tall, a1 - 1, b1 - 1, out ? H : H - sh - 1.6, "parts", B.label));
+      ghosts.slice(g0).forEach(gh => { gh.who = bd.main ? "main" : bd.src; });
+      if (bosses.some(([x, z]) => x + bossR > a0 && x - bossR < a1 && -z + bossR > b0 && -z - bossR < b1)) bwarn(`${B.label} is over a lid post`, "A corner screw post reaches up under it: move it towards the middle of the lid.");
+    }
+    if (out && tall > sh + (wallF ? t : lidT)) bwarn(`${B.label}'s parts go through ${ENC_MOUNT_NAME[f].replace(/^under /, "")}`, `With its parts towards ${wallF ? "the wall" : "the lid"}, the standoffs need to be at least ${Math.ceil(tall - (wallF ? t : lidT) + 1)} mm (or cut a window in front of them).`);
+    boardsInfo.push(info);
+  };
   boardList.forEach((bd, n) => {
+    if (bd.face){ faceMount(bd); return; }
     if (bd.lvl > levels.length) bd.lvl = levels.length;
     // a battery under a door rests on the door (Session 57), its top flush with the floor's underside
     const B = bd.B, base = bd.hold === "door" ? bd.door.dt : levelTop(bd.lvl), dst = bd.lvl ? levelSolids[bd.lvl - 1] : solids;
@@ -4711,9 +5125,14 @@ function buildEnclosure(){
     else dst.push(...encCradle(bd.x, bd.y, bw, bdp, base, sh, bd.lvl ? ENC_CRADLE.fence : Math.min(ENC_CRADLE.fence, t + 0.4), bd.lvl ? plateB : null, bd.grip));
     // its see-through parts: the board, the room its parts take above it, and its ports (Session 46)
     const tall = boardTall(bd.key, B), solidBody = B.g === "battery" || /^lrs/.test(bd.key);
-    const g0 = ghosts.length;
+    const g0 = ghosts.length, shp = solidBody ? [] : boardShapesAt(bd.key, B, bd.x, bd.y, bd.rot, base + sh + 1.6);
     if (solidBody) ghosts.push(ghostBox(x0, y0, base + sh, x1, y1, base + sh + tall, "parts", B.label));
-    else { ghosts.push(ghostBox(x0, y0, base + sh, x1, y1, base + sh + 1.6, "board", B.label)); ghosts.push(ghostBox(x0 + 1, y0 + 1, base + sh + 1.6, x1 - 1, y1 - 1, base + sh + 1.6 + tall, "parts", B.label)); }
+    else { ghosts.push(ghostBox(x0, y0, base + sh, x1, y1, base + sh + 1.6, "board", B.label));
+      // its parts as they are (Session 63), or one block the height of its tallest
+      if (shp.length) shp.forEach(([a0, b0, a1, b1, zt, nm], si) => { ghosts.push(ghostBox(a0, b0, base + sh + 1.6, a1, b1, zt, si === 0 ? "parts" : "feat", nm)); });
+      else ghosts.push(ghostBox(x0 + 1, y0 + 1, base + sh + 1.6, x1 - 1, y1 - 1, base + sh + 1.6 + tall, "parts", B.label)); }
+    if (shp.length && ghosts[g0 + 1]) ghosts[g0 + 1].label = B.label;
+    info.shapes = shp; info.reach = shp.length ? [Math.min(x0, ...shp.map(f => f[0])), Math.min(y0, ...shp.map(f => f[1])), Math.max(x1, ...shp.map(f => f[2])), Math.max(y1, ...shp.map(f => f[3]))] : null;
     ghosts.slice(g0).forEach(gh => { gh.who = bd.main ? "main" : bd.src; });            // (Session 62: which part, to pick and name it)
     info.partsTop = solidBody ? base + sh + tall : info.top + tall; info.room = ceilingOver(bd.lvl);
     if (info.fits !== false && info.partsTop > ceilingOver(bd.lvl) - 0.3)
@@ -4729,7 +5148,7 @@ function buildEnclosure(){
       const covered = (Array.isArray(E.cut) ? E.cut : []).some((c, ci) => c.face === q.face && !left.includes(ci) && (() => { const bb = ringsBounds(placedRings(c, E)); return q.u >= bb[0] - 0.5 && q.u <= bb[2] + 0.5 && v >= bb[1] - 0.5 && v <= bb[3] + 0.5; })());
       if (near && !covered) hints.push(`${B.label}: its ${k.label.replace(/[,:(].*$/, "").trim()} on the ${ENC_FACE_NAME[q.face]} has no opening in front of it.`);
     });
-    if (info.fits !== false && (!postHang || info.top + boardTall(bd.key, B) > postFree) && bosses.some(([x, z]) => x + bossR > x0 && x - bossR < x1 && -z + bossR > y0 && -z - bossR < y1))
+    if (info.fits !== false && bosses.some(([x, z]) => x + bossR > x0 && x - bossR < x1 && -z + bossR > y0 && -z - bossR < y1 && (!postHang || encTopIn(info, [x - bossR, -z - bossR, x + bossR, -z + bossR]) > postFree)))
       bwarn(`${B.label} sits on a screw post`, "A corner screw post is under it. Move it, or make the box bigger.");
     if (info.top + 1 > H - lipH) bwarn("Not enough headroom", `The top of ${B.label} is ${info.top.toFixed(1)} mm up, too close to the lid. Make the box taller or its standoffs shorter.`);
     // two boards on top of each other
@@ -4738,6 +5157,18 @@ function buildEnclosure(){
     info.bb = [x0, y0, x1, y1]; info.at = [bd.x, bd.y]; info.rot = bd.rot; info.key = bd.key; info.tall = boardTall(bd.key, B); info.src = bd.main ? null : bd.src; info.grip = bd.holes ? (bd.pins ? "pins" : "screws") : bd.hold === "edges" || bd.hold === "holes" ? bd.grip : bd.hold;
     boardsInfo.push(info);
     if (!board) board = info;
+  });
+  // a socket reaching past its board's edge into another part on the same floor (Session 63), once every part is placed
+  boardsInfo.filter(b => b.shapes && b.shapes.length && b.fits !== false && !b.face).forEach(b => boardsInfo.forEach(o => {
+    if (o === b || o.face || o.lvl !== b.lvl || o.fits === false || !o.bb) return;
+    const f = b.shapes.find(q => (q[0] < b.bb[0] || q[2] > b.bb[2] || q[1] < b.bb[1] || q[3] > b.bb[3]) && q[0] < o.bb[2] && o.bb[0] < q[2] && q[1] < o.bb[3] && o.bb[1] < q[3]);
+    if (f){ warn.push({ t:`${b.label}'s ${f[5]} runs into ${o.label}`, s:`It reaches past the board's edge: move ${o.label} away from that side.` }); b.issues.push(`Its ${f[5]} runs into ${o.label}.`); o.issues.push(`${b.label}'s ${f[5]} runs into it.`); } }));
+  // a part on a wall or the lid against the other parts and the levels, in 3D (Session 63)
+  boardsInfo.filter(fi => fi.face && fi.fits !== false).forEach(fi => {
+    boardsInfo.forEach(o => { if (o === fi || o.fits === false) return; const oz = o.face ? o.z : [o.base, o.partsTop];
+      if (fi.bb[0] < o.bb[2] && o.bb[0] < fi.bb[2] && fi.bb[1] < o.bb[3] && o.bb[1] < fi.bb[3] && fi.z[0] < oz[1] && oz[0] < fi.z[1] && (!o.face || boardsInfo.indexOf(o) > boardsInfo.indexOf(fi))){
+        warn.push({ t:`${fi.label} runs into ${o.label}`, s:`${fi.label} on ${ENC_MOUNT_NAME[fi.face]} and ${o.label} take the same room. Move one of them.` }); fi.issues.push(`It runs into ${o.label}.`); o.issues.push(`${fi.label} on ${ENC_MOUNT_NAME[fi.face]} runs into it.`); } });
+    levels.forEach((L, k) => { const z0 = fl + L.z - L.t, z1 = fl + L.z; if (fi.z[0] < z1 && z0 < fi.z[1]){ warn.push({ t:`${fi.label} runs into level ${k + 1}`, s:"Move it up or down the wall, or move the level." }); fi.issues.push(`It runs into level ${k + 1}.`); } });
   });
   enclosurePlates = 0;
   // cable channels up the walls (Session 51): their footprints (plan x0, y0, x1, y1), solids from the floor up under the lid
@@ -4805,7 +5236,7 @@ function buildEnclosure(){
     else if (holdOf[k] === "brackets") pts.forEach(([x, y]) => {
       const bot = fl + levels[k].z - levels[k].t - BRK.boss - BRK.drop, fb = levels[k].bw === "frontback", xw = Math.sign(x)*iw/2, yw = Math.sign(y)*id/2;
       const r = fb ? [x - BRK.r, Math.min(yw, y - Math.sign(y)*(BRK.r + 1)), x + BRK.r, Math.max(yw, y - Math.sign(y)*(BRK.r + 1))] : [Math.min(xw, x - Math.sign(x)*(BRK.r + 1)), y - BRK.r, Math.max(xw, x - Math.sign(x)*(BRK.r + 1)), y + BRK.r];
-      const hit = boardsInfo.find(b => b.fits !== false && b.lvl === k && b.top + (b.tall || 10) + 1 > bot && r[0] < b.bb[2] && r[2] > b.bb[0] && r[1] < b.bb[3] && r[3] > b.bb[1]);
+      const hit = boardsInfo.find(b => b.fits !== false && b.lvl === k && r[0] < b.bb[2] && r[2] > b.bb[0] && r[1] < b.bb[3] && r[3] > b.bb[1] && encTopIn(b, r) + 1 > bot);
       if (hit){ warn.push({ t:`${hit.label} runs into a wall bracket of level ${k + 1}`, s:"Move it away from the side wall, or raise the level." }); hit.issues.push(`It runs into a wall bracket of level ${k + 1}.`); }
       ductInfo.forEach(du => { if (fb ? (du.isY && Math.sign(du.sgn) === Math.sign(y) && Math.abs(du.at - x) < half + BRK.r + 0.5) : (!du.isY && Math.sign(du.sgn) === Math.sign(x) && Math.abs(du.at - y) < half + BRK.r + 0.5)) warn.push({ t:`Level ${k + 1}: a wall bracket is on cable channel ${du.k + 1}`, s:"Move the channel along the wall." }); });
     });
@@ -5023,6 +5454,8 @@ function buildEnclosure(){
     hinge.segs.filter(sg => sg.box).forEach(sg => { solids.push(xBar(hull, [tear(ca, cb)], sg.x0, sg.x1));
       solids.push(xBar([[D/2 - 0.6, bot], [D/2 + 0.01, bot], [D/2 + 0.01, H - 0.6], [D/2 - 0.6, H - 0.6]], [], sg.x0, sg.x1)); }); }
   const parts = [{ name:"Box", slot:clamp(+E.boxSlot || 0, 0, state.slots.length - 1), solid:C.mergeSolids(solids.filter(Boolean)) }, ...artParts];
+  const bandSlot = clamp(+E.bandSlot || 0, 0, state.slots.length - 1);
+  if (bandParts.length) parts.push({ name:`Band (${(state.slots[bandSlot] || state.slots[0]).name})`, slot:bandSlot, solid:C.mergeSolids(bandParts) });
   if (slide){
     // printed as it sits, top face up: a stack of thin slabs whose edges step in at 45° like the
     // grooves. Openings, labels and the logo go through or into its top face, a finger notch at the front.
@@ -5069,11 +5502,17 @@ function buildEnclosure(){
     // the lid in slabs; each cut into its outside (labels, the logo) runs from the bed up to its own depth
     // the gasket groove (Session 57) runs down from the inside face: there the lid is a rim outside it and an island inside it
     const gz = gasket ? lidT - gasket.gd : Infinity;
+    // the lid's outer top edge (Session 63): chamfered at 45° or rounded, made of 0.2 mm slabs each a little smaller towards
+    // the bed (the lid prints face down: 45° and steeper needs no support)
+    const edgeK = ["chamfer","round"].includes(E.edge) ? E.edge : "", edgeE = edgeK ? clamp(+E.edgeSize || 1.5, 0.4, Math.max(0.4, Math.min(4, lidT - 0.6, Math.min(W, D)/6, gasket ? gz - 0.05 : 99))) : 0;
+    const insetAt = z => z >= edgeE ? 0 : edgeK === "chamfer" ? edgeE - z : edgeE - Math.sqrt(Math.max(0, edgeE*edgeE - (edgeE - z)*(edgeE - z)));
+    const outerAt = (z0, z1) => { const ins = insetAt((z0 + z1)/2); return ins > 0.01 ? encOrient(C.ringRect(W - 2*ins, D - 2*ins, Math.max(0, R - ins), seg), true) : lidOuter.slice(); };
     const slab1 = (z0, z1, r, on) => { const holes = [...topHoles(), ...(r > 0 ? screwHoles(r) : []), ...on.flatMap(c => c.holes)];
-      return z0 >= gz - 1e-9 ? C.extrudePolysAt([{ outer: lidOuter.slice(), holes: [gasket.outer] }, { outer: gasket.inner.slice(), holes }, ...on.flatMap(c => c.islands)], z0, z1)
-        : C.extrudePolysAt([{ outer: lidOuter.slice(), holes }, ...on.flatMap(c => c.islands)], z0, z1); };
+      return z0 >= gz - 1e-9 ? C.extrudePolysAt([{ outer: outerAt(z0, z1), holes: [gasket.outer] }, { outer: gasket.inner.slice(), holes }, ...on.flatMap(c => c.islands)], z0, z1)
+        : C.extrudePolysAt([{ outer: outerAt(z0, z1), holes }, ...on.flatMap(c => c.islands)], z0, z1); };
     const slab = (z0, z1, r) => {
-      const zs = [z0, ...[...new Set([...lidCuts.map(c => c.depth), gz])].filter(d => d > z0 + 1e-9 && d < z1 - 1e-9).sort((a, b) => a - b), z1], out = [];
+      const edgeZs = edgeE ? Array.from({ length:Math.ceil(edgeE/0.2) }, (_, k) => +Math.min(edgeE, (k + 1)*0.2).toFixed(4)) : [];
+      const zs = [z0, ...[...new Set([...lidCuts.map(c => c.depth), gz, ...edgeZs])].filter(d => d > z0 + 1e-9 && d < z1 - 1e-9).sort((a, b) => a - b), z1], out = [];
       for (let k=0;k<zs.length-1;k++) out.push(slab1(zs[k], zs[k+1], r, lidCuts.filter(c => c.depth >= zs[k+1] - 1e-9)));
       return out.length === 1 ? out[0] : C.mergeSolids(out);
     };
@@ -5101,6 +5540,8 @@ function buildEnclosure(){
       lid.push(slab(0, lidT - depth, 0));
       if (depth > 0) lid.push(slab(lidT - depth, lidT, pocketD/2));
     } else lid.push(slab(0, lidT, 0));
+    // standoffs for boards under the lid (Session 63), on its inside face (the lid's plan has front to back the other way)
+    lidMounts.forEach(lm => lm.pts.forEach(([x, y]) => lid.push(C.extrudePolysAt([{ outer:encOrient(C.ringCircle(lm.sr, 32).map(q => [q[0] + x, q[1] - y]), true), holes:[encOrient(C.ringCircle(lm.hole/2, 24).map(q => [q[0] + x, q[1] - y]), false)] }], lidT - 0.01, lidT + lm.sh))));
     if (lipH > 0){
       const a = iw/2 - fit, b = id/2 - fit;
       // where a wall has notches the lip leaves a gap, so a cable or a port can pass under the lid.
@@ -5275,7 +5716,7 @@ function encBoardChanged(quiet){
 }
 // a part that sticks out of the box after it was turned slides back in, if the box is big enough for it (Session 61)
 function encKeepInside(E, isMain, m){
-  buildEnclosure(); const I = enclosureInfo, b = I && (I.boards || []).find(q => isMain ? q.main : q.src === m); if (!b || b.fits !== false) return false;
+  buildEnclosure(); const I = enclosureInfo, b = I && (I.boards || []).find(q => isMain ? q.main : q.src === m); if (!b || b.fits !== false || b.face) return false;
   const [iw, id] = I.inner, mg = (b.m ?? 0.5) + 0.1, w = b.bb[2] - b.bb[0], d = b.bb[3] - b.bb[1];
   if (w > iw - 2*mg || d > id - 2*mg) return false;
   const x = clamp(b.at[0], -iw/2 + mg + w/2, iw/2 - mg - w/2), y = clamp(b.at[1], -id/2 + mg + d/2, id/2 - mg - d/2), rr = v => +v.toFixed(1);
@@ -5285,10 +5726,13 @@ function encKeepInside(E, isMain, m){
 // the main board picked (Session 61): the old board's port openings make way for the new one's, and it goes where there is
 // room if where the old one was does not suit it
 function encMainPicked(old){
-  const E = state.base.enclosure, had = (Array.isArray(E.cut) ? E.cut : []).filter(c => c.auto === "ports" && (c.board == null || c.board === old));
+  const E = state.base.enclosure;
+  // a wall or the lid is for a board with screw holes: another board takes the floor (Session 63)
+  if (E.boardFace && !(encBoardList(E).find(b => b.main) || {}).face) E.boardFace = "";
+  const had = (Array.isArray(E.cut) ? E.cut : []).filter(c => c.auto === "ports" && (c.board == null || c.board === old));
   if (old !== E.board && had.length) E.cut = E.cut.filter(c => !had.includes(c));
   let said = "";
-  if (E.board !== "none" && encHas(BOARDS, E.board)){
+  if (E.board !== "none" && encHas(BOARDS, E.board) && !E.boardFace){
     buildEnclosure();
     const me = (enclosureInfo.boards || []).find(b => b.main);
     if (me && (me.fits === false || me.issues.some(t => /overlaps|screw post/.test(t)))){
@@ -9777,7 +10221,7 @@ function boxDragPick(lr){
   (I.levels || []).forEach((L, k) => { if (L.hold !== "custom" || !L.src || !Array.isArray(L.src.at)) return;
     const z0 = k ? fl + I.levels[k - 1].z : fl, z1 = fl + L.z - L.t;
     L.posts.forEach(([x, y], j) => { const d = aabb(x - 3.5, z0, -(y - 3.5), x + 3.5, z1, -(y + 3.5)); if (d != null && L.src.at[j]) hits.push({ kind:"post", d, src:L.src.at[j], h:(z0 + z1)/2, at:[x, y] }); }); });
-  (I.boards || []).forEach(b => { if (b.fits === false) return;
+  (I.boards || []).forEach(b => { if (b.fits === false || b.face) return;
     const d = aabb(b.bb[0], b.base, -b.bb[1], b.bb[2], b.top + (b.tall || 10), -b.bb[3]); if (d != null) hits.push({ kind:"board", d:d + 0.5, b, h:b.base, at:b.at }); });
   hits.sort((p, q) => p.d - q.d);
   const h = hits[0]; if (!h) return null;
@@ -9984,7 +10428,7 @@ function refreshScene(){
   if (state.base.type === "enclosure" && state.base.enclosure.showParts !== false && enclosureInfo && enclosureInfo.ghosts && !viewOpts.layout && !(viewOpts.explode > 0)){
     const bi = modelParts.findIndex(p => p.name === "Box");
     if (bi >= 0){
-      const off = partOffset(modelParts[bi], bi), COL = { board:0x2e9d5b, parts:0x4a90d9, port:0xf0a030, level:0xd8dde3, fan:0x7a8590 };
+      const off = partOffset(modelParts[bi], bi), COL = { board:0x2e9d5b, parts:0x4a90d9, feat:0x4a90d9, port:0xf0a030, level:0xd8dde3, fan:0x7a8590 };
       // the part picked in the plan (or dragged) stands out in amber (Session 62); each part's name over it, when asked
       const picked = gh => gh.who && encSel && (encSel.main ? gh.who === "main" : gh.who === encSel.m), dark = document.documentElement.dataset.theme === "dark" || (state.view.theme === "auto" && matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
       const named = new Set(), sizeOf = Math.max(3, Math.min(9, Math.max(...(enclosureInfo.size || [100, 60]).slice(0, 2))*0.035));
@@ -9995,7 +10439,7 @@ function refreshScene(){
         modelGroup.add(mesh);
         if (viewOpts.boxNames !== false && gh.who && gh.kind === "parts" && !named.has(gh.who)){
           named.add(gh.who);
-          const sp = encNameSprite(gh.label.replace(/\s*\(.*$/, "").replace(/^(Raspberry Pi|Arduino|Mean Well) /, ""), sizeOf, dark, hot);
+          const sp = encNameSprite(gh.label.replace(/\s*\(.*$/, "").replace(/^Raspberry Pi /, "Pi ").replace(/^(Arduino|Mean Well) /, ""), sizeOf, dark, hot);
           sp.position.set((x0 + x1)/2 + off[0], z1 + sizeOf*0.9 + off[1], -(y0 + y1)/2 + off[2]); sp.raycast = () => {}; modelGroup.add(sp);
         }
       });
@@ -10686,7 +11130,7 @@ document.querySelectorAll(".viewtools button[title]").forEach(b => { if (!b.getA
    active page is shown, so panels stay short, and the active page plus its scroll position are
    remembered per tab and object, so changing a setting never loses your place. */
 const SECTION_ICONS = [
-  [/^plan of the inside/i,"⊞"],
+  [/^plan of the inside/i,"⊞"], [/^heat and air/i,"♨"], [/^start from a recipe/i,"★"], [/^style$/i,"✎"], [/^wiring$/i,"⌇"],
   [/^art, words and icons/i,"✦"], [/^floor, names and extras/i,"▦"], [/^what you'll need/i,"≡"],
   [/hanging hole/i,"◎"], [/^thickness$/i,"⇕"], [/^feet$/i,"⊥"], [/cut it flat/i,"✂"],
   [/piece shape/i,"🧩"], [/thickness and gap/i,"⇕"], [/labels on the back/i,"#"], [/cut lines/i,"✂"], [/frame or tray/i,"◫"],
@@ -12379,7 +12823,31 @@ function cardFields(p){
    drawn to scale with its name, holes and ports; the corner posts, a level's posts and brackets, dividers, cable channels and
    the wall openings round it. Click a part to pick it (its settings come up under the plan), drag it to move it, or nudge it
    with the arrow keys; R turns it, D makes a copy, Delete takes it out. */
+/* Where a board is mounted (Session 63): the floor or a level, a wall, or under the lid, on standoffs from that face. o:
+   { face, side } read and set, ok (it has screw holes), place(x, y) to put it somewhere sensible, size [along, up] */
+function encMountField(g, o){
+  const E = state.base.enclosure, lidOk = E.lid !== "none" && E.lid !== "slide";
+  if (!o.ok){ return ""; }
+  const opts = [["","The floor (or a level)"],["front","The front wall"],["back","The back wall"],["left","The left side"],["right","The right side"], ...(lidOk ? [["top","Under the lid"]] : [])];
+  const now = ENC_MOUNT_FACES.includes(o.face) && (o.face !== "top" || lidOk) ? o.face : "";
+  selField(g, "Mounted on", opts, ()=>now, v=>{ o.face = v; if (v){ const H = +E.h || 40, fl = +E.floor || 2; o.place(0, v === "top" ? 0 : Math.round((fl + H)/2)); } encBoardChanged(); renderTab(); });
+  if (!now) return "";
+  segField(g, [["in","Its parts face into the box"],["out", now === "top" ? "Its parts face the lid" : "Its parts face the wall"]], ()=>o.side === "out" ? "out" : "in", v=>{ o.side = v; renderTab(); encBoardChanged(); }, "two");
+  note(g, now === "top" ? "It hangs under the lid on standoffs printed with the lid (the lid prints face down, so they stand up). Keep it clear of the parts under it: the plan and the 3D view show both."
+    : `It stands on ${ENC_MOUNT_NAME[now]} on standoffs printed with the box. They lie sideways as the wall prints, so each is a teardrop pointing down, with a pointed top inside its screw hole: no support.`);
+  // a board's LEDs, buttons and knobs (from KiCad) through the face in front of them (Session 63)
+  if (o.side === "out" && o.panel && o.panel.length) buttonRow(g, [[`Cut holes for its ${o.panel.length} LEDs, buttons and knobs`, ()=>{
+    const [bw2, bh2] = o.size(), rot = o.rot(), B = o.B; E.cut = Array.isArray(E.cut) ? E.cut : []; let n = 0;
+    o.panel.forEach(([px, py, kind]) => { let lx = px - B.w/2, ly = py - B.d/2; if (rot) [lx, ly] = [-ly, lx];
+      const c = newOpening(kind, now); c.u = +(o.x() + lx).toFixed(2); c.v = +(o.y() + ly).toFixed(2); c.from = "panel"; E.cut.push(c); n++; });
+    renderTab(); baseChanged(); pushHistory(); notify(`${n} holes cut in front of its parts. Check them against your board.`); }]]);
+  if (o.side === "out") buttonRow(g, [["Cut a window in front of it", ()=>{ const [w2, h2] = o.size(); const c = newOpening("rect", now); c.u = o.x(); c.v = o.y(); c.w = Math.max(5, Math.round(w2 - 6)); c.h = Math.max(5, Math.round(h2 - 6)); c.r = 1;
+    E.cut = Array.isArray(E.cut) ? E.cut : []; E.cut.push(c); encOpeningChanged(E.cut.length - 1); renderTab(); pushHistory(); notify("A window the size of the board, less 3 mm each side, is on the Openings page: set it to the screen's size."); }]]);
+  return now;
+}
 let encSel = null, encPlanFloor = 0;
+// a move in the plan (dx right, dy back) as a move of a part on a face: along it (u) and, under the lid, front to back (v)
+const encFaceDelta = (face, dx, dy) => face === "front" ? [dx, 0] : face === "back" ? [-dx, 0] : face === "left" ? [-dy, 0] : face === "right" ? [dy, 0] : [dx, dy];
 const SVGNS = "http://www.w3.org/2000/svg";
 function svgEl(tag, attrs, parent){ const e = document.createElementNS(SVGNS, tag); for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v); if (parent) parent.appendChild(e); return e; }
 // the part picked in the plan: { main:true } or { m:<its object in E.more> }; its info from the last build
@@ -12390,7 +12858,7 @@ function encPartXY(E, who){ return who.main ? { get x(){ return +E.boardX || 0; 
   get rot(){ return E.boardRot === true; }, set rot(v){ E.boardRot = v; }, get lvl(){ return +E.boardLvl || 0; }, set lvl(v){ E.boardLvl = v; } }
   : { get x(){ return +who.m.x || 0; }, set x(v){ who.m.x = v; }, get y(){ return +who.m.y || 0; }, set y(v){ who.m.y = v; }, get rot(){ return who.m.rot === true; }, set rot(v){ who.m.rot = v; },
     get lvl(){ return +who.m.lvl || 0; }, set lvl(v){ who.m.lvl = v; } }; }
-function encPlanSVG(E, I, k, onPick){
+function encPlanSVG(E, I, k, onPick, onPickCut){
   const [W, D] = I.size, [iw, id] = I.inner, t = (W - iw)/2, R = clamp(+E.radius || 0, 0, Math.min(W, D)/2 - 1), pad = Math.max(10, W*0.07), fs = Math.max(4, Math.min(W, D)/18);
   const svg = svgEl("svg", { viewBox:`${-W/2 - pad} ${-D/2 - pad} ${W + 2*pad} ${D + 2*pad}`, class:"boxplan", role:"img", tabindex:"0",
     "aria-label":`The inside of the box from above, ${k ? "level " + k : "the floor"}: ${(I.boards || []).filter(b => (b.lvl || 0) === k).map(b => b.label).join(", ") || "nothing on it yet"}` });
@@ -12402,11 +12870,14 @@ function encPlanSVG(E, I, k, onPick){
   // the openings in the walls, as marks in the wall; the floor's openings drawn on the floor
   (E.cut || []).forEach((c, ci) => { if (I.left.includes(ci)) return;
     const bb = ringsBounds(placedRings(c, E)), a = bb[0], b = bb[2], lab = encLabelText(c.label) || (CUTOUTS[c.kind] || {}).label || "";
-    let r = null;
-    if (c.face === "front") r = [a, D/2 - t, b - a, t]; else if (c.face === "back") r = [-b, -D/2, b - a, t];
-    else if (c.face === "left") r = [-W/2, a, t, b - a]; else if (c.face === "right") r = [W/2 - t, -b, t, b - a];
-    if (r){ const e = svgEl("rect", { x:r[0], y:r[1], width:Math.max(0.6, r[2]), height:Math.max(0.6, r[3]), class:"pl-hole" }, svg); svgEl("title", {}, e).textContent = `Opening ${ci + 1}: ${lab}`; return; }
-    if (c.face === "bottom" && k === 0) placedRings(c, E).forEach(L => { const e = svgEl("polygon", { points:L.map(([x, y]) => `${x},${Y(y)}`).join(" "), class:"pl-floorhole", ...line }, svg); svgEl("title", {}, e).textContent = `Opening ${ci + 1} in the floor: ${lab}`; });
+    // (Session 63: a mark as thick as the wall and a little more, to grab and drag along it)
+    let r = null; const tk = Math.max(t, 3.5);
+    if (c.face === "front") r = [a, D/2 - tk, b - a, tk]; else if (c.face === "back") r = [-b, -D/2, b - a, tk];
+    else if (c.face === "left") r = [-W/2, a, tk, b - a]; else if (c.face === "right") r = [W/2 - tk, -b, tk, b - a];
+    const picked = encSel && encSel.cut === c, hook = el => { el.dataset.pick = "c" + ci; if (onPickCut) el.addEventListener("pointerdown", e => onPickCut(e, c, ci, el)); };
+    if (r){ const e = svgEl("rect", { x:r[0], y:r[1], width:Math.max(0.6, r[2]), height:Math.max(0.6, r[3]), class:"pl-hole pl-cut" + (picked ? " pl-sel" : "") }, svg); svgEl("title", {}, e).textContent = `Opening ${ci + 1}: ${lab}`; hook(e); return; }
+    if (c.face === "bottom" && k === 0){ const g = svgEl("g", { class:"pl-cut" + (picked ? " pl-sel" : "") }, svg); hook(g);
+      placedRings(c, E).forEach(L => { const e = svgEl("polygon", { points:L.map(([x, y]) => `${x},${Y(y)}`).join(" "), class:"pl-floorhole", ...line }, g); svgEl("title", {}, e).textContent = `Opening ${ci + 1} in the floor: ${lab}`; }); }
   });
   // dividers, cable channels, the posts the lid screws into, a level's posts and brackets
   encDividers(E).forEach((d, di) => { if (Math.min(d.lvl, (I.levels || []).length) !== k) return;
@@ -12421,23 +12892,59 @@ function encPlanSVG(E, I, k, onPick){
     : svgEl("circle", { cx:x, cy:Y(y), r:ENC_LEVEL.post, class:"pl-post", ...line }, svg); svgEl("title", {}, e).textContent = `${lv.hold === "brackets" ? "A wall bracket" : "A post"} of level ${k + 1}`; });
   // the parts: on other floors faint, on this one with names, holes and ports
   const list = encBoardList(E), selI = encSelInfo(I);
-  (I.boards || []).forEach(b => { if ((b.lvl || 0) === k) return; svgEl("rect", { x:b.bb[0], y:Y(b.bb[3]), width:b.bb[2] - b.bb[0], height:b.bb[3] - b.bb[1], class:"pl-other", ...line }, svg); });
+  (I.boards || []).forEach(b => { if ((b.lvl || 0) === k || b.face) return; svgEl("rect", { x:b.bb[0], y:Y(b.bb[3]), width:b.bb[2] - b.bb[0], height:b.bb[3] - b.bb[1], class:"pl-other", ...line }, svg); });
+  // parts on a wall (where they reach down into this floor's room) and under the lid (on the top floor) (Session 63)
+  const lvs = I.levels || [], fl0 = I.size[2] - I.inner[2], zLo = k ? fl0 + lvs[k - 1].z : fl0, zHi = k < lvs.length ? fl0 + lvs[k].z - lvs[k].t : I.size[2];
+  (I.boards || []).forEach(b => { if (!b.face || !b.bb || (b.face === "top" ? k !== lvs.length : !(b.z && b.z[0] < zHi && zLo < b.z[1]))) return;
+    const g = svgEl("g", { class:"pl-part pl-face" + (b === encSelInfo(I) ? " pl-sel" : "") + (b.issues && b.issues.length ? " pl-bad" : ""), tabindex:"-1" }, svg);
+    g.dataset.pick = b.main ? "main" : "m" + (E.more || []).indexOf(b.src);
+    svgEl("rect", { x:b.bb[0], y:Y(b.bb[3]), width:b.bb[2] - b.bb[0], height:b.bb[3] - b.bb[1], rx:1, class:"pl-board", ...line }, g);
+    const nm = b.label.replace(/\s*\(.*$/, "").replace(/^Raspberry Pi /, "Pi ").replace(/^(Arduino|Mean Well) /, ""), w2 = b.bb[2] - b.bb[0], d2 = b.bb[3] - b.bb[1], up2 = d2 > w2*1.4, cx = (b.bb[0] + b.bb[2])/2, cy = Y((b.bb[1] + b.bb[3])/2);
+    const sz = Math.min(fs, (up2 ? d2 : w2)/Math.max(3, (nm.length + 4)*0.64), (up2 ? w2 : d2)*0.5);
+    if (sz > 1.2){ const tn = txt(cx, cy, `${nm} ${b.face === "top" ? "(lid)" : "(wall)"}`, "pl-name", sz); tn.setAttribute("pointer-events", "none"); if (up2) tn.setAttribute("transform", `rotate(-90 ${cx} ${cy})`); }
+    svgEl("title", {}, g).textContent = `${b.label}, on ${ENC_MOUNT_NAME[b.face]}${b.issues && b.issues.length ? ". " + b.issues[0] : ""}`;
+    g.addEventListener("pointerdown", e => onPick && onPick(e, b, g)); });
   (I.boards || []).forEach(b => {
     if ((b.lvl || 0) !== k) return;
     const g = svgEl("g", { class:"pl-part" + (b === selI ? " pl-sel" : "") + (b.issues && b.issues.length ? " pl-bad" : "") + (b.main ? " pl-main" : ""), tabindex:"-1" }, svg);
+    g.dataset.pick = b.main ? "main" : "m" + (E.more || []).indexOf(b.src);
     const w = b.bb[2] - b.bb[0], d = b.bb[3] - b.bb[1];
     svgEl("rect", { x:b.bb[0], y:Y(b.bb[3]), width:w, height:d, rx:1.2, class:"pl-board", ...line }, g);
+    (b.shapes || []).forEach(f => { const e = svgEl("rect", { x:f[0], y:Y(f[3]), width:f[2] - f[0], height:f[3] - f[1], class:"pl-feat" }, g); svgEl("title", {}, e).textContent = `${f[5]}, ${(f[4] - b.top).toFixed(0)} mm tall`; });
     const bd = list.find(q => b.main ? q.main : q.src === b.src);
     if (bd && bd.holes) bd.holes.forEach(([hx, hy]) => { let lx = hx - bd.B.w/2, ly = hy - bd.B.d/2; if (bd.rot) [lx, ly] = [-ly, lx]; svgEl("circle", { cx:bd.x + lx, cy:Y(bd.y + ly), r:1.4, class:"pl-screw" }, g); });
     if (bd && b.main && encHas(BOARD_PORTS, bd.key)) BOARD_PORTS[bd.key].forEach(pt => { const q = boardPortPlace(bd, pt), k2 = CUTOUTS[q.kind] || {}, wd = (k2.w || k2.dia || 6);
       const r = q.nx ? [q.px - 2, Y(q.py) - wd/2, 4, wd] : [q.px - wd/2, Y(q.py) - 2, wd, 4]; const e = svgEl("rect", { x:r[0], y:r[1], width:r[2], height:r[3], class:"pl-port" }, g); svgEl("title", {}, e).textContent = (k2.label || q.kind).replace(/[,:(].*$/, ""); });
     // the name across the part, or up it when the part is tall and narrow in the plan
-    const name = b.label.replace(/\s*\(.*$/, "").replace(/^(Raspberry Pi|Arduino|Mean Well) /, "").replace(/^(Relay|Buck|Boost) (module|converter),? */i, "$1 "), up = d > w*1.4;
+    const name = b.label.replace(/\s*\(.*$/, "").replace(/^Raspberry Pi /, "Pi ").replace(/^(Arduino|Mean Well) /, "").replace(/^(Relay|Buck|Boost) (module|converter),? */i, "$1 "), up = d > w*1.4;
     const size = up ? Math.min(fs*1.1, d/Math.max(3, name.length*0.64), w*0.42) : Math.min(fs*1.1, w/Math.max(3, name.length*0.64), d*0.42), cx = (b.bb[0] + b.bb[2])/2, cy = Y((b.bb[1] + b.bb[3])/2);
     if (size > 1.4){ const tn = txt(cx, cy, name, "pl-name", size); tn.setAttribute("pointer-events", "none"); if (up) tn.setAttribute("transform", `rotate(-90 ${cx} ${cy})`); }
     svgEl("title", {}, g).textContent = `${b.label}: ${b.w.toFixed(0)} × ${b.d.toFixed(0)} mm${b.issues && b.issues.length ? ". " + b.issues[0] : ""}`;
     g.addEventListener("pointerdown", e => onPick && onPick(e, b, g));
   });
+  // the picked part's distances (Session 63): to the walls and its nearest neighbours on this floor, each way it can move
+  const sb = encSelInfo(I);
+  if (sb && sb.bb && sb.fits !== false && (sb.face ? (sb.face === "top" ? k === lvs.length : sb.z && sb.z[0] < zHi && zLo < sb.z[1]) : (sb.lvl || 0) === k)){
+    const others = (I.boards || []).filter(o => o !== sb && o.bb && o.fits !== false && (o.face ? false : (o.lvl || 0) === k)), [x0, y0, x1, y1] = sb.bb, cx = (x0 + x1)/2, cy = (y0 + y1)/2;
+    const dirs = sb.face === "front" || sb.face === "back" ? ["l", "r"] : sb.face === "left" || sb.face === "right" ? ["f", "b"] : ["l", "r", "f", "b"];
+    dirs.forEach(dr => {
+      const hit = o => dr === "l" || dr === "r" ? o.bb[1] < y1 && o.bb[3] > y0 : o.bb[0] < x1 && o.bb[2] > x0;
+      let to = { l:-iw/2, r:iw/2, f:-id/2, b:id/2 }[dr];
+      others.filter(hit).forEach(o => { if (dr === "l" && o.bb[2] <= x0) to = Math.max(to, o.bb[2]); if (dr === "r" && o.bb[0] >= x1) to = Math.min(to, o.bb[0]);
+        if (dr === "f" && o.bb[3] <= y0) to = Math.max(to, o.bb[3]); if (dr === "b" && o.bb[1] >= y1) to = Math.min(to, o.bb[1]); });
+      const from = { l:x0, r:x1, f:y0, b:y1 }[dr], dist = Math.abs(from - to); if (dist < 0.3) return;
+      const hor = dr === "l" || dr === "r", P = hor ? [[to, cy], [from, cy]] : [[cx, to], [cx, from]];
+      svgEl("line", { x1:P[0][0], y1:Y(P[0][1]), x2:P[1][0], y2:Y(P[1][1]), class:"pl-dim", ...line }, svg);
+      const lx = (P[0][0] + P[1][0])/2, ly = (P[0][1] + P[1][1])/2, lab = mm(dist).replace(/ ?mm$/, "");
+      const tl = txt(hor ? lx : lx + fs*0.15, hor ? Y(ly) - fs*0.55 : Y(ly), lab, "pl-dimtxt", fs*0.8, hor ? "middle" : "start"); tl.setAttribute("pointer-events", "none");
+    });
+  }
+  // the wires (Session 63): on this floor solid, to or from another floor dashed
+  if (viewOpts.boxWires !== false) encWires(E, I).forEach(w => { if (!w.ok || (w.A.lvl !== k && w.B.lvl !== k)) return;
+    const col = (ENC_WIRE_COLOURS.find(([c]) => c === w.colour) || ENC_WIRE_COLOURS[0])[1], other = w.A.lvl !== w.B.lvl;
+    const e = svgEl("polyline", { points:w.path.map(([x, y]) => `${x},${Y(y)}`).join(" "), class:"pl-wire", stroke:col, "stroke-dasharray":other ? "4 3" : "none", "vector-effect":"non-scaling-stroke" }, svg);
+    svgEl("title", {}, e).textContent = `Wire ${w.i + 1}: ${w.a.label}${w.fromPin ? " " + w.fromPin : ""} → ${w.b.label}${w.toPin ? " " + w.toPin : ""}, about ${w.len} mm`; });
+  svgEl("g", { class:"pl-guides" }, svg);                       // (snapping guides while a part is dragged)
   return svg;
 }
 // the plan page (and the same plan bigger, in a window): the floor picked, the plan, and the picked part's settings
@@ -12452,26 +12959,77 @@ function encPlanPage(p, big){
   const wrap = document.createElement("div"); wrap.className = "boxplanwrap"; p.appendChild(wrap);
   let drag = null;
   const toMM = (svg, e) => { const m = svg.getScreenCTM && svg.getScreenCTM(); if (!m) return null; const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; const q = pt.matrixTransform(m.inverse()); return [q.x, -q.y]; };
+  const pickEl = (g, sel) => { svg.querySelectorAll(".pl-part,.pl-cut").forEach(q => q.classList.toggle("pl-sel", q === g)); encSel = sel; refreshScene(); };
   const svg = encPlanSVG(E, I, encPlanFloor, (e, b, g) => {
-    encSel = b.main ? { main:true } : { m:b.src };
+    pickEl(g, b.main ? { main:true } : { m:b.src });
     const at = toMM(svg, e), xy = encPartXY(E, encSel);
     drag = { b, g, at, x0:xy.x, y0:xy.y, moved:false, id:e.pointerId };
     try { svg.setPointerCapture(e.pointerId); } catch (err) {}
-    svg.querySelectorAll(".pl-part").forEach(q => q.classList.toggle("pl-sel", q === g)); e.preventDefault(); svg.focus(); refreshScene();
+    e.preventDefault(); svg.focus();
+  }, (e, c, ci, el) => {
+    // an opening (Session 63): picked, and dragged along its wall (or anywhere on the floor)
+    pickEl(el, { cut:c });
+    drag = { cut:c, g:el, at:toMM(svg, e), x0:+c.u || 0, y0:+c.v || 0, moved:false, id:e.pointerId, b:{ face:c.face === "bottom" ? "top" : c.face } };
+    try { svg.setPointerCapture(e.pointerId); } catch (err) {}
+    e.preventDefault(); svg.focus();
   });
   wrap.appendChild(svg);
+  // snapping (Session 63): a part on the floor lines up with the others' edges and middles, 3 mm from them, the walls and
+  // the middle, within 2 mm, with a guide line where it snaps (Alt: no snapping)
+  const snapTo = (b, dx, dy) => {
+    const out = { dx, dy, gx:null, gy:null }; if (!b.bb || b.face) return out;
+    const w2 = (b.bb[2] - b.bb[0])/2, d2 = (b.bb[3] - b.bb[1])/2, cx = b.at[0] + dx, cy = b.at[1] + dy, [iw, id] = I.inner, xs = [[0, 0]], ys = [[0, 0]];
+    (I.boards || []).filter(o => o !== b && !o.face && (o.lvl || 0) === (b.lvl || 0) && o.bb).forEach(o => {
+      xs.push([o.bb[0] + w2, o.bb[0]], [o.bb[2] - w2, o.bb[2]], [(o.bb[0] + o.bb[2])/2, (o.bb[0] + o.bb[2])/2], [o.bb[2] + 3 + w2, o.bb[2]], [o.bb[0] - 3 - w2, o.bb[0]]);
+      ys.push([o.bb[1] + d2, o.bb[1]], [o.bb[3] - d2, o.bb[3]], [(o.bb[1] + o.bb[3])/2, (o.bb[1] + o.bb[3])/2], [o.bb[3] + 3 + d2, o.bb[3]], [o.bb[1] - 3 - d2, o.bb[1]]); });
+    xs.push([-iw/2 + 2.2 + w2, -iw/2], [iw/2 - 2.2 - w2, iw/2]); ys.push([-id/2 + 2.2 + d2, -id/2], [id/2 - 2.2 - d2, id/2]);
+    const best = (list, v) => list.reduce((a, q) => Math.abs(q[0] - v) < 2 && (!a || Math.abs(q[0] - v) < Math.abs(a[0] - v)) ? q : a, null);
+    const bx = best(xs, cx), by = best(ys, cy);
+    if (bx){ out.dx = +(bx[0] - b.at[0]).toFixed(2); out.gx = bx[1]; } if (by){ out.dy = +(by[0] - b.at[1]).toFixed(2); out.gy = by[1]; }
+    return out; };
+  const guides = (gx, gy) => { const G = svg.querySelector(".pl-guides"); if (!G) return; while (G.firstChild) G.removeChild(G.firstChild); const [iw, id] = I.inner;
+    if (gx != null) svgEl("line", { x1:gx, y1:-id/2, x2:gx, y2:id/2, class:"pl-guide", "vector-effect":"non-scaling-stroke" }, G);
+    if (gy != null) svgEl("line", { x1:-iw/2, y1:-gy, x2:iw/2, y2:-gy, class:"pl-guide", "vector-effect":"non-scaling-stroke" }, G); };
   svg.addEventListener("pointermove", e => { if (!drag || e.pointerId !== drag.id || !drag.at) return; const now = toMM(svg, e); if (!now) return;
-    const dx = Math.round((now[0] - drag.at[0])*2)/2, dy = Math.round((now[1] - drag.at[1])*2)/2; if (!dx && !dy && !drag.moved) return;
-    drag.moved = true; drag.g.setAttribute("transform", `translate(${dx} ${-dy})`); drag.dx = dx; drag.dy = dy; });
-  const end = () => { if (!drag) return; const d0 = drag; drag = null;
-    if (d0.moved){ const xy = encPartXY(E, encSel); xy.x = clamp(+(d0.x0 + d0.dx).toFixed(1), -200, 200); xy.y = clamp(+(d0.y0 + d0.dy).toFixed(1), -200, 200); encBoardChanged(); pushHistory(); }
+    let dx = Math.round((now[0] - drag.at[0])*2)/2, dy = Math.round((now[1] - drag.at[1])*2)/2; if (!dx && !dy && !drag.moved) return;
+    if (!drag.cut && !e.altKey){ const sn = snapTo(drag.b, dx, dy); dx = sn.dx; dy = sn.dy; guides(sn.gx, sn.gy); }
+    const f = drag.b.face, vx = f === "left" || f === "right" ? 0 : dx, vy = f === "front" || f === "back" ? 0 : dy;     // (a wall part slides along its wall)
+    drag.moved = true; drag.g.setAttribute("transform", `translate(${vx} ${-vy})`); drag.dx = dx; drag.dy = dy; });
+  const end = () => { if (!drag) return; const d0 = drag; drag = null; guides(null, null);
+    if (d0.moved && d0.cut){ const [du, dv] = encFaceDelta(d0.b.face, d0.dx, d0.dy); d0.cut.u = clamp(+(d0.x0 + du).toFixed(1), -150, 150); if (d0.b.face === "top") d0.cut.v = clamp(+(d0.y0 + dv).toFixed(1), -150, 150); baseChanged(); pushHistory(); }
+    else if (d0.moved){ const xy = encPartXY(E, encSel), [du, dv] = d0.b.face ? encFaceDelta(d0.b.face, d0.dx, d0.dy) : [d0.dx, d0.dy];
+      xy.x = clamp(+(d0.x0 + du).toFixed(1), -200, 200); xy.y = clamp(+(d0.y0 + dv).toFixed(1), -200, 250); encBoardChanged(); pushHistory(); }
     redraw(); };
   svg.addEventListener("pointerup", end); svg.addEventListener("pointercancel", end);
   // the keys: arrows move the picked part 1 mm (Shift: 5 mm), R turns it, D copies it, Delete takes it out, Escape lets go
   svg.addEventListener("keydown", e => {
+    // Tab and Shift+Tab step through the parts and openings drawn (Session 63), then on out of the plan
+    if (e.key === "Tab"){ const items = [...svg.querySelectorAll(".pl-part[data-pick]"), ...svg.querySelectorAll(".pl-cut[data-pick]")], cur = items.findIndex(q => q.classList.contains("pl-sel")), nx = cur < 0 ? (e.shiftKey ? items.length - 1 : 0) : cur + (e.shiftKey ? -1 : 1);
+      if (nx < 0 || nx >= items.length || !items.length) return;
+      const pk = items[nx].dataset.pick; encSel = pk === "main" ? { main:true } : pk[0] === "m" ? { m:(E.more || [])[+pk.slice(1)] } : { cut:(E.cut || [])[+pk.slice(1)] };
+      e.preventDefault(); redraw(); return; }
+    if (encSel && encSel.cut){
+      const c = encSel.cut; if (!(E.cut || []).includes(c)) return;
+      const step = e.shiftKey ? 5 : 1, f = c.face === "bottom" ? "top" : c.face, mv0 = { ArrowLeft:[-step, 0], ArrowRight:[step, 0], ArrowUp:[0, step], ArrowDown:[0, -step] }[e.key];
+      if (mv0){ if (f === "top"){ c.u = +((+c.u || 0) + mv0[0]).toFixed(1); c.v = +((+c.v || 0) + mv0[1]).toFixed(1); }
+        else { const alongX = f === "front" || f === "back", a = alongX ? mv0[0] : mv0[1], h = alongX ? mv0[1] : mv0[0];
+          if (a) c.u = +((+c.u || 0) + encFaceDelta(f, alongX ? a : 0, alongX ? 0 : a)[0]).toFixed(1); if (h) c.v = +((+c.v || 0) + h).toFixed(1); } }
+      else if (e.key === "PageUp" || e.key === "PageDown"){ if (ENC_WALLS.has(c.face)) c.v = +((+c.v || 0) + (e.key === "PageUp" ? step : -step)).toFixed(1); }
+      else if (e.key === "Delete" || e.key === "Backspace"){ E.cut.splice(E.cut.indexOf(c), 1); encSel = null; }
+      else if (e.key === "Escape"){ encSel = null; redraw(); return; }
+      else return;
+      e.preventDefault(); baseChanged(); pushHistory(); redraw(); return;
+    }
     const src = encSelSrc(E); if (!src) return;
-    const xy = encPartXY(E, encSel), step = e.shiftKey ? 5 : 1, mv = { ArrowLeft:[-step, 0], ArrowRight:[step, 0], ArrowUp:[0, step], ArrowDown:[0, -step] }[e.key];
-    if (mv){ xy.x = clamp(+(xy.x + mv[0]).toFixed(1), -200, 200); xy.y = clamp(+(xy.y + mv[1]).toFixed(1), -200, 200); }
+    const xy = encPartXY(E, encSel), step = e.shiftKey ? 5 : 1, mv0 = { ArrowLeft:[-step, 0], ArrowRight:[step, 0], ArrowUp:[0, step], ArrowDown:[0, -step], PageUp:[0, 0, step], PageDown:[0, 0, -step] }[e.key];
+    // a part on a wall (Session 63): the arrows that point along its wall in the plan slide it, the other two (and Page Up,
+    // Page Down) raise and lower it; under the lid the arrows move it as on the floor
+    const fc = (encSelInfo(enclosureInfo) || {}).face;
+    let mv = mv0;
+    if (mv0 && fc && fc !== "top"){ const alongX = fc === "front" || fc === "back", a = alongX ? mv0[0] : mv0[1], h = mv0[2] || (alongX ? mv0[1] : mv0[0]);
+      mv = [a ? encFaceDelta(fc, alongX ? a : 0, alongX ? 0 : a)[0] : 0, h || 0]; }
+    else if (mv0 && mv0[2]) mv = null;
+    if (mv){ xy.x = clamp(+(xy.x + mv[0]).toFixed(1), -200, 200); xy.y = clamp(+(xy.y + mv[1]).toFixed(1), -200, 250); }
     else if (e.key === "r" || e.key === "R"){ xy.rot = !xy.rot; encKeepInside(E, !!encSel.main, encSel.m); }
     else if ((e.key === "d" || e.key === "D") && !encSel.main){ encAddPart(E, JSON.parse(JSON.stringify(encSel.m)), E.more.indexOf(encSel.m) + 1); redraw(); setTimeout(() => { const s2 = document.querySelector(big ? "#modal .boxplan" : "#panel .boxplan"); if (s2) s2.focus(); }); e.preventDefault(); return; }
     else if (e.key === "Delete" || e.key === "Backspace"){ if (encSel.main){ E.board = "none"; encPortsFollow(E); } else E.more.splice(E.more.indexOf(encSel.m), 1); encSel = null; baseChanged(); pushHistory(); redraw(); e.preventDefault(); return; }
@@ -12481,8 +13039,19 @@ function encPlanPage(p, big){
   });
   // the legend, and the picked part
   note(p, `<span class="pl-key pl-k1"></span> a part · <span class="pl-key pl-k2"></span> with something to fix · <span class="pl-key pl-k3"></span> an opening · <span class="pl-key pl-k4"></span> a post · dashed: on another floor`);
+  if (encSel && encSel.cut && (E.cut || []).includes(encSel.cut)){
+    const c = encSel.cut, ci = E.cut.indexOf(c), k2 = CUTOUTS[c.kind] || CUTOUTS.round, box = document.createElement("div"); box.className = "card plsel"; p.appendChild(box);
+    box.insertAdjacentHTML("beforeend", `<p class="hint" style="margin:0 0 4px"><b>Opening ${ci + 1}: ${esc(k2.label)}</b>, on the ${esc(ENC_FACE_NAME[c.face] || c.face)}${encLabelText(c.label) ? `, labelled “${esc(encLabelText(c.label))}”` : ""}</p>`);
+    if (I.left.includes(ci)) note(box, "⚠ " + esc((I.warn.find(w => w.t.startsWith(`Opening ${ci + 1} `)) || {}).s || "It is left out."));
+    const wl = ENC_WALLS.has(c.face);
+    numField(box, { label:"Across (mm from the middle)", min:-150, max:150, step:0.5, noReset:true, get:()=>c.u, set:v=>c.u=v, onChange:()=>{ baseChanged(); } });
+    numField(box, { label:wl ? "Height of its centre (mm)" : "Front to back (mm from the middle)", min:wl ? 0 : -150, max:wl ? 250 : 150, step:0.5, noReset:true, get:()=>c.v, set:v=>c.v=v, onChange:()=>{ baseChanged(); } });
+    buttonRow(box, [["Remove", ()=>{ E.cut.splice(E.cut.indexOf(c), 1); encSel = null; baseChanged(); pushHistory(); redraw(); }], ...(big ? [] : [["All its settings", ()=>{ showSection("Openings"); }]])]);
+    if (!big) buttonRow(p, [["⤢ See it bigger", ()=>openPlanBig()], ["Browse the parts", ()=>openPartsBrowser()]]);
+    return;
+  }
   const b = encSelInfo(I), src = encSelSrc(E);
-  if (!b || !src){ note(p, (I.boards || []).length ? "Click a part to pick it: drag it to move it, or use the arrow keys (Shift: 5 mm steps), R to turn it, D to copy it, Delete to take it out." : "No parts yet: add a board on the Board mounts page, or browse the parts."); }
+  if (!b || !src){ note(p, (I.boards || []).length ? "Click a part or an opening to pick it (or Tab to it): drag it, or use the arrow keys (Shift: 5 mm steps). R turns a part, D copies it, Delete takes it out. A dragged part snaps to the others' edges (hold Alt to drag freely)." : "No parts yet: add a board on the Board mounts page, or browse the parts."); }
   else {
     const xy = encPartXY(E, encSel), box = document.createElement("div"); box.className = "card plsel"; p.appendChild(box);
     box.insertAdjacentHTML("beforeend", `<p class="hint" style="margin:0 0 4px"><b>${esc(b.label)}</b>: ${b.w.toFixed(1)} × ${b.d.toFixed(1)} mm, about ${(b.tall || 0).toFixed(0)} mm tall, on ${b.lvl ? "level " + b.lvl : "the floor"}${b.main ? " (the main board)" : ""}</p>`);
@@ -12513,6 +13082,7 @@ function boardDrawing(key, B){
   svgEl("rect", { x:0, y:0, width:w, height:d, rx:Math.min(2, w/10), class:B.g === "battery" ? "pc-bat" : "pc-board", "vector-effect":"non-scaling-stroke" }, g);
   const bar = svgEl("g", { transform:`translate(${-VW/2 + 6} ${VH/2 - 5})` }, svg); svgEl("rect", { x:0, y:-2, width:10, height:2, class:"pc-bar" }, bar);
   const tl = svgEl("text", { x:13, y:0, class:"pc-txt", "font-size":9 }, bar); tl.textContent = "10 mm";
+  (encHas(BOARD_SHAPES, key) ? BOARD_SHAPES[key] : []).forEach(([a0, b0, a1, b1, h, nm]) => { const e = svgEl("rect", { x:a0, y:d - b1, width:a1 - a0, height:b1 - b0, class:"pc-feat" }, g); svgEl("title", {}, e).textContent = `${nm}, ${h} mm`; });
   (B.holes || []).forEach(([hx, hy]) => svgEl("circle", { cx:hx, cy:d - hy, r:Math.max(1, (SCREWS[B.screw || "M3"] || SCREWS.M3).clear/2), class:"pc-hole", "vector-effect":"non-scaling-stroke" }, g));
   (encHas(BOARD_PORTS, key) ? BOARD_PORTS[key] : []).forEach(([edge, at, kind]) => { const k = CUTOUTS[kind] || {}, pw = k.w || k.dia || 6, ph = 3;
     const r = { x0:[-ph, d - at - pw/2, ph, pw], x1:[w, d - at - pw/2, ph, pw], y0:[at - pw/2, d, pw, ph], y1:[at - pw/2, -ph, pw, ph] }[edge];
@@ -12573,9 +13143,12 @@ let renderedEncWarn = "";
 const encPanelSig = I => I ? I.warn.map(w => w.s).join("|") + "#" + (I.boards || []).map(b => [b.label, b.lvl || 0, Math.round(b.w), Math.round(b.d), b.issues ? b.issues.length : 0, Math.round(b.at[0]*2), Math.round(b.at[1]*2)].join(",")).join(";") + "#" + I.inner.map(Math.round).join(",") : "";
 function enclosureFields(p){
   if (!state.base.enclosure) state.base.enclosure = DEFAULTS().base.enclosure;
+  encSyncCustomBoards(state.base.enclosure);
   const E = state.base.enclosure, I = enclosureInfo;
   renderedEncWarn = encPanelSig(I);
   checkField(p, "Print a fit test first", ()=>E.test === true, v=>{ E.test = v; renderTab(); baseChanged(); });
+  if (E.test) segField(p, [["box","A small box"],["holders","The holders, on a card"]], ()=>E.testKind === "holders" ? "holders" : "box", v=>{ E.testKind = v; renderTab(); baseChanged(); }, "two");
+  if (E.test && E.testKind === "holders"){ note(p, `<b>Fit test for the holders:</b> one card (${ENC_HOLDERS.w} × ${ENC_HOLDERS.d} mm) with a cradle with ribs and one with snap clips (push the 25 × 18 mm tiles in), a standoff with a snap pin (push the plate with the hole over it), a strap loop (thread a 20 mm strap through) and a scrap of wall with a sideways standoff (as on a wall in a box: does an M3 screw bite?). Print it in the filament for your box, try each, then untick this.`); return; }
   if (E.test) note(p, `<b>Fit test:</b> a small box${I && I.test ? ` (${mm(I.size[0])} × ${mm(I.size[1])} × ${mm(I.size[2])})` : ""} with your walls, lid, lip gap, screws or magnets, and one of each opening. Print it, try your parts and the lid, adjust the clearances, then untick this to make the real box.`);
   encSortLevels(E, false);                              // a project from before Session 61 may list its levels out of order
   // the box's size, outside or inside (Session 61: type the room your parts need, the walls are added)
@@ -12619,6 +13192,24 @@ function enclosureFields(p){
     else numField(g,{ label:"Corner radius (mm)", min:0,max:30,step:0.5, get:()=>E.radius, set:v=>E.radius=v, onChange:baseChanged,
       sub:()=>"0 gives square corners. Openings cannot sit on the rounded part." });
   }, true);
+  // the style (Session 63): the lid's edge, a texture on the walls, a band of another colour
+  if (!E.test) group(p, "Style", g => {
+    if (E.lid !== "none" && E.lid !== "slide"){
+      segField(g, [["square","Square lid edge"],["chamfer","Chamfered"],["round","Rounded"]], ()=>["chamfer","round"].includes(E.edge) ? E.edge : "square", v=>{ E.edge = v; renderTab(); baseChanged(); });
+      if (["chamfer","round"].includes(E.edge)) numField(g, { label:"Edge size (mm)", min:0.4, max:4, step:0.1, noReset:true, get:()=>+E.edgeSize || 1.5, set:v=>E.edgeSize=v, onChange:baseChanged,
+        sub:()=>E.edge === "round" ? "The lid's outer top edge, in 0.2 mm steps. Rounded is steep where it meets the bed: up to 2 mm prints cleanly." : "The lid's outer top edge at 45°, in 0.2 mm steps; no more than the lid's thickness less 0.6 mm." });
+    } else note(g, "A chamfered or rounded edge is for a lid that sits on top (not a sliding lid).");
+    segField(g, [["none","Plain walls"],["grooves","Grooves"],["hex","Hexagons"]], ()=>["grooves","hex"].includes(E.texture) ? E.texture : "none", v=>{ E.texture = v === "none" ? "" : v; renderTab(); baseChanged(); });
+    if (["grooves","hex"].includes(E.texture)) numField(g, { label:"Texture depth (mm)", min:0.3, max:1.5, step:0.1, noReset:true, get:()=>+E.textureDepth || 0.6, set:v=>E.textureDepth=v, onChange:baseChanged,
+      sub:()=>"Cut into the outside of the walls, round the openings and labels. Pointed tops: no support." });
+    checkField(g, "A band of another colour round the box", ()=>E.band === true, v=>{ E.band = v; renderTab(); baseChanged(); });
+    if (E.band === true){
+      numField(g, { label:"Height of its middle (mm)", min:2, max:250, step:0.5, noReset:true, get:()=>+E.bandZ || Math.round((+E.h || 30)/2), set:v=>E.bandZ=v, onChange:baseChanged });
+      numField(g, { label:"Band width (mm)", min:2, max:60, step:0.5, noReset:true, get:()=>+E.bandH || 8, set:v=>E.bandH=v, onChange:baseChanged });
+      slotField(g, "Band colour", ()=>String(+E.bandSlot || 0), v=>{ E.bandSlot = +v; baseChanged(); });
+      note(g, "Inlaid flush, 0.6 mm deep, in its own filament, round the walls (it stops at the openings).");
+    }
+  }, !!(E.edge || E.texture || E.band));
   group(p, "Lid and screws", g => {
     segField(g, [["screw","Screwed lid"],["press","Press-fit lid"],["magnet","Magnet lid"],["slide","Sliding lid"],["none","No lid"]], ()=>E.lid, v=>{ E.lid = v; renderTab(); baseChanged(); }, "two");
     if (E.lid === "slide"){
@@ -12702,7 +13293,8 @@ function enclosureFields(p){
     if (list.length < ENC_ART.max) buttonRow(g, [["Add words", ()=>add({ kind:"text", text:"MY PROJECT", size:8 })], ["Add an icon", ()=>add({ kind:"icon", icon:"power", size:12 })],
       ...(state.items.length ? [["Add the Art tab picture", ()=>add({ kind:"picture", face:E.lid === "none" ? "front" : "top", size:Math.round(Math.min(40, (+E.w || 100)*0.4)) })]] : [])]);
     const cuts = Array.isArray(E.cut) ? E.cut : [], unl = cuts.filter(c => !encLabelText(c.label) && encAutoLabel(c.kind));
-    if (unl.length) buttonRow(g, [[`Label every opening (${unl.length})`, ()=>{ unl.forEach(c => c.label = encAutoLabel(c.kind)); renderTab(); baseChanged(); pushHistory(); }]]);
+    if (unl.length) buttonRow(g, [[`Label every opening (${unl.length})`, ()=>{ unl.forEach(c => c.label = encAutoLabel(c.kind)); const dropped = encTidyLabels(E);
+      if (dropped) notify(`${unl.length - dropped} labels added; ${dropped} had no room above or below their opening.`); renderTab(); baseChanged(); pushHistory(); }]]);
     list.forEach((a, k) => {
       const box = document.createElement("div"); box.style.cssText = "border-top:1px solid rgba(128,128,128,.35);margin-top:10px;padding-top:6px"; g.appendChild(box);
       const got = info.find(x => x.i === k), what = a.kind === "text" ? `“${esc(a.text || "…")}”` : a.kind === "icon" ? esc((ICONS[a.icon] || {}).label || "an icon") : "the Art tab picture";
@@ -12818,7 +13410,10 @@ function enclosureFields(p){
       if (BB.holes) segField(g, [["holes", `On its screw holes (${BB.screw || "M3"})`], ["edges", "By its edges"]], ()=>E.boardHold === "edges" ? "edges" : "holes", v=>{ E.boardHold = v; renderTab(); encBoardChanged(); }, "two");
       else if (BB.g === "battery") segField(g, [["holes", "Strap tray"], ["edges", "Corner cradle"], ["door", "Under a door"]], ()=>E.boardHold === "edges" || E.boardHold === "door" ? E.boardHold : "holes", v=>{ E.boardHold = v; renderTab(); encBoardChanged(); });
       encGripField(g, BB, E.boardHold, ()=>E.boardGrip, v=>{ E.boardGrip = v; renderTab(); baseChanged(); }, ()=>E.boardPins === true, v=>{ E.boardPins = v; renderTab(); baseChanged(); });
-      const nlv = Array.isArray(E.levels) ? E.levels.length : 0;     // the main board on any floor (Session 51)
+      const faceM = encMountField(g, { get face(){ return E.boardFace; }, set face(v){ E.boardFace = v; }, get side(){ return E.boardSide; }, set side(v){ E.boardSide = v; },
+        ok:!!BB.holes && E.boardHold !== "edges" && BB.g !== "battery", place:(x, y) => { E.boardX = x; E.boardY = y; }, x:()=>+E.boardX || 0, y:()=>+E.boardY || 0, size:()=>E.boardRot ? [BB.d, BB.w] : [BB.w, BB.d],
+        panel:BB.panel, B:BB, rot:()=>E.boardRot === true });
+      const nlv = faceM ? 0 : Array.isArray(E.levels) ? E.levels.length : 0;     // the main board on any floor (Session 51)
       if (nlv) selField(g, "On", [["0","The floor"], ...Array.from({ length:nlv }, (_, k) => [String(k + 1), `Level ${k + 1}`])], ()=>String(Math.min(nlv, +E.boardLvl || 0)), v=>{ E.boardLvl = +v; encBoardChanged(); });
       if (E.board === "batcustom"){
         numField(g,{ label:"Battery length (mm)", min:5,max:250,step:0.5, get:()=>E.batW ?? 60, set:v=>E.batW=v, onChange:encBoardChanged, noReset:true });
@@ -12835,10 +13430,11 @@ function enclosureFields(p){
         + (BB.check ? " Sizes differ between makers: measure yours and use My own board if it is not " + BB.w + " × " + BB.d + " mm." : ""));
       const meI = I && (I.boards || []).find(b => b.main);
       if (meI && meI.issues.length) note(g, meI.issues.map(t => "⚠ " + esc(t)).join("<br>"));
-      numField(g,{ label:"Board position, across (mm)", min:-200,max:200,step:0.5, get:()=>E.boardX, set:v=>E.boardX=v, onChange:encBoardChanged });
-      numField(g,{ label:"Board position, front to back (mm)", min:-200,max:200,step:0.5, get:()=>E.boardY, set:v=>E.boardY=v, onChange:encBoardChanged });
-      numField(g,{ label:"Standoff height (mm)", min:2,max:40,step:0.5, get:()=>E.standH, set:v=>E.standH=v, onChange:encBoardChanged,
-        sub:()=>"Leave room under the board for solder joints: 4 to 6 mm." });
+      const onWall = faceM && faceM !== "top";
+      numField(g,{ label:onWall ? "Along the wall (mm from its middle, seen from outside)" : "Board position, across (mm)", min:-200,max:200,step:0.5, get:()=>E.boardX, set:v=>E.boardX=v, onChange:encBoardChanged });
+      numField(g,{ label:onWall ? "Height of its middle (mm from the bottom)" : "Board position, front to back (mm)", min:-200,max:250,step:0.5, get:()=>E.boardY, set:v=>E.boardY=v, onChange:encBoardChanged });
+      numField(g,{ label:faceM ? `Standoffs from ${faceM === "top" ? "the lid" : "the wall"} (mm)` : "Standoff height (mm)", min:2,max:40,step:0.5, get:()=>E.standH, set:v=>E.standH=v, onChange:encBoardChanged,
+        sub:()=>faceM ? "From the inside of the face to the board." : "Leave room under the board for solder joints: 4 to 6 mm." });
       checkField(g, "Turn the board 90°", ()=>E.boardRot, v=>{ E.boardRot = v; encKeepInside(E, true); encBoardChanged(); renderTab(); });
       buttonRow(g, [["Centre it across", ()=>{ E.boardX = 0; encBoardChanged(); renderTab(); pushHistory(); }], ["Centre it front to back", ()=>{ E.boardY = 0; encBoardChanged(); renderTab(); pushHistory(); }],
         ["Remove this board", ()=>{ E.board = "none"; encPortsFollow(E); renderTab(); baseChanged(); pushHistory(); }]]);
@@ -12866,14 +13462,24 @@ function enclosureFields(p){
         numField(box,{ label:"Battery width (mm)", min:5,max:250,step:0.5, get:()=>m.bd ?? 35, set:v=>m.bd=v, onChange:encBoardChanged, noReset:true });
         numField(box,{ label:"Battery thickness (mm)", min:2,max:120,step:0.5, get:()=>m.bt ?? 10, set:v=>m.bt=v, onChange:encBoardChanged, noReset:true });
       }
-      numField(box,{ label:"Position, across (mm)", min:-200,max:200,step:0.5, get:()=>m.x, set:v=>m.x=v, onChange:encBoardChanged });
-      numField(box,{ label:"Position, front to back (mm)", min:-200,max:200,step:0.5, get:()=>m.y, set:v=>m.y=v, onChange:encBoardChanged });
-      numField(box,{ label:"Height off the floor (mm)", min:1,max:40,step:0.5, get:()=>m.h, set:v=>m.h=v, onChange:encBoardChanged });
+      const faceN = encMountField(box, { get face(){ return m.face; }, set face(v){ m.face = v; }, get side(){ return m.side; }, set side(v){ m.side = v; },
+        ok:!!B2.holes && m.hold !== "edges" && B2.g !== "battery", place:(x, y) => { m.x = x; m.y = y; }, x:()=>+m.x || 0, y:()=>+m.y || 0, size:()=>m.rot ? [B2.d, B2.w] : [B2.w, B2.d],
+        panel:B2.panel, B:B2, rot:()=>m.rot === true }), onW = faceN && faceN !== "top";
+      numField(box,{ label:onW ? "Along the wall (mm from its middle, seen from outside)" : "Position, across (mm)", min:-200,max:200,step:0.5, get:()=>m.x, set:v=>m.x=v, onChange:encBoardChanged });
+      numField(box,{ label:onW ? "Height of its middle (mm from the bottom)" : "Position, front to back (mm)", min:-200,max:250,step:0.5, get:()=>m.y, set:v=>m.y=v, onChange:encBoardChanged });
+      numField(box,{ label:faceN ? `Standoffs from ${faceN === "top" ? "the lid" : "the wall"} (mm)` : "Height off the floor (mm)", min:1,max:40,step:0.5, get:()=>m.h, set:v=>m.h=v, onChange:encBoardChanged });
       checkField(box, "Turn it 90°", ()=>m.rot === true, v=>{ m.rot = v; encKeepInside(E, false, m); encBoardChanged(); renderTab(); });
-      const nl = Array.isArray(E.levels) ? E.levels.length : 0;
+      const nl = faceN ? 0 : Array.isArray(E.levels) ? E.levels.length : 0;
       if (nl) selField(box, "On", [["0","The floor"], ...Array.from({ length:nl }, (_, k) => [String(k + 1), `Level ${k + 1}`])], ()=>String(Math.min(nl, +m.lvl || 0)), v=>{ m.lvl = +v; encBoardChanged(); });
       buttonRow(box, [...(more.length < 12 ? [["Duplicate", ()=>{ const n = JSON.parse(JSON.stringify(m)); encAddPart(E, n, i + 1); }]] : []),
         ["Centre it", ()=>{ m.x = 0; m.y = 0; encBoardChanged(); renderTab(); pushHistory(); }], ["Remove", ()=>{ more.splice(i, 1); renderTab(); baseChanged(); pushHistory(); }]]);
+    });
+    // boards imported from KiCad (Session 63): how tall their parts stand, and taking one out
+    (Array.isArray(E.customBoards) ? E.customBoards : []).forEach((cb, j) => {
+      const box = document.createElement("div"); box.style.cssText = "border-top:1px solid rgba(128,128,128,.35);margin-top:10px;padding-top:6px"; g.appendChild(box);
+      box.insertAdjacentHTML("beforeend", `<p class="hint" style="margin:0 0 4px"><b>Imported: ${esc(cb.label)}</b>, ${cb.w} × ${cb.d} mm, ${cb.holes.length} holes${cb.ports.length ? `, ${cb.ports.length} ports` : ""}${cb.panel.length ? `, ${cb.panel.length} panel parts` : ""}</p>`);
+      numField(box, { label:"How tall its parts stand (mm)", min:1, max:60, step:0.5, noReset:true, get:()=>cb.tall, set:v=>cb.tall=v, onChange:()=>{ encSyncCustomBoards(E); encBoardChanged(); } });
+      buttonRow(box, [["Remove this import", ()=>{ const key = "kc_" + cb.id; E.customBoards.splice(j, 1); if (E.board === key) E.board = "none"; E.more = (E.more || []).filter(m => m.kind !== key); encSyncCustomBoards(E); encPortsFollow(E); renderTab(); baseChanged(); pushHistory(); }]]);
     });
     // arrange it for me (Session 48)
     if (encBoardList(E).length){
@@ -12887,13 +13493,53 @@ function enclosureFields(p){
     }
     if (more.length < 12){
       const add = document.createElement("div"); add.style.cssText = "margin-top:12px"; g.appendChild(add);
-      buttonRow(add, [["Browse the parts, with pictures", ()=>openPartsBrowser("boards")]]);
+      buttonRow(add, [["Browse the parts, with pictures", ()=>openPartsBrowser("boards")], ["Import a board from KiCad", ()=>{ const fi = document.createElement("input"); fi.type = "file"; fi.accept = ".kicad_pcb";
+        fi.onchange = () => encImportKicad(fi.files && fi.files[0]); fi.click(); }]]);
       const addIt = k => encAddPart(E, { kind:k, x:0, y:0, h:3, rot:false, hold:"holes" });
       searchSelField(add, "Add another board or module", Object.fromEntries(Object.entries(BOARDS).filter(([k]) => k !== "none" && k !== "custom")), BOARD_GROUPS,
         ()=>encAddBoard.kind, v=>{ encAddBoard.kind = v; }, { pick:true, hint:"relay, buck, 18650", onEnter:addIt });
       buttonRow(add, [["Add it", ()=>addIt(encAddBoard.kind)]]);
     }
   });
+  // heat and air (Session 63)
+  const HT = I && !E.test ? encHeat(E, I) : null;
+  if (HT && HT.parts.length) group(p, "Heat and air", g => {
+    const cm2 = v => `${(v/100).toFixed(v < 1000 ? 1 : 0)} cm²`;
+    note(g, `<b>About ${HT.P.toFixed(1)} W of heat</b> from the parts inside. Closed, this box sheds about ${HT.sealed.toFixed(1)} W through its walls (staying within about 15 °C of the room). Its vents and grilles are ${cm2(HT.vent)} open${HT.fans ? `, its fans move about ${HT.fans} m³/h` : ""}.`);
+    note(g, HT.status === "ok" ? "✓ That is enough: it should stay cool." : HT.status === "vents"
+      ? `⚠ Give it about ${cm2(HT.needVent)} of vents, half low on one wall and half high on the opposite one, so warm air rises out (it has ${cm2(HT.vent)}).`
+      : `⚠ That is a lot for a closed box: a fan moving about ${HT.needFlow} m³/h (a ${HT.fanSize} mm fan or bigger) blowing out high up, with a vent low on the other side.`);
+    if (HT.status !== "ok") buttonRow(g, [[HT.status === "fan" ? `Add a ${HT.fanSize} mm fan and a vent` : "Add the vents", ()=>{ const n = encAddCooling(E, HT.status === "fan"); buildEnclosure(); const h2 = encHeat(E, enclosureInfo);
+      notify(`${n} opening${n === 1 ? "" : "s"} added (see the Openings page)${h2 && h2.status !== "ok" ? `: ${cm2(h2.vent)} of the ${cm2(h2.needVent)} needed, as much as the walls take. A fan does the rest: Add a fan instead.` : ": that should keep it cool."}`); renderTab(); baseChanged(); pushHistory(); }],
+      ...(HT.status === "vents" ? [["Add a fan instead", ()=>{ const n = encAddCooling(E, true); notify(`${n} openings added.`); renderTab(); baseChanged(); pushHistory(); }]] : [])]);
+    g.insertAdjacentHTML("beforeend", `<p class="hint" style="margin:8px 0 2px">How warm each part runs (typical; change it for yours):</p>`);
+    HT.parts.forEach(({ b, w }) => numField(g, { label:`${b.label.replace(/\s*\(.*$/, "")} (W)`, min:0, max:60, step:0.1, noReset:true, get:()=>encPartWatts(E, b),
+      set:v=>{ if (b.main) E.boardWatts = v; else if (b.src) b.src.watts = v; }, onChange:()=>{ renderTab(); } }));
+    note(g, "Rules of thumb, not a simulation: a box in the sun, or round a heater, needs more.");
+  }, !!(HT && HT.status !== "ok"));
+  // wiring (Session 63)
+  if (I && !E.test) group(p, "Wiring", g => {
+    const wires = Array.isArray(E.wires) ? E.wires : (E.wires = []), ends = encWireEnds(E, I), info = encWires(E, I);
+    if (ends.length < 2){ note(g, "Add at least two parts or openings to wire between them."); return; }
+    note(g, "Say what connects to what: each wire is drawn in the plan, through the levels' cable passes, with a length to cut. The download has the list (wiring.txt).");
+    const opts = ends.map(e => [e.id, e.label]);
+    wires.forEach((w, k) => { if (!w || typeof w !== "object") return;
+      const box = document.createElement("div"); box.style.cssText = "border-top:1px solid rgba(128,128,128,.35);margin-top:10px;padding-top:6px"; g.appendChild(box);
+      const wi = info.find(q => q.i === k), sw = (ENC_WIRE_COLOURS.find(([c]) => c === (wi ? wi.colour : w.colour)) || ENC_WIRE_COLOURS[0])[1];
+      box.insertAdjacentHTML("beforeend", `<p class="hint" style="margin:0 0 4px"><span class="pl-key" style="background:${sw}"></span> <b>Wire ${k + 1}</b>${wi && wi.ok ? `: about ${wi.len} mm` : wi ? `: ⚠ ${esc(wi.why)}` : ""}</p>`);
+      selField(box, "From", opts, ()=>w.from, v=>{ w.from = v; renderTab(); });
+      textField(box, "Its pin (optional)", ()=>w.fromPin || "", v=>{ w.fromPin = encWireText(v); }, { max:20, placeholder:"e.g. 5V, GPIO4, VIN", onChange:()=>renderTab() });
+      selField(box, "To", opts, ()=>w.to, v=>{ w.to = v; renderTab(); });
+      textField(box, "Its pin (optional)", ()=>w.toPin || "", v=>{ w.toPin = encWireText(v); }, { max:20, placeholder:"e.g. VCC, IN1, +", onChange:()=>renderTab() });
+      selField(box, "Colour", ENC_WIRE_COLOURS.map(([c]) => [c, c[0].toUpperCase() + c.slice(1)]), ()=>w.colour || "red", v=>{ w.colour = v; renderTab(); });
+      buttonRow(box, [["Remove", ()=>{ wires.splice(k, 1); renderTab(); pushHistory(); }]]); });
+    if (wires.length < 40) buttonRow(g, [["Add a wire", ()=>{ const last = wires[wires.length - 1]; wires.push({ from:last ? last.from : ends[0].id, fromPin:"", to:(ends.find(e => e.id !== (last ? last.from : ends[0].id)) || ends[1]).id, toPin:"", colour:last && last.colour === "red" ? "black" : "red" }); renderTab(); pushHistory(); }]]);
+    const ok = info.filter(q => q.ok);
+    if (ok.length){ const tot = {}; ok.forEach(q => { tot[q.colour] = (tot[q.colour] || 0) + q.len; });
+      note(g, `<b>Wire to cut:</b> ${Object.entries(tot).map(([c, l]) => `${esc(c)} ${l} mm`).join(", ")} (with 10% and 20 mm to spare on each).`);
+      buttonRow(g, [["Copy the wiring list", ()=>{ try { navigator.clipboard.writeText(encWiringText(E, I).join("\n")).then(() => notify("The wiring list is copied.")); } catch (e) { notify("Copying isn't allowed here."); } }]]); }
+    checkField(g, "Show the wires in the plan", ()=>viewOpts.boxWires !== false, v=>{ viewOpts.boxWires = v; renderTab(); });
+  }, Array.isArray(E.wires) && E.wires.length > 0);
   // the inside of the box (Session 46): the parts shown, levels and dividers
   group(p, "Inside: levels and dividers", g => {
     checkField(g, "Show the parts inside (see-through)", ()=>E.showParts !== false, v=>{ E.showParts = v; refreshScene(); });
@@ -13064,7 +13710,7 @@ function enclosureFields(p){
       if (had) segField(box, [["below","Label below"],["above","Label above"]], ()=>c.labelPos === "above" ? "above" : "below", v=>{ c.labelPos = v; renderTab(); baseChanged(); }, "two");
       buttonRow(box, [
         // a copy is the user's own opening, not one of the board's ports (Session 61: Arrange used to take it away)
-        ["Duplicate", ()=>{ const n = JSON.parse(JSON.stringify(c)); delete n.auto; delete n.board; delete n.port; E.cut.splice(i + 1, 0, n); n.u = freeSpot(E, n); renderTab(); encOpeningChanged(i + 1); pushHistory(); }],
+        ["Duplicate", ()=>{ const n = JSON.parse(JSON.stringify(c)); delete n.auto; delete n.board; delete n.port; delete n.id; E.cut.splice(i + 1, 0, n); n.u = freeSpot(E, n); renderTab(); encOpeningChanged(i + 1); pushHistory(); }],
         ["Remove", ()=>{ E.cut.splice(i, 1); renderTab(); baseChanged(); pushHistory(); }]
       ]);
     });
@@ -16176,7 +16822,16 @@ function sanitizeProject(data){
     const L0 = E.logo && typeof E.logo === "object" ? E.logo : {};
     E.logo = { on: L0.on === true, mode: one(L0.mode, ["inlay","engrave"]), width: Math.min(300, Math.max(5, cleanNum(L0.width, 40))),
       x: Math.min(200, Math.max(-200, cleanNum(L0.x, 0))), y: Math.min(200, Math.max(-200, cleanNum(L0.y, 0))), depth: Math.min(1.6, Math.max(0.2, cleanNum(L0.depth, 0.6))) };
+    encSyncCustomBoards(E);                                      // boards imported from KiCad (Session 63) are boards from here on
     E.screw = encHas(SCREWS, E.screw) ? E.screw : "M3"; E.bscrew = encHas(SCREWS, E.bscrew) ? E.bscrew : "M3"; E.board = encHas(BOARDS, E.board) ? E.board : "none";
+    // Sessions 61-63: where the main board is mounted, which way its parts face, its heat, a battery's strap through loops
+    // (each only when the project has it: a project from before keeps exactly what it had)
+    const has = k => Object.prototype.hasOwnProperty.call(E, k);
+    if (has("edge")) E.edge = ["chamfer","round"].includes(E.edge) ? E.edge : ""; if (has("texture")) E.texture = ["grooves","hex"].includes(E.texture) ? E.texture : ""; if (has("band")) E.band = E.band === true;     // the style (Session 63)
+    if (has("testKind")) E.testKind = E.testKind === "holders" ? "holders" : "box";
+    if (has("boardFace")) E.boardFace = ENC_MOUNT_FACES.includes(E.boardFace) ? E.boardFace : ""; if (has("boardSide")) E.boardSide = E.boardSide === "out" ? "out" : "in"; if (has("boardStrapBy")) E.boardStrapBy = E.boardStrapBy === "loops" ? "loops" : "slots";
+    if (E.boardWatts != null && E.boardWatts !== "") E.boardWatts = Math.min(500, Math.max(0, cleanNum(+E.boardWatts, 0))); else delete E.boardWatts;
+    E.boardX = Math.min(200, Math.max(-200, cleanNum(E.boardX, 0))); E.boardY = Math.min(250, Math.max(-200, cleanNum(E.boardY, 0)));
     // until v0.17 every round hole in a wall was a teardrop unless switched off; people read them as
     // misshapen ovals, so older projects open with round holes (the option is still there)
     E.teardrop = (+data.v || 0) >= 5 ? E.teardrop === true : false; E.grow = E.grow !== false;
@@ -16184,8 +16839,13 @@ function sanitizeProject(data){
     E.boardRot = E.boardRot === true; E.test = E.test === true;
     // more boards and modules (Session 45): known ones only, up to 12, each number clamped
     E.boardHold = E.boardHold === "edges" || E.boardHold === "door" ? E.boardHold : "holes";
+    const okId = v => typeof v === "string" && /^[a-z0-9]{4,10}$/.test(v);
     E.more = (Array.isArray(E.more) ? E.more : []).slice(0, 12).filter(m => m && typeof m === "object" && encHas(BOARDS, m.kind) && m.kind !== "none" && m.kind !== "custom").map(m => ({
-      kind:m.kind, x:Math.min(150, Math.max(-150, cleanNum(m.x, 0))), y:Math.min(150, Math.max(-150, cleanNum(m.y, 0))), h:Math.min(40, Math.max(1, cleanNum(m.h, 3))),
+      // (Session 63: they kept only the fields of Session 59 and the ±150 mm of before, so a reopened project lost strap loops,
+      // where a module was mounted, its heat, its id for the wiring, and anything further than 150 mm from the middle)
+      kind:m.kind, x:Math.min(200, Math.max(-200, cleanNum(m.x, 0))), y:Math.min(250, Math.max(-200, cleanNum(m.y, 0))), h:Math.min(40, Math.max(1, cleanNum(m.h, 3))),
+      ...(m.strapBy === "loops" ? { strapBy:"loops" } : {}), ...(ENC_MOUNT_FACES.includes(m.face) ? { face:m.face } : {}), ...(m.side === "out" ? { side:"out" } : {}),
+      ...(m.watts != null && m.watts !== "" && isFinite(+m.watts) ? { watts:Math.min(500, Math.max(0, +m.watts)) } : {}), ...(okId(m.id) ? { id:m.id } : {}),
       rot:m.rot === true, hold:m.hold === "edges" || m.hold === "door" ? m.hold : "holes", lvl:Math.round(Math.min(ENC_LEVEL.max, Math.max(0, cleanNum(m.lvl, 0)))),
       ...(["clips","loose"].includes(m.grip) ? { grip:m.grip } : {}), ...(m.pins === true ? { pins:true } : {}),
       ...(m.kind === "batcustom" ? { bw:Math.min(250, Math.max(5, cleanNum(m.bw, 60))), bd:Math.min(250, Math.max(5, cleanNum(m.bd, 35))), bt:Math.min(120, Math.max(2, cleanNum(m.bt, 10))) } : {}) }));
@@ -16196,7 +16856,7 @@ function sanitizeProject(data){
       z:Math.min(300, Math.max(6, cleanNum(l.z, 30))), t:Math.min(5, Math.max(1.2, cleanNum(l.t, 2))), hold:["posts","brackets","ledges","custom"].includes(l.hold) ? l.hold : "posts", cable:l.cable !== false, vent:l.vent === true,
       at:(Array.isArray(l.at) ? l.at : []).slice(0, 6).filter(q => q && typeof q === "object").map(q => ({ x:Math.min(200, Math.max(-200, cleanNum(q.x, 0))), y:Math.min(200, Math.max(-200, cleanNum(q.y, 0))) })),
       pass:ENC_PASS.includes(l.pass) ? l.pass : (l.cable === false ? "none" : "back"), passSize:l.passSize === "large" ? "large" : "small", grid:[0, 10, 15, 20].includes(+l.grid) ? +l.grid : 0,
-      anchors:Math.round(Math.min(8, Math.max(0, cleanNum(l.anchors, 0)))) }));
+      anchors:Math.round(Math.min(8, Math.max(0, cleanNum(l.anchors, 0)))), ...(l.bracketWalls === "frontback" ? { bracketWalls:"frontback" } : {}) }));
     E.walls = (Array.isArray(E.walls) ? E.walls : []).slice(0, ENC_DIV.max).filter(w => w && typeof w === "object").map(w => ({
       axis:w.axis === "y" ? "y" : "x", at:Math.min(200, Math.max(-200, cleanNum(w.at, 0))), height:Math.min(300, Math.max(0, cleanNum(w.height, 0))),
       fan:ENC_FANS.includes(+w.fan) ? +w.fan : 0, cable:w.cable !== false, notch:["none","small","large","ends"].includes(w.notch) ? w.notch : (w.cable === false ? "none" : "small"),
@@ -16221,8 +16881,14 @@ function sanitizeProject(data){
       if ("style" in o && ["rings","honeycomb","open","slots","holes"].includes(c.style)) o.style = c.style;
       o.rot = c.rot === true;
       o.label = encLabelText(c.label); o.labelPos = c.labelPos === "above" ? "above" : "below"; o.top = c.top === "pointed" ? "pointed" : c.top === "auto" ? "auto" : "flat"; o.notch = c.notch === true;
+      // a board's port openings keep their link to it (Session 61), and each opening its id for the wiring (Session 63)
+      if (c.auto === "ports"){ o.auto = "ports"; if (encHas(BOARDS, c.board)) o.board = c.board; if (Number.isInteger(c.port) && c.port >= 0 && c.port < 32) o.port = c.port; }
+      if (okId(c.id)) o.id = c.id;
       return o;
     });
+    // the wiring (Session 63): up to 40 wires, each end an id, pins plain text, a colour from the list
+    if ("wires" in E) E.wires = (Array.isArray(E.wires) ? E.wires : []).slice(0, 40).filter(w => w && typeof w === "object").map(w => ({ from:okId(w.from) || w.from === "main" ? w.from : "", fromPin:encWireText(w.fromPin),
+      to:okId(w.to) || w.to === "main" ? w.to : "", toPin:encWireText(w.toPin), colour:ENC_WIRE_COLOURS.some(([c]) => c === w.colour) ? w.colour : "red" }));
   }
   // mechanisms and fix-it parts (Session 37): each choice one of its own, each switch true or false, a missing group
   // its defaults; the numbers were clamped above and are clamped again where they are built
@@ -16475,6 +17141,8 @@ async function buildZip(parts, title){
   const splitText = encSplitReadme();
   if (splitText) zip.file("how-it-goes-together.txt", splitText.join("\r\n"));
   const asm = state.base.type === "enclosure" && enclosureInfo && !state.base.enclosure.test ? encAssembly() : [];
+  const wiring = state.base.type === "enclosure" && enclosureInfo && !state.base.enclosure.test ? encWiringText(state.base.enclosure, enclosureInfo) : null;
+  if (wiring) zip.file("wiring.txt", wiring.join("\r\n"));
   if (asm.length) zip.file("how-to-assemble.txt", [`How to put ${title} together`, "", ...asm.map((t, k) => `${k + 1}. ${t}`), "",
     ...(enclosureInfo.need && enclosureInfo.need.length ? ["What you'll need:", ...enclosureInfo.need.map(([n, w]) => `  ${n} x ${w}`)] : [])].join("\r\n"));
   if (state.base.type === "jigsaw" && jigsawInfo) zip.file("cad/puzzle-cut-lines.svg", C.jigsawSVG(jigsawInfo.cut, title));
@@ -16503,6 +17171,7 @@ async function buildZip(parts, title){
       : "One colour at a time: print stl/all-parts-merged.stl.",
     ...(cardNfcText(title) ? ["An NFC tag goes inside: nfc-tag.txt says where to pause and put it in."] : []),
     ...(asm.length ? ["A project box: how-to-assemble.txt has the steps and what you'll need."] : []),
+    ...(wiring ? ["wiring.txt lists every wire, end to end, with its colour and length."] : []),
     ...(nPlates ? [`It prints on ${nPlates} plates: open plates/plate-1-prusa-orca.3mf (or -bambu.3mf) and so on, one plate at a time.`,
       "  The model files above hold every plate side by side. how-it-goes-together.txt says how the parts join."] : []),
     ...(P.some(p => p.paint) ? ["Painted on the Paint tab: both 3mf files carry the paint, so the slicer shows it painted and",
@@ -16805,7 +17474,7 @@ window.MakerForge = {
   get enclosure(){ return enclosureInfo; },
   get cutouts(){ return CUTOUTS; }, get boards(){ return BOARDS; }, boardPorts:BOARD_PORTS, addBoardPorts:encAddBoardPorts, arrange:encArrange,
   // room for parts (Session 61), for the tests
-  boxRoom:{ place:encPlace, freeU:encFreeU, onFace:encRoomOnFace, shrink:encShrinkWrap, fixAll:encFixAll, makeRoom:encMakeRoom, busy:encBusy, assembly:encAssembly }, boxDrag:{ pick:boxDragPick, start:h => { boxDrag = Object.assign(h, { id:-1, moved:false, t:0 }); }, to:lr => { const ok = boxDragTo(lr); if (ok && boxDrag) boxDrag.moved = true; return ok; }, end:boxDragEnd }, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
+  boxRoom:{ place:encPlace, freeU:encFreeU, onFace:encRoomOnFace, shrink:encShrinkWrap, fixAll:encFixAll, makeRoom:encMakeRoom, busy:encBusy, assembly:encAssembly, kicad:kicadParse, importKicad:encImportKicad, heat:encHeat, wires:encWires, kits:ENC_KITS, startKit:encStartKit }, boxDrag:{ pick:boxDragPick, start:h => { boxDrag = Object.assign(h, { id:-1, moved:false, t:0 }); }, to:lr => { const ok = boxDragTo(lr); if (ok && boxDrag) boxDrag.moved = true; return ok; }, end:boxDragEnd }, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
   get jigsaw(){ return jigsawInfo; },
   get lithophane(){ return lithoInfo; },
   get print(){ return printFresh() ? printInfo : null; },

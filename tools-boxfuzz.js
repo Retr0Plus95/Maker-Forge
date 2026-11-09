@@ -4,7 +4,7 @@
 // step checks: no page errors, every part closed, sizes in range, and that adding a part (when the box may grow) never puts
 // it on something, Shrink to fit makes no new warning, Make it all fit leaves no board out, and adding an opening leaves none
 // out. Slow and random, so not part of test:enclosure; run it after changing how parts or openings are placed.
-//   node tools-boxfuzz.js index.html            SEED=1 RUNS=6 STEPS=22 (each seed repeats the same clicks)
+//   node tools-boxfuzz.js index.html            SEED=1 RUNS=6 STEPS=22 (each seed repeats the same clicks), DUMP=<folder>
 (async () => {
   const env = require("./tools-test-env.js")(process.argv[2] || "index.html");
   const win = env.window, document = win.document, sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -29,7 +29,7 @@
   const seg = async label => { const b = [...document.querySelectorAll("#panel .seg button")].filter(b => b.textContent === label); if (!b.length) return false; pick(b).click(); await settle(); return true; };
   const tick = async re => { const l = [...document.querySelectorAll("#panel label.check")].filter(l => re.test(l.textContent)); if (!l.length) return false; const cb = pick(l).querySelector("input"); cb.checked = !cb.checked; cb.onchange({ target:cb }); await settle(); return true; };
   const actions = {
-    addPart: async () => { const f = field(/^Add another board/); if (!f) return; const k = pick(boards); const inp = f.querySelector("input"); inp.value = k; inp.oninput(); await sleep(10); return click(/^Add it$/); },
+    addPart: async () => { const f = field(/^Add another board/); if (!f) return; const k = pick(boards); global.lastKind = k; const inp = f.querySelector("input"); inp.value = k; inp.oninput(); await sleep(10); return click(/^Add it$/); },
     addOpening: async () => { const f = field(/^Add an opening/); if (!f) return; const s = [...document.querySelectorAll("#panel .field")].find(w => /^On$/.test((w.querySelector("label")||{}).textContent||"") && w.closest("div") && [...(w.querySelector("select")||{options:[]}).options].some(o => o.value === "bottom"));
       const k = pick(cutouts), inp = f.querySelector("input"); inp.value = k; inp.oninput(); await sleep(10); if (s){ const sel = s.querySelector("select"); sel.value = pick(["front","back","left","right","top","bottom"]); sel.onchange && sel.onchange(); sel.dispatchEvent(new win.Event("change")); } return click(/^Add opening$/); },
     mainBoard: async () => { const f = field(/^Board$/); if (!f) return; const s = f.querySelector("select"), k = pick(boards.concat(["none"])); if (![...s.options].some(o => o.value === k)) { const inp = f.querySelector("input"); inp.value = k; inp.oninput(); }
@@ -47,6 +47,13 @@
     hold: () => seg(pick(["By its edges","Strap tray","Corner cradle","Under a door","On its screw holes (M3)","Snap clips","Snap pins (no screws)"])),
     posts: () => seg(pick(["Posts down to the floor","Short posts (floor free)"])),
     split: () => seg(pick(["Always","Never","When it's bigger than the bed"])),
+    // Session 63: where a board is mounted, a recipe, the heat buttons, a wire, the style, the holders' fit test
+    mountOn: async () => { const fs = [...document.querySelectorAll("#panel .field")].filter(w => /^Mounted on$/.test((w.querySelector("label") || {}).textContent || "")); if (!fs.length) return;
+      const sl = pick(fs).querySelector("select"), v = pick([...sl.options].map(o => o.value)); sl.value = v; sl.dispatchEvent(new win.Event("change")); await settle(); },
+    side: () => seg(pick(["Its parts face into the box","Its parts face the wall","Its parts face the lid"])),
+    recipe: () => click(/^Start a /), heat: () => click(/^(Add the vents|Add a fan instead|Add a \d+ mm fan and a vent)$/),
+    wire: () => click(/^Add a wire$/), style: () => seg(pick(["Square lid edge","Chamfered","Rounded","Plain walls","Grooves","Hexagons"])), band: () => tick(/A band of another colour/),
+    holders: async () => { if (rnd() < 0.5) return; await tick(/^Print a fit test first/); await seg(pick(["A small box","The holders, on a card"])); if (rnd() < 0.7) await tick(/^Print a fit test first/); },
     // the plan of the inside (Session 62): pick a part, then a key
     planKey: async () => { const b = [...document.querySelectorAll("#secrail button")].find(x => x.dataset.title === "Plan of the inside"); if (!b) return; b.click(); await sleep(20);
       const svg = document.querySelector("#panel .boxplan"), g = svg && [...svg.querySelectorAll(".pl-part")]; if (!g || !g.length) return;
@@ -54,7 +61,7 @@
       const s2 = document.querySelector("#panel .boxplan"); if (s2){ s2.dispatchEvent(new win.KeyboardEvent("keydown", { key:pick(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","r","d","Delete"]), shiftKey:rnd() < 0.3, bubbles:true })); await settle(); } },
     undo: async () => { const b = document.querySelector("#undoBtn, button[title^='Undo']"); if (b){ b.click(); await settle(); } },
   };
-  const names = Object.keys(actions).concat(["addPart","addPart","addPart","mainBoard","addOpening","addOpening","pos","turn"]), presets = ["Project box","Power bank box","PSU box","Raspberry Pi case"], problems = [];
+  const names = Object.keys(actions).concat(["addPart","addPart","addPart","mainBoard","addOpening","addOpening","pos","turn","mountOn"]), presets = ["Project box","Power bank box","PSU box","Raspberry Pi case"], problems = [];
   for (let run = 0; run < (+process.env.RUNS || 6); run++){
     const pr = pick(presets), btn = [...document.querySelectorAll("#presetGallery button")].find(b => b.dataset.k === pr);
     if (btn){ btn.click(); await settle(); }
@@ -62,7 +69,7 @@
     const log = [pr];
     for (let step = 0; step < (+process.env.STEPS || 14); step++){
       const a = pick(names), errs0 = env.errors.length, warn0 = (MF.enclosure && MF.enclosure.warn || []).map(w => w.t);
-      const left0 = MF.enclosure ? MF.enclosure.left.length : 0;
+      const left0 = MF.enclosure ? MF.enclosure.left.length : 0, before = process.env.DUMP ? JSON.stringify(MF.state.base.enclosure) : null, nP = problems.length;
       try { await actions[a](); } catch (e) { problems.push(`${log.join(" > ")} > ${a}: threw ${e.message}`); break; }
       log.push(a);
       const errs = env.errors.slice(errs0).filter(e => !/navigation|HTMLMedia/.test(e));
@@ -74,10 +81,14 @@
       if ([E.w, E.d, E.h].some(v => !isFinite(+v))) problems.push(`${log.join(" > ")}: size NaN ${[E.w,E.d,E.h]}`);
       if (E.w > 300.01 || E.d > 300.01 || E.h > 250.01) problems.push(`${log.join(" > ")}: size past the sliders ${[E.w,E.d,E.h]}`);
       const newW = I.warn.map(w => w.t).filter(t => !warn0.includes(t) && !/join|crosses a join/i.test(t)), said = (document.querySelector("#notice") || {}).textContent || "";
-      if (a === "addPart" && E.grow !== false && !/no free room/.test(said) && newW.some(t => /overlaps|screw post|does not fit|under a post|crosses|runs into|bracket/.test(t))) problems.push(`${log.join(" > ")}: adding a part made: ${newW.join("; ")} [${[E.w,E.d,E.h].join("x")}; ${said.slice(0,160)}]`);
+      // (about the part just added: a box with everything left out can show old clashes again once it has room)
+      const addedLab = a === "addPart" && global.lastKind && MF.boards[global.lastKind] ? MF.boards[global.lastKind].label : null;
+      if (a === "addPart" && E.grow !== false && !/no free room/.test(said) && addedLab && newW.filter(t => t.includes(addedLab)).some(t => /overlaps|screw post|does not fit|under a post|crosses|runs into|bracket/.test(t))) problems.push(`${log.join(" > ")}: adding a part made: ${newW.join("; ")} [${[E.w,E.d,E.h].join("x")}; ${said.slice(0,160)}]`);
       if (a === "fixAll" && I.boards.some(b => b.fits === false)) problems.push(`${log.join(" > ")}: Make it all fit left a board out`);
       if (a === "shrink" && newW.length) problems.push(`${log.join(" > ")}: Shrink made new warnings: ${newW.join("; ")}`);
       if ((a === "dup" || a === "addOpening") && E.grow !== false && !/even in a bigger box/.test(said) && I.left.length > left0) problems.push(`${log.join(" > ")}: an opening left out: ${newW.join("; ")} ${JSON.stringify(I.warn.map(w=>w.s).filter(s=>/Opening/.test(s)).slice(0,2))}`);
+      // DUMP=<folder>: the box as it was before a step that went wrong, to try that step again by hand
+      if (process.env.DUMP && problems.length > nP) require("fs").writeFileSync(require("path").join(process.env.DUMP, `boxfuzz-${seed0}-${problems.length}.json`), JSON.stringify({ step:a, kind:global.lastKind, before:JSON.parse(before) }));
       if (MF.state.base.type !== "enclosure") break;
     }
     if (process.env.VERBOSE){ const E = MF.state.base.enclosure, I = MF.enclosure; console.log(log.join(" > "), "|", [E.w,E.d,E.h].join("x"), "boards", (I.boards||[]).length, "cuts", (E.cut||[]).length, "levels", (E.levels||[]).length, "walls", (E.walls||[]).length, "warn", I.warn.map(w=>w.t).join("; ").slice(0,300)); }

@@ -2570,7 +2570,67 @@ on a corner post after the box grew both ways, in a box made in parts); its repl
 by `encMainPicked` keeps its turn (`keepRot`): its ports face the walls they do; modules may be turned to fit. Pictures: `docs/images/box-plan.jpg`, `box-parts.jpg`. Not done: dragging openings along the walls in the plan; a
 real print of the strap loops (3 mm under a 45° gable: check the strap slides through).
 
-## Next: 0.55 (planned, not started)
+## Session 63: project boxes, boards on walls, wiring, KiCad, heat, recipes, style (v0.55.0)
+
+The owner asked "What else to make it even better", was given nine ideas, and answered "Do all of them". All nine are in:
+
+- **Boards on a wall or under the lid** (`ENC_MOUNT_FACES`, `boardFace`/`boardSide` for the main board, `face`/`side` on a module,
+  `encMountField`): boards with screw holes only. In `encBoardList` such a part has `lvl -1` (on no floor) and `x, y` on its face
+  (along it seen from outside, and the height of its middle; under the lid across and front to back). `faceMount` in
+  `buildEnclosure` builds the standoffs: on a wall a teardrop pointing down with a teardrop hole pointing up, extruded inwards in
+  the wall's frame (`faceInfo[f].M/T`); under the lid circles on the lid's inside face (`lidMounts`, built with the lid). A board
+  with its parts in is seen from outside the other way round (`mir`). Its info has `face`, `bb` (its plan footprint, with what
+  stands off the face), `z` (its heights), `faceOver` when it runs off its face (`encMakeRoom` grows that face's sides). Checked
+  in 3D against every other part and the levels; `encBusy` keeps new floor parts out from under it where it reaches their floor;
+  `encShiftAll` moves it as an opening on its face; Arrange, ports and the 3D drag leave it alone (its floor port openings go when
+  it moves to a wall). In the plan it is drawn and dragged along its wall (`encFaceDelta`).
+- **The plan's tools**: openings picked (`encSel.cut`), dragged along their wall or on the floor, moved with the keys; distance
+  lines from the picked part; snapping (`snapTo`, within 2 mm, guides, Alt to drag freely); Tab through `[data-pick]`.
+- **Wiring** (`E.wires`, `encWireEnds`, `encWireAt`, `encPassAt`, `encWires`, `encWiringText`): ends are ids (`encId`, given to
+  modules and openings as the panel is drawn and kept in the project; copies get new ones), routed across then front to back,
+  through each level's cable pass; `wiring.txt` in the download.
+- **KiCad** (`kicadParse`, `KICAD_PORTS`, `KICAD_PANEL`, `encSyncCustomBoards`, `encImportKicad`): a small S-expression reader; the
+  outline from Edge.Cuts (or the footprints when there is none), holes, edge connectors as ports (`BOARD_PORTS["kc_<id>"]`), LEDs,
+  buttons and knobs as `panel` parts. `E.customBoards` (up to 8) are clamped and made into `BOARDS["kc_<id>"]` on load, before each
+  build and each panel; the group "Your own boards" is added to `BOARD_GROUPS`.
+- **Shapes** (`BOARD_SHAPES` for 11 boards, `boardShapesAt`, `encTopIn`, `info.shapes`, `info.reach`): drawn as `feat` ghosts, in the
+  plan and the catalogue; used by the bracket and short-lid-post checks, `encBusy` (the reach of overhanging sockets) and a check
+  after every part is placed for a socket past its board's edge into another part.
+- **Heat** (`ENC_WATTS`, `encWattsOf`, `encPartWatts`, `encHeat`, `encAddCooling`, `ENC_FAN_FLOW`): watts per part (typical, set by
+  `watts` / `boardWatts`), a closed box's 5 W/m²K × 15 K, vents' open area from `placedRings`, ~3 cm²/W over that, a fan above
+  15 W (3.1 × W ÷ 10 K m³/h). Vents are sized by their real open area (honeycomb or slots, whichever is more), a second pair on the
+  short walls when the long ones cannot take enough.
+- **Recipes** (`ENC_KITS`, `encStartKit`): defaults, the kit's settings, `aiFromWords` with faces set per kind and extra openings,
+  `encApplyPlan`, a minimum size (the pedal), labels, `encFixAll`, `encTidyLabels`. All six build with no warnings.
+- **Style** (`E.edge`/`edgeSize`, `E.texture`/`textureDepth`, `E.band`/`bandZ`/`bandH`/`bandSlot`): the lid's edge as 0.2 mm slabs
+  inset from the bed (kept clear of a gasket groove); grooves (pointed tops) and hexagons (a corner up) cut into the walls' outer
+  skin through the existing `wc` layers, clear of `taken`; the band inlaid the same way with a part of its own.
+- **The fit test for the holders** (`E.testKind` "holders", `encHolderCard`, `ENC_HOLDERS`): a 130 × 82 mm card and its tiles.
+
+**Fixed:** `sanitizeProject` rebuilt each module, level and opening from a fixed list of fields, so a reopened project lost a
+module's `strapBy` (0.54), a level's `bracketWalls` (0.54), an opening's `auto`/`board`/`port` (0.54: port openings stopped
+following the board, and Arrange made them again) and pulled modules back within ±150 mm. All kept now, with the new fields, and
+`tools-boxpro-test.js` saves and reopens a project with every one. A fan only counted for cooling over 15 W. A label with no room
+is moved above its opening before it is dropped (`encTidyLabels`, also on Label every opening).
+
+Tested: `tools-boxpro-test.js` (45 checks: each face and side, clashes, growth, the panel; the plan's keys and Tab; wiring with a
+pass and a missing end; a KiCad file written for the test; shapes; heat; every recipe; every style and the card without support;
+a saved project and a hostile one), the whole `test:enclosure`, the box's smoke test and audit, `test:project`, the print survey,
+the browser check, and `tools-boxfuzz.js` with the new actions (where a board is mounted, recipes, the heat buttons, wires,
+the style, the holders' card; `DUMP=<folder>` now saves the box before a step that went wrong): seeds 101-104 and 111-113, 5 runs
+of 22 steps each. It found one bug, fixed: a wall chosen for a board, then a board without screw holes picked, left `boardFace`
+set, and `encShiftAll` moved that floor board as a wall part when the box grew (now it asks `encBoardList` where each part
+really is, and picking such a board clears it). Its check after adding a part now looks at warnings that name the part added:
+a box shrunk until everything is left out shows its old clashes again once a new part makes it grow (seed 111). In Chromium: snapping while dragging, the plan with wires and a
+board on a wall, the catalogue's shapes. Not tested: a real KiCad board beyond the test file (other footprint libraries name
+parts differently: the patterns are in `KICAD_PORTS` / `KICAD_PANEL`), and real prints of the wall standoffs, the styles and the card.
+
+## Next (no plan yet)
+
+The 0.54/0.55 owner list is done. Ideas left from Session 62's answer: none; from earlier lists see Unfinished. The holders'
+fit-test card is ready for a real print: its results should set `ENC_CRADLE`, `ENC_TRAY.loop` and the snap pins' sizes.
+
+## Earlier plan: 0.55 (done in 0.54.0)
 
 Done in Session 62 (0.54.0), kept here for the record; the next release needs a new plan. The three items were:
 1. **Strap loops instead of floor slots** for a battery's strap tray: a loop standing on the floor each side of the battery

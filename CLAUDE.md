@@ -80,7 +80,7 @@ Plus, depending on what changed:
   runs in Node from its copy in `models/`, not an npm package: that one brings 60 others, `sharp` among them) and
   `CUT=inlay node tools-audit.js index.html box art`; the real download and run is in `npm run check:browser`
 - business cards (`buildCard`, `cardFace`, `cardOne` and the other `card*` functions in `src/app.html`) or the QR code encoder (`qrEncode`,
-  `qrPayload` in `src/core.js`) → `npm run test:card` (`CORE=1` for the encoder only; every code is read back with the `jsqr` dev
+  `qrPayload` in `src/core.js`) → `npm run test:card` (it runs `tools-qrart-test.js` too: a QR code as an Art item on any object, read back from its geometry; `CORE=1` for the encoder only; every code is read back with the `jsqr` dev
   dependency, from the printed card's geometry) and `ONLY=card npm run check:browser` (the same with real fonts)
 - mechanisms or fix-it parts (`buildMech`, `buildFixit`, the `fit*` helpers, `state.base.fit`), `gearOutline` / `threadSolid` in
   `src/core.js`, the keychain's second line or credit, or the print check's `surfaceBelow` → `npm run test:fit` (`CORE=1` for the

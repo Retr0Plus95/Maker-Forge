@@ -8547,7 +8547,7 @@ function newItem(name, canvas, extra){
   }, extra||{});
 }
 const history = { past:[], future:[], timer:0 };
-const runtimeKeys = new Set(["src","thumb","solids","_img","_imgKey","_cm","_inlay","_raw","_srcCv","_srcSig","_frameW","_cut","_cutInfo","_bg","_iconSig"]);
+const runtimeKeys = new Set(["src","thumb","solids","_img","_imgKey","_cm","_inlay","_raw","_srcCv","_srcSig","_frameW","_cut","_cutInfo","_bg","_iconSig","_qrSig"]);
 const serialize = () => JSON.stringify(state, (k,v)=> runtimeKeys.has(k) ? undefined : v);
 function pushHistory(){
   clearTimeout(history.timer);
@@ -8601,8 +8601,8 @@ async function squeeze(text, back){
   return out;
 }
 async function makeShareLink(){
-  const st = JSON.parse(serialize()), pics = st.items.filter(it => !it.text && !it.icon).length;
-  st.items = st.items.filter(it => it.text || it.icon); st.active = st.items.length ? 0 : -1;
+  const st = JSON.parse(serialize()), pics = st.items.filter(it => !it.text && !it.icon && !it.qr).length;
+  st.items = st.items.filter(it => it.text || it.icon || it.qr); st.active = st.items.length ? 0 : -1;
   const json = JSON.stringify({ app:"Maker Forge", v:6, state:st }), packed = await squeeze(json);
   const tail = packed ? "#p=" + b64url(packed) : "#j=" + b64url(new TextEncoder().encode(json));
   return { url: location.href.split("#")[0] + tail, pics };
@@ -8748,6 +8748,7 @@ function cutoutCanvas(src, tol){
 /* the picture after rotation, cropping and adjustments, cached per item */
 function sourceCanvas(d){
   if (d && d.icon) iconSrc(d);                     // an icon is drawn from its recipe (Session 49)
+  if (d && d.qr) qrSrc(d);                         // a QR code from its text (Session 65)
   if (!d.src) return null;
   const a = d.adjust||{ bright:0, contrast:0, sat:0 };
   const sig = [d.rot90||0, d.crop?1:0, a.bright, a.contrast, a.sat, d.src.width, d.src.height].join("|");
@@ -9004,6 +9005,24 @@ function iconCanvas(rec, N = 800){
   return c;
 }
 // an icon item's picture, drawn again when its recipe or the filament colours change
+/* A QR code on anything (Session 65): an Art item drawn from its text, like an icon from its recipe, with the business card's
+   encoder (C.qrEncode): each module a crisp square, a quiet zone round it. It goes on the object as any picture does, its dark
+   squares in the darkest filament. Test it with a phone's camera on the screen before printing. */
+function cleanQr(q){ const Q = q && typeof q === "object" ? q : {};
+  return { text:String(Q.text == null ? "https://" : Q.text).replace(/[\u0000-\u0008\u000b-\u001f\u007f<>]/g, "").slice(0, 300), ec:["L","M","Q","H"].includes(Q.ec) ? Q.ec : "M", quiet:Q.quiet !== false }; }
+function qrCanvas(q){
+  const e = C.qrEncode(q.text || " ", { ec:q.ec }); if (!e) return null;
+  const z = q.quiet ? 2 : 0, n = e.size + 2*z, px = Math.max(4, Math.floor(1200/n)), cv = document.createElement("canvas"); cv.width = cv.height = n*px;
+  const x = cv.getContext("2d"); x.fillStyle = "#ffffff"; x.fillRect(0, 0, cv.width, cv.height); x.fillStyle = "#000000";
+  for (let j = 0; j < e.size; j++) for (let i = 0; i < e.size; i++) if (e.dark[j*e.size + i]) x.fillRect((i + z)*px, (j + z)*px, px, px);
+  cv._modules = n; return cv;
+}
+function qrSrc(d){
+  if (!d || !d.qr) return;
+  const sig = JSON.stringify(d.qr); if (d.src && d._qrSig === sig) return;
+  const cv = qrCanvas(d.qr); if (!cv) return;
+  d.src = cv; d._qrSig = sig; d.aspect = 1; d.thumb = thumbURL(cv); d._srcSig = ""; d._imgKey = ""; d.solids = null;
+}
 function iconSrc(d){
   if (!d || !d.icon) return;
   const sig = iconSig(d.icon);
@@ -23053,7 +23072,7 @@ function tabArt(p){
     <input class="vh" type="file" id="fileInput" accept="image/*" multiple>
     <ul class="items" id="itemList"></ul>`);
   wireDrop(); renderItemList();
-  buttonRow(p, [["Add text", addTextItem], ["Make an icon", ()=>addIconItem()], ["Duplicate", duplicateItem], ["◀", ()=>moveItem(-1)], ["▶", ()=>moveItem(1)],
+  buttonRow(p, [["Add text", addTextItem], ["Make an icon", ()=>addIconItem()], ["A QR code", ()=>addQrItem()], ["Duplicate", duplicateItem], ["◀", ()=>moveItem(-1)], ["▶", ()=>moveItem(1)],
     ["Rename", renameItem], ["Remove", removeItem]]);
   const d = state.items[state.active];
   if (!d){
@@ -23203,6 +23222,7 @@ function tabArt(p){
   }, d.outline.on);
 
   if (d.icon) group(p, "Icon", g2 => iconPanel(g2, d), true);
+  if (d.qr) group(p, "QR code", g2 => qrPanel(g2, d), true);
   if (d.text) group(p,"Text", g2 => {
     const w = document.createElement("div"); w.className = "field full";
     w.innerHTML = `<label for="itxt">Words</label><textarea class="ta" id="itxt" rows="2">${esc(d.text.value)}</textarea>`;
@@ -23362,6 +23382,29 @@ async function addFiles(files){
   renderTab(); schedule(); pushHistory();
 }
 // a new icon on the Art tab (Session 49): drawn from a recipe, in the loaded filaments' colours
+async function addQrItem(text){
+  dropExamples();
+  const qr = cleanQr({ text:text || "https://" }), canvas = qrCanvas(qr); if (!canvas){ notify("That is too much for a QR code."); return null; }
+  const it = newItem("QR code", canvas, { qr, mode:"flat", quality:"ultra", height:0.8, width:30 });
+  it._qrSig = JSON.stringify(qr); it.src = canvas; it.thumb = thumbURL(canvas);
+  const wereOn = state.items.filter(x => !x.text && x.enabled !== false); wereOn.forEach(x => { x.enabled = false; x.solids = null; });
+  state.items.push(it); state.active = state.items.length - 1;
+  renderTab(); schedule(); pushHistory();
+  return it;
+}
+// a QR code's settings: what it says (a link, text, a WiFi login), how much damage it survives, the quiet zone
+function qrPanel(g, d){
+  d.qr = cleanQr(d.qr);
+  const redo = () => { d.qr = cleanQr(d.qr); qrSrc(d); renderItemList(); d.solids = null; schedule(); };
+  textField(g, "What it says (a web link, text, a WiFi login)", ()=>d.qr.text, v=>{ d.qr.text = v; }, { max:300, placeholder:"https://", onChange:()=>{ redo(); renderTab(); } });
+  buttonRow(g, [["A WiFi login", ()=>{ const ssid = "MyNetwork", pw = "password"; d.qr.text = C.qrPayload ? C.qrPayload("wifi", { ssid, password:pw, auth:"WPA" }) : `WIFI:T:WPA;S:${ssid};P:${pw};;`; redo(); renderTab(); notify("Type your network's name and password in place of MyNetwork and password."); }]]);
+  g.insertAdjacentHTML("beforeend", `<p class="hint" style="margin:8px 0 2px">How much of it can be lost and still read:</p>`);
+  segField(g, [["L","Least"],["M","Some"],["Q","More"],["H","Most"]], ()=>d.qr.ec, v=>{ d.qr.ec = v; redo(); renderTab(); }, "four");
+  checkField(g, "A quiet border round it (phones read it better)", ()=>d.qr.quiet, v=>{ d.qr.quiet = v; redo(); renderTab(); });
+  const e = C.qrEncode(d.qr.text || " ", { ec:d.qr.ec }), n = e ? e.size + (d.qr.quiet ? 4 : 0) : 0, mod = n ? (+d.width || 30)/n : 0, noz = state.printer.nozzle || 0.4;
+  note(g, !e ? "That is too much for a QR code: make it shorter." : `${e.size} × ${e.size} squares; at ${+(+d.width || 30).toFixed(1)} mm wide each is ${mod.toFixed(2)} mm. ` +
+    (mod < noz*2 ? `⚠ That is under twice your nozzle (${noz} mm): make it wider, or say less (a short link), or lose less.` : "Test it with your phone's camera on the screen before printing: point it at the model, turned to face you."));
+}
 async function addIconItem(recipe){
   dropExamples();
   try { await document.fonts.load('800 180px "Manrope"'); } catch(e){}
@@ -24925,6 +24968,7 @@ function sanitizeProject(data){
         font: fontNames.has(it.text.font) ? it.text.font : "Manrope", weight: cleanNum(it.text.weight, 700) };
     }
     if (it.icon && !it.text) it.icon = cleanIcon(it.icon); else delete it.icon;          // an icon's recipe (Session 49)
+    if (it.qr && !it.text && !it.icon) it.qr = cleanQr(it.qr); else delete it.qr;           // a QR code's text (Session 65)
     for (const k of ["width","rotation","offU","offV","height","step","minH","maxH","embed","res","smooth"])
       if (k in it) it[k] = cleanNum(it[k], undefined);
     // the same type check as the settings: numbers must be numbers, groups objects (the picture's own

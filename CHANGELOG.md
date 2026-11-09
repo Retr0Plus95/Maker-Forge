@@ -3,6 +3,46 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.54.0
+
+Project boxes: room for what you add, a plan of the inside, a parts catalogue with pictures, assembly steps, and a lot less fiddling.
+
+- **The box grows sensibly:** a part or an opening that doesn't fit makes the box bigger on the side it needs, by just enough, and everything already in it stays put. Or choose **Stays this size**.
+- **New parts go where there is room:** on the floor or a level, either way round, clear of the other parts, posts, dividers and cable channels.
+- **Shrink to fit what's in it**, **Inside sizes**, and **Make it all fit** for every problem at once, listed at the top.
+- **Board mounts lists every part**, with its size, its floor, how much room is taken and its own problems. **Duplicate**, **Centre it**, and **Remove this board**.
+- **Port openings follow their board** when it moves, turns or is arranged, with their labels; another board swaps them for its own.
+- A full wall makes room for one more opening; levels stay in height order with their parts; a new level goes over the parts under it; a new divider splits the biggest room; a turned part slides back inside.
+- **Plan of the inside:** the box from above, to scale, floor by floor: every part with its name, holes and ports, the posts, dividers, channels and openings. Click a part to pick it, drag it, or nudge it with the arrow keys (R turns it, D copies it, Delete takes it out).
+- **Browse the parts and the openings, with pictures:** every board, module and battery drawn at one scale with its holes and ports, every opening as the hole it cuts; search, then add straight from the window.
+- **Names over the parts in the 3D view**, and the part you pick shown in amber.
+- **How to put it together:** numbered steps from your box, on the page and as how-to-assemble.txt in the download. What you'll need now lists the openings' parts too, and copies as CSV for a spreadsheet.
+- **Strap loops:** a battery's strap can run through loops on the floor instead of slots, so the floor stays closed.
+
+![The plan of the inside: a Uno with its holes and ports, a relay, a buck converter and a battery, the corner posts, a divider and the openings in the walls](docs/images/box-plan.jpg)
+
+- **Level brackets on the front and back walls**, and Arrange moves a post you put out from under a board.
+
+**Fixed**
+- Adding a module could more than double the box's width (a relay made a 100 mm Uno box 218 mm wide), and could land on a corner screw post.
+- Moving or turning a board out of the box grew it on both sides by twice what it needed.
+- A third level in a shallow box was listed but never built, without a word.
+- With levels typed out of height order, "Level 1" on the Inside page and "On: Level 1" under Board mounts were different shelves.
+- Removing a level left the main board and dividers on it pointing at the wrong level.
+- Two dividers added in a row landed in the same place.
+- Arrange it for me threw away the labels on the board's port openings.
+- Pressing Add this board's ports after the board moved left the old openings behind, and picking another board kept the old board's port holes.
+- A duplicated port opening was taken away by the next Arrange.
+- A new opening on a full wall was pushed onto another one and left out.
+- A board couldn't be put more than 120 mm from the middle (150 for a module), in boxes up to 300 mm wide.
+- A box made smaller than its board had no one-click way back.
+- When the box grew to make room, the corner posts, a level's posts and the cable channels (which move out with the walls) were looked for where they had been, so a new part could land on one.
+- A new part could go on a board that was sticking out of the box, or be dropped in the middle when dividers left every room too small one way.
+- A level's posts or the corner posts that only fit the bigger box could appear under the part the box grew for.
+- A copied opening put on a busy wall could push the openings after it out.
+- An opening that could not fit even in a bigger box still made the box bigger (and wider and taller), and was left off the end of the wall.
+- A new opening on a crowded floor or lid only looked for room sideways, never front to back.
+
 ## 0.53.1
 
 **Fixed**

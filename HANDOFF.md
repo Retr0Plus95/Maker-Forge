@@ -2746,9 +2746,11 @@ for the test, your parts saved, added and removed, a project saved and opened tw
 nut pockets' fit, the TPU gasket's squeeze, the hoods, the flexing button's spring), a real EasyEDA or Eagle file beyond the
 test ones, the ESPHome file on a real ESP32-CAM, and windows on a split box (they would go on a plate of their own).
 
-## Session 66: box shapes on a solid stage (still v0.56.0)
+## Session 66: box shapes on a solid stage (v0.57.0)
 
-The owner: "Redo the engine and box shapes then provide screenshots". Folded into 0.56.0 (#47 was still open).
+The owner: "Redo the engine and box shapes then provide screenshots". Started on #47's branch; the owner merged #47 (0.55 +
+0.56) meanwhile, so this is 0.57.0 on a pull request of its own (the branch was brought up to date with
+`tools-after-squash.js --from 3cde542`).
 
 **The solid stage.** `C.csgRun(M, prog)` (core) runs a small boolean program with Manifold: nodes are `{ solid, pieces }`,
 `{ ref }` (a shared node worked out once, from `prog.defs`), `{ union }`, `{ subtract:[from, …] }`, `{ intersect }` and
@@ -2800,7 +2802,11 @@ app's print check; what a round box cannot have listed; the cache (no second cut
 hostile project. Fingerprints: all 55 unchanged (rectangles are built exactly as before). Not tested: real prints (the twist
 lid's thread fit, the clamshell's lip, the slope's leaning screws), and Chromium beyond the screenshots.
 
-## Next (no plan yet)
+## Next
+
+**The plan from here to 2.5 is in `ROADMAP.md`** (Session 66, the owner's request): releases 0.58 to 0.95, 1.0, the parametric
+app (1.1 to 2.0), the library and marketplace (2.1 to 2.5), ten engine steps, and the decisions that are the owner's. The
+notes below are the detail behind its first releases.
 
 Left from the owner's Session 64-65 lists (each for a release of its own):
 - **More for shaped boxes** (Session 66 left out): levels, dividers, cable channels, ears and loops, wall textures and bands,

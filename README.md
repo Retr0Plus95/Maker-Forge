@@ -98,7 +98,7 @@ Every button in the **Start from** sidebar opens with a finished example, so you
 
 ![A name keychain with a QR code tag beside the name, black squares on cream](docs/images/qr-art.jpg)
 
-**Project boxes in any shape**: round with a lid that twists on, hexagonal, octagonal, a sloped console or a clamshell, every opening cut square to its own face, each printing without support (new in 0.56).
+**Project boxes in any shape**: round with a lid that twists on, hexagonal, octagonal, a sloped console or a clamshell, every opening cut square to its own face, each printing without support (new in 0.57).
 
 ![Round with a twist-on lid, a hexagon, an octagon, a sloped console and a clamshell](docs/images/box-shapes.jpg)
 

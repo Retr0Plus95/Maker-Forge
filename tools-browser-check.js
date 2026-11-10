@@ -375,6 +375,27 @@ function pageCoverage() {
     notes.push(`cutting: Manifold downloaded, checked and run in ${ms} ms for the first inlay (${inlay.pieces} pieces); engraved; a ball cut flat stands on ${flat.contact.toFixed(0)} mm²`);
     await page.evaluate(on => { const MF = window.MakerForge; MF.state.items.forEach((d, i) => { d.enabled = on[i] !== false; d.cut = "raised"; d.solids = null; }); }, wasOn);
   }
+  // ---------- box shapes (Session 66): each picked on the page, made by the cutting tool in the browser ----------
+  if (!ONLY || ONLY.includes("shapes") || ONLY.includes("enclosure")) {
+    await page.evaluate(() => { const s = document.querySelector("#objectSel"); s.value = "enclosure"; s.dispatchEvent(new Event("change")); });
+    await settle(page);
+    await page.evaluate(() => { const MF = window.MakerForge; MF.state.base.enclosure = Object.assign(JSON.parse(JSON.stringify(MF.defaults.enclosure)), { mount: "none" }); MF.rebuild(false); });
+    await settle(page); await byText(page, "#tabs button", "make");
+    const seen = [];
+    for (const name of ["Round", "Hexagon", "Octagon", "Sloped top", "Clamshell", "Rectangle"]) {
+      await byText(page, "#panel .seg button", name); await settle(page);
+      const r = await page.evaluate(() => { const MF = window.MakerForge, C = MF.core, I = MF.enclosure, E = MF.state.base.enclosure;
+        return { shape: E.shape, lid: E.lid, built: I.shape ? I.shape.built : null, error: I.shape && I.shape.error, parts: MF.parts.map(p => p.name),
+          open: MF.parts.reduce((a, p) => a + C.checkMesh(p.solid).open, 0), low: Math.min(...MF.parts.map(p => C.solidBounds(p.solid).mn[1])),
+          plan: !!document.querySelector("#panel") && I.warn.filter(w => /shown as a rectangle/.test(w.t)).length, pressed: [...document.querySelectorAll("#panel .seg button[aria-pressed='true']")].map(b => b.textContent) }; });
+      seen.push(`${name}: ${r.parts.join(" + ")}`);
+      if (name !== "Rectangle") await shot(page, "shape-" + r.shape, `A project box, ${name.toLowerCase()} (${r.parts.join(", ")})`, {});
+      const bad = name === "Rectangle" ? r.built !== null || r.shape !== "rect" : r.built !== true || r.error || r.plan;
+      if (bad || r.open || Math.abs(r.low) > 1e-3 || !r.pressed.includes(name)) findings.push({ where: "box shapes", what: `${name}: ${JSON.stringify(r)}` });
+      if (name === "Round" && r.lid !== "twist") findings.push({ where: "box shapes", what: `a first pick of Round should give a twist lid: ${JSON.stringify(r)}` });
+    }
+    notes.push(`box shapes: ${seen.join("; ")}`);
+  }
   // ---------- business cards (Session 33): with real fonts, every QR code read back from the card's geometry ----------
   if (!ONLY || ONLY.includes("card")) {
     await page.addScriptTag({ path: path.join(NM, "jsqr/dist/jsQR.js") });

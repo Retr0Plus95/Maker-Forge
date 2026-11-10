@@ -3,13 +3,24 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
-## 0.56.0
+## 0.57.0
 
-Project boxes in new shapes, battery life, boxes for outdoors, nut pockets, printed plungers and windows, templates for a bought box, and boards from EasyEDA and Eagle.
+Project boxes in new shapes: round with a lid that twists on, hexagonal, octagonal, a sloped console, a clamshell.
 
-- **Box shapes:** round (with a lid that twists on), oval, hexagonal, octagonal, a sloped top (a console) or a clamshell (two halves). Every opening and label is cut square to its own face, so round holes stay round on a curved wall and labels follow it; each shape prints without support. The walls, top and lid are made as solids by the cutting tool (downloaded once, as for engraved art).
+- **Box shapes** (under the box's size): **Round** (as wide as it is deep, with a **twist-on lid** that screws onto a neck; or oval), **Hexagon**, **Octagon**, **Sloped top** (a console: set the front's height, the lid lies on the slope) and **Clamshell** (two halves on a lip, screwed from under the floor or pressed together).
+- Every opening and label is cut square to its own face: round holes stay round on a curved wall, labels follow it, and a sloped lid's holes, screws and countersinks are square to the lid.
+- Each shape prints without support: the twist lid's thread has 42° flanks, the sloped lid prints face down, a clamshell's halves print open side up.
+- The plan of the inside draws the shape; openings that can't be on it (across a hexagon's point, up by the twist lid's neck) are left out with a word; what only a rectangular box has yet (levels, dividers, wall textures and a few more) is listed.
+- The walls, top and lid are made as true solids by the cutting tool (0.6 MB, downloaded once, as for engraved art), and a box that did not change is not cut again.
 
 ![Round with a twist-on lid, a hexagon, an octagon, a sloped console and a clamshell](docs/images/box-shapes.jpg)
+
+**Fixed**
+- Nothing users had reported: this release adds the shapes. (A rectangular box is built exactly as in 0.56.0.)
+
+## 0.56.0
+
+Project boxes: battery life, boxes for outdoors, nut pockets, printed plungers and windows, templates for a bought box, and boards from EasyEDA and Eagle.
 
 - **Battery life:** how long the batteries run what is in the box (and what it powers outside), always on or waking now and then, with what uses most of it. The bird house battery box: about a month on the 126090.
 

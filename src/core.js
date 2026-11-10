@@ -6349,6 +6349,40 @@
     const t = prep.man.trimByPlane({ x: 0, y: 1, z: 0 }, y);      // {x, y, z}: the library only takes [x, y, z] made in its own window
     try { return { solid: solidOfManifold(t, [prep.id]), volume: t.volume() }; } finally { t.delete(); }
   }
+  // Solids made by booleans (Session 66): a box's walls, its lid, its openings, in one program for the Manifold library M.
+  // prog.out names the solids wanted; each node is { solid, pieces } (a closed solid; pieces: its shells never overlap, so
+  // they are not joined first), { ref } (a node of prog.defs, worked out once however often it is used), { union:[…] },
+  // { subtract:[from, …] }, { intersect:[…] } or { trim:node, normal:[x, y, z], offset } (what lies on the normal's side of
+  // the plane normal · p = offset is kept). Returns { name: { solid, volume } | null }; a solid that is not closed throws,
+  // naming its node's `what`.
+  function csgRun(M, prog) {
+    const live = [], ids = [], memo = new Map(), own = x => { live.push(x); return x; };
+    const ev = n => {
+      if (!n) return null;
+      if (n.ref) { if (!memo.has(n.ref)) memo.set(n.ref, ev(prog.defs[n.ref])); return memo.get(n.ref); }
+      if (n.solid) {
+        if (!n.solid.idx || !n.solid.idx.length) return null;
+        const id = M.Manifold.reserveIDs(1); ids.push(id);
+        const m = manifoldOf(M, n.solid, id, false, !!n.pieces);
+        if (!m) throw new Error(`${n.what || "a part"} is not a closed solid`);
+        return own(m);
+      }
+      if (n.union) { const l = n.union.map(ev).filter(Boolean); return !l.length ? null : l.length === 1 ? l[0] : own(M.Manifold.union(l)); }
+      if (n.subtract) {
+        const b = ev(n.subtract[0]); if (!b) return null;
+        const l = n.subtract.slice(1).map(ev).filter(Boolean);
+        return !l.length ? b : own(b.subtract(l.length === 1 ? l[0] : own(M.Manifold.union(l))));
+      }
+      if (n.intersect) { const l = n.intersect.map(ev); return l.some(x => !x) ? null : l.reduce((a, b) => own(a.intersect(b))); }
+      if (n.trim) { const b = ev(n.trim); return b ? own(b.trimByPlane({ x: n.normal[0], y: n.normal[1], z: n.normal[2] }, n.offset)) : null; }
+      throw new Error("unknown step in a solid's program");
+    };
+    try {
+      const out = {};
+      for (const [k, n] of Object.entries(prog.out)) { const m = ev(n); out[k] = m && !m.isEmpty() ? { solid: solidOfManifold(m, ids), volume: m.volume() } : null; }
+      return out;
+    } finally { live.forEach(x => x.delete()); }
+  }
   // For each triangle of a cut solid, the base triangle whose colour it takes: its own for the base's triangles; for
   // the walls and floor of a cut, or a flat face, that of the base's triangle beside it, spreading in from the edge
   // of the cut one triangle at a time (so a cut's floor takes the colour round its rim)
@@ -6406,7 +6440,7 @@
     samInput, samPrompt, samMask, maskRLE, maskFromRLE, photoMaskTris,
     photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure, cutoutWithMap, edgeOpacity, pictureBackground, cutoutByColour, plateColour, cutoutCombine, photoFixMap, photoFixMask,
     parseGLB, parseGLTF, parseMTL, parseOBJColours, modelTriColours, modelPalette, modelColourLabels,
-    cutBase, cutFree, cutSolid, cutFlat, cutSources, cutCorners, qrEncode, qrPayload, qrLink,
+    cutBase, cutFree, cutSolid, cutFlat, cutSources, cutCorners, csgRun, qrEncode, qrPayload, qrLink,
     gearOutline, threadForm, threadSolid, hexRadius, meshReport, repairMesh, simplifyMesh, basRelief
   };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -2746,21 +2746,79 @@ for the test, your parts saved, added and removed, a project saved and opened tw
 nut pockets' fit, the TPU gasket's squeeze, the hoods, the flexing button's spring), a real EasyEDA or Eagle file beyond the
 test ones, the ESPHome file on a real ESP32-CAM, and windows on a split box (they would go on a plate of their own).
 
-## Next (no plan yet)
+## Session 66: box shapes on a solid stage (v0.57.0)
+
+The owner: "Redo the engine and box shapes then provide screenshots". Started on #47's branch; the owner merged #47 (0.55 +
+0.56) meanwhile, so this is 0.57.0 on a pull request of its own (the branch was brought up to date with
+`tools-after-squash.js --from 3cde542`).
+
+**The solid stage.** `C.csgRun(M, prog)` (core) runs a small boolean program with Manifold: nodes are `{ solid, pieces }`,
+`{ ref }` (a shared node worked out once, from `prog.defs`), `{ union }`, `{ subtract:[from, …] }`, `{ intersect }` and
+`{ trim, normal, offset }` (keeps `normal · p >= offset`); it returns each `prog.out` as `{ solid, volume }` and frees every
+Manifold object. A solid that is not closed throws with its node's `what`.
+
+**How a shaped box is made** (`src/app.html`, before `buildEnclosure`). `E.shape` is `rect` (the default; nothing changes),
+`round`, `hex`, `oct`, `slope` or `clam`. The box engine is not rewritten: it lays the box out as before, from a copy of the
+settings (`encShapeRun`) with no corner posts, a flat lid plate, no split, and each side's length set to the room the shape has
+there (`E._faceL`; a slope's lid gets `E._topLim`, its length along the slope). It still places every opening, label, board and
+check. Then, still in `buildEnclosure` (so `enclosureInfo` and every caller that builds without waiting see the result):
+- `encShapeGeo(E)`: the outline as a convex ring (`ring(d)`, d mm in; corners rounded by `E.radius` with `encRoundCorners`, moved
+  in by `encInset`, the ellipse as its true parallel curve), `frame(s)` (a point s mm round the outside, its tangent and outward
+  normal, smoothed on a curve), and for each side its middle `s0`, how far an opening may reach (`lo`, `hi`) and the corners
+  inside that span (`breaks`: a hexagon's left and right points). A wall opening's u is measured round the wall from `s0`.
+- `encShapeCheck`: the lid (a twist lid only on a circle at least 24 mm across with room for the neck; magnet and sliding
+  lids become press-fit), the posts (four, in the shape's corners, as far in as keeps them 0.8 mm inside the outside:
+  `encShapePost`), openings across a corner or up to the twist lid's neck left out (in `left`, with a word), openings behind the
+  lip or into the slope pointed out, lid openings checked against the shape's lid and its screw heads, boards through a wall or
+  under a post, and one warning listing what only a rectangle's walls carry.
+- `encShapeJob`: the program. Round, hexagonal and octagonal boxes: the shape's walls (outer prism minus inner) round the
+  rectangle's inside cut to the shape (`rect box ∩ inner prism`, 0.3 mm into the walls), plus posts; every wall opening a
+  straight prism through the wall square to its face at the opening's middle (deeper on a curve by its sag); labels and engraved
+  art wrapped round the wall (`encMapSolid` through `frame`); feet and floor magnets in the shape's corners. The twist lid:
+  `threadSolid` on a neck (depth 0.28 × pitch, flanks about 42°), the cavity a turned profile with a 45° cone up to the neck, the
+  lid a disc with the matching inside thread from `threadSolid({ inside })` (the same y0, so the threads match), trimmed 0.4 mm
+  off the shoulder, with 36 grip grooves. A slope: the rectangle's box and posts trimmed by the plane; the lid the outline's
+  prism between the plane and the plane plus its thickness, its lip trimmed between parallel planes, its openings and labels
+  mapped square to it (`onSlope`), its screws square to it into posts that are stadiums along the slope (the hole drifts back
+  as it goes down), countersinks as 45° cones in the lid's frame, so it prints face down without support. A clamshell: the
+  rectangle's box and its lid (turned back onto it) joined, cut at the split, a lip half the wall thick on the lower half, a
+  rebate in the upper, screws from under the floor (pockets with 45° roofs) into the upper half's posts.
+- `encShapeSolid(parts)` (async, in `rebuildAll` after `buildEnclosure`): downloads the cutting tool if needed (`cutReady`),
+  runs the job, and puts its parts in place of the rectangle's (`encShapeParts`; each made part has its `pose`, p' = M p + T,
+  from where it sits to where it prints). The last result is kept by a key of the settings (an opening's `id` and the wiring
+  plan left out: the app adds them after a first build), the fits, the slots and where the lid goes, so a change elsewhere does
+  not cut again. Without the tool, the box stays as the engine laid it out, with a warning saying why.
+UI: a Shape row under the size (first picks: round makes it as wide as deep with a twist lid; a hexagon is made even), the
+octagon's corners, the slope's front height, the clamshell's lower half; the lid choices follow the shape. The plan of the
+inside draws the shape's outline and its wall openings where they are round it; Templates say they are for flat sides.
+
+**Tested:** `tools-boxshape-test.js` (new, in `test:enclosure`, Manifold from `models/`): the box stays a rectangle with a word
+without the tool; each shape closed and on the bed; each lid (and the clamshell's upper half) set back by its pose touches
+nothing of its box (a twist lid 0.6 mm lower would: it seats on the neck); the thread is on the neck and nothing outside it;
+openings go through square to their face (a straight pin through the sloped lid's hole as it prints); a label is engraved
+into a round wall; an opening on a hexagon's point or up by the neck is left out; a slope's front stops at the plane; the
+clamshell's screw path from below into the closed upper post; the screws on the shopping list; no support for any shape by the
+app's print check; what a round box cannot have listed; the cache (no second cut for an unchanged box); saved and opened; a
+hostile project. Fingerprints: all 55 unchanged (rectangles are built exactly as before). Not tested: real prints (the twist
+lid's thread fit, the clamshell's lip, the slope's leaning screws), and Chromium beyond the screenshots.
+
+## Next
+
+**The plan from here to 2.5 is in `ROADMAP.md`** (Session 66, the owner's request): releases 0.58 to 0.95, 1.0, the parametric
+app (1.1 to 2.0), the library and marketplace (2.1 to 2.5), ten engine steps, and the decisions that are the owner's. The
+notes below are the detail behind its first releases.
 
 Left from the owner's Session 64-65 lists (each for a release of its own):
-- **Box shapes:** a sloped lid (a console), round and hexagonal boxes, a clamshell. Not started on purpose: every lid feature
-  (posts, the lip, the gasket, labels, art, windows, the camera holder, boards under the lid) and every wall feature (openings,
-  hoods, the behind-the-wall check, ears, levels, ducts, templates) assumes a flat lid in plan coordinates and four named flat
-  walls. A sloped lid needs the lid built in its own (along-the-slope) frame and the side walls as trapezoids; round and
-  hexagonal boxes need N faces (openings on a curved wall want real booleans: Manifold). Stretching the box's geometry was
-  tried in thought and dropped: round holes would come out oval. Do it with the engine work below.
+- **More for shaped boxes** (Session 66 left out): levels, dividers, cable channels, ears and loops, wall textures and bands,
+  boards on a wall or under a sloped lid, rain hoods, clear windows, inlaid art and the lid's logo inlaid, magnet and sliding
+  lids, splitting into parts, templates for their faces, and the behind-the-wall check round a curve. Each needs its feature
+  built in the shape's frames (`frame(s)`, the slope's `onSlope`) rather than the rectangle's walls.
 - **Shared features still to do:** embed a magnet, NFC tag, nut or coin with a pause in any object (a closed cavity: needs
   booleans, or each generator's own pocket); threads on other objects (round lids, lamps, tea lights: `threadSolid`); split any
   model too big for the bed with pins or dovetails (boxes have join flanges; `cutFlat` cuts imported models); assembly steps,
   What you'll need and names in 3D for the other multi-part objects; the box's style (edges, textures) on signs, plaques and
   phone cases.
-- **Engine:** the body as one solid with Manifold (true unions, exact volumes, real rounded edges; it loads only for cuts now);
+- **Engine:** the rectangular body as one solid with Manifold too (shaped boxes are since Session 66; true unions, exact volumes);
   builds cached per feature (a wall, a post, a cradle) so a drag rebuilds only what moved; every build on the helper thread with
   cancelling and a rough preview first; signed-distance modelling for smooth shapes; one layout solver for Arrange, plates and the
   jigsaw; the picking BVH reused for clash and thin-wall checks; 3MF files with slicer settings and pauses inside (Bambu/Orca's

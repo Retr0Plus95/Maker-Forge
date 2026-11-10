@@ -14,6 +14,7 @@ new work, and read the relevant "Session N" section before touching that feature
 - `build.py` – inlines `src/core.js`, `src/examples.js`, the Start pictures (`examples/start-thumbs.json`), the manual
   (`MANUAL.md`, as HTML) and the fonts in `fonts/` (with their licences) into `src/app.html` → `index.html`.
 - `src/examples.js` – the example pictures (drawn in code) and which Start button opens which (Session 19).
+- `ROADMAP.md` – the plan from 0.58 to 2.5 (parametric at 2.0, the library and marketplace after); pick the next release from it.
 - `MANUAL.md` – the user manual, also shown inside the app; `CHANGELOG.md` – what's new, for users.
 - `fonts/` – the built-in fonts as WOFF2 files and `LICENSES.md`, copied from the @fontsource packages by
   `npm run fonts` (`tools-fonts.js`). Run it after adding a font to `FONTS`.

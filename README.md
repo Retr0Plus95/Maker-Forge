@@ -98,6 +98,10 @@ Every button in the **Start from** sidebar opens with a finished example, so you
 
 ![A name keychain with a QR code tag beside the name, black squares on cream](docs/images/qr-art.jpg)
 
+**Project boxes in any shape**: round with a lid that twists on, hexagonal, octagonal, a sloped console or a clamshell, every opening cut square to its own face, each printing without support (new in 0.57).
+
+![Round with a twist-on lid, a hexagon, an octagon, a sloped console and a clamshell](docs/images/box-shapes.jpg)
+
 **Project boxes that fit your printer**: print the calibration card once (every way a box holds a part, three sizes of each), pick what fitted best, and every box after uses your sizes (new in 0.55).
 
 ![The calibration card: cradles with ribs, clips and the rim alone, strap loops, snap pins, insert holes and screw standoffs, each in three sizes](docs/images/box-calibration.jpg)

@@ -5727,7 +5727,8 @@
   }
   // A screw thread as a closed solid, Y up from y0 to y1, right-handed. o.rMajor is the crest radius of the screw, o.pitch
   // its pitch, o.depth the thread's depth (ISO: 0.6134 x pitch), o.starts the number of starts.
-  //   a screw: a solid rod; its ends are chamfered at 45° so the thread starts cleanly
+  //   a screw: a solid rod; its ends are chamfered at 45° so the thread starts cleanly. o.hole: the radius of a plain
+  //   round hole along its axis, which makes it a threaded tube (a fuse holder's neck)
   //   o.inside: the hole of a nut fitting that screw with o.gap of play all round, in a prism whose outside radius at
   //   each angle is o.outside(a) (a hexagon: hexRadius); the hole is countersunk to the screw's size at both faces
   function threadSolid(o) {
@@ -5749,7 +5750,16 @@
       if (o.inside) quad(v(j, i), v(j + 1, i), v(j + 1, i + 1), v(j, i + 1));
       else quad(v(j, i), v(j, i + 1), v(j + 1, i + 1), v(j + 1, i));
     }
-    if (!o.inside) {
+    if (!o.inside && o.hole > 0) {
+      const hb = pos.length / 3, rh = Math.min(o.hole, rMin - 0.45);
+      for (const y of [y0, y1]) for (let i = 0; i < n; i++) { const a = A(i); pos.push(rh * Math.cos(a), y, -rh * Math.sin(a)); }
+      const Hh = (k, i) => hb + k * n + (i % n);
+      for (let i = 0; i < n; i++) {
+        quad(Hh(0, i + 1), v(0, i + 1), v(0, i), Hh(0, i));
+        quad(Hh(1, i), v(rows, i), v(rows, i + 1), Hh(1, i + 1));
+        quad(Hh(0, i), Hh(1, i), Hh(1, i + 1), Hh(0, i + 1));
+      }
+    } else if (!o.inside) {
       const c0 = pos.length / 3; pos.push(0, y0, 0); const c1 = c0 + 1; pos.push(0, y1, 0);
       for (let i = 0; i < n; i++) { ind.push(c0, v(0, i + 1), v(0, i)); ind.push(c1, v(rows, i), v(rows, i + 1)); }
     } else {

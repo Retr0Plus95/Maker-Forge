@@ -946,7 +946,8 @@ const DEFAULTS = () => ({
       shelfpin:{ pinDia:5, pinLen:8, padW:12, padD:16, padT:3, lip:true },
       cover:{ w:48, h:30, thick:1.6, lip:1.5, tabs:2, latch:true },
       clip:{ cable:6, count:1, width:10, style:"screw", screw:3.5 },
-      spacer:{ od:12, id:5, h:6, hex:false } },
+      spacer:{ od:12, id:5, h:6, hex:false },
+      fuse:{ size:"5x20", dia:5.2, len:20, wire:2.6, coil:1, grip:"fluted", od:18 } },
     canvas:{ cells:34, pitch:4.5, gap:0.7, thick:1.6, tileH:1, margin:4, radius:3, holes:true, holeSize:1.4,
       open:false, hang:true, hangDia:4 },
     bobble:{ headDia:44, headShape:"round", flatBottom:2, hat:false, hatH:9, hatBrim:3,
@@ -8729,6 +8730,37 @@ function buildFixit(){
     parts = [{ name:"Cable clip", slot, solid:C.mergeSolids(list) }];
     say(`Holds ${n === 1 ? "a cable" : n + " cables"} ${c} mm thick${K.style === "adhesive" ? ", on a pad for double-sided tape" : `, with holes for ${K.screw} mm screws`}. The arch prints over the gap with a short bridge.`);
   }
+  else if (F.kind === "fuse"){
+    // Session 67: an inline fuse holder with nothing to buy. The body holds the fuse; the cap screws onto its neck and
+    // stops on the neck's top. The contacts are the wires' own bare ends, wound flat and tinned at the bottom of each.
+    const U = F.fuse, FUSES = { "5x20":[5.2, 20], "6x32":[6.4, 32] };
+    const [fd, fl] = FUSES[U.size] || [clamp(U.dia, 2, 12), clamp(U.len, 10, 60)];
+    // a coarse thread with its flanks at about 42° (as a twist lid's), so the neck and the cap print without support
+    const n = 144, pitch = 2.5, depth = 0.28*pitch, base = 2.4, rb = (fd + 0.3 + g)/2;
+    const rwWant = (clamp(U.wire, 1, 6) + g)/2, rw = Math.min(rwWant, rb - 0.8);           // a ledge of 0.8 mm for the coil
+    const coil = clamp(U.coil, 0.4, 3), squeeze = Math.min(0.2, coil*0.25), cs = coil - squeeze;
+    const rMaj = Math.ceil((rb + 2.05 + depth)*2)/2;                                    // 2 mm of wall inside the neck's thread
+    const hex = U.grip === "hex", flute = hex ? 0 : 0.8, odSet = clamp(U.od, 10, 60), R = Math.max(odSet/2, rMaj + g + 1.8 + flute);
+    const N = Math.max(8, Math.round(2*Math.PI*R/4.5));
+    const out = hex ? C.hexRadius(2*R) : a => R - flute*Math.pow(0.5 + 0.5*Math.cos(N*a), 3);
+    const outline = hex ? fitHex(2*R) : fitPolar(out, n), ring = r => fitCircle(r, n);
+    // heights: the fuse stands on the body's coil and reaches W into the cap, so there is an end to pull it out by
+    const W = clamp(fl*0.3, 3, 8), Hb = base + cs + fl - W, Lt = Math.min(clamp(rMaj*1.35, 6, 10), Hb - base - 1.5), Ty0 = Hb - Lt;
+    const Fc = base + W + cs, Ltc = Lt - 0.6;                                             // the cap's rim stays 0.6 mm off the shoulder
+    const body = C.mergeSolids([fitEx([{ outer:outline, holes:[ring(rw)] }], 0, base + 0.01),
+      fitEx([{ outer:outline, holes:[ring(rb)] }], base, Ty0 + 0.01),
+      C.threadSolid({ rMajor:rMaj, pitch, depth, y0:Ty0 - 0.3, y1:Hb, hole:rb, segs:n })]);
+    const cap = C.mergeSolids([fitEx([{ outer:outline, holes:[ring(rw)] }], 0, base + 0.01),
+      fitEx([{ outer:outline, holes:[ring(rb)] }], base, Fc + 0.01),
+      C.threadSolid({ rMajor:rMaj, pitch, depth, y0:Fc, y1:Fc + Ltc, inside:true, gap:g, outside:out, segs:n })]);
+    parts = [{ name:"Fuse holder body", slot, solid:body }, { name:"Fuse holder cap", slot, solid:cap }];
+    say(`Holds a ${fd} × ${fl} mm fuse. The cap screws onto the body and stops on its neck: closed, it is ${(Hb + W + cs + base).toFixed(1)} mm long and ${(2*R).toFixed(1)} mm across${hex ? " flats" : ""}. Both print standing on their closed ends; the thread's flanks are at about 42°, so neither needs support.`);
+    say(`The contacts are the wires' own bare ends. Push each wire in through its hole and out of the open end, strip about 20 mm, twist and tin the strands, wind them into a flat coil no wider than ${(2*rb - 0.4).toFixed(1)} mm, and pull it back so it lies flat at the bottom.`);
+    say(`Make each coil about ${coil} mm thick. Screw the cap on until it stops: each coil is then pressed ${squeeze.toFixed(1)} mm, so the fuse is held firmly and can't be crushed. The coil can't pull out through its hole.`);
+    if (rw < rwWant - 1e-6) say(`That wire is too thick to leave a ledge for the coil: the holes are ${(2*rw).toFixed(1)} mm. Use thinner wire, or a bigger fuse.`);
+    if (R > odSet/2 + 1e-6) say(`Made ${(2*R).toFixed(1)} mm across${hex ? " flats" : ""}: the least that keeps the cap's wall strong round the thread.`);
+    say("On mains, use a fuse rated for 250 V and wire rated for mains. Every bit of metal is inside, but unplug it before you open it.");
+  }
   else {                                              // spacers and washers
     const S = F.spacer, od = clamp(S.od, 3, 120), id = clamp(S.id, 0, od - 1.2), h = clamp(S.h, 0.4, 100);
     const outer = S.hex ? fitHex(od) : fitCircle(od/2, 96);
@@ -8821,7 +8853,7 @@ function mechFields(p){
 }
 function fixitFields(p){
   const F = state.base.fixit;
-  selField(p, "What to make", [["knob","Knob"],["foot","Leg cap or tube plug"],["shelfpin","Shelf support"],["cover","Battery cover"],["clip","Cable clip"],["spacer","Spacer or washer"]],
+  selField(p, "What to make", [["knob","Knob"],["foot","Leg cap or tube plug"],["shelfpin","Shelf support"],["cover","Battery cover"],["clip","Cable clip"],["spacer","Spacer or washer"],["fuse","Inline fuse holder"]],
     ()=>F.kind, v=>{ F.kind = v; renderTab(); baseChanged(); });
   note(p, "Measure the broken part, or the hole it goes in, with calipers and type the sizes.");
   if (F.kind === "knob"){
@@ -8870,6 +8902,17 @@ function fixitFields(p){
     numField(p,{ label:"Clip width (mm)", min:4,max:40,step:0.5, get:()=>K.width, set:v=>K.width=v, onChange:baseChanged });
     segField(p, [["screw","Screw holes"],["adhesive","Tape pad"]], ()=>K.style, v=>{ K.style = v; renderTab(); baseChanged(); }, "two");
     if (K.style === "screw") numField(p,{ label:"Screw (mm)", min:1.5,max:8,step:0.1, get:()=>K.screw, set:v=>K.screw=v, onChange:baseChanged });
+  } else if (F.kind === "fuse"){
+    const U = F.fuse;
+    segField(p, [["5x20","5 × 20 mm"],["6x32","6.3 × 32 mm"],["custom","Other"]], ()=>U.size, v=>{ U.size = v; renderTab(); baseChanged(); });
+    if (U.size === "custom"){
+      numField(p,{ label:"Fuse diameter (mm)", min:2,max:12,step:0.1, get:()=>U.dia, set:v=>U.dia=v, onChange:baseChanged, sub:()=>"Across its metal end caps." });
+      numField(p,{ label:"Fuse length (mm)", min:10,max:60,step:0.5, get:()=>U.len, set:v=>U.len=v, onChange:baseChanged });
+    }
+    numField(p,{ label:"Wire thickness (mm)", min:1,max:6,step:0.1, get:()=>U.wire, set:v=>U.wire=v, onChange:baseChanged, sub:()=>"One wire, across its insulation: the fit gap is added." });
+    numField(p,{ label:"Coil thickness (mm)", min:0.4,max:3,step:0.1, get:()=>U.coil, set:v=>U.coil=v, onChange:baseChanged, sub:()=>"The bare end of each wire, wound flat and tinned: it is the contact." });
+    segField(p, [["fluted","Fluted"],["hex","Hexagon"]], ()=>U.grip, v=>{ U.grip = v; renderTab(); baseChanged(); }, "two");
+    numField(p,{ label: U.grip === "hex" ? "Across flats (mm)" : "Outside diameter (mm)", min:10,max:60,step:0.5, get:()=>U.od, set:v=>U.od=v, onChange:baseChanged });
   } else {
     const S = F.spacer;
     numField(p,{ label: S.hex ? "Across flats (mm)" : "Outside diameter (mm)", min:3,max:120,step:0.1, get:()=>S.od, set:v=>S.od=v, onChange:baseChanged });
@@ -17983,6 +18026,7 @@ const LIMITS_AT = { "sym.size":[0.4,3], "pic.size":[0.4,3], "outline.width":[0.2
   "shelfpin.pinDia":[2,15], "shelfpin.pinLen":[2,40], "shelfpin.padW":[4,60], "shelfpin.padD":[4,80], "shelfpin.padT":[1.5,15],
   "cover.w":[10,200], "cover.h":[10,200], "cover.thick":[0.8,5], "cover.lip":[0,6], "cover.tabs":[0,3],
   "clip.cable":[1,40], "clip.count":[1,8], "clip.width":[4,40], "clip.screw":[1.5,8], "spacer.od":[3,120], "spacer.id":[0,110], "spacer.h":[0.4,100], "fit.gap":[0,1],
+  "fuse.dia":[2,12], "fuse.len":[10,60], "fuse.wire":[1,6], "fuse.coil":[0.4,3], "fuse.od":[10,60],
   "sign.letterH":[15,400], "sign.depth":[2,80], "sign.wall":[0.8,6], "sign.back":[0.8,10], "sign.diffuser":[0.6,3], "sign.strip":[3,20], "sign.margin":[2,60],
   "relief.width":[20,300], "relief.base":[0.6,20], "relief.height":[0.3,40], "relief.flatten":[0,0.9], "relief.contrast":[0.3,3], "relief.smooth":[0,6], "relief.cell":[0.15,1.5],
   "tracer.edgeSize":[0.2,5], "tracer.edgeBottom":[0,1], "relief.border":[0,20], "relief.rim":[0,1.5], "relief.holeDia":[2,12], "relief.boost":[0,2] };
@@ -18359,7 +18403,7 @@ function sanitizeProject(data){
     const pick = (v, list, d) => list.includes(v) ? v : d;
     const ENUMS = { mech:{ kind:["gears","bolt","hinge","snap","coupon"], "gears.boreShape":["round","d","hex"], "gears.layout":["apart","meshed"],
         "bolt.size":[...Object.keys(METRIC), "custom"], "bolt.head":["hex","knob","none"] },
-      fixit:{ kind:["knob","foot","shelfpin","cover","clip","spacer"], "knob.grip":["fluted","knurled","lobed","smooth"], "knob.shaftShape":["d","round","hex"],
+      fixit:{ kind:["knob","foot","shelfpin","cover","clip","spacer","fuse"], "fuse.size":["5x20","6x32","custom"], "fuse.grip":["fluted","hex"], "knob.grip":["fluted","knurled","lobed","smooth"], "knob.shaftShape":["d","round","hex"],
         "foot.style":["cap","plug"], "foot.shape":["round","square"], "clip.style":["screw","adhesive"] } };
     if (st.base.relief && typeof st.base.relief === "object" && !Array.isArray(st.base.relief)){
       const rl = st.base.relief = Object.assign(DEFAULTS().base.relief, st.base.relief);

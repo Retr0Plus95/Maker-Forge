@@ -389,6 +389,13 @@ Parts that move or fit something you already have. Both are under **Functional**
 - **Battery cover.** Type the opening's size: a plate with a rim that sits just inside the opening, tabs that slide under the case at one end and a latch at the other.
 - **Cable clip.** For one to eight cables side by side, with screw holes or a pad for double-sided tape. The arch prints over the cable with a short flat bridge.
 - **Spacer or washer.** Round or hexagonal, with a hole for the screw (the fit gap is added).
+- **Inline fuse holder.** A body and a cap that screw together over a 5 × 20 mm or 6.3 × 32 mm glass fuse, or your own size
+  (**Other**). There is nothing to buy: the contacts are the wires themselves. Push each wire in through the hole in the
+  closed end and out of the open end, strip about 20 mm, twist and tin the strands, wind them into a flat coil no wider than
+  the fuse, and pull it back so it lies flat at the bottom. Put the fuse in and screw the cap on until it stops: each coil is
+  then pressed 0.2 mm, so the fuse is held firmly and can't be crushed. Set **Wire thickness** (one wire, across its
+  insulation), **Coil thickness** (how thick your flattened coils are), fluted or hexagonal, and the outside size. Both parts
+  print standing on their closed ends without support. On mains, use a fuse rated for 250 V and unplug before opening it.
 
 **How many** makes up to 24 copies, laid out on the bed.
 

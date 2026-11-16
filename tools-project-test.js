@@ -83,6 +83,11 @@ async function settle() {
     await host("fixit", b => { b.fixit.kind = "knob"; b.fixit.knob.grip = "__proto__"; b.fixit.knob.flutes = 1e9; b.fixit.knob.shaft = 1e9; },
       b => b.fixit.knob.grip === "fluted" && b.fixit.knob.flutes === 40 && b.fixit.knob.shaft === 40 || JSON.stringify(b.fixit.knob),
       "a knob with a grip named __proto__, a billion flutes and a huge shaft: fluted, 40 flutes, the hole kept inside the knob");
+    // Session 67: the inline fuse holder
+    await host("fixit", b => { b.fixit.kind = "fuse"; b.fixit.fuse = { size: "__proto__", grip: "<b>", dia: 1e9, len: -4, wire: 1e9, coil: -5, od: "big", extra: 1 }; },
+      b => b.fixit.fuse.size === "5x20" && b.fixit.fuse.grip === "fluted" && b.fixit.fuse.dia === 12 && b.fixit.fuse.len === 10 && b.fixit.fuse.wire === 6 && b.fixit.fuse.coil === 0.4
+        && b.fixit.fuse.od === 18 && !("extra" in b.fixit.fuse) || JSON.stringify(b.fixit.fuse),
+      "a fuse holder for a fuse named __proto__, a grip of markup, sizes out of range and an outside that is text: 5 × 20 mm, fluted, everything clamped, the stranger dropped");
     await host("nameplate", b => { b.nameplate.line2 = "Ab" + " ".repeat(4998); b.nameplate.line2Size = -50; b.nameplate.letterHeight = 8; b.nameplate.credit = { on: "true", text: "<b>hi</b>".repeat(20), size: 1e9, depth: -1, slot: 99, font: -4 }; },
       b => b.nameplate.line2.length === 60 && b.nameplate.line2Size === 0.3 && b.nameplate.credit.on === false && b.nameplate.credit.text.length === 40 && b.nameplate.credit.size === 8
         && b.nameplate.credit.depth === 0.2 && b.nameplate.credit.slot === 7 && b.nameplate.credit.font === 0 || JSON.stringify([b.nameplate.line2.length, b.nameplate.line2Size, b.nameplate.credit]),

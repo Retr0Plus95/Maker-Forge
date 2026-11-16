@@ -2802,6 +2802,47 @@ app's print check; what a round box cannot have listed; the cache (no second cut
 hostile project. Fingerprints: all 55 unchanged (rectangles are built exactly as before). Not tested: real prints (the twist
 lid's thread fit, the clamshell's lip, the slope's leaning screws), and Chromium beyond the screenshots.
 
+## Session 67: an inline fuse holder (v0.57.1)
+
+The owner, wiring a bench power supply, wanted a fuse holder they could print instead of buy: "maybe you can build a
+fuseholder into maker forge". Made in a Cowork session from the local clone (this session had no GitHub access), on a branch
+from `main` at `b6e372b` (0.57.0); the owner pushes it and opens the pull request.
+
+**The part** (`buildFixit`, `F.kind === "fuse"`, defaults `fixit.fuse`): two parts, built where they print, both standing on
+their closed ends.
+- *Body*: a floor 2.4 mm thick with the wire hole (wire + fit gap, kept 0.8 mm inside the bore so the coil has a ledge), the
+  bore (fuse + 0.3 mm + fit gap) up to a threaded neck. The neck is `threadSolid` with the new `hole` (below).
+- *Cap*: the same floor and wire hole, a well as wide as the bore, then `threadSolid({ inside })` with the outside following the
+  grip (fluted, or `hexRadius`). Its rim stops 0.6 mm short of the body's shoulder, so the cap stops on the neck's top.
+- Heights: the fuse stands on the body's coil and reaches `W` (30 % of its length, 3 to 8 mm) into the cap, so there is an end to
+  pull it out by. The body is `base + cs + fuse − W` tall, the well `W + cs` deep, where `cs` is the coil pressed by
+  `min(0.2, coil × 0.25)`: shut, the two seats are the fuse plus two pressed coils apart.
+- The thread: 2.5 mm pitch, depth 0.28 × pitch (flanks about 42°, as the twist lid's), the major radius rounded up to 0.5 mm
+  leaving 2 mm of wall inside the neck. ISO depth (60° flanks) at 1.5 mm pitch read 214 mm² of support in the print check;
+  this reads none. The outside is at least the thread + fit gap + 1.8 mm (+ the flutes' 0.8 mm): a smaller outside is raised,
+  with a line saying so.
+- Sizes: 5 × 20 mm (5.2 across the caps) and 6.3 × 32 mm (6.4), or `custom` (`dia` 2–12, `len` 10–60). Panel: the size, the
+  wire's thickness, the coil's thickness, fluted or hexagon, the outside. Info lines: how to make the coils, the pressed
+  amount, a too-thick wire, a raised outside, a 250 V fuse on mains.
+- `LIMITS_AT` `fuse.*`, sanitize enums `fuse.size` and `fuse.grip`.
+
+**`threadSolid({ hole })`** (core): a plain round hole along a screw's axis, making it a threaded tube. The end caps become rings
+and an inner wall is added; the hole is kept 0.4 mm inside the chamfered thread's root. Without `hole` nothing changes.
+
+**Tested:** `npm run test:fit`: a threaded tube is closed and one shell, its hole exactly round all along and nothing else of
+the thread changed (the volume taken out is the hole's prism); the fuse holder in the closed, on-the-bed list; two more variants (6.3 × 32 hexagonal; the
+smallest custom fuse with the thickest wire and coil, two copies); the wire hole and bore sizes, the room between the seats
+when shut (21.6 mm for 20 mm and two 0.8 mm coils), the cap's thread the fit gap bigger than the neck's, the rim 0.6 mm off the
+shoulder, the panel's coil and 250 V lines. `npm run test:project`: a hostile fuse holder (all clamped, unknown size and grip to
+the defaults, a stranger dropped). `SET='{"kind":"fuse"}' node tools-audit.js index.html fixit`: no findings (7 controls);
+`fixit,mech` audit from the defaults: no findings. Smoke test passes; fingerprints: all 55 unchanged; print survey: no new
+warnings; `npm run test:print` passes. Outside the repository, with Manifold: the cap turned over onto the body touches it only at
+the stop face (0.6 mm³, the 0.01 mm overlap of its well), 0.3 mm further collides (the stop), 0.8 mm lifted without turning
+collides (the threads hold), and screwing it on along the helix from 3.4 turns out touches nothing; a 5.2 × 20 mm fuse and two
+0.8 mm coils fit inside, touching both seats. The same for 6.3 × 32, the smallest and the largest custom sizes.
+**Not tested:** a real print (the coarse thread's fit, the contact pressure, how a tinned coil of the owner's wire flattens),
+and Chromium beyond the manual picture (`docs/images/fit-fuse.jpg`, `tools-partshot.js`).
+
 ## Next
 
 **The plan from here to 2.5 is in `ROADMAP.md`** (Session 66, the owner's request): releases 0.58 to 0.95, 1.0, the parametric

@@ -67,6 +67,12 @@ function coreTests(C) {
   const crestAt = a => { let best = -1, by = 0; for (let y = 3; y < 4.25; y += 0.005) { const u = y / 1.25 - a / (2 * Math.PI); const f = C.threadForm(u); if (f > best) { best = f; by = y; } } return by; };
   const climb = crestAt(Math.PI / 2) - crestAt(0);
   check(near(climb, 1.25 / 4, 0.05), "right-handed: a quarter turn anticlockwise (seen from above) climbs a quarter of the pitch", climb.toFixed(3));
+  // Session 67: a threaded tube (a fuse holder's neck): the same thread with a plain hole along it
+  const tube = C.threadSolid({ rMajor: 4, pitch: 1.25, y0: 0, y1: 10, hole: 1.5, segs: 72 }), rt = C.meshReport(tube);
+  let holeLo = Infinity, holeHi = 0; for (let k = 0; k < tube.pos.length / 3; k++) { const r = R(tube, k); if (r < 2.5) { holeLo = Math.min(holeLo, r); holeHi = Math.max(holeHi, r); } }
+  const ring = 0.5 * 72 * 1.5 * 1.5 * Math.sin(2 * Math.PI / 72) * 10;            // the 72-sided hole's volume
+  check(rt.ok && rt.shells === 1 && near(holeLo, 1.5, 1e-6) && near(holeHi, 1.5, 1e-6) && near(C.signedVolume(rod) - C.signedVolume(tube), ring, 1e-3),
+    "with a hole, a screw is a closed tube: the hole 1.5 mm round all along, the rest of the thread unchanged", `${rt.tris} triangles, ${(C.signedVolume(rod) - C.signedVolume(tube)).toFixed(3)} mm³ taken out (${ring.toFixed(3)})`);
   const h = C.hexRadius(13);
   check(near(h(Math.PI / 6), 6.5, 1e-9) && near(h(0), 13 / Math.sqrt(3), 1e-9), "a hexagon 13 mm across flats: 6.5 mm to a flat, 7.51 mm to a corner");
 }
@@ -91,7 +97,7 @@ async function appTests() {
   const lowest = parts => Math.min(...parts.map(p => C.solidBounds(p.solid).mn[1]));
 
   console.log("every mechanism and fix-it part");
-  const mk = ["gears", "bolt", "hinge", "snap", "coupon"], fk = ["knob", "foot", "shelfpin", "cover", "clip", "spacer"], badKinds = [];
+  const mk = ["gears", "bolt", "hinge", "snap", "coupon"], fk = ["knob", "foot", "shelfpin", "cover", "clip", "spacer", "fuse"], badKinds = [];
   for (const k of mk) { const p = await build("mech", b => b.mech.kind = k); if (!good(p) || Math.abs(lowest(p)) > 1e-3) badKinds.push("mech " + k); }
   for (const k of fk) { const p = await build("fixit", b => b.fixit.kind = k); if (!good(p) || Math.abs(lowest(p)) > 1e-3) badKinds.push("fixit " + k); }
   check(!badKinds.length, `all ${mk.length + fk.length} are closed, outward-facing and sit on the bed`, badKinds.join(", "));
@@ -99,10 +105,12 @@ async function appTests() {
     ["mech", b => { b.mech.kind = "bolt"; b.mech.bolt.size = "M3"; b.mech.bolt.head = "none"; }], ["mech", b => { b.mech.kind = "coupon"; b.mech.coupon.thread = true; }],
     ["fixit", b => { b.fixit.kind = "knob"; b.fixit.knob.grip = "knurled"; b.fixit.knob.shaftShape = "hex"; }], ["fixit", b => { b.fixit.kind = "knob"; b.fixit.knob.grip = "lobed"; b.fixit.knob.pointer = false; }],
     ["fixit", b => { b.fixit.kind = "foot"; b.fixit.foot.style = "plug"; b.fixit.foot.shape = "square"; }], ["fixit", b => { b.fixit.kind = "foot"; b.fixit.foot.style = "cap"; b.fixit.foot.shape = "square"; }],
-    ["fixit", b => { b.fixit.kind = "clip"; b.fixit.clip.count = 4; b.fixit.clip.style = "adhesive"; }], ["fixit", b => { b.fixit.kind = "spacer"; b.fixit.spacer.hex = true; b.fixit.count = 6; }]];
+    ["fixit", b => { b.fixit.kind = "clip"; b.fixit.clip.count = 4; b.fixit.clip.style = "adhesive"; }], ["fixit", b => { b.fixit.kind = "spacer"; b.fixit.spacer.hex = true; b.fixit.count = 6; }],
+    ["fixit", b => { b.fixit.kind = "fuse"; b.fixit.fuse.size = "6x32"; b.fixit.fuse.grip = "hex"; b.fixit.count = 1; }],
+    ["fixit", b => { b.fixit.kind = "fuse"; b.fixit.fuse = { size: "custom", dia: 12, len: 10, wire: 6, coil: 3, grip: "fluted", od: 10 }; b.fixit.count = 2; }]];
   const badV = [];
   for (const [t, e] of variants) { const p = await build(t, e); if (!good(p)) badV.push(t + " " + JSON.stringify(st().base[t]).slice(0, 60)); }
-  check(!badV.length, `${variants.length} other choices (hex bore, big and small threads, knurls, square plugs, four cables, six spacers) all build closed`, badV.join("; "));
+  check(!badV.length, `${variants.length} other choices (hex bore, big and small threads, knurls, square plugs, four cables, six spacers, big and small fuse holders) all build closed`, badV.join("; "));
 
   console.log("fits");
   st().base.fit.gap = 0.25;
@@ -133,6 +141,30 @@ async function appTests() {
   st().base.fit.gap = 0.25;
   p = await build("fixit", b => { b.fixit.kind = "spacer"; b.fixit.spacer.hex = false; b.fixit.count = 4; });
   check(p.length === 1 && C.checkMesh(p[0].solid).tris > 0 && near(C.signedVolume(p[0].solid) / 4, Math.PI * (36 - 2.625 ** 2) * 6, 25), "four spacers, each the volume of a 12 mm ring with a 5.25 mm hole, 6 mm tall", (C.signedVolume(p[0].solid) / 4).toFixed(0) + " mm³ each");
+  // Session 67: the inline fuse holder (5 × 20 mm fuse, 2.6 mm wire, 1 mm coils, 18 mm fluted)
+  p = await build("fixit", b => { b.fixit.kind = "fuse"; b.fixit.fuse = { size: "5x20", dia: 5.2, len: 20, wire: 2.6, coil: 1, grip: "fluted", od: 18 }; b.fixit.count = 1; });
+  { const bodyP = p.find(q => q.name === "Fuse holder body"), capP = p.find(q => q.name === "Fuse holder cap");
+    check(p.length === 2 && bodyP && capP, "a fuse holder is two parts: the body and the cap", p.map(q => q.name).join(", "));
+    // every vertex as [radius from the part's axis, height]
+    // the axis: the middle of the wire hole's ring on the bed (the fluted outside is not quite symmetric)
+    const rv = s => { const b = C.solidBounds(s), P = s.pos; let cx = (b.mn[0] + b.mx[0]) / 2, cz = (b.mn[2] + b.mx[2]) / 2; const mn = [Infinity, Infinity], mx = [-Infinity, -Infinity];
+      for (let i = 0; i < P.length; i += 3) if (P[i + 1] < 1e-3 && Math.hypot(P[i] - cx, P[i + 2] - cz) < 3) { mn[0] = Math.min(mn[0], P[i]); mx[0] = Math.max(mx[0], P[i]); mn[1] = Math.min(mn[1], P[i + 2]); mx[1] = Math.max(mx[1], P[i + 2]); }
+      cx = (mn[0] + mx[0]) / 2; cz = (mn[1] + mx[1]) / 2; const out = [];
+      for (let i = 0; i < P.length; i += 3) out.push([Math.hypot(P[i] - cx, P[i + 2] - cz), P[i + 1]]); return out; };
+    const B = rv(bodyP.solid), K = rv(capP.solid), at = (L, r) => L.filter(q => Math.abs(q[0] - r) < 0.01).map(q => q[1]);
+    const top = C.solidBounds(bodyP.solid).mx[1], wire = Math.min(...B.filter(q => q[1] < 1e-3).map(q => q[0])), bore = Math.min(...B.filter(q => q[1] > top - 1e-3).map(q => q[0]));
+    check(near(2 * wire, 2.85, 0.02) && near(2 * bore, 5.75, 0.02), "its wire holes are the wire plus the fit gap (2.85 mm), the fuse's bore 5.2 + 0.3 mm + the fit gap (5.75 mm)", `${(2 * wire).toFixed(2)} and ${(2 * bore).toFixed(2)} mm`);
+    const hb = C.solidBounds(bodyP.solid).mx[1], seatB = Math.min(...at(B, bore)), seatK = Math.min(...at(K, bore)), faceK = Math.max(...at(K, bore)) - 0.01;
+    const room = hb - seatB + faceK - seatK;
+    check(near(room, 20 + 2 * 0.8, 0.02), "screwed shut (the cap stops on the neck), there is room for the fuse and two coils pressed from 1 to 0.8 mm", `${room.toFixed(2)} mm between the two seats`);
+    // the cap's thread against the neck's: the narrowest the cap's hole gets above its stop face, the neck's root and crest
+    const neckR = B.filter(q => q[1] > hb - 6 && q[1] < hb - 2 && q[0] > bore + 0.5).map(q => q[0]), capR = K.filter(q => q[1] > faceK + 2 && q[1] < faceK + 6 && q[0] > bore + 0.5 && q[0] < 8).map(q => q[0]);
+    const nLo = Math.min(...neckR), nHi = Math.max(...neckR), cLo = Math.min(...capR);
+    check(near(cLo - nLo, 0.25, 0.01) && near(nHi, 6, 0.01), "the cap's thread is 0.25 mm (the fit gap) bigger all round than the neck's (12 mm, 2.5 mm pitch)", `neck ${(2 * nLo).toFixed(2)}–${(2 * nHi).toFixed(2)} mm, cap's narrowest ${(2 * cLo).toFixed(2)} mm`);
+    const shoulder = Math.max(...B.filter(q => q[0] > 7).map(q => q[1])) - 0.01, rim = hb - (C.solidBounds(capP.solid).mx[1] - faceK);
+    check(near(rim - shoulder, 0.6, 0.02), "shut, the cap's rim stays 0.6 mm clear of the body's shoulder, so it stops on the neck's top", `${(rim - shoulder).toFixed(2)} mm`);
+    check(/250 V/.test(MF.fit.lines.join(" ")) && /coil/.test(MF.fit.lines.join(" ")), "the panel says how to make the coils and to use a 250 V fuse on mains", MF.fit.lines.join(" | ").slice(0, 120));
+  }
 
   console.log("the print check");
   const supportOf = async () => { await MF.printNow(); for (let i = 0; i < 200 && !MF.print; i++) await sleep(30); return MF.print ? MF.print.overhang.area : -1; };

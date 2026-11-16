@@ -3,6 +3,19 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.57.1
+
+An inline fuse holder you print, with nothing to buy.
+
+- **Inline fuse holder** (under Fix-it parts): a body and a cap that screw together over a 5 × 20 mm or 6.3 × 32 mm fuse, or a size you type. The contacts are the wires' own bare ends, wound into a flat coil and tinned at the bottom of each part: no clips, springs or screws.
+- The cap stops on the body's neck with each coil pressed 0.2 mm, so the fuse is held firmly and can't be crushed, and a coil can't pull out through its hole. The fuse stands 6 mm out of the body, so it is easy to take out.
+- Set the wire's thickness, how thick the coils are, fluted or hexagonal, and the outside size. Both parts print standing, without support: the thread's flanks are at about 42°.
+
+![The fuse holder's body (left) and cap](docs/images/fit-fuse.jpg)
+
+**Fixed**
+- Nothing users had reported: this release adds the fuse holder.
+
 ## 0.57.0
 
 Project boxes in new shapes: round with a lid that twists on, hexagonal, octagonal, a sloped console, a clamshell.

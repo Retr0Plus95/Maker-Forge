@@ -167,7 +167,8 @@ The solid stage of 0.57 is the start. In order:
 
 - **E1 One solid for every part.** (Done in 0.58 for the files and the weight: each colour's pieces joined by Manifold on a
   helper thread.) Still to do: the print check on the joined solids, and the view.
-- **E2 A feature graph with caching.** Each wall, post, cradle and opening is a node keyed by its inputs; a drag
+- **E2 A feature graph with caching.** (Begun in 0.59: the core's heavy raster steps, a relief's depth and a painted model's mesh
+  are kept by what went into them, which halves a change on lettered objects; boxes were already fast.) Each wall, post, cradle and opening is a node keyed by its inputs; a drag
   rebuilds only what moved.
 - **E3 Builds on the helper thread**, cancellable, with a rough preview first and the exact solid after.
 - **E4 Shared frames.** Every generator places features through one "face frame" (flat, curved, sloped), so an

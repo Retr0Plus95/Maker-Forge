@@ -2917,6 +2917,78 @@ there); E2, builds cached per feature, so a drag rebuilds only what moved; E3, t
 joining thread is the start); E4, one face frame for flat, curved and sloped faces, before the shaped-box release; E5, curves
 divided by chord error.
 
+## Session 69: the engine, step two: steps kept by what went into them (v0.59.0)
+
+The owner: "keep going" after 0.58.0 (E1). Engine step E2, on a branch from `main` at `5fe8912`.
+
+**What was measured first.**
+- Build times in jsdom for every object and quick start, then in Chromium for the slow ones: a rebuild with nothing changed
+  took 0.7 to 1.5 s for the name plate, card, sign, jigsaw, turned shape and relief; boxes take 20 to 85 ms, so caching
+  a box's walls and posts (the roadmap's first idea for E2) would gain little.
+- Chromium profiles show the time in the core's raster steps (`edt`, `signedDistanceField`, `fieldToPolys`, `labelMask`,
+  `closeMask`, `buildCellMap`) for the lettered and traced objects, in `basRelief` for the relief, and in replaying the
+  paint (`meshEditor` refine and `cutMany`, `meshTopology`) for the painted vase. Each build redid them although the
+  pixels going in were the same.
+- Also checked for the next step: parts of one colour do overlap each other (plastic canvas 1,724 mm³, the name keychain
+  39 mm³), so the weight and the files must keep joining per colour; a print check on joined parts would join each part
+  on its own.
+
+**The store** (`src/core.js`, before `global.PRCore`).
+- `memoized(name, fn)` wraps `edt`, `signedDistanceField`, `fieldToPolys`, `traceField`, `labelMask`, `closeMask`,
+  `erodeMask`, `dilateMask`, `blurMask`, `basRelief` and `buildCellMap` on the exported object only; calls inside the
+  library are not wrapped. Checked that none of them changes its inputs (a scan for writes to its arguments), so a kept
+  result is exactly a fresh one.
+- The key is the name and the arguments. A typed array is its type, length and `hashView`: 64 bits in two 32-bit lanes,
+  murmur-style, four bytes at a time as little-endian words, whatever the array's offset. A picture
+  (`{ width, height, data }`, ImageData's getters included) is its size and its bytes; anything else is JSON. A function
+  argument means "not kept".
+- Inputs under `MEMO.min` (40,000 numbers) are worked out as before. A result is kept only if it took at least
+  `minMs` (2 ms) and saves at least `msPerMB` (2 ms per MB it takes); at most a quarter of the budget each. The oldest
+  go first past `MEMO.max`: the page sets it from `navigator.deviceMemory` (24 MB per GB, 48 to 192 MB; 96 MB on a
+  4 GB device).
+- Results are handed out as copies (the kept one never leaves the store), so a caller that changes its answer changes
+  nothing kept. `C.memo` = `{ stats, clear, hash }`.
+- `coverageField` was wrapped at first and taken out: it is one pass over the pixels, and hashing its RGBA input cost
+  more than doing it.
+- The first hash wrote its state from a helper closure, which stopped V8 from optimising the loop. It took 2 s over three
+  name-plate builds, making them slower than without the store; it is one flat loop now.
+
+**The painted mesh by content** (`src/app.html`, `applyPaint`). `paintCache` is keyed by the solid object, which every
+rebuild makes anew. `paintByContent` (three kept) keys the refined, cut and mapped mesh by `solidSig` (the hash of the
+solid's positions and corners), the edge length and cuts, and whether the part is painted; a hit is put back under the
+new object.
+
+**Measured in Chromium** (a slider that does not touch the letters, four values each, `main` against this branch):
+
+| Change | main | this branch |
+|---|---|---|
+| Name plate's `thick` | 603–938 ms | 357–526 ms |
+| Name plate's `nameH` | 673–860 ms | 369–474 ms |
+| Sign's `depth` | 711–916 ms | 474–659 ms |
+| Relief's `base` | 858–915 ms | 136–188 ms |
+| The painted vase, rebuilt | about 1 s | 150–250 ms |
+
+The card and the jigsaw gain little: their time is in extruding many small outlines (`extrudePolysAt`, 138 call sites
+with nested polygon arrays) and the jigsaw's pieces.
+
+**Tested:**
+- `tools-memo-test.js` (new, `npm run test:memo`, `CORE=1` for the core):
+  - the second call comes from the store and equals a fresh one; each answer is a copy; changing an answer changes
+    nothing kept;
+  - a changed pixel, setting or option is worked out afresh; small grids are never kept; outlines are copies too;
+  - a picture is known by its bytes (an ImageData-like class with getters), and another filament colour misses;
+  - the hash: one bit in 100,001 bytes changes it; the same bytes off a 4-byte boundary give the same hash; 19,877
+    distinct near-identical grids give 19,877 hashes;
+  - the budget keeps four 2 MB results of five in 9 MB and forgets the oldest;
+  - the name plate, sign and relief with an unrelated setting changed take their heavy steps from the store and come out
+    the same, number for number, as built without it;
+  - the painted vase rebuilt keeps its painted mesh, with the same parts and paint.
+- Fingerprints: all 55 unchanged. The broad suite, the browser check and the print survey: in the pull request.
+
+**Not done:** the card's and jigsaw's extrusions (a cache keyed by polygons would need a cheap way to hash nested arrays,
+or the generators handing over flat arrays); builds on the helper thread (E3). Measured but not changed: boxes, which
+are already fast.
+
 ## Next
 
 **The plan from here to 2.5 is in `ROADMAP.md`** (Session 66, the owner's request): releases 0.58 to 0.95, 1.0, the parametric

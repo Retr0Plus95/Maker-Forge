@@ -6507,6 +6507,78 @@
     return { cc, uv, texOf };
   }
 
+  /* Steps worked out once (Session 69, the engine's second step: a build redoes only what changed). The heavy raster
+     steps every lettered or traced object goes through (distances, outlines, labels, a picture's colours, a relief's
+     flattening) are kept by what went into them: the same pixels and settings give the result kept from before, so
+     a slider that does not touch the letters (the plate's thickness, a hole, a colour) no longer measures and traces
+     them again. A key is the step's name and its arguments, each picture or grid by a 64-bit hash of its bytes (two
+     32-bit lanes, murmur-style), the rest as written. Results are handed out as copies, so a caller that changes
+     one cannot change what is kept. Small inputs are worked out as before (hashing would cost as much), and the
+     store forgets the oldest results past MEMO.max bytes (the page sets it from the device's memory), and a result that
+     saves less than MEMO.msPerMB milliseconds per megabyte it takes is not kept. None of these steps changes its inputs (checked when they
+     were wrapped), so a kept result is exactly what working it out again would give. */
+  const MEMO = { on: true, max: 96e6, min: 40000, minMs: 2, msPerMB: 2, bytes: 0, hits: 0, misses: 0, store: new Map() };
+  function hashView(a) {
+    // one flat loop with its state in locals (a helper writing to them stops the engine from optimising it: 20x slower)
+    // read four bytes at a time (as one little-endian word, however the array is placed, so the same bytes give the same hash)
+    const n = a.byteLength, n4 = n >> 2, u8 = new Uint8Array(a.buffer, a.byteOffset, n);
+    let h1 = 0x9747b28c ^ n, h2 = 0x85ebca6b ^ Math.imul(n, 31);
+    const u32 = a.byteOffset % 4 === 0 && new Uint8Array(new Uint32Array([1]).buffer)[0] === 1 ? new Uint32Array(a.buffer, a.byteOffset, n4) : null;
+    for (let i = 0; i < n4; i++) {
+      let k = u32 ? u32[i] : u8[4 * i] | (u8[4 * i + 1] << 8) | (u8[4 * i + 2] << 16) | (u8[4 * i + 3] << 24);
+      k = Math.imul(k, 0xcc9e2d51); k = (k << 15) | (k >>> 17); k = Math.imul(k, 0x1b873593);
+      h1 ^= k; h1 = (h1 << 13) | (h1 >>> 19); h1 = (Math.imul(h1, 5) + 0xe6546b64) | 0;
+      h2 = Math.imul(h2 + k, 0x9e3779b1); h2 ^= h2 >>> 15;
+    }
+    for (let i = n4 * 4; i < n; i++) {
+      let k = Math.imul(u8[i] | 0x100, 0xcc9e2d51); k = (k << 15) | (k >>> 17); k = Math.imul(k, 0x1b873593);
+      h1 ^= k; h1 = (h1 << 13) | (h1 >>> 19); h1 = (Math.imul(h1, 5) + 0xe6546b64) | 0;
+      h2 = Math.imul(h2 + k, 0x9e3779b1); h2 ^= h2 >>> 15;
+    }
+    h1 ^= h1 >>> 16; h1 = Math.imul(h1, 0x85ebca6b); h1 ^= h1 >>> 13; h2 ^= h2 >>> 13; h2 = Math.imul(h2, 0xc2b2ae35); h2 ^= h2 >>> 16;
+    return (h1 >>> 0).toString(36) + "." + (h2 >>> 0).toString(36);
+  }
+  // an argument as part of a key, and how many numbers it holds (to skip the small ones); null: not to be kept
+  function memoKey(v, sz) {
+    if (v == null || typeof v === "number" || typeof v === "boolean" || typeof v === "string") return JSON.stringify(v === undefined ? null : v);
+    if (ArrayBuffer.isView(v)) { sz.n += v.length; return v.constructor.name + v.length + ":" + hashView(v); }
+    if (typeof v === "function") return null;
+    if (Array.isArray(v)) { const p = v.map(x => memoKey(x, sz)); return p.includes(null) ? null : "[" + p.join(",") + "]"; }
+    if (typeof v === "object") {
+      // a picture (ImageData or { width, height, data }): its getters are not its own keys
+      if (ArrayBuffer.isView(v.data) && typeof v.width === "number") return "img" + v.width + "x" + v.height + ":" + memoKey(v.data, sz);
+      const ks = Object.keys(v).sort(), p = ks.map(k => { const x = memoKey(v[k], sz); return x === null ? null : JSON.stringify(k) + ":" + x; });
+      return p.includes(null) ? null : "{" + p.join(",") + "}";
+    }
+    return null;
+  }
+  function memoCopy(r, sz) {
+    if (ArrayBuffer.isView(r)) { sz.b += r.byteLength; return r.slice(); }
+    if (Array.isArray(r)) { sz.b += 8 * r.length; return r.map(x => memoCopy(x, sz)); }
+    if (r && typeof r === "object") { const o = {}; for (const k of Object.keys(r)) o[k] = memoCopy(r[k], sz); sz.b += 16; return o; }
+    return r;
+  }
+  function memoized(name, fn) {
+    return function (...args) {
+      if (!MEMO.on) return fn.apply(this, args);
+      const sz = { n: 0, b: 0 }, parts = args.map(a => memoKey(a, sz));
+      if (parts.includes(null) || sz.n < MEMO.min) return fn.apply(this, args);
+      const key = name + "(" + parts.join("|") + ")", hit = MEMO.store.get(key);
+      if (hit) { MEMO.store.delete(key); MEMO.store.set(key, hit); MEMO.hits++; return memoCopy(hit.r, { b: 0 }); }
+      const t0 = Date.now(), r = fn.apply(this, args), ms = Date.now() - t0;
+      MEMO.misses++;
+      // only what took a while to work out is worth its memory (a quick step's copy costs as much as doing it again)
+      if (ms < MEMO.minMs) return r;
+      const keep = { b: 0 }, kept = memoCopy(r, keep);
+      if (keep.b < MEMO.max / 4 && ms >= MEMO.msPerMB * keep.b / 1e6) {
+        MEMO.store.set(key, { r: kept, b: keep.b, ms, name }); MEMO.bytes += keep.b;
+        for (const [k, e] of MEMO.store) { if (MEMO.bytes <= MEMO.max) break; MEMO.store.delete(k); MEMO.bytes -= e.b; }
+      }
+      return r;
+    };
+  }
+  function memoClear() { MEMO.store.clear(); MEMO.bytes = 0; MEMO.hits = MEMO.misses = 0; }
+
   global.PRCore = {
     hexToRgb, rgbToHex, colorDist, luma, kmeans, buildCellMap, makeProjector, buildDecalSolids, weldSoup, parseSTL,
     prepareParts, make3MF, make3MF_BBL, makeSTL, makeOBJ, traceMask, groupLoops, rectUnion, triangulate, solidFromTris, buildVectorSolid,
@@ -6523,4 +6595,8 @@
     cutBase, cutFree, cutSolid, cutFlat, cutSources, cutCorners, csgRun, joinSolid, qrEncode, qrPayload, qrLink,
     gearOutline, threadForm, threadSolid, hexRadius, meshReport, repairMesh, simplifyMesh, basRelief
   };
+  // the steps kept by what went into them (above); inside the library they are called as they are
+  for (const k of ["edt", "signedDistanceField", "fieldToPolys", "traceField", "labelMask", "closeMask",
+    "erodeMask", "dilateMask", "blurMask", "basRelief", "buildCellMap"]) global.PRCore[k] = memoized(k, global.PRCore[k]);
+  global.PRCore.memo = { stats: MEMO, clear: memoClear, hash: hashView };
 })(typeof window !== "undefined" ? window : globalThis);

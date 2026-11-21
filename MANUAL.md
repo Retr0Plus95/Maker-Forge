@@ -534,6 +534,8 @@ The paint goes into the 3mf files as slicer paint, so there is nothing to paint 
 
 **Material and time** gives the grams, metres and cost of each filament and a rough print time.
 
+**One solid per colour** (new in 0.58). Every object is built from pieces, and many of them overlap: a screw post reaching into a box's wall, letters standing in a plate, a cookie cutter's blade in its handle. A moment after each change, the app joins the pieces of each colour into one solid, on a helper thread so nothing waits. Then the files hold one clean solid per colour, with nothing left inside the plastic, and the weight counts every overlap once: a cookie cutter used to read about 6% heavier than it prints, a project box under 1% (other objects lie in between). **Before you print** says how many pieces were joined. The joining uses the cutting tool (0.6 MB, downloaded once, checked before it runs). If it can't be downloaded, the files are made as before, slicers join the pieces as they load, and the zip's `README.txt` says why.
+
 **Colour swap heights** is for printers that load one colour at a time. It lists the colour to start with, then each layer where the printer should pause so you can load the next spool. Painted colours count too: each height band or stripe is a swap. To add the pauses:
 
 - **PrusaSlicer**: slice, move the layer slider in the preview to each height and click the **+** beside it.
@@ -642,7 +644,7 @@ On a Mac, use Cmd instead of Ctrl.
 
 **"This model has gaps in its surface, so it can't be cut".** Engraving, inlays and **Cut it flat** need a closed model. Until then the picture is shown raised. Repair the model and open it again: in Bambu Studio or OrcaSlicer, right-click it, choose **Fix model**, and export it as STL or 3MF.
 
-**"The cutting tool could not be downloaded".** Engraving, inlays and cutting flat download a small tool once (0.6 MB). Check the internet connection, then change any setting to try again. A website that blocks downloads from other sites needs `manifold.js` and `manifold.wasm` in a `models` folder next to `index.html`.
+**"The cutting tool could not be downloaded".** Engraving, inlays, cutting flat, box shapes and joining each colour's pieces into one solid download a small tool once (0.6 MB). Check the internet connection, then change any setting to try again (the files download without it: their pieces are joined by the slicer instead). A website that blocks downloads from other sites needs `manifold.js` and `manifold.wasm` in a `models` folder next to `index.html`.
 
 **"The AI figure finder could not be loaded".** It downloads once from the internet (about 19 MB). A website that blocks downloads from other sites needs its files in a `models` folder next to `index.html` (the file `models/LICENSE.md` on GitHub says which). Finding the figure by colour, and the downloaded `index.html`, work without that.
 
@@ -656,7 +658,7 @@ On a Mac, use Cmd instead of Ctrl.
 
 ## 14. Privacy
 
-Maker Forge runs entirely on your computer. Your pictures, photos, models and projects are never uploaded. The page loads three code libraries from jsDelivr, a public service for open-source code, so that service sees the page was opened; the fonts are built in. The AI figure finder and the cutting tool download only when you ask for them, and run on your computer too. There are no accounts, no tracking and no adverts. **AI help** is off unless you set it up: then the words you type for it go to Anthropic (with your own key) or to Ollama on your own computer (below).
+Maker Forge runs entirely on your computer. Your pictures, photos, models and projects are never uploaded. The page loads three code libraries from jsDelivr, a public service for open-source code, so that service sees the page was opened; the fonts are built in. The cutting tool (0.6 MB) downloads in the background after the first model is built, to join each colour's pieces into one solid; the AI figure finder downloads only when you ask for it. Both come from the same place as the page where it has its own copy (else from jsDelivr), are checked before they run, and run on your computer. There are no accounts, no tracking and no adverts. **AI help** is off unless you set it up: then the words you type for it go to Anthropic (with your own key) or to Ollama on your own computer (below).
 
 Maker Forge is open source under the MIT licence.
 

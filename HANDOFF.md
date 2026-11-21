@@ -2843,6 +2843,80 @@ collides (the threads hold), and screwing it on along the helix from 3.4 turns o
 **Not tested:** a real print (the coarse thread's fit, the contact pressure, how a tinned coil of the owner's wire flattens),
 and Chromium beyond the manual picture (`docs/images/fit-fuse.jpg`, `tools-partshot.js`).
 
+## Session 68: the engine, step one: one solid per colour (v0.58.0)
+
+The owner: "Update the engine now", after asking what was left of the engine (ROADMAP's ten steps). Engine step E1 first,
+because the roadmap's 0.58 (shaped boxes, complete) is mostly features built again in each shape's frame, which E1 and E4 make
+simpler. So E1 is 0.58.0 and the shaped-box release moves back (ROADMAP updated). On a branch from `main` at `673333e` (0.57.1).
+
+**What was measured first** (scratch script; every object and quick start, each colour's export solid against Manifold's union of
+it): every solid of every object is closed (none refused by Manifold), and the overlapping pieces inflated the volume by up to
+6.4% (cookie cutter), 3.1% (plastic canvas), 2.9% (frame for a photo), 1.6% (tea light), 1.3% (phone case), 0.5 to 0.7% (project
+boxes). The print check copes with the overlaps almost everywhere: joined, only the tea light (102 → 84 mm² of support) and the
+phone case (one more thin-wall mark) read differently, so the print check is left on the pieces for now.
+
+**`C.joinSolid(M, solid)`** (core, after `csgRun`): shells found by corners shared (union-find over `idx`), each shell's box,
+groups of shells whose boxes meet (a sweep along x, 1e-4 mm slack); a group of one shell is copied through untouched, every other
+group becomes one Manifold (`manifoldOf`, which decomposes and unions) and comes back through `solidOfManifold`. `manifoldOf` takes
+a new `faces` argument (each triangle's own number in the whole solid), so `face` on the way back is the source triangle and the
+paint follows it. A group Manifold refuses (not closed) is copied through and counted in `open`. One shell returns the input's own
+arrays. Returns `{ pos, idx, paint, volume, shells, joined, open }`. Skipping groups that touch nothing is what makes it cheap:
+the turned shape 453 → 13 ms, the photo relief 197 → 7 ms; a business card (695 letters and modules standing in the plate) and a
+jigsaw (pieces whose boxes interlock) stay about 2 s in Node, 4 s in Chromium, off the page.
+
+**The app** (`src/app.html`, after `onHelper`):
+- `cutBytes()`: the library's two files downloaded and checked once (split out of `cutLoad`, which uses it), for the page and the
+  thread. A failure leaves `cutState.bytes` null so the next try downloads again.
+- `helperMain` answers `join`: `[code, wasm, solids]`; the first job carries the library, which the thread starts once from a
+  `blob:` module (as the page does for cutting) and keeps; results come back transferred.
+- `joiner`: a second worker from the same `helper.url` (the print check's worker is restarted when a newer check replaces the old
+  one, which would lose the library each time). `joinList(list, background)`: on the thread when there is one, else on the page;
+  in the background only if the library is already on the page. A thread that fails (a policy without `worker-src blob:`) is
+  stopped and the page does it. `joinOrKeep(list)` never throws: the list joined, or as it was and why.
+- The background pass: `runJoin` after `scheduleJoin` (600 ms, from `runChecks` whenever the result is not fresh and `joinCan()`),
+  on `exportParts()` (each colour merged, the brim too), keyed by `joinKey()` (`frameKey`, `paintRev`, brim, layer). A result for an
+  older key is dropped. Above 800 k triangles it is skipped. A failed download stops background tries for the visit
+  (`joinGaveUp`); an export still tries.
+- `runChecks`: with a fresh join, each slot's volume is the joined one (so grams, metres and cost), an ok row **Overlapping pieces
+  joined** (how many), a warning if a group was not closed.
+- Files: `exportZip` uses `exportPartsJoined()` (the background result when fresh, else joined there and kept); the button says
+  "Joining pieces…" meanwhile. `buildZip(parts, title, unjoined)`: each plate's 3mf pair and each part's STL joined too, and the
+  README says each colour is one solid or why not. `exportBatch` joins each keychain. The merged one-colour STL is not joined
+  (it mixes colours on purpose).
+- Hooks: `MakerForge.join` (`list`, `run`, `fresh`, `key`, `can`, `exportParts`, `info`, `thread`, `zip`).
+- **Network:** the cutting tool now downloads in the background after the first build wherever a worker can start (before: only
+  when a cut was asked for). `AI_FIGURE.manifold`/`manifoldWasm` are unchanged, so the website's importer still finds and hosts
+  them, and the forge site's policy (`worker-src blob:`, `script-src blob: 'wasm-unsafe-eval'`) lets the thread start it. The
+  manual's privacy section and CLAUDE.md say so.
+
+**Fixed on the way:** the README's version badge said 0.53.1 and `package-lock.json` 0.53.1 (the build sets the header's badge,
+not these).
+
+**Tested:** `tools-join-test.js` (new, `npm run test:join`, `CORE=1` for the core; Manifold from `models/`): two overlapping cubes
+and one apart (only the two joined, 2500 mm³, closed, the third's 12 triangles and paint untouched), paint on every joined
+triangle from its own cube, no face left inside the overlap, cubes face to face become one block with no face between them, a
+group with a missing triangle left as it was and counted, one shell handed back as is; without the library nothing is joined or
+said; six real objects (cookie cutter, project box, tea light, frame for a photo, name plate, iron-on patch) joined, closed, no
+bigger than their pieces, and at about 1,500 points (half aimed where two pieces' boxes meet) inside the joined solid exactly
+where some piece was and never twice (98 points that were in two pieces); the cookie cutter's weight from the joined solid (9.42
+→ 8.85 cm³) and the check's row; a result arriving after a change dropped; the export reusing the background result, the README,
+the 3mf holding the joined solids triangle for triangle; the library unavailable: the export goes ahead unjoined and the README
+says why. The page's JSZip never finishes in jsdom (no test made the zip before), so the test makes it with the same version from
+`node_modules` through a small wrapper. In Chromium (scratch scripts, served over http like the website): the join on the second
+thread for a cookie cutter, a project box, a frame for a photo and a business card, the page never more than 26 ms between frames,
+the download's README saying each colour is one solid; under the website's policy (blob workers allowed) the join on the thread
+with no policy reports, and with `worker-src 'none'` no background join and the export joined on the page. Fingerprints: all 55
+unchanged (the builds are untouched). Also run: smoke, `test:cut`, `test:print`, `test:project`, `test:speed`, the box-shape test,
+the audits (results in the pull request).
+**Not tested:** the joined files in each slicer (PrusaSlicer, OrcaSlicer, Bambu Studio; they are ordinary closed meshes, but a
+slicer check is still owed), a real print, Firefox and Safari (dynamic `import()` in a classic worker needs Firefox 114+ and Safari
+15+; older ones fall back to the page at export).
+
+**Next for the engine** (ROADMAP E1 to E5): the print check on the joined solids (the tea light's 18 mm² of support that isn't
+there); E2, builds cached per feature, so a drag rebuilds only what moved; E3, the builds themselves on the helper thread (the
+joining thread is the start); E4, one face frame for flat, curved and sloped faces, before the shaped-box release; E5, curves
+divided by chord error.
+
 ## Next
 
 **The plan from here to 2.5 is in `ROADMAP.md`** (Session 66, the owner's request): releases 0.58 to 0.95, 1.0, the parametric
@@ -2859,7 +2933,8 @@ Left from the owner's Session 64-65 lists (each for a release of its own):
   model too big for the bed with pins or dovetails (boxes have join flanges; `cutFlat` cuts imported models); assembly steps,
   What you'll need and names in 3D for the other multi-part objects; the box's style (edges, textures) on signs, plaques and
   phone cases.
-- **Engine:** the rectangular body as one solid with Manifold too (shaped boxes are since Session 66; true unions, exact volumes);
+- **Engine:** (each colour is joined into one solid for the files and the weight since Session 68: E1) the print check on the
+  joined solids;
   builds cached per feature (a wall, a post, a cradle) so a drag rebuilds only what moved; every build on the helper thread with
   cancelling and a rough preview first; signed-distance modelling for smooth shapes; one layout solver for Arrange, plates and the
   jigsaw; the picking BVH reused for clash and thin-wall checks; 3MF files with slicer settings and pauses inside (Bambu/Orca's

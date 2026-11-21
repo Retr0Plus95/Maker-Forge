@@ -27,7 +27,12 @@ its own pull request, its "Session N" notes in `HANDOFF.md`, and can be reordere
 
 ## Stage 1: finish the workshop (0.58 to 0.95)
 
-### 0.58 Shaped boxes, complete
+### 0.58 Engine I, step one: one solid per colour (done, Session 68)
+E1 below, for every object at once: each colour's pieces joined into one solid by Manifold on a helper thread after every
+change, used by the files and the weight. The rest of Engine I (E2 to E5) is next, before the shaped boxes, because E4's
+shared face frames make most of their list one feature instead of one per shape.
+
+### 0.59 Shaped boxes, complete
 What 0.57 left on rectangles only, built in the shapes' own frames:
 - Levels, dividers and cable channels in round, hexagonal and octagonal boxes (plates cut to the shape).
 - Mounting ears, strap loops, wall textures and bands round a curved wall; rain hoods and clear windows.
@@ -38,9 +43,9 @@ What 0.57 left on rectangles only, built in the shapes' own frames:
   drawn or traced from a picture.
 - Splitting a shaped box into parts for a small bed.
 
-### 0.59 Engine I: one solid, everywhere
-The first five engine steps below (E1 to E5): every object's parts as true single solids, cached builds, builds off the
-page's thread. Nothing new to see except that it is faster and the files are cleaner.
+### Engine I, the rest (with or before 0.59)
+Engine steps E2 to E5 below: the print check on the joined solids, cached builds, builds off the page's thread, shared face
+frames, curves by chord error. Nothing new to see except that it is faster and the shapes are cleaner.
 
 ### 0.60 Shared features (the rest of the Session 64 list)
 - **Embed anything with a pause:** a magnet, nut, NFC tag, coin or weight in any object; the export says the layer to pause at.
@@ -160,8 +165,8 @@ for the owner" below before any of it is built.
 
 The solid stage of 0.57 is the start. In order:
 
-- **E1 One solid for every part.** The rectangular box, and then every generator, joined by Manifold: no overlapping
-  shells, exact volumes and weights, simpler print checks.
+- **E1 One solid for every part.** (Done in 0.58 for the files and the weight: each colour's pieces joined by Manifold on a
+  helper thread.) Still to do: the print check on the joined solids, and the view.
 - **E2 A feature graph with caching.** Each wall, post, cradle and opening is a node keyed by its inputs; a drag
   rebuilds only what moved.
 - **E3 Builds on the helper thread**, cancellable, with a rough preview first and the exact solid after.

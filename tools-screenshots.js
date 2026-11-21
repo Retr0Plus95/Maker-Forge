@@ -96,7 +96,10 @@ const figureKit = () => { globalThis.earcut = globalThis.earcut || require("earc
       await page.waitForTimeout(400); await shot(page, path.join(MANUAL, "art-tab.jpg")); await ctx.close(); },
     async colours() { const { ctx, page } = await open(); await preset(page, "Jigsaw puzzle"); await tab(page, "colour"); await shot(page, path.join(MANUAL, "colours-tab.jpg")); await ctx.close(); },
     async paint() { const { ctx, page } = await open(); await object(page, "turned"); await tab(page, "paint"); await idle(page); await shot(page, path.join(MANUAL, "paint-tab.jpg")); await ctx.close(); },
-    async export() { const { ctx, page } = await open(); await preset(page, "Car badge"); await tab(page, "export"); await idle(page); await shot(page, path.join(MANUAL, "export-tab.jpg")); await ctx.close(); },
+    async export() { const { ctx, page } = await open(); await preset(page, "Car badge"); await tab(page, "export"); await idle(page);
+      // each colour joined into one solid (Session 68): its row and the exact weight are in the picture
+      await page.waitForFunction(() => !MakerForge.join.can() || MakerForge.join.fresh(), null, { timeout: 60000 }).catch(() => {}); await page.waitForTimeout(500);
+      await shot(page, path.join(MANUAL, "export-tab.jpg")); await ctx.close(); },
     async help() { const { ctx, page } = await open(); await preset(page, "Lithophane"); await page.click("#helpBtn"); await page.waitForTimeout(500);
       await shot(page, path.join(MANUAL, "help.jpg")); await ctx.close(); },
     // Session 21: three phone screens side by side: the patch with its settings, Start from, the More menu

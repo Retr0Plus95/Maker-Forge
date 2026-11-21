@@ -650,7 +650,7 @@ On a Mac, use Cmd instead of Ctrl.
 
 **I want an earlier version.** Every version is on the [Releases page](https://github.com/Retr0Plus95/Maker-Forge/releases) (also linked from About, ⓘ). Download the file of the one you want and open it in your browser. Projects saved in one version open in later ones.
 
-**The app feels slow.** In Settings, lower **Maximum preview detail**. On the Paint tab, choose coarser **Paint detail**. Some websites do not let the app use a helper thread, so the printability check works on the page itself there and changes take a little longer than in the downloaded file.
+**The app feels slow.** Since 0.59 the slow steps (measuring and tracing letters and outlines, a picture's colours, a relief's depth, a painted model's mesh) are kept, so a change that doesn't touch them, such as a plate's thickness or a sign's depth, takes about half the time it did, a relief's about a sixth. The first build of a new name or picture still takes as long. In Settings, lower **Maximum preview detail**. On the Paint tab, choose coarser **Paint detail**. Some websites do not let the app use a helper thread, so the printability check works on the page itself there and changes take a little longer than in the downloaded file.
 
 **My slicer shows one colour.** Open the 3mf that matches your slicer (see Export → Slicer notes). In Bambu Studio, if the 3mf will not open, import `model.obj` and accept the colour dialog.
 

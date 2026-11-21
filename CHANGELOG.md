@@ -3,6 +3,25 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.59.0
+
+The engine, step two: a change redoes only what it changed.
+
+- **Faster changes on lettered, traced and painted objects.** The slow steps (measuring and tracing a name's letters, a sign's outlines, a picture's colours, a relief's depth, a painted model's mesh) are now kept by what went into them. A change that doesn't touch them reuses them instead of working them out again. Moving a slider in Chromium:
+
+  | Change | Before | Now |
+  |---|---|---|
+  | Name plate's thickness | 0.6–0.9 s | 0.4–0.5 s |
+  | Sign's depth | 0.7–0.9 s | 0.5–0.65 s |
+  | Relief's base | about 0.9 s | about 0.15 s |
+  | The painted vase, rebuilt | about 1 s | about 0.2 s |
+
+- Every object comes out exactly as before, to the last number. The first build of a new name, picture or model takes as long as it did.
+- The store keeps to the device's memory (about 100 MB on a typical phone or laptop, more on a big computer) and forgets the oldest steps first.
+
+**Fixed**
+- Nothing users had reported: this release makes changes faster.
+
 ## 0.58.0
 
 The engine, step one: every colour is one solid.

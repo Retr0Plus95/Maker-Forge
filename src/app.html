@@ -9614,6 +9614,8 @@ function onHelper(fn, args, transfer, kind){
    cutting). Without workers it runs on the page, in the background only once the library is there anyway; where it
    cannot load, the files are made as before and say why. */
 const joiner = { w:null, failed:false, seq:0, jobs:new Map(), lib:false };
+// the steps the library keeps by what went into them (Session 69): as much memory as the device can spare
+if (C.memo) C.memo.stats.max = clamp((navigator.deviceMemory || 4)*24e6, 48e6, 192e6);
 function joinerWorker(){
   if (joiner.w || joiner.failed) return joiner.w;
   try {
@@ -10088,6 +10090,10 @@ const PAINT_DETAIL = { coarse:2.5, normal:1.2, fine:0.6 };
 const paintUI = { slot:1, tool:"brush", r:3, facing:true, fill:"smooth", angle:30, method:"height", mirror:false, photo:0, photoShow:"photo", photoTool:"move", photoFixR:4, radial:1, smart:false, edge:40, lastTool:"brush",
   area:"box", through:false, rubOut:false };
 const paintCache = new WeakMap();                  // original solid -> refined mesh, topology, brush grid
+// the same by what the solid holds (Session 69): a rebuild makes a new solid object for the same shape, which made a
+// painted model refine, cut and map its mesh again on every change (a second for the painted vase); a few kept
+const paintByContent = new Map(), PAINT_KEPT = 3;
+const solidSig = s => C.memo ? C.memo.hash(s.pos) + "/" + C.memo.hash(s.idx) : null;
 let paintInfo = { tris:0, painted:0, edge:0, capped:false, area:{} };
 const paintOps = () => (state.paint && state.paint.on !== false && Array.isArray(state.paint.ops)) ? state.paint.ops : [];
 const paintSlotOk = s => Number.isInteger(s) && s >= 0 && s < state.slots.length;
@@ -11221,11 +11227,16 @@ function applyPaint(repaintOnly){
     }
     let pc = paintCache.get(p.solid0);
     if (!pc || pc.key !== key){
-      const ed = C.meshEditor(p.solid0);
-      if (isFinite(L)) ed.refine(L, PAINT_MAX_TRIS);
-      if (targets.includes(p) && cuts.length) ed.cutMany(1, cuts);
-      const solid = ed.solid();
-      pc = { key, solid, topo:C.meshTopology(solid), grid:null, src:ed.source() };
+      const sig = solidSig(p.solid0), ck = sig && sig + "|" + key + "|" + (targets.includes(p) ? 1 : 0), hit = ck && paintByContent.get(ck);
+      if (hit){ pc = hit; paintByContent.delete(ck); paintByContent.set(ck, hit); }
+      else {
+        const ed = C.meshEditor(p.solid0);
+        if (isFinite(L)) ed.refine(L, PAINT_MAX_TRIS);
+        if (targets.includes(p) && cuts.length) ed.cutMany(1, cuts);
+        const solid = ed.solid();
+        pc = { key, solid, topo:C.meshTopology(solid), grid:null, src:ed.source() };
+        if (ck){ paintByContent.set(ck, pc); while (paintByContent.size > PAINT_KEPT) paintByContent.delete(paintByContent.keys().next().value); }
+      }
       paintCache.set(p.solid0, pc);
     }
     let use = pc;

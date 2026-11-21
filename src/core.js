@@ -6280,9 +6280,9 @@
   // live outside JavaScript's memory, so each one is deleted when done with. Every triangle of a cut solid knows where
   // it came from: `from` is -1 for the base and k for cutter k (or the flat face of a cut), `face` the triangle of that
   // solid it lies in.
-  function manifoldOf(M, solid, id, inward, keepPieces) {
-    const n = solid.idx.length / 3, face = new Uint32Array(n);
-    for (let t = 0; t < n; t++) face[t] = t;
+  function manifoldOf(M, solid, id, inward, keepPieces, faces) {
+    const n = solid.idx.length / 3, face = faces || new Uint32Array(n);
+    if (!faces) for (let t = 0; t < n; t++) face[t] = t;
     let tv = solid.idx instanceof Uint32Array ? solid.idx : Uint32Array.from(solid.idx);
     if (inward) { tv = Uint32Array.from(tv); for (let t = 0; t < tv.length; t += 3) { const x = tv[t + 1]; tv[t + 1] = tv[t + 2]; tv[t + 2] = x; } }
     const mesh = new M.Mesh({ numProp: 3, vertProperties: solid.pos instanceof Float32Array ? solid.pos : Float32Array.from(solid.pos),
@@ -6292,7 +6292,7 @@
     catch (e) { try { if (mesh.merge()) man = new M.Manifold(mesh); } catch (e2) { } }   // corners repeated at one place
     if (!man) return null;
     // a solid that faces inward (its triangles wound the other way) is read again the right way out
-    if (!inward && man.volume() < 0) { man.delete(); return manifoldOf(M, solid, id, true, keepPieces); }
+    if (!inward && man.volume() < 0) { man.delete(); return manifoldOf(M, solid, id, true, keepPieces, faces); }
     // pieces that overlap (eyes set into a head, a floor inside its walls) are joined into one solid first; a cutter's
     // pieces (the letters of a word) never overlap, and joining hundreds of them takes a while
     if (keepPieces) return man;
@@ -6393,6 +6393,76 @@
       return out;
     } finally { live.forEach(x => x.delete()); }
   }
+  // One solid from overlapping pieces (Session 68, the engine's first step). A part is built as closed shells that may
+  // overlap: a post reaching into a wall, letters standing in a plate, a blade in its handle. Shells that meet are
+  // joined into one by the Manifold library M, so a file holds no faces inside the plastic and its volume is the
+  // plastic's own. Shells that meet nothing pass through untouched (a jigsaw's pieces, a lid beside its box), as does
+  // a group that is not closed. Each triangle keeps its paint: a joined triangle takes that of the triangle it came
+  // from. Returns { pos, idx, paint, volume, shells, joined, open }: the shells found, how many were joined into
+  // others, and how many groups were left as they were for not being closed.
+  function joinSolid(M, s) {
+    const I = s.idx, P = s.pos, n = I.length / 3, nv = P.length / 3, paint = s.paint || null;
+    const same = (shells, open) => ({ pos: P, idx: I, paint, volume: signedVolume(s), shells, joined: 0, open });
+    if (!n) return same(0, 0);
+    // shells: triangles that share corners
+    const up = new Int32Array(nv); for (let v = 0; v < nv; v++) up[v] = v;
+    const find = (U, v) => { while (U[v] !== v) { U[v] = U[U[v]]; v = U[v]; } return v; };
+    const unite = (U, a, b) => { a = find(U, a); b = find(U, b); if (a !== b) U[b] = a; };
+    for (let t = 0; t < I.length; t += 3) { unite(up, I[t], I[t + 1]); unite(up, I[t], I[t + 2]); }
+    const shellOf = new Int32Array(nv).fill(-1), tri = new Int32Array(n); let ns = 0;
+    for (let t = 0; t < n; t++) { const r = find(up, I[3 * t]); if (shellOf[r] < 0) shellOf[r] = ns++; tri[t] = shellOf[r]; }
+    if (ns === 1) return same(1, 0);
+    // each shell's box, then groups of shells whose boxes meet, found by a sweep along x
+    const B = new Float64Array(6 * ns);
+    for (let k = 0; k < ns; k++) { B[6 * k] = B[6 * k + 1] = B[6 * k + 2] = Infinity; B[6 * k + 3] = B[6 * k + 4] = B[6 * k + 5] = -Infinity; }
+    for (let i = 0; i < I.length; i++) {
+      const k = 6 * tri[(i / 3) | 0], p = 3 * I[i];
+      for (let a = 0; a < 3; a++) { const x = P[p + a]; if (x < B[k + a]) B[k + a] = x; if (x > B[k + 3 + a]) B[k + 3 + a] = x; }
+    }
+    const grp = new Int32Array(ns); for (let k = 0; k < ns; k++) grp[k] = k;
+    const eps = 1e-4, order = Array.from({ length: ns }, (_, k) => k).sort((a, b) => B[6 * a] - B[6 * b]);
+    let active = [];
+    for (const i of order) {
+      active = active.filter(j => B[6 * j + 3] >= B[6 * i] - eps);
+      for (const j of active)
+        if (B[6 * j + 1] <= B[6 * i + 4] + eps && B[6 * i + 1] <= B[6 * j + 4] + eps && B[6 * j + 2] <= B[6 * i + 5] + eps && B[6 * i + 2] <= B[6 * j + 5] + eps) unite(grp, j, i);
+      active.push(i);
+    }
+    const groups = new Map();
+    for (let t = 0; t < n; t++) { const g = find(grp, tri[t]); let L = groups.get(g); if (!L) groups.set(g, L = { tris: [], shells: new Set() }); L.tris.push(t); L.shells.add(tri[t]); }
+    if (groups.size === ns) return same(ns, 0);
+    // the groups of one shell stay as they are; each other group becomes one solid
+    const outPos = [], outIdx = [], outFrom = [], live = []; let volume = 0, joined = 0, open = 0, vbase = 0;
+    const keep = tris => {
+      const map = new Map(), pos = [], idx = new Uint32Array(3 * tris.length);
+      tris.forEach((t, k) => { for (let c = 0; c < 3; c++) { const v = I[3 * t + c]; let m = map.get(v); if (m === undefined) { m = map.size; map.set(v, m); pos.push(P[3 * v], P[3 * v + 1], P[3 * v + 2]); } idx[3 * k + c] = m; } });
+      return { pos: Float32Array.from(pos), idx };
+    };
+    const add = (sub, from) => {
+      outPos.push(sub.pos); const idx = new Uint32Array(sub.idx.length); for (let i = 0; i < idx.length; i++) idx[i] = sub.idx[i] + vbase;
+      outIdx.push(idx); outFrom.push(from); vbase += sub.pos.length / 3;
+    };
+    try {
+      for (const L of groups.values()) {
+        const sub = keep(L.tris);
+        if (L.shells.size === 1) { add(sub, Uint32Array.from(L.tris)); volume += signedVolume(sub); continue; }
+        const id = M.Manifold.reserveIDs(1), man = manifoldOf(M, sub, id, false, false, Uint32Array.from(L.tris));
+        if (!man) { open++; add(sub, Uint32Array.from(L.tris)); volume += signedVolume(sub); continue; }
+        live.push(man);
+        const m = solidOfManifold(man, [id]);
+        add(m, m.face); volume += man.volume(); joined += L.shells.size - 1;
+      }
+    } finally { live.forEach(x => x.delete()); }
+    let nt = 0, np = 0; outIdx.forEach(x => nt += x.length); outPos.forEach(x => np += x.length);
+    const pos = new Float32Array(np), idx = new Uint32Array(nt), out = paint ? new Uint8Array(nt / 3) : null;
+    let po = 0, io = 0;
+    outPos.forEach((x, k) => {
+      pos.set(x, po); idx.set(outIdx[k], io);
+      if (out) { const f = outFrom[k]; for (let t = 0; t < f.length; t++) out[io / 3 + t] = paint[f[t]]; }
+      po += x.length; io += outIdx[k].length;
+    });
+    return { pos, idx, paint: out, volume, shells: ns, joined, open };
+  }
   // For each triangle of a cut solid, the base triangle whose colour it takes: its own for the base's triangles; for
   // the walls and floor of a cut, or a flat face, that of the base's triangle beside it, spreading in from the edge
   // of the cut one triangle at a time (so a cut's floor takes the colour round its rim)
@@ -6450,7 +6520,7 @@
     samInput, samPrompt, samMask, maskRLE, maskFromRLE, photoMaskTris,
     photoNetInput, photoNetOutput, photoMaskFromMap, keepFigure, cutoutWithMap, edgeOpacity, pictureBackground, cutoutByColour, plateColour, cutoutCombine, photoFixMap, photoFixMask,
     parseGLB, parseGLTF, parseMTL, parseOBJColours, modelTriColours, modelPalette, modelColourLabels,
-    cutBase, cutFree, cutSolid, cutFlat, cutSources, cutCorners, csgRun, qrEncode, qrPayload, qrLink,
+    cutBase, cutFree, cutSolid, cutFlat, cutSources, cutCorners, csgRun, joinSolid, qrEncode, qrPayload, qrLink,
     gearOutline, threadForm, threadSolid, hexRadius, meshReport, repairMesh, simplifyMesh, basRelief
   };
 })(typeof window !== "undefined" ? window : globalThis);

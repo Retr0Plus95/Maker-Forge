@@ -91,6 +91,9 @@ Plus, depending on what changed:
   is there: not in the repository, 27 MB, the URL and SHA-256 are in `AI_FIGURE`) and `npm run test:photo` (the shared runtime);
   the model doctor (`meshReport`, `repairMesh`, `simplifyMesh` in `src/core.js`, `doctor*` in `src/app.html`) → `npm run test:doctor`
   (`CORE=1` for the core only)
+- one solid per colour (`joinSolid` in `src/core.js`; `joinList`, `runJoin`, `exportPartsJoined`, the `joiner` thread and the
+  helper's `join` job in `src/app.html`), `manifoldOf` or `cutBytes` → `npm run test:join` (`CORE=1` for the core only) and
+  `npm run check:browser` (the only place with a real Web Worker)
 - `tools-after-squash.js` or `.github/workflows/after-squash.yml` → `npm run test:squash`
 - the icon maker (`ICONS`, `iconCanvas`, `cleanIcon`, `iconPanel`), AI help (`AI`, `aiAsk`, `aiFromWords`, `aiCleanPlan`) or "Describe your project" (`encApplyPlan`,
   `encPlaceOpening`, `encLogoSpot`) → `npm run test:iconai` (no key needed: the AI and `fetch` are stand-ins) and `npm run test:enclosure`;
@@ -108,8 +111,8 @@ tests accept `CORE=1` for the fast geometry-only part.
 
 - Keep the app a single self-contained file with no build toolchain beyond `build.py`.
   Runtime libraries load from CDNs (three.js r128, OrbitControls, earcut 2.2.4, JSZip 3.10.1; ONNX Runtime Web 1.30.0
-  only when the AI figure finder is asked for, and Manifold 3.5.4 only when a cut is asked for, each checked by SHA-256
-  in `AI_FIGURE`). The fonts are
+  only when the AI figure finder is asked for, and Manifold 3.5.4 in the background after the first build, to join each
+  colour's pieces into one solid (Session 68; before, only when a cut was asked for), each checked by SHA-256 in `AI_FIGURE`). The fonts are
   built in (`fonts/`, packed by `build.py`, used by `fontFaceCSS` in `src/app.html`); the page never downloads a font.
 - Every new generator control must actually change the model (the audit flags "dead controls").
 - Every loaded project goes through `sanitizeProject`: clamp numbers, never inject markup.

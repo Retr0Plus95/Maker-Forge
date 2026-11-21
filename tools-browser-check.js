@@ -375,6 +375,26 @@ function pageCoverage() {
     notes.push(`cutting: Manifold downloaded, checked and run in ${ms} ms for the first inlay (${inlay.pieces} pieces); engraved; a ball cut flat stands on ${flat.contact.toFixed(0)} mm²`);
     await page.evaluate(on => { const MF = window.MakerForge; MF.state.items.forEach((d, i) => { d.enabled = on[i] !== false; d.cut = "raised"; d.solids = null; }); }, wasOn);
   }
+  // ---------- one solid per colour (Session 68): each colour's pieces joined on the second helper thread ----------
+  if (!ONLY || ONLY.includes("join") || ONLY.includes("cut")) {
+    await page.evaluate(() => [...document.querySelectorAll("#presetGallery button")].find(b => b.dataset.k === "Cookie cutter").click());
+    await settle(page);
+    const jn = await page.evaluate(async () => {
+      const MF = window.MakerForge, C = MF.core;
+      // the page must stay free while it joins: the longest gap between two animation frames meanwhile
+      let last = performance.now(), worst = 0, stop = false;
+      const tick = () => { const n = performance.now(); worst = Math.max(worst, n - last); last = n; if (!stop) requestAnimationFrame(tick); }; requestAnimationFrame(tick);
+      const t0 = performance.now();
+      for (let i = 0; i < 600 && !MF.join.fresh(); i++) await new Promise(r => setTimeout(r, 100));
+      stop = true;
+      const J = MF.join.info, raw = MF.exportParts().reduce((a, p) => a + C.signedVolume(p), 0);
+      return { fresh: MF.join.fresh(), ms: Math.round(performance.now() - t0), thread: !!MF.join.thread.w && !MF.join.thread.failed, joined: J && J.joined, open: J && J.open,
+        closed: J && J.list ? J.list.every(s => C.checkMesh(s).open === 0) : false, raw, cm3: MF.checks.totals.cm3, row: MF.checks.list.some(r => r.t === "Overlapping pieces joined"), worst: Math.round(worst) };
+    });
+    if (!jn.fresh || !jn.thread || !(jn.joined >= 1) || jn.open || !jn.closed || !jn.row || !(jn.cm3 * 1000 < jn.raw * 0.97))
+      findings.push({ where: "one solid per colour", what: `the cookie cutter's pieces joined on the helper thread: ${JSON.stringify(jn)}` });
+    notes.push(`one solid per colour: the cookie cutter joined on the second helper thread in ${jn.ms} ms (${jn.joined} piece joined, closed: ${jn.closed}); weight ${(jn.raw / 1000).toFixed(2)} → ${jn.cm3.toFixed(2)} cm³; the page's longest frame meanwhile ${jn.worst} ms`);
+  }
   // ---------- box shapes (Session 66): each picked on the page, made by the cutting tool in the browser ----------
   if (!ONLY || ONLY.includes("shapes") || ONLY.includes("enclosure")) {
     await page.evaluate(() => { const s = document.querySelector("#objectSel"); s.value = "enclosure"; s.dispatchEvent(new Event("change")); });

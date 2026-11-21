@@ -9502,8 +9502,32 @@ function normalizeItem(d){
    restarts the worker rather than queue behind a result nobody wants. */
 const helper = { w:null, failed:false, seq:0, jobs:new Map(), kinds:new Map(), done:0 };
 function helperMain(){
+  // the cutting tool (Manifold) in this thread, for joining overlapping pieces (Session 68): its code and machine code
+  // are sent with the first job, checked on the page as for cutting, and started once
+  let lib = null;
+  const joinLib = (code, wasm) => {
+    if (!lib){
+      if (!code) throw new Error("the cutting tool is not in the helper thread");
+      lib = (async () => {
+        const url = URL.createObjectURL(new Blob([code], { type:"text/javascript" }));
+        let mod; try { mod = await import(url); } finally { URL.revokeObjectURL(url); }
+        const M = await mod.default({ wasmBinary:wasm, locateFile:f => f }); M.setup(); return M;
+      })();
+      lib.catch(() => { lib = null; });
+    }
+    return lib;
+  };
   self.onmessage = e => {
     const { id, fn, args } = e.data;
+    if (fn === "join"){
+      // a library that will not start is said apart ("lib: …"): the page stops the thread; one model's trouble does not
+      Promise.resolve().then(() => joinLib(args[0], args[1])).catch(err => { throw new Error("lib: " + (err && err.message || err)); }).then(M => {
+        const r = args[2].map(p => PRCore.joinSolid(M, p)), tr = new Set();
+        r.forEach(x => { tr.add(x.pos.buffer); tr.add(x.idx.buffer); if (x.paint) tr.add(x.paint.buffer); });
+        self.postMessage({ id, r }, [...tr]);
+      }).catch(err => self.postMessage({ id, err:String(err && err.message || err) }));
+      return;
+    }
     try {
       let r, tr = [];
       if (fn === "print"){ const it = PRCore.analyzePrintSteps(args[0], args[1]); let st; do { st = it.next(); } while (!st.done); r = st.value; }
@@ -9580,6 +9604,106 @@ function onHelper(fn, args, transfer, kind){
     const id = ++helper.seq; helper.jobs.set(id, { resolve, reject }); if (kind) helper.kinds.set(id, kind);
     try { w.postMessage({ id, fn, args }, transfer || []); } catch (err){ helper.jobs.delete(id); helper.kinds.delete(id); reject(err); }
   });
+}
+/* ---- one solid per colour (Session 68, the engine's first step) ----
+   Every object is built as closed pieces that may overlap: a post reaching into a wall, letters standing in a plate.
+   Slicers join them as they load, but the files carry faces inside the plastic and the weight counted the overlaps
+   twice (up to 6% on a cookie cutter). After each build the pieces of each colour are joined into one solid with the
+   cutting tool (Manifold, C.joinSolid), on a second helper thread so the page never waits: the files use the joined
+   solids and the weight is the plastic's own. The library is downloaded once (0.6 MB, checked by its SHA-256 as for
+   cutting). Without workers it runs on the page, in the background only once the library is there anyway; where it
+   cannot load, the files are made as before and say why. */
+const joiner = { w:null, failed:false, seq:0, jobs:new Map(), lib:false };
+function joinerWorker(){
+  if (joiner.w || joiner.failed) return joiner.w;
+  try {
+    if (!helperWorker() || !helper.url) throw new Error("no workers here");
+    const w = new Worker(helper.url);
+    w.onmessage = e => { const j = joiner.jobs.get(e.data.id); if (!j) return; joiner.jobs.delete(e.data.id);
+      if (e.data.err) j.reject(new Error(e.data.err)); else j.resolve(e.data.r); };
+    w.onerror = e => { e.preventDefault && e.preventDefault(); joinerStop("The joining thread stopped: " + (e.message || "error")); };
+    joiner.w = w;
+  } catch (err){ joiner.failed = true; joiner.w = null; }
+  return joiner.w;
+}
+function joinerStop(why){
+  if (joiner.w){ try { joiner.w.terminate(); } catch(e){} }
+  joiner.w = null; joiner.failed = true; joiner.lib = false;
+  for (const j of joiner.jobs.values()) j.reject(new Error(why));
+  joiner.jobs.clear();
+}
+// each solid ({ pos, idx, paint }) joined: { pos, idx, paint, volume, shells, joined, open } in the same order.
+// background: only where it costs the page nothing (a helper thread, or the library already loaded); null otherwise
+async function joinList(list, background){
+  const job = list.map(p => ({ pos:p.pos, idx:p.idx, paint:p.paint || null }));
+  if (!joiner.failed && joinerWorker()){
+    const [code, wasm] = await cutBytes();
+    const w = joinerWorker();
+    if (w){
+      const first = !joiner.lib; joiner.lib = true;
+      try {
+        return await new Promise((resolve, reject) => {
+          const id = ++joiner.seq; joiner.jobs.set(id, { resolve, reject });
+          // the solids are copied, not handed over: the page keeps its own for the view and the checks
+          w.postMessage({ id, fn:"join", args:[first ? code.slice() : null, first ? wasm.slice() : null, job] });
+        });
+      } catch (err){
+        if (!/^lib: |stopped/.test(err.message)) throw err;
+        console.warn("The cutting tool would not start on the helper thread, so joining runs on the page:", err.message); joinerStop(err.message);
+      }
+    }
+  }
+  if (background && !cutState.M && !cutHooks.module) return null;
+  const M = await cutLoad();
+  return job.map(p => C.joinSolid(M, p));
+}
+// a list as joinList gives it back, each entry keeping its name and slot; on failure the list as it was and why
+async function joinOrKeep(list){
+  try {
+    const r = await joinList(list, false);
+    return { list:list.map((p, i) => Object.assign({}, p, { pos:r[i].pos, idx:r[i].idx, paint:r[i].paint })), res:r, why:"" };
+  } catch (err){ console.error(err); return { list, res:null, why:cutState.error || err.message || String(err) }; }
+}
+// the background pass: the export's solids (each colour merged, the brim too) joined once per change
+let joinInfo = null, joinTimer = 0, joinRun = 0, joinGaveUp = "";
+const JOIN_MAX_TRIS = 800000;
+function joinKey(){ return frameKey() + "|" + paintRev + "|" + (state.model.brim || 0) + "|" + state.printer.layer; }
+const joinFresh = () => !!(joinInfo && joinInfo.key === joinKey() && joinInfo.list);
+// a helper thread to do it on (the library downloads in the background), or the library already on the page
+const joinCan = () => !joinGaveUp && ((!joiner.failed && typeof Worker === "function" && !!joinerWorker()) || !!cutState.M || !!cutHooks.module);
+function scheduleJoin(){ clearTimeout(joinTimer); joinTimer = setTimeout(runJoin, 600); }
+async function runJoin(){
+  if (busy || queued){ scheduleJoin(); return; }
+  if (!modelParts.length || !joinCan()) return;
+  const key = joinKey(); if (joinInfo && joinInfo.key === key) return;
+  const list = exportParts(), tris = list.reduce((a, p) => a + p.idx.length/3, 0);
+  if (tris > JOIN_MAX_TRIS){ joinInfo = { key, skipped:tris }; return; }
+  const run = ++joinRun;
+  let res = null;
+  try { res = await joinList(list, true); }
+  catch (err){
+    // the library could not be downloaded: not tried again in the background on this visit (an export tries again)
+    if (!cutState.M && !cutState.bytes) joinGaveUp = cutState.error || err.message;
+    if (run === joinRun) joinInfo = { key, failed:err.message };
+    return;
+  }
+  if (!res || run !== joinRun || joinKey() !== key) return;
+  const vols = state.slots.map(() => 0);
+  list.forEach((p, i) => { vols[p.slot] += res[i].volume; });
+  joinInfo = { key, vols, slots:list.map(p => p.slot),
+    list:list.map((p, i) => Object.assign({}, p, { pos:res[i].pos, idx:res[i].idx, paint:res[i].paint })),
+    joined:res.reduce((a, r) => a + r.joined, 0), open:res.reduce((a, r) => a + r.open, 0) };
+  runChecks();
+}
+// the export's solids, joined: the background pass's when it is up to date, else joined now
+async function exportPartsJoined(){
+  if (joinFresh()) return { list:joinInfo.list, why:"" };
+  const list = exportParts(), J = await joinOrKeep(list);
+  if (J.res){
+    const vols = state.slots.map(() => 0); list.forEach((p, i) => { vols[p.slot] += J.res[i].volume; });
+    joinInfo = { key:joinKey(), vols, slots:list.map(p => p.slot), list:J.list, joined:J.res.reduce((a, r) => a + r.joined, 0), open:J.res.reduce((a, r) => a + r.open, 0) };
+  }
+  return J;
 }
 // the mesh check of a part, once: parts do not change after they are built, and the checks run after every change
 const meshCheckCache = new WeakMap();
@@ -10224,15 +10348,22 @@ function photoAreaTris(pc, o){
    Engraving or inlaying artwork into a model, and cutting a model flat, are done by Manifold (manifold-3d 3.5.4,
    Apache 2.0, 0.6 MB). It downloads the first time a cut is asked for, from models/ next to the page or else from
    jsDelivr, and each file is checked against its SHA-256 (AI_FIGURE.manifold, .manifoldWasm) before it runs. */
-const cutState = { M:null, loading:null, error:"" };
+const cutState = { M:null, loading:null, error:"", bytes:null };
 const cutHooks = { module:null };                    // tests: the library, loaded in Node
+// the library's two files, downloaded and checked once, for the page and for the helper thread (Session 68)
+function cutBytes(){
+  if (!cutState.bytes) cutState.bytes = (async () => {
+    if (!(window.crypto && crypto.subtle)) throw new Error("the page has to be opened over https (or as a file) so the download can be checked");
+    const none = () => {};
+    return Promise.all([aiGet(AI_FIGURE.manifold, none), aiGet(AI_FIGURE.manifoldWasm, none)]);
+  })().catch(err => { cutState.bytes = null; cutState.error = err.message || String(err); throw err; });
+  return cutState.bytes;
+}
 function cutLoad(){
   if (cutState.M) return Promise.resolve(cutState.M);
   if (cutHooks.module){ cutState.M = cutHooks.module; return Promise.resolve(cutState.M); }
   if (!cutState.loading) cutState.loading = (async () => {
-    if (!(window.crypto && crypto.subtle)) throw new Error("the page has to be opened over https (or as a file) so the download can be checked");
-    const none = () => {};
-    const [code, wasm] = await Promise.all([aiGet(AI_FIGURE.manifold, none), aiGet(AI_FIGURE.manifoldWasm, none)]);
+    const [code, wasm] = await cutBytes();
     const url = URL.createObjectURL(new Blob([code], { type:"text/javascript" }));
     let mod; try { mod = await import(url); } finally { URL.revokeObjectURL(url); }
     // it is given its machine code, so it never looks for it by address (which a copy from a blob has none of)
@@ -11945,9 +12076,17 @@ function runChecks(){
   }
   const brim = brimPart();
   if (brim && vols[brim.slot] != null) vols[brim.slot] += meshCheck(brim.solid).volume;
+  // the pieces of each colour joined into one solid (Session 68): the plastic's own volume, overlaps counted once
+  const joined = modelParts.length && joinFresh();
+  if (joined) joinInfo.slots.forEach(k => { if (vols[k] != null) vols[k] = joinInfo.vols[k]; });
+  else if (modelParts.length && joinCan()) scheduleJoin();
   list.push(open === 0
     ? { k:"ok", t:"Every part is a closed mesh", s:`${tris.toLocaleString()} triangles in ${modelParts.length} part${modelParts.length===1?"":"s"}` }
     : { k:"warn", t:"Some parts have open edges", s:`${open} unpaired edges. Slicers usually repair this, but check the preview.` });
+  if (joined && joinInfo.joined) list.push({ k:"ok", t:"Overlapping pieces joined",
+    s:`${joinInfo.joined} piece${joinInfo.joined === 1 ? " is" : "s are"} joined into the others, so each colour is one solid in the files and the weight counts every overlap once.` });
+  if (joined && joinInfo.open) list.push({ k:"warn", t:"Some pieces could not be joined",
+    s:`${joinInfo.open} group${joinInfo.open === 1 ? " is" : "s are"} not closed, so ${joinInfo.open === 1 ? "it goes" : "they go"} into the files as ${joinInfo.open === 1 ? "it is" : "they are"}. Slicers usually join them as they load.` });
   const plates = modelParts.some(p => p.plate != null) ? plateBounds() : null;
   if (plates){                                       // parts on several plates: each plate must fit
     const over = plates.filter(q => q.size[0] > bed[0] || q.size[2] > bed[1] || q.size[1] > bed[2]);
@@ -18618,7 +18757,7 @@ function colourChangesText(title){
     ...(pz && pz.never.length ? [`Not printed this way (it only shares layers with other colours): ${pz.never.map(i => state.slots[i].name).join(", ")}.`] : [])
   ].join("\r\n");
 }
-async function buildZip(parts, title){
+async function buildZip(parts, title, unjoined){
   const { parts:P, size } = C.prepareParts(parts);
   const zip = new JSZip(), mf = new JSZip();
   Object.entries(C.make3MF(P, state.slots, title)).forEach(([k,v])=>mf.file(k,v));
@@ -18638,13 +18777,14 @@ async function buildZip(parts, title){
     const bySlot = new Map();
     onPlates.filter(p => p.plate === i).forEach(p => { if (!bySlot.has(p.slot)) bySlot.set(p.slot, []); bySlot.get(p.slot).push(p); });
     const merged = [...bySlot.entries()].sort((a, b) => a[0] - b[0]).map(([slot, list]) => { const m = C.mergeSolids(list); return { name:state.slots[slot].name, slot, pos:m.pos, idx:m.idx }; });
-    const { parts:PP } = C.prepareParts(merged), name = `${title} plate ${i + 1}`;
+    const { parts:PP } = C.prepareParts(unjoined ? merged : (await joinOrKeep(merged)).list), name = `${title} plate ${i + 1}`;
     for (const [file, make] of [["prusa-orca", C.make3MF], ["bambu", C.make3MF_BBL]]){
       const z = new JSZip(); Object.entries(make(PP, state.slots, name)).forEach(([k, v]) => z.file(k, v));
       zip.file(`plates/plate-${i + 1}-${file}.3mf`, await z.generateAsync({ type:"uint8array", compression:"DEFLATE", compressionOptions:{level:6} }));
     }
   }
-  onPlates.forEach(p => { const { parts:[q] } = C.prepareParts([p]); zip.file(`plates/stl/${p.name.replace(/[^\w-]+/g, "_")}.stl`, new Uint8Array(C.makeSTL(q))); });
+  const onPlatesJoined = unjoined || !onPlates.length ? onPlates : (await joinOrKeep(onPlates)).list;
+  onPlatesJoined.forEach(p => { const { parts:[q] } = C.prepareParts([p]); zip.file(`plates/stl/${p.name.replace(/[^\w-]+/g, "_")}.stl`, new Uint8Array(C.makeSTL(q))); });
   const splitText = encSplitReadme();
   if (splitText) zip.file("how-it-goes-together.txt", splitText.join("\r\n"));
   const asm = state.base.type === "enclosure" && enclosureInfo && !state.base.enclosure.test ? encAssembly() : [];
@@ -18689,6 +18829,8 @@ async function buildZip(parts, title){
       "  The model files above hold every plate side by side. how-it-goes-together.txt says how the parts join."] : []),
     ...(P.some(p => p.paint) ? ["Painted on the Paint tab: both 3mf files carry the paint, so the slicer shows it painted and",
       "  prints it without painting again. The OBJ groups faces by colour. The STL files have no colour."] : []), "",
+    ...(unjoined ? ["", `Overlapping pieces are not joined in these files (${unjoined}). Slicers join them as they load.`]
+      : ["", "Each colour is one solid: the pieces it was built from are joined, with nothing left inside the plastic."]),
     "Flat pieces print face down, no supports. project.json reopens this design in Maker Forge."
   ].join("\r\n"));
   return zip;
@@ -18700,7 +18842,10 @@ async function exportZip(e){
   await new Promise(r=>setTimeout(r,30));
   try {
     flushSharpen();                                 // paint edges still waiting to be cut are cut now
-    const zip = await buildZip(exportParts(), modelName());
+    if (btn && !joinFresh()) btn.textContent = "Joining pieces…";
+    const J = await exportPartsJoined();
+    if (btn) btn.textContent = "Building files…";
+    const zip = await buildZip(J.list, modelName(), J.why);
     const blob = await zip.generateAsync({ type:"blob", compression:"DEFLATE", compressionOptions:{level:6} });
     pushRecent(modelName());
     await offerDownload(modelName().replace(/\s+/g,"-").toLowerCase()+"-print-files.zip", blob);
@@ -18723,7 +18868,7 @@ async function exportBatch(text){
       const list = [...bySlot.entries()].sort((a,b)=>a[0]-b[0]).map(([slot,items])=>{
         const m = C.mergeSolids(items); return { name:state.slots[slot].name, slot, pos:m.pos, idx:m.idx };
       });
-      const { parts:P } = C.prepareParts(list);
+      const { parts:P } = C.prepareParts((await joinOrKeep(list)).list);
       const mf = new JSZip();
       Object.entries(C.make3MF(P, state.slots, n)).forEach(([k,v])=>mf.file(k,v));
       const safe = n.replace(/[^\w -]+/g,"").trim().replace(/\s+/g,"-") || "name";
@@ -18995,6 +19140,8 @@ window.MakerForge = {
   // the painter, for the tests: its tool settings, a repaint now, the last result, a model import and the zip
   model: { get colour(){ return stlColour; }, pick: modelPickColours, bytesToCanvas },
   // cutting (Session 32): tests hand in the library through hooks.module
+  // one solid per colour (Session 68), for the tests
+  join: { list: joinList, run: runJoin, fresh: joinFresh, key: joinKey, can: joinCan, exportParts: exportPartsJoined, get info(){ return joinInfo; }, thread: joiner, zip: (parts, title, why) => buildZip(parts, title, why) },
   cut: { hooks: cutHooks, state: cutState, load: cutLoad, info: () => ({ blocked:cutBlocked, flat:flatInfo, drop:cutDrop, preps:cutPreps.length }) },
   paint: { ui: paintUI, repaint: () => repaint(true), changed: paintChanged, get info(){ return paintInfo; }, flushSharpen, get sharpPending(){ return !!sharpTimer; }, importModel: importModelFile, buildZip, swapText: colourChangesText,
     hit: paintHit, pick: paintPick, recolour: paintRecolour, colourAt, area: paintArea, previewTris, prepare: preparePaint, get previewCount(){ return previewCount; }, cleanPrinter, showLayerCut, get prefs(){ return prefs; }, applyPrefs, findDefault, cleanPaint, opText: paintOpText,

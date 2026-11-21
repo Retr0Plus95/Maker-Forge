@@ -3,6 +3,20 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.58.0
+
+The engine, step one: every colour is one solid.
+
+- **One solid per colour.** Objects are built from pieces that often overlap: a screw post reaching into a box's wall, letters standing in a plate, a cookie cutter's blade in its handle. A moment after each change, the app now joins each colour's pieces into one solid, on a second helper thread so the page never waits. The 3MF, OBJ and STL files hold that solid, with no faces left inside the plastic, and so do the files for each plate of a box made in parts and each keychain in a batch.
+- **Exact weight.** The grams, metres and cost come from the joined solid, so an overlap is counted once. Before, they read high: about 6% on a cookie cutter, 3% on plastic canvas and a frame for a photo, under 1% on a project box.
+- **Before you print** says how many pieces were joined. The zip's `README.txt` says each colour is one solid, or why the pieces weren't joined.
+- The joining uses the cutting tool (0.6 MB, downloaded once in the background and checked before it runs). Without it (offline, or a website that blocks it), the files are made as before and slicers join the pieces as they load.
+- Pieces that touch nothing (a jigsaw's pieces, a lid beside its box) are left as they are, so joining a puzzle or a business card takes a moment, not minutes.
+
+**Fixed**
+- Weights, filament lengths and costs counted overlapping pieces twice, so they read up to 6% high.
+- The README's version badge said 0.53.1.
+
 ## 0.57.1
 
 An inline fuse holder you print, with nothing to buy.

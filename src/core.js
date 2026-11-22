@@ -1584,6 +1584,16 @@
     const { pts, tris } = triangulate(polys, 0);
     return solidFromTris(pts, tris, p => [p[0], thickness, -p[1]], p => [p[0], 0, -p[1]]);
   }
+  // How many straight sides a circle of radius r needs to stay within tol of the true curve (Session 71, the engine's
+  // fifth step: curves divided by how far they may stray, not a fixed count): never fewer than min, at most 720.
+  // 0.025 mm is a sixteenth of a 0.4 mm nozzle, below what a print shows; a 3 mm hole keeps its 32 sides, a 120 mm fan
+  // opening gets 110 where it had 48 (0.13 mm off the circle between corners).
+  const SEG_TOL = 0.025;
+  function segsFor(r, min, tol) {
+    const t = tol || SEG_TOL, m = Math.max(3, min | 0 || 8);
+    if (!(r > t)) return m;
+    return Math.max(m, Math.min(720, Math.ceil(Math.PI / Math.acos(1 - t / r))));
+  }
   function ringCircle(r, segs, cw) {
     const L = []; for (let i = 0; i < segs; i++) { const a = (cw ? -i : i) / segs * Math.PI * 2; L.push([Math.cos(a) * r, Math.sin(a) * r]); } return L;
   }
@@ -6582,7 +6592,7 @@
   global.PRCore = {
     hexToRgb, rgbToHex, colorDist, luma, kmeans, buildCellMap, makeProjector, buildDecalSolids, weldSoup, parseSTL,
     prepareParts, make3MF, make3MF_BBL, makeSTL, makeOBJ, traceMask, groupLoops, rectUnion, triangulate, solidFromTris, buildVectorSolid,
-    makeWrapProjector, extrudePolys, extrudePolysAt, closeMask, smoothMask, revolve, revolveLoop, sweepTube, traceField, fieldToPolys, strokePolys, signedDistanceField, coverageField, blurMask, homography, applyH, warpQuad, quadCorners, refineQuad, fitDimensions, convexHull, outlineSVG, outlineDXF, transformSolid, mirrorSolid, solidBounds, mirrorMaskX, perforate, insideRing, snapToGrid, signedVolume, buildMaskSolid, maskOfSlot, dropCellBackground, dropSlivers, checkMesh, edt, dilateMask, erodeMask, labelMask, maskToPolys, ringCircle, ringRect, ringStar, ringPoly, ringHeart, mergeSolids, splitSolid, splitSolidAt, planeClear, area2,
+    makeWrapProjector, extrudePolys, extrudePolysAt, closeMask, smoothMask, revolve, revolveLoop, sweepTube, traceField, fieldToPolys, strokePolys, signedDistanceField, coverageField, blurMask, homography, applyH, warpQuad, quadCorners, refineQuad, fitDimensions, convexHull, outlineSVG, outlineDXF, transformSolid, mirrorSolid, solidBounds, mirrorMaskX, perforate, insideRing, snapToGrid, signedVolume, buildMaskSolid, maskOfSlot, dropCellBackground, dropSlivers, checkMesh, edt, dilateMask, erodeMask, labelMask, maskToPolys, ringCircle, ringRect, ringStar, ringPoly, ringHeart, mergeSolids, splitSolid, splitSolidAt, planeClear, area2, segsFor,
     affineSolid, mat3Mul, rotationDownTo, analyzePrint, analyzePrintSteps, bestOrientation, bestOrientationSteps, orientationScore, brimSolid, bedContact, sliceMask, gridOver, flattenParts,
     seededRandom, jigsawGrid, jigsawCut, jigsawEdge, jigsawPiece, jigsawSVG, jigsawCutLines, ringField, ringDistance, outlineBand, strokeText,
     gridAround, heightSheet,

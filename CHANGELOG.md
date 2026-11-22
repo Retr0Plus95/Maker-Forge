@@ -3,6 +3,20 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.61.0
+
+The engine, steps four and five: features that follow a shape, and curves that stay true at any size.
+
+- **Wall styles on shaped boxes.** A band of another filament, and grooves or hexagons, now go all the way round a round, hexagonal or octagonal box. The pattern is evenly spaced, with no seam, and keeps clear of the openings, their labels and art. It stays off a hexagon's or octagon's corners and below a twist lid's neck. Each prints without support. Before, they were left out of every shape but a rectangle.
+- **Big circles are smoother.** Every circle now has enough sides to stay within 0.025 mm of the true curve (a sixteenth of a nozzle), and never fewer than before. A 120 mm fan opening gets about 110 sides instead of 48, which strayed 0.13 mm from the circle. Small holes keep their sides, so the default objects are unchanged.
+
+![A round box with a gold band and grooves, and a hexagonal one with hexagons and a red band](docs/images/box-shape-style.jpg)
+
+**Fixed**
+- A wall texture or band chosen for a round, hexagonal or octagonal box was left out.
+- On an object about as tall as it is deep (the fuse holder), the height and depth labels in the 3D view were drawn on top of each other: the height's is now over the top of its line.
+- While a slider was dragged, the print check and the joining could start on the rough preview; they now wait for the exact model.
+
 ## 0.60.0
 
 The engine, step three: the model follows a slider as you drag it.

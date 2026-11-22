@@ -15556,13 +15556,14 @@ function makeRulers(bed, dark){
     const d = Math.max(2.5, big2*0.07), lh = Math.min(12, Math.max(2.6, big2*0.055)), y0 = 0.05, e = d*0.35;
     add(dimSeg, [a.x, y0, b.z + d], [b.x, y0, b.z + d]); add(dimSeg, [a.x, y0, b.z + d - e], [a.x, y0, b.z + d + e]); add(dimSeg, [b.x, y0, b.z + d - e], [b.x, y0, b.z + d + e]);
     add(dimSeg, [b.x + d, y0, a.z], [b.x + d, y0, b.z]); add(dimSeg, [b.x + d - e, y0, a.z], [b.x + d + e, y0, a.z]); add(dimSeg, [b.x + d - e, y0, b.z], [b.x + d + e, y0, b.z]);
-    add(dimSeg, [b.x + d, 0, b.z + d], [b.x + d, b.y, b.z + d]); add(dimSeg, [b.x + d - e, b.y, b.z + d], [b.x + d + e, b.y, b.z + d]);
+    add(dimSeg, [a.x - d, 0, b.z + d], [a.x - d, b.y, b.z + d]); add(dimSeg, [a.x - d - e, b.y, b.z + d], [a.x - d + e, b.y, b.z + d]);
     const put = (text, x, y, z) => { const s = rulerLabel(text, lh, acc); s.position.set(x, y, z); g.add(s); };
     put(mm(sz.x), (a.x + b.x)/2, y0, b.z + d + lh*0.9);
-    // the depth's label towards the back of its line and the height's a little up and out from its corner: on an object about
-    // as tall as it is deep, both halfway along met on the screen from the usual view (the fuse holder's 18.0 and 17.2 mm)
-    put(mm(sz.z), b.x + d + lh*2.2, y0, a.z + (b.z - a.z)*0.3);
-    put(mm(sz.y), b.x + d + lh*1.8, b.y*0.6, b.z + d + lh*0.6);
+    // the height stands at the front left: at the front right it stood beside the depth's line, which the usual view
+    // shows nearly upright, so an object about as tall as it is deep had two labels side by side (the fuse holder's 18.0
+    // and 17.2 mm, Session 71)
+    put(mm(sz.z), b.x + d + lh*2.2, y0, (a.z + b.z)/2);
+    put(mm(sz.y), a.x - d - lh*2.2, b.y/2, b.z + d);
     g.add(new THREE.LineSegments(new THREE.BufferGeometry().setAttribute("position", new THREE.Float32BufferAttribute(dimSeg, 3)),
       new THREE.LineBasicMaterial({ color: dark ? 0xffb454 : 0xb85600, depthTest:false })));
   }

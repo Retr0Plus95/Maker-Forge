@@ -1,0 +1,98 @@
+// A rough build first (Session 70, the engine's third step): while a slider is dragged on a slow lettered object, the
+// model is built at half the detail at once and exactly when the dragging stops.
+// Checked: a single edit is built exactly, as before; a drag shows rough models (fewer triangles) and leaves the checks
+// alone meanwhile; the page counts as busy until the exact model is there, which is the same, number for number, as
+// one built directly; an exact build stops when a change comes in, and the next is exact again; a download (or
+// MakerForge.build.exact) gets the exact model straight away; a quick object (a project box) is never built rough;
+// the name plate, the sign, the card and the jigsaw each come out exact after a drag.
+//   node tools-rough-test.js index.html
+let fails = 0;
+const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${what}${got !== undefined ? "  (" + got + ")" : ""}`); if (!ok) fails++; };
+(async () => {
+  const envMod = require("./tools-test-env.js"), env = envMod(process.argv[2] || "index.html");
+  const win = env.window, document = win.document, sleep = ms => new Promise(r => setTimeout(r, ms));
+  await sleep(900);
+  const MF = win.MakerForge, C = MF.core, B = MF.build;
+  async function settle() {
+    const r0 = MF.rev;
+    for (let i = 0; i < 40 && MF.rev === r0 && !MF.busy; i++) await sleep(30);
+    for (let i = 0; i < 3000; i++) { if (!MF.busy) { await sleep(40); if (!MF.busy) return true; } await sleep(25); }
+    return false;
+  }
+  const pick = async v => { const s = document.querySelector("#objectSel"); s.value = v; s.dispatchEvent(new win.Event("change")); await settle(); };
+  const sig = () => MF.parts.map(p => p.name + ":" + p.solid.idx.length + ":" + C.memo.hash(p.solid.pos) + ":" + C.memo.hash(p.solid.idx)).join(" ");
+  const tris = () => MF.parts.reduce((a, p) => a + p.solid.idx.length / 3, 0);
+  // a drag: the setting changed n times, 100 ms apart, as a slider makes it; what the page showed meanwhile
+  async function drag(o, key, vals) {
+    let sawRough = 0, minTris = Infinity, checksMoved = 0; const checks0 = MF.checks;
+    for (const v of vals) {
+      o[key] = v; B.schedule();
+      for (let t = 0; t < 4; t++) { await sleep(25); if (B.rough) { sawRough++; minTris = Math.min(minTris, tris()); if (MF.checks !== checks0) checksMoved++; } }
+    }
+    return { sawRough, minTris, checksMoved };
+  }
+
+  console.log("the name plate");
+  await pick("nameplate");
+  const np = MF.state.base.nameplate;
+  await MF.rebuild(false); const exactTris = tris();
+  check(B.lastExact.nameplate > B.roughAfter, "its exact build is slow enough here to be built rough while dragging", `${Math.round(B.lastExact.nameplate)} ms`);
+  {
+    const c0 = { ...B.count }; np.thick = 2.6; B.schedule(); await settle();
+    check(B.count.rough === c0.rough && B.count.exact === c0.exact + 1, "a single edit is built exactly, as before", JSON.stringify(B.count));
+  }
+  {
+    const c0 = { ...B.count }, d = await drag(np, "thick", [2.8, 3.0, 3.2, 3.4, 3.6, 3.8]);
+    check(d.sawRough > 0 && B.count.rough > c0.rough, "while dragging, rough models are shown", `${B.count.rough - c0.rough} rough builds`);
+    check(d.minTris < exactTris, "a rough model has less detail (fewer triangles)", `${d.minTris} against ${exactTris}`);
+    check(d.checksMoved === 0, "the checks are left as they were while the model is rough");
+    check(MF.busy, "let go: the page counts as busy until the exact model is there");
+    await settle();
+    const after = sig();
+    check(!B.rough && B.count.exact > c0.exact, "then the exact model follows by itself");
+    await MF.rebuild(false);
+    check(sig() === after, "and it is the same, number for number, as one built directly");
+  }
+  {
+    // an exact build stops when a change comes in: a drag, a pause just long enough for the exact build to start, a change
+    const c0 = { ...B.count };
+    await drag(np, "thick", [3.0, 3.1, 3.2]);
+    for (let i = 0; i < 2000 && B.stage !== "exact"; i++) await sleep(2);    // the exact build that follows the drag has started
+    const started = B.stage === "exact";
+    np.thick = 3.3; B.schedule(); np.thick = 3.4; B.schedule();
+    await settle();
+    check(started && B.count.stopped > c0.stopped, "an exact build stops when a newer change comes in", JSON.stringify({ rough: B.count.rough - c0.rough, exact: B.count.exact - c0.exact, stopped: B.count.stopped - c0.stopped }));
+    const after = sig(); await MF.rebuild(false);
+    check(!B.rough && sig() === after && np.thick === 3.4, "and the model left is the exact one for the last value");
+  }
+  {
+    // a download waits for the exact model
+    await drag(np, "thick", [2.5, 2.6, 2.7]);
+    const wasRough = B.rough; await B.exact();
+    const after = sig(); await MF.rebuild(false);
+    check(wasRough && !B.rough && sig() === after, "asked for in the middle of a drag (a download), the exact model is built first");
+    await settle();
+  }
+
+  console.log("\nthe sign, the card and the jigsaw: exact after a drag");
+  for (const [v, key, vals] of [["sign", "depth", [22, 24, 26, 28]], ["card", "thick", [1.0, 1.1, 1.2, 1.3]], ["jigsaw", "thick", [2.2, 2.4, 2.6, 2.8]]]) {
+    await pick(v); const o = MF.state.base[v];
+    await MF.rebuild(false); await MF.rebuild(false);
+    const slow = B.lastExact[v] > B.roughAfter, c0 = { ...B.count }, d = await drag(o, key, vals);
+    await settle();
+    const after = sig(); await MF.rebuild(false);
+    check(sig() === after && !B.rough, `${v}: after the drag the model is exact`, slow ? `${B.count.rough - c0.rough} rough builds meanwhile` : "built exactly here: quick enough");
+    if (slow) check(d.sawRough > 0, `${v}: rough models while dragging`);
+  }
+
+  console.log("\na quick object is never built rough");
+  {
+    await pick("enclosure"); await MF.rebuild(false);
+    const E = MF.state.base.enclosure, c0 = { ...B.count };
+    await drag(E, "h", [31, 32, 33, 34, 35]); await settle();
+    check(B.count.rough === c0.rough, "a project box (tens of milliseconds) is built exactly every time", `${Math.round(B.lastExact.enclosure)} ms a build`);
+  }
+  check(env.errors.length === 0, "no page errors", env.errors.join(" | "));
+  console.log(fails ? `\n${fails} FAILED` : "\nall passed");
+  process.exit(fails ? 1 : 0);
+})();

@@ -3,6 +3,18 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.60.0
+
+The engine, step three: the model follows a slider as you drag it.
+
+- **A rough preview while you drag.** On a name plate, sign, business card or jigsaw, the model used to change only after you let go of a slider; with a slow build it could lag a second behind. Now each step of the drag builds a rough model at half the detail at once: 9 to 26 updates during a 2.5-second drag, where there was at most one. The exact model is built a moment after you let go.
+- A single change (typing a number, picking from a list) is built exactly, as before. Quick objects such as project boxes are always built exactly.
+- **Before you print**, the print check, the weights and every download use the exact model. A download asked for mid-drag waits for it.
+- An exact build that a newer change has made pointless now stops part way, so the model catches up sooner.
+
+**Fixed**
+- Dragging a slider on a slow object showed no change until you let go.
+
 ## 0.59.0
 
 The engine, step two: a change redoes only what it changed.

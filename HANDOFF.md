@@ -2989,6 +2989,55 @@ with nested polygon arrays) and the jigsaw's pieces.
 or the generators handing over flat arrays); builds on the helper thread (E3). Measured but not changed: boxes, which
 are already fast.
 
+## Session 70: the engine, step three: a rough build first (v0.60.0)
+
+The owner: "Keep going until you finish the engine upgrades then start doing bug hunting and improving whenever you see
+possible". Engine step E3, on a branch from `main` at `666e02e`.
+
+**Why not a worker.** The roadmap's E3 is "builds on the helper thread, cancellable, a rough preview first". The generators
+draw text with the page's fonts on canvases and read `state` throughout; moving them into a worker would mean
+OffscreenCanvas with the fonts loaded again in the worker, and every generator rewritten. The part users feel, the model
+following a slider and a build not finishing after it is pointless, is done on the page instead.
+
+**What was wrong.** `schedule()` waits `0.4 × lastBuildMs` (130 to 450 ms) after the last change. A slider sends a change
+every frame, so the timer was reset all the way through a drag: measured in Chromium (a change every 100 ms for 2.5 s),
+`main` redrew the name plate, card, sign and jigsaw 0 or 1 times during the drag.
+
+**What changed** (`src/app.html`, before `rebuildAll`).
+- `roughFor(type)`: `ROUGH_TYPES` (`nameplate`, `sign`, `card`, `jigsaw`) whose last exact build took over `ROUGH_AFTER`
+  (250 ms) on this visit (`lastExactMs`), not a batch of names.
+- `schedule()` builds rough after 60 ms when changes come within 400 ms of each other (`lastScheduleAt`); a single edit
+  goes the old way.
+- `rebuildAll(resetItems, mode)`: `"rough"` sets `buildRough`. The generators read it:
+  - the name plate's `PLATE_PX` is halved (at least 5), the sign's and card's `PX` are halved, the jigsaw's `cell` doubled;
+  - a rough build skips `runChecks` and what follows it (the panel's lines, the box's and Art tab's re-renders), sets
+    `modelRough`, and arms `exactTimer` (`EXACT_AFTER`, 200 ms) with `rebuildPending` true, so `MakerForge.busy` stays true
+    and the print check and the joining (keyed by `partsVer`) only take the exact model.
+- `"exact"` (the build `exactTimer` starts) sets `buildCancellable`; `buildYield()` replaces `yieldUI()` in the four
+  generators (a new one in `buildSign` after its distance field) and throws `BUILD_STOPPED` when a change is waiting. The
+  old parts stay (their geometry was disposed at the start; three.js uploads it again when drawn).
+- `exactModel()` before a download (`exportZip`) and Optimize; builds asked for directly (`MF.rebuild`, loading) are
+  exact.
+- `lastBuildMs` and `lastExactMs` count exact builds only. `MakerForge.build` has `schedule`, `exact`, `rough`,
+  `lastExact`, `count` (rough, exact, stopped) and `stage`.
+
+**Measured** (Chromium, the same drag): this branch redrew the name plate 16, the card 14, the sign 19 and the jigsaw 9
+times during the drag. The exact model came 0.7 to 2.2 s after letting go (this container's timings vary by a third run to
+run), against 0.55 to 1.5 s on `main`: up to a rough build in flight plus 200 ms more, for a model that followed the slider.
+
+**Tested:** `tools-rough-test.js` (new, `npm run test:rough`):
+- a single edit is built exactly;
+- a drag shows rough models with fewer triangles and leaves the checks alone; the page is busy until the exact model,
+  which matches a direct build number for number;
+- an exact build stops for a newer change and the model left is exact for the last value;
+- `build.exact()` mid-drag gives the exact model;
+- the sign, card and jigsaw are exact after a drag; a project box is never built rough.
+
+Fingerprints, the suites and the browser check: in the pull request.
+
+**Not done:** a worker for the builds; rough builds for the tracer, relief and lithophane (quick enough since 0.59); a rough
+build that stops for a newer one (they are short).
+
 ## Next
 
 **The plan from here to 2.5 is in `ROADMAP.md`** (Session 66, the owner's request): releases 0.58 to 0.95, 1.0, the parametric

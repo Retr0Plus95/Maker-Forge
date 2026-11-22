@@ -97,6 +97,8 @@ Plus, depending on what changed:
 - the steps kept by what went into them (`memoized`, `hashView`, the wrapped list at the end of `src/core.js`, `C.memo`) or the painted
   mesh kept by content (`paintByContent`, `solidSig` in `src/app.html`) → `npm run test:memo` (`CORE=1` for the core only) and
   `npm run fingerprint` (every object must come out the same). A core step added to the wrapped list must not change its inputs
+- how builds are scheduled (`schedule`, `rebuildAll`'s modes, rough builds: `ROUGH_TYPES`, `roughFor`, `buildRough` in a generator,
+  `exactModel`, `buildYield`) → `npm run test:rough` and the smoke test
 - `tools-after-squash.js` or `.github/workflows/after-squash.yml` → `npm run test:squash`
 - the icon maker (`ICONS`, `iconCanvas`, `cleanIcon`, `iconPanel`), AI help (`AI`, `aiAsk`, `aiFromWords`, `aiCleanPlan`) or "Describe your project" (`encApplyPlan`,
   `encPlaceOpening`, `encLogoSpot`) → `npm run test:iconai` (no key needed: the AI and `fetch` are stand-ins) and `npm run test:enclosure`;

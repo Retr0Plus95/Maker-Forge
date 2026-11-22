@@ -15578,7 +15578,7 @@ async function buildJigsaw(){
   // the picture in the loaded filaments; transparent or switched-off colours show the piece colour
   const colours = [];
   if (picture){
-    const cell = Math.max(0.15, Math.max(W, H)/900), gx = Math.max(8, Math.round(W/cell)), cx = W/gx, gy = Math.max(8, Math.round(H/cx));
+    const cell = Math.max(0.15, Math.max(W, H)/900)*(buildRough ? 2 : 1), gx = Math.max(8, Math.round(W/cell)), cx = W/gx, gy = Math.max(8, Math.round(H/cx));
     const img = resample(src, gx, gy, d.mirror);
     const cm = C.buildCellMap(img, state.slots.map(s=>C.hexToRgb(s.hex)), state.slots.map((_,i)=>d.skip.includes(i)), d.smooth);
     // left-out colours show the piece's own; then a strip of any colour thinner than the nozzle takes the colour
@@ -15609,7 +15609,7 @@ async function buildJigsaw(){
     for (const tp of r.top){ if (!tops.has(tp.slot)) tops.set(tp.slot, []); tops.get(tp.slot).push(C.extrudePolysAt(tp.polys, T - P, T)); }
     if (performance.now() - t0 > 60){                 // keep the page responsive on big puzzles
       const line = $("#statusLine"); if (line) line.textContent = `Cutting pieces… ${n+1} of ${cut.pieces.length}`;
-      await yieldUI(); t0 = performance.now();
+      await buildYield(); t0 = performance.now();
     }
   }
   const flip = sol => faceDown ? C.affineSolid(sol, [1,0,0, 0,-1,0, 0,0,-1], [0, T, 0]) : sol;
@@ -15697,7 +15697,7 @@ async function buildNameBatch(){
 async function buildNamePlate(){
   const np = state.base.nameplate, f = FONTS[clamp(np.font,0,FONTS.length-1)];
   // raster finer for small letters: the outline is traced sub-pixel, but a denser grid still helps
-  const PLATE_PX = clamp(Math.round(320/Math.max(6, np.letterHeight)), 9, 24);
+  const PLATE_PX0 = clamp(Math.round(320/Math.max(6, np.letterHeight)), 9, 24), PLATE_PX = buildRough ? Math.max(5, Math.round(PLATE_PX0/2)) : PLATE_PX0;   // half while a slider moves (Session 70)
   const text = (np.text||"").trim() || " ";
   const lines = text.split("\n");
   await document.fonts.load(`${f.w} 120px "${f.n}"`);
@@ -15810,7 +15810,7 @@ async function buildNamePlate(){
     const dx = (x0 + cw/2 - W/2)*mmPerPx, dy = (H/2 - (y0 + ch/2))*mmPerPx, mv = L => L.map(([x, y]) => [x + dx, y + dy]);
     return C.fieldToPolys(toField ? toField(sub, cw, ch) : sub, cw, ch, opt).map(q => ({ outer:mv(q.outer), holes:q.holes.map(mv) }));
   };
-  await yieldUI();
+  await buildYield();
 
   if (np.dot !== "none"){
     const { lab, comps } = C.labelMask(mask, W, H);
@@ -15946,14 +15946,14 @@ async function buildNamePlate(){
       plateField[i] = Math.min(Math.max(plateField[i], tabR - r), r - hr);
     }
   }
-  await yieldUI();
+  await buildYield();
 
   // closeEdges: anything that still reaches the canvas edge is closed along it, not cut across
   const fopt = { mmPerPx, iso:0.5, eps:0.02, minSeg:0.06, closeEdges:true };   // letters: true curves
   const sopt = { mmPerPx, iso:0, eps:0.03, minSeg:0.08, closeEdges:true };     // distance fields: smooth offsets
   const opt = { mmPerPx, smooth:2, eps:0.045 };
   const platePolys = C.fieldToPolys(plateField, W, H, sopt);
-  await yieldUI();
+  await buildYield();
   const namePolys = traceIn(coverage, maskBounds(coverage, W, H), 2, fopt);
   const parts = [], plateSlot = clamp(state.base.slot,0,state.slots.length-1);
   plateInfo = { pieces:platePolys.length, holes:platePolys.reduce((a,p)=>a+p.holes.length,0) };
@@ -16639,7 +16639,7 @@ async function buildSign(){
     const margin = S.backing === "none" ? wall + 4 : clamp(S.margin, 2, 60) + 4;
     // lit letters need at least 5 pixels a millimetre for the 0.4 mm steps of the ledge under their faces
     const areaMM = (wideMM + 2*margin + 10)*(tallMM + 2*margin + 10);
-    const PX = clamp(Math.max(Math.sqrt(9e6/areaMM), S.style === "channel" ? Math.min(5, Math.sqrt(24e6/areaMM)) : 0), 2.5, 10);
+    const PX = clamp(Math.max(Math.sqrt(9e6/areaMM), S.style === "channel" ? Math.min(5, Math.sqrt(24e6/areaMM)) : 0), 2.5, 10)*(buildRough ? 0.5 : 1);
     const fontPx = 200*Hl*PX/ink0, W = Math.ceil((wideMM + 2*margin + 10)*PX), H = Math.ceil((tallMM + 2*margin + 10)*PX);
     if (W*H > 40e6 || wideMM > 3000){ say("That sign is too big at this letter height: make the letters smaller or the text shorter."); notify("That sign is too big at this letter height: make the letters smaller or the text shorter."); return []; }
     const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
@@ -16650,6 +16650,7 @@ async function buildSign(){
     const data = cx.getImageData(0, 0, W, H).data, mask = new Uint8Array(W*H);
     for (let k=0;k<W*H;k++) mask[k] = data[k*4 + 3] >= 128 ? 1 : 0;
     const sdf = C.signedDistanceField(mask, W, H), mm = 1/PX;
+    await buildYield();                       // a newer change stops an exact build here (Session 70)
     const trace = fld => C.fieldToPolys(fld, W, H, { mmPerPx:mm, iso:0, eps:mm*0.25, minSeg:mm*0.4, minArea:mm*mm*8, closeEdges:true });
     const field = fn => { const o = new Float32Array(W*H); for (let k=0;k<W*H;k++) o[k] = fn(sdf[k]*mm); return o; };
     const letterPolys = trace(field(s => s - 0.5*mm));
@@ -19270,15 +19271,41 @@ const keptGeom = new WeakMap(), keptSoup = new WeakMap();   // an imported model
 // a rebuild a moment from now (sliders call this on every move); MakerForge.busy counts it as work under way.
 // A model that takes long to build waits a little longer for the slider to stop (Session 28), so dragging
 // doesn't start a slow build at every pause and lock the page up.
+/* A rough build first (Session 70, the engine's third step). The lettered objects take half a second or more to build,
+   so while a slider moves the model used to catch up about once a second. Now, once an object's exact build has
+   taken longer than ROUGH_AFTER on this visit, changes coming in quick succession (a slider dragged) build it at half
+   the detail at once (its raster: a name
+   plate's, sign's or card's letters, a jigsaw's picture), and the exact build follows when nothing has changed for
+   EXACT_AFTER. A rough model is only for looking at: the checks, the print check and the joining wait for the exact
+   one, and a download makes it first. An exact build that follows a rough one stops at its next pause if another
+   change comes in (buildYield). Builds asked for directly (tests, loading a project) are always exact. */
+const ROUGH_TYPES = new Set(["nameplate", "sign", "card", "jigsaw"]), ROUGH_AFTER = 250, EXACT_AFTER = 200;
+let buildRough = false, buildCancellable = false, modelRough = false, exactTimer = 0;
+const lastExactMs = {}, BUILD_STOPPED = new Error("build stopped for a newer change"), buildCount = { rough:0, exact:0, stopped:0 };
+const roughFor = t => ROUGH_TYPES.has(t) && (lastExactMs[t] || 0) > ROUGH_AFTER && !(t === "nameplate" && state.base.nameplate.batch);
+// a pause in a long build: the page draws, and an exact build that a newer change has made pointless stops here
+async function buildYield(){ await yieldUI(); if (buildCancellable && rebuildPending) throw BUILD_STOPPED; }
+let lastScheduleAt = -1e9;
 function schedule(){
-  clearTimeout(timer); rebuildPending = true;
-  timer = setTimeout(()=>{ rebuildPending = false; rebuildAll(false); }, clamp(Math.round(lastBuildMs*0.4), 130, 450));
+  clearTimeout(timer); clearTimeout(exactTimer); rebuildPending = true;
+  // rough only while changes come in quick succession (a slider dragged); a single edit is built exactly, as before
+  const now = performance.now(), rough = now - lastScheduleAt < 400 && roughFor(state.base.type);
+  lastScheduleAt = now;
+  timer = setTimeout(()=>{ rebuildPending = false; rebuildAll(false, rough ? "rough" : undefined); }, rough ? 60 : clamp(Math.round(lastBuildMs*0.4), 130, 450));
 }
-async function rebuildAll(resetItems){
+// the exact model, before anything that needs it (a download): built now if the one shown is rough or a build is waiting
+async function exactModel(){
+  if (!modelRough && !rebuildPending && !busy) return;
+  clearTimeout(timer); clearTimeout(exactTimer);
+  while (busy) await new Promise(r => setTimeout(r, 30));
+  if (modelRough || rebuildPending){ rebuildPending = false; await rebuildAll(false); }
+}
+async function rebuildAll(resetItems, mode){
   if (busy){ queued = true; return; }
-  busy = true;
+  busy = true; buildRough = mode === "rough"; buildCancellable = mode === "exact";
   const t0 = performance.now();
-  setBusy(true, "Building the model…");
+  let stopped = false;
+  setBusy(true, buildRough ? "Building a rough preview…" : "Building the model…");
   try {
     modelParts.forEach(p => { if (p.geom && p.geom !== baseGeom) p.geom.dispose(); });
     let parts = [];
@@ -19361,7 +19388,15 @@ async function rebuildAll(resetItems){
     state.items.forEach(d => { if (!d._cut) (d.solids||[]).forEach((s,i)=>{ if (s) modelParts.push({ name:state.slots[i].name, slot:i, solid:s, geom:solidToGeometry(s), decal:true }); }); });
     inlays.forEach(q => modelParts.push({ name:state.slots[q.slot].name, slot:q.slot, solid:q.solid, geom:solidToGeometry(q.solid), decal:true, inlay:true }));
     applyPaint(false);
-    refreshScene(); runChecks();
+    modelRough = buildRough;
+    refreshScene();
+    if (buildRough){
+      // the exact build when nothing has changed for a moment; until then the checks show the last exact model's
+      rebuildPending = true; clearTimeout(exactTimer);
+      exactTimer = setTimeout(() => { rebuildPending = false; rebuildAll(false, "exact"); }, EXACT_AFTER);
+      throw null;
+    }
+    runChecks();
     if (tab === "paint") updatePaintSummary();
     // the lines under sliders often describe the result ("Inside: …"): bring them up to date, and
     // show a box's new placement messages on its pages
@@ -19382,10 +19417,17 @@ async function rebuildAll(resetItems){
       if (artWarnSig() !== renderedArtWarn && !typing) renderTab(); else drawPreview();
     }
     if (artFailed.length) notify(`This artwork could not be laid on the model, so it is left out: ${artFailed.join(", ")}. Move it, or remove it on the Art tab.`);
-  } catch (err){ notify("Could not build the model: " + err.message + errWhere(err) + ". Undo (Ctrl+Z) takes back the last change."); console.error(err); }
-  busy = false; buildRev++; lastBuildMs = performance.now() - t0;
+  } catch (err){
+    if (err === BUILD_STOPPED) stopped = true;
+    else if (err !== null){ notify("Could not build the model: " + err.message + errWhere(err) + ". Undo (Ctrl+Z) takes back the last change."); console.error(err); }
+  }
+  const ms = performance.now() - t0, wasRough = buildRough;
+  busy = false; buildRough = false; buildCancellable = false;
+  if (!stopped) buildRev++;
+  buildCount[stopped ? "stopped" : wasRough ? "rough" : "exact"]++;
+  if (!wasRough && !stopped){ lastBuildMs = ms; lastExactMs[state.base.type] = ms; }
   setBusy(false);
-  if (!queued) logLine(`Built ${modelParts.length} part${modelParts.length===1?"":"s"} in ${Math.round(performance.now()-t0)} ms`);
+  if (!queued && !stopped) logLine(wasRough ? `Rough preview in ${Math.round(ms)} ms` : `Built ${modelParts.length} part${modelParts.length===1?"":"s"} in ${Math.round(ms)} ms`);
   if (queued){ queued = false; schedule(); }
 }
 function partOffset(p, i){
@@ -19679,6 +19721,7 @@ async function fixWhatItCan(){
   notify(done.length ? `Done: ${done.join("; ")}. Undo takes it back.` : "Nothing to fix that it knows how to: see the checks.");
 }
 async function optimizePrint(){
+  if (modelRough) await exactModel();             // turned for the exact model, not a rough preview (Session 70)
   if (!modelParts.length || optimizing || busy) return;
   const P = state.printer, before = { orient:state.model.orient, brim:state.model.brim }, ver0 = partsVer;
   const sc = modelScale(), S = [state.model.mirror ? -sc : sc,0,0, 0,sc,0, 0,0,sc];
@@ -21567,7 +21610,7 @@ async function cardOne(K, who, G, ol, info, warn){
 async function buildCard(){
   if (!state.base.card) state.base.card = DEFAULTS().base.card;
   const K = state.base.card, warn = [], info = { warn };
-  const { W, H, R } = cardSpec(K), PX = clamp(Math.floor(Math.sqrt(2.6e6/(W*H))), 8, 16), pad = 4;
+  const { W, H, R } = cardSpec(K), PX = Math.floor(clamp(Math.floor(Math.sqrt(2.6e6/(W*H))), 8, 16)*(buildRough ? 0.5 : 1)), pad = 4;
   const Wp = Math.ceil(W*PX) + 2*pad, Hp = Math.ceil(H*PX) + 2*pad;
   const cv = document.createElement("canvas"); cv.width = Wp; cv.height = Hp;
   const G = { W, H, PX, Wp, Hp, ctx: cv.getContext("2d", { willReadFrequently:true }), u: x => x*PX + Wp/2, v: y => y*PX + Hp/2 };
@@ -21581,7 +21624,7 @@ async function buildCard(){
     const parts = await cardOne(K, who[i], G, ol, inf, inf.warn);
     if (i){ inf.warn.forEach(w => { if (!warn.some(v => v.t === w.t)) warn.push(w); }); }
     for (let c=0;c<copies;c++) cards.push({ parts, name: who[i] ? who[i].name : "" });
-    await yieldUI();
+    await buildYield();
   }
   // laid out in rows on the bed
   const n = cards.length, gap = 4, bed = state.printer.bed || [256, 256];
@@ -26503,6 +26546,7 @@ async function exportZip(e){
   if (btn){ btn.disabled = true; btn.textContent = "Building files…"; }
   await new Promise(r=>setTimeout(r,30));
   try {
+    await exactModel();                             // a rough preview (Session 70) is built exactly first
     flushSharpen();                                 // paint edges still waiting to be cut are cut now
     if (btn && !joinFresh()) btn.textContent = "Joining pieces…";
     const J = await exportPartsJoined();
@@ -26802,6 +26846,9 @@ window.MakerForge = {
   // the painter, for the tests: its tool settings, a repaint now, the last result, a model import and the zip
   model: { get colour(){ return stlColour; }, pick: modelPickColours, bytesToCanvas },
   // cutting (Session 32): tests hand in the library through hooks.module
+  // a rough build first (Session 70), for the tests: a change as a slider makes it, the exact model on demand
+  build: { schedule: () => schedule(), exact: exactModel, get rough(){ return modelRough; }, lastExact: lastExactMs, roughAfter: ROUGH_AFTER, count: buildCount,
+    get stage(){ return !busy ? "idle" : buildRough ? "rough" : buildCancellable ? "exact" : "build"; } },
   // one solid per colour (Session 68), for the tests
   join: { list: joinList, run: runJoin, fresh: joinFresh, key: joinKey, can: joinCan, exportParts: exportPartsJoined, get info(){ return joinInfo; }, thread: joiner, zip: (parts, title, why) => buildZip(parts, title, why) },
   cut: { hooks: cutHooks, state: cutState, load: cutLoad, info: () => ({ blocked:cutBlocked, flat:flatInfo, drop:cutDrop, preps:cutPreps.length }) },

@@ -170,7 +170,8 @@ The solid stage of 0.57 is the start. In order:
 - **E2 A feature graph with caching.** (Begun in 0.59: the core's heavy raster steps, a relief's depth and a painted model's mesh
   are kept by what went into them, which halves a change on lettered objects; boxes were already fast.) Each wall, post, cradle and opening is a node keyed by its inputs; a drag
   rebuilds only what moved.
-- **E3 Builds on the helper thread**, cancellable, with a rough preview first and the exact solid after.
+- **E3 Builds on the helper thread**, cancellable, with a rough preview first and the exact solid after. (0.60: the rough
+  preview while a slider is dragged and stoppable exact builds, on the page; the builds themselves still run there.)
 - **E4 Shared frames.** Every generator places features through one "face frame" (flat, curved, sloped), so an
   opening, a label or a texture written once works on every shape.
 - **E5 Meshes made for printing.** Curves tessellated by chord error, not fixed segments; arcs exported as arcs where

@@ -70,6 +70,20 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
     check(overlap(part("Box").solid, back(part("Lid"))) < 0.05, "the oval's press-fit lid, put on, touches nothing");
   }
 
+  console.log("\nthe default box made round with the Round button (Session 72)");
+  {
+    MF.state.base.enclosure = Object.assign(JSON.parse(JSON.stringify(MF.defaults.enclosure)), { mount:"none" }); MF.rebuild(false); await settle();
+    [...document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "make").click(); await sleep(50);
+    const before = E().cut.map(c => c.v);
+    [...document.querySelectorAll("#panel .seg button")].find(b => b.textContent === "Round").click(); await settle();
+    const btn = E().cut.findIndex(c => c.kind === "btn"), notice = (document.querySelector("#notice") || {}).textContent || "";
+    check(E().lid === "twist" && I().shape.built && !warnT().some(t => /left out/.test(t)), "a twist lid, and nothing left out", warnT().join("; "));
+    const T = MF.boxRoom.shape.twist(MF.boxRoom.shape.geo(E()), +E().fit || 0);
+    check(btn >= 0 && E().cut[btn].v < before[btn] && E().cut[btn].v + 12.2/2 <= T.Hn - T.cone - 0.8 + 1e-6 && /Lowered/.test(notice),
+      "the push button, which reached the neck the lid twists onto, is lowered to clear it, and the page says so", `${before[btn]} → ${E().cut[btn].v} mm; ${notice}`);
+    check(E().cut.every((c, i) => i === btn || c.v === before[i]), "the openings that cleared the neck stay where they were");
+  }
+
   console.log("\nhexagonal, octagonal and round boxes with screwed lids");
   for (const [shape, over] of [["hex", { w:104, d:90 }], ["oct", { w:90, d:90 }], ["round", { w:90, d:70 }]]) {
     await fresh(Object.assign({ shape, h:40, lid:"screw", fasten:"insert", head:"sink", lipH:3, cut:[op("front", "btn", 0, 14, { dia:12.2, label:"GO" }), op("top", "round", 0, 0, { dia:16 })] }, over));

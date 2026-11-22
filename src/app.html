@@ -983,7 +983,7 @@ const DEFAULTS = () => ({
     box:{ w:90, d:70, h:4 }, cyl:{ dia:70, h:90 }, hex:{ dia:80, h:6 }, sphere:{ dia:70 },
     stl:{ name:"", scale:100, flat:0 },
     enclosure:{ w:100, d:64, h:36, wall:2, floor:2, radius:4, lid:"screw", lidThick:2.4, lipH:3, lipW:1.2, fit:storedFit("lid", 0.2),
-      fasten:"insert", screw:"M3", head:"sink", postStyle:"full", snap:false, hinge:false, gasket:0, teardrop:false, grow:true, lensSlot:0, clear:storedFit("clear", 0.2), magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
+      fasten:"insert", screw:"M3", head:"sink", postStyle:"full", snap:false, hinge:false, gasket:0, teardrop:"flat", grow:true, lensSlot:0, clear:storedFit("clear", 0.2), magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
       mount:"none", earN:2, tabN:2, earHole:4.5, earT:3, strapW:12, strapT:2.5, strapDir:"across",
       labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
       split:"bed", splitParts:2, splitScrew:"M3",
@@ -14729,7 +14729,18 @@ function enclosureFields(p){
   if (!E.test){
     segField(p, Object.entries(ENC_SHAPES), ()=>encShapeKind(E), v=>{ const was = encShapeKind(E); E.shape = v;
       // a first pick of round makes it round (as wide as it is deep), with a lid that twists on; a hexagon is made even
-      if (v === "round" && was !== "round"){ const s0 = Math.max(+E.w || 100, +E.d || 60); E.w = s0; E.d = s0; if (["screw","press"].includes(E.lid)) E.lid = "twist"; }
+      if (v === "round" && was !== "round"){ const s0 = Math.max(+E.w || 100, +E.d || 60); E.w = s0; E.d = s0; if (["screw","press"].includes(E.lid)) E.lid = "twist";
+        // the twist lid screws onto a neck at the top of the wall: an opening reaching it is lowered when there is room
+        // under it, rather than left out (Session 72: the default box's push button was left out on a first pick of Round)
+        if (E.lid === "twist"){
+          const G = encShapeGeo(E), tw = G && encTwist(G, clamp(+E.fit || 0, 0, 1)), moved = [];
+          if (tw && tw.ok) (E.cut || []).forEach((c, i) => {
+            if (!c || !ENC_WALLS.has(c.face) || c.notch === true) return;
+            const b = ringsBounds(placedRings(c, E)), over = b[3] - (tw.Hn - tw.cone - 0.8);
+            if (over > 0 && b[1] - over >= G.fl + 1.5){ c.v = Math.floor(((+c.v || 0) - over)*10)/10; moved.push(`opening ${i + 1} (${(encHas(CUTOUTS, c.kind) ? CUTOUTS[c.kind] : CUTOUTS.round).label.toLowerCase()})`); }
+          });
+          if (moved.length) notify(`Lowered to clear the neck the lid twists onto: ${moved.join(", ")}.`);
+        } }
       if (v === "hex" && was !== "hex") E.w = Math.round(2*(+E.d || 60)/Math.sqrt(3));
       if (v !== "round" && E.lid === "twist") E.lid = "press";
       renderTab(); baseChanged(); });

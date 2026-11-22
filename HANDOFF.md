@@ -3081,6 +3081,15 @@ shaped boxes can be pictured; `docs/images/box-shape-style.jpg` is made that way
   the count.
 - The suites, the print survey and the browser check: in the pull request.
 
+**Fixed on the way (Session 71):**
+- **Size labels:** the height and depth labels in the 3D view (`makeRulers`) met on screen for objects about as tall as
+  they are deep: the usual view shows the depth's line nearly upright, beside the height's. The height's label is over
+  the top of its line now. At the front left, tried first, it went off the screen behind the panel.
+- **Rough previews (0.60):** `runPrintability` and `runJoin` now also wait while `modelRough` or `rebuildPending`. A timer
+  from the last exact build could otherwise start them on a rough preview, wasting the helper thread.
+- **`exactModel()`:** it clears the timers again after waiting for a running build. A rough build finishing meanwhile
+  re-armed its exact build, so a download was followed by a second exact build.
+
 **Not done:** the rest of the shaped-box list through the same frame (mounting ears and loops, levels and dividers cut to
 the shape, inlaid and raised art, rain hoods, windows); arcs in files (no slicer format takes them from a mesh).
 

@@ -14,6 +14,8 @@ The engine, steps four and five: features that follow a shape, and curves that s
 
 **Fixed**
 - A wall texture or band chosen for a round, hexagonal or octagonal box was left out.
+- On an object about as tall as it is deep (the fuse holder), the height and depth labels in the 3D view were drawn on top of each other: the height's is now over the top of its line.
+- While a slider was dragged, the print check and the joining could start on the rough preview; they now wait for the exact model.
 
 ## 0.60.0
 

@@ -1,7 +1,8 @@
 // Renders chosen parts alone in a plain scene, for the manual's pictures (Sessions 52 to 59).
 //   node tools-partshot.js out.jpg setup.js [partRegex] [cameraDirJSON] [width height]
 // setup.js is the body of an async function run in the page (MF is window.MakerForge): set up the object, return anything.
-// Env: MF_FILE (the built page, default ./index.html), ZOOM (camera distance, default 1.6), ASSEMBLE=1 (turn the lid parts
+// Env: MF_FILE (the built page, default ./index.html), MF_URL (the page served over http instead, so the cutting tool loads from
+// models/ next to it, for shaped boxes: python3 -m http.server), ZOOM (camera distance, default 1.6), ASSEMBLE=1 (turn the lid parts
 // over onto the box, as used), SLOTCOL=1 (the filaments' own colours). A .jpg out is saved at quality 84.
 const { chromium } = require("playwright"); const fs = require("fs"), path = require("path");
 const NM = path.join(__dirname, "node_modules");
@@ -14,7 +15,7 @@ const [out, setup, re = "^Box$", dir = "[0.35,1.1,0.8]", W = "1200", H = "900"] 
   await p.route(/cdn\.jsdelivr\.net|huggingface\.co/, r => { const l = LIBS.find(([x]) => x.test(r.request().url())); return l ? r.fulfill({ status: 200, contentType: "application/javascript", headers: { "access-control-allow-origin": "*" }, body: fs.readFileSync(path.join(NM, l[1])) }) : r.abort(); });
   p.on("pageerror", e => console.log("PAGE ERROR", e.message));
   await p.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
-  await p.goto("file://" + (process.env.MF_FILE || path.join(__dirname, "index.html")));
+  await p.goto(process.env.MF_URL || "file://" + (process.env.MF_FILE || path.join(__dirname, "index.html")));
   await p.waitForFunction(() => window.MakerForge && window.MakerForge.rev > 0 && !window.MakerForge.busy, null, { timeout: 60000 });
   const settle = () => p.evaluate(async () => { const MF = window.MakerForge, r0 = MF.rev, sleep = ms => new Promise(r => setTimeout(r, ms));
     for (let i = 0; i < 40 && MF.rev === r0 && !MF.busy; i++) await sleep(30);

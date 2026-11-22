@@ -35,7 +35,7 @@ shared face frames make most of their list one feature instead of one per shape.
 ### 0.59 Shaped boxes, complete
 What 0.57 left on rectangles only, built in the shapes' own frames:
 - Levels, dividers and cable channels in round, hexagonal and octagonal boxes (plates cut to the shape).
-- Mounting ears, strap loops, wall textures and bands round a curved wall; rain hoods and clear windows.
+- Mounting ears and strap loops round a curved wall; rain hoods and clear windows. (Wall textures and bands: done in 0.61.)
 - Inlaid and raised art, and the inlaid lid logo, on every shape; boards under a sloped lid.
 - Magnet and hinged lids on the polygon shapes; a bayonet (quarter-turn) lid for round boxes.
 - Drilling templates for every shape (a round wall unrolled); the behind-the-wall check round a curve.
@@ -172,9 +172,10 @@ The solid stage of 0.57 is the start. In order:
   rebuilds only what moved.
 - **E3 Builds on the helper thread**, cancellable, with a rough preview first and the exact solid after. (0.60: the rough
   preview while a slider is dragged and stoppable exact builds, on the page; the builds themselves still run there.)
-- **E4 Shared frames.** Every generator places features through one "face frame" (flat, curved, sloped), so an
+- **E4 Shared frames.** (Begun in 0.61: a shaped box's walls unrolled along its outline, `G.frame`, carry the band and the
+  texture as they carry labels; the next uses are the rest of the shaped-box list.) Every generator places features through one "face frame" (flat, curved, sloped), so an
   opening, a label or a texture written once works on every shape.
-- **E5 Meshes made for printing.** Curves tessellated by chord error, not fixed segments; arcs exported as arcs where
+- **E5 Meshes made for printing.** (Done in 0.61 for circles: `C.segsFor`, 0.025 mm, never fewer sides than before.) Curves tessellated by chord error, not fixed segments; arcs exported as arcs where
   the slicer takes them.
 - **E6 Signed-distance modelling** for real fillets, smooth blends, offsets and wall-thickness checks, meshed only at the end.
 - **E7 Exact fits by simulation.** Lids, threads and snaps checked by moving the parts through their travel (the

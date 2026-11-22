@@ -79,6 +79,20 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
     check(S.hits === h0 + 1, "the newest is still there, the oldest is gone");
     S.max = keepMax; S.minMs = keepMs; S.msPerMB = keepRate; C.memo.clear();
   }
+  console.log("\ncurves divided by how far they may stray (Session 71): C.segsFor");
+  {
+    // the most a circle of radius r with n straight sides strays from it, between two corners
+    const off = (r, n) => r*(1 - Math.cos(Math.PI/n));
+    let worst = 0, coarser = 0;
+    for (let r = 0.3; r <= 250; r *= 1.07) for (const min of [16, 24, 32, 40, 48, 64, 96]) {
+      const n = C.segsFor(r, min); worst = Math.max(worst, n < 720 ? off(r, n) : 0); if (n < min) coarser++;
+    }
+    check(worst <= 0.025 + 1e-9 && coarser === 0, "from 0.3 to 250 mm, every circle is within 0.025 mm of the true curve, and never has fewer sides than before", `worst ${worst.toFixed(4)} mm`);
+    check(C.segsFor(1.5, 32) === 32 && C.segsFor(2, 24) === 24, "a small hole keeps its count (a 3 mm hole: 32 sides; a 4 mm one: 24)");
+    const fan = C.segsFor(60, 48);
+    check(fan >= 108 && fan <= 112 && off(60, 48) > 0.12, "a 120 mm fan opening: about 110 sides where it had 48 (0.13 mm off the circle)", `${fan} sides`);
+    check(C.segsFor(5000, 16) === 720 && C.segsFor(0, 32) === 32 && C.segsFor(NaN, 16) === 16, "at most 720 sides; a zero or bad radius keeps the count asked for");
+  }
   if (process.env.CORE) { console.log(fails ? `\n${fails} FAILED` : "\nall passed"); process.exit(fails ? 1 : 0); }
 
   async function settle() {

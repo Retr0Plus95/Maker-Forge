@@ -151,7 +151,40 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
   {
     await fresh({ shape:"round", w:90, d:90, levels:[{ h:20 }], texture:"grooves", lid:"magnet" });
     const w = I().warn.find(x => x.t === "Not on a round box yet");
-    check(w && /levels/.test(w.s) && /texture/.test(w.s) && /magnet lid/.test(w.s) && I().shape.lid === "press" && I().shape.built, "levels, a texture and a magnet lid are listed as left out; it builds with a press-fit lid", w && w.s);
+    check(w && /levels/.test(w.s) && !/texture/.test(w.s) && /magnet lid/.test(w.s) && I().shape.lid === "press" && I().shape.built, "levels and a magnet lid are listed as left out (the texture is not: shapes have it since 0.61); it builds with a press-fit lid", w && w.s);
+  }
+
+  console.log("\nthe wall's style round a shape (Session 71): a band and grooves or hexagons, unrolled round the outline");
+  {
+    // the distance of a point (x, z in the plan) from the middle along the outline's own direction: for a round box, its radius
+    const R = p => Math.hypot(p[0], p[2]);
+    const radii = sol => { let lo = Infinity, hi = 0; for (let i = 0; i < sol.pos.length; i += 3){ const r = R([sol.pos[i], 0, sol.pos[i + 2]]); lo = Math.min(lo, r); hi = Math.max(hi, r); } return [lo, hi]; };
+    await fresh({ shape:"round", w:80, d:80, h:40 });
+    const plain = C.signedVolume(part("Box").solid);
+    await fresh({ shape:"round", w:80, d:80, h:40, band:true, bandSlot:2, bandZ:14, bandH:8 });
+    const B = part("Box"), Bd = MF.parts.find(p => /^Band \(/.test(p.name)), [lo, hi] = Bd ? radii(Bd.solid) : [0, 0], yb = Bd ? C.solidBounds(Bd.solid) : null;
+    check(Bd && okPart(B) && C.checkMesh(Bd.solid).open === 0 && Bd.slot === 2, "a round box's band: its own part, closed, in the band's filament", Bd && Bd.name);
+    check(Bd && hi < 40.01 && lo > 40 - 0.6 - 0.01 && Math.abs(yb.mn[1] - 10) < 0.01 && Math.abs(yb.mx[1] - 18) < 0.01, "it is the wall's outer 0.6 mm, from 10 to 18 mm up", Bd && `${lo.toFixed(2)} to ${hi.toFixed(2)} mm out, ${yb.mn[1].toFixed(2)} to ${yb.mx[1].toFixed(2)} mm up`);
+    const sum = C.signedVolume(B.solid) + C.signedVolume(Bd.solid);
+    check(Math.abs(sum - plain) < 0.5, "the box and its band together are the plain box: inlaid flush, nothing lost or added", `${sum.toFixed(1)} against ${plain.toFixed(1)} mm³`);
+    check(overlap(B.solid, Bd.solid) < 0.05, "the band and the box do not overlap");
+    await fresh({ shape:"round", w:80, d:80, h:40, texture:"grooves", textureDepth:0.6, cut:[op("front", "round", 0, 15, { dia:10 })] });
+    const G1 = part("Box"), cutV = plain - C.signedVolume(G1.solid);
+    // a groove every 4 mm round 251 mm: 63 of them, 1.2 mm wide, 0.6 deep, from 2.5 mm up to 2.5 mm under the top (34.4 mm
+    // with the pointed top), broken round the opening; plus the 10 mm opening itself (157 mm³)
+    const one = 1.2*0.6*34.4;
+    check(okPart(G1) && cutV > 157 + 58*one && cutV < 157 + 63*one + 1, "grooves all the way round a round box, broken round the opening", `${cutV.toFixed(0)} mm³ cut, ${((cutV - 157)/one).toFixed(1)} grooves' worth`);
+    check(takes(G1.solid, probe(-0.3, 20, 39.2, 0.3, 22, 39.3)) > 0 || takes(G1.solid, probe(0.7, 20, 39.2, 1.3, 22, 39.3)) > 0, "the wall behind a groove is whole (0.6 mm deep in a 2 mm wall)");
+    await fresh({ shape:"hex", w:90, d:60, h:36, texture:"hex", band:true, bandZ:9, bandH:6 });
+    const Hx = part("Box"), HB = MF.parts.find(p => /^Band \(/.test(p.name));
+    check(okPart(Hx) && HB && C.checkMesh(HB.solid).open === 0 && !I().warn.some(x => /^Not on a/.test(x.t)), "a hexagonal box with hexagons and a band: built, closed, nothing left out", I().warn.map(x => x.t).join("; "));
+    await fresh({ shape:"oct", w:80, d:70, h:35, texture:"grooves", band:true });
+    check(okPart(part("Box")) && MF.parts.some(p => /^Band \(/.test(p.name)), "an octagonal box with grooves and a band: built and closed");
+    const sup = async () => { MF.print = null; await MF.printNow(); for (let i = 0; i < 300 && !MF.print; i++) await sleep(30); return MF.print ? Math.round(MF.print.overhang.area*10)/10 : -1; };
+    for (const over of [{ shape:"round", w:80, d:80, h:40, lid:"twist", band:true, texture:"grooves" }, { shape:"hex", w:90, d:60, h:36, texture:"hex" }]){
+      await fresh(over); const a = await sup();
+      check(I().shape.built && a >= 0 && a < 3, `${over.shape} with ${over.texture}${over.band ? " and a band" : ""}: no support needed (pointed tops, corner-up hexagons)`, `${a} mm²`);
+    }
   }
 
   console.log("\nthe box's plan, the build cached, saving and a hostile project");

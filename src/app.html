@@ -582,6 +582,8 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
 function makerForge(){
 "use strict";
 const C = window.PRCore, $ = s => document.querySelector(s);
+// a circle with at least n sides, more where it is big enough for n to show (Session 71: C.segsFor)
+const circ = (r, n, cw) => C.ringCircle(r, C.segsFor(r, n), cw);
 const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
 
@@ -1727,7 +1729,7 @@ function buildPhotoFrame(f, D, slot){
     // the narrow slot above it, the head held behind the lip. The lip's underside steps in at 45°, so it needs no support
     const bx = pw/2 - Math.max(9, Math.min(D.border, 14)), by = ph/2 - 16;
     if (bx > 12) for (const sx of [-1, 1]){
-      const x = sx*bx, head = (r, y) => C.ringCircle(r, 32).map(([u, v]) => [u + x, v + y]);
+      const x = sx*bx, head = (r, y) => circ(r, 32).map(([u, v]) => [u + x, v + y]);
       const slotOutline = (w2, y0, y1) => encOrient([[x - w2, y0], [x + w2, y0], [x + w2, y1], [x - w2, y1]], false);
       const outer = () => encOrient([[x - 7, by - 9], [x + 7, by - 9], [x + 7, by + 15], [x - 7, by + 15]], true);
       bits.push(block(x - 7, by - 9, x + 7, by + 15, T - 0.01, T + 1));
@@ -1787,7 +1789,7 @@ function slotStand(width, thick){
 }
 function boardOutline(bd){
   switch (bd.shape){
-    case "circle": return C.ringCircle(bd.w/2,160);
+    case "circle": return circ(bd.w/2,160);
     case "star": return C.ringStar(5, bd.w/2, bd.w/2*0.46);
     case "hex": return C.ringPoly(6, bd.w/2, Math.PI/6);
     case "heart": return C.ringHeart(bd.w/2,200);
@@ -1799,7 +1801,7 @@ function wrap(solid, name, slot, layout){ return solid ? [{ name, slot:clamp(slo
 function buildSimpleObject(){
   const b = state.base, slot = clamp(b.slot,0,state.slots.length-1);
   if (b.type === "board"){
-    const bd = b.board, holes = bd.hole ? [C.ringCircle(bd.holeDia/2,48).map(p=>[p[0]+bd.holeX,p[1]+bd.holeY])] : [];
+    const bd = b.board, holes = bd.hole ? [circ(bd.holeDia/2,48).map(p=>[p[0]+bd.holeX,p[1]+bd.holeY])] : [];
     const out = wrap(C.extrudePolys([{ outer:boardOutline(bd), holes }], bd.thick), "Object", slot);
     if (bd.stand && out.length) out.push(...standFor(out[0].solid, bd.thick, slot));
     return out;
@@ -1813,8 +1815,8 @@ function buildSimpleObject(){
   }
   if (b.type === "shell"){
     const s = b.shell, round = s.shape === "round";
-    const outer = round ? C.ringCircle(s.dia/2,180) : C.ringRect(s.w,s.d,6,10);
-    const inner = round ? C.ringCircle(Math.max(1,s.dia/2-s.wall),180)
+    const outer = round ? circ(s.dia/2,180) : C.ringRect(s.w,s.d,6,10);
+    const inner = round ? circ(Math.max(1,s.dia/2-s.wall),180)
       : C.ringRect(Math.max(2,s.w-2*s.wall), Math.max(2,s.d-2*s.wall), Math.max(0,6-s.wall), 10);
     return wrap(C.mergeSolids([ C.extrudePolys([{ outer, holes:[inner] }], s.h),
       s.floor>0 ? C.extrudePolys([{ outer, holes:[] }], s.floor) : null ]), "Shell", slot);
@@ -1911,7 +1913,7 @@ function buildCanvasPanel(){
   }
   for (let j=0;j<gy;j++) for (let i=0;i<gx;i++) if (open(i,j)){ const [x,y] = cellXY(i,j); rects.push([x-os, y-os, x+os, y+os]); }
   const holes = C.rectUnion(rects);
-  hangs.forEach(([hx, hy]) => holes.push(C.ringCircle(cv.hangDia/2, 32, true).map(p=>[p[0]+hx, p[1]+hy])));
+  hangs.forEach(([hx, hy]) => holes.push(circ(cv.hangDia/2, 32, true).map(p=>[p[0]+hx, p[1]+hy])));
   const parts = wrap(C.extrudePolys(C.groupLoops([outer, ...holes]), cv.thick), "Panel", state.base.slot);
   if (idx){
     const bySlot = new Map();
@@ -2567,7 +2569,7 @@ function openingRings(c, wall, E){
       if (c.style === "honeycomb") out.push(...encHoneycomb(w, h, 4, 1.4, null, wall));
       else if (c.style === "holes"){
         const d = 3, p = d + bar, nx = Math.max(1, Math.floor((w - d)/p) + 1), ny = Math.max(1, Math.floor((h - d)/p) + 1);
-        for (let j=0;j<ny;j++) for (let i=0;i<nx;i++) out.push(C.ringCircle(d/2, 20).map(q => [q[0] + (i - (nx-1)/2)*p, q[1] + (j - (ny-1)/2)*p]));
+        for (let j=0;j<ny;j++) for (let i=0;i<nx;i++) out.push(circ(d/2, 20).map(q => [q[0] + (i - (nx-1)/2)*p, q[1] + (j - (ny-1)/2)*p]));
       } else {                                       // upright slots: each roof only bridges the slot's width
         const sw = 2, n = Math.max(1, Math.floor((w + bar)/(sw + bar))), x0 = -((n - 1)*(sw + bar))/2;
         // pointed on top in a wall (Session 47: the round tops needed support), round on a lid or floor
@@ -2594,9 +2596,9 @@ function openingRings(c, wall, E){
       const pitch = Math.max(d + 1.2, Math.sqrt(Math.PI*R*R/(1500*Math.sqrt(3)/2))), dy = pitch*Math.sqrt(3)/2;
       for (let j=-Math.ceil(R/dy); j<=Math.ceil(R/dy); j++) for (let i=-Math.ceil(R/pitch)-1; i<=Math.ceil(R/pitch)+1; i++){
         const x = i*pitch + (j & 1 ? pitch/2 : 0), y = j*dy;
-        if (Math.hypot(x, y) + d/2 <= R + 1e-6) out.push(C.ringCircle(d/2, 16).map(p => [p[0] + x, p[1] + y]));
+        if (Math.hypot(x, y) + d/2 <= R + 1e-6) out.push(circ(d/2, 16).map(p => [p[0] + x, p[1] + y]));
       }
-      if (!out.length) out.push(C.ringCircle(d/2, 16));
+      if (!out.length) out.push(circ(d/2, 16));
       break;
     }
     case "keyhole": {                                // a head hole with a slot running up from it
@@ -4659,7 +4661,7 @@ function encMount(E, B, warn){
       const x0 = sx*(W/2 - 0.5), xc = sx*(W/2 + c), py = -zc, Lp = [[x0, py - w/2], [xc, py - w/2]];
       for (let i=1;i<24;i++){ const a = -Math.PI/2 + i/24*Math.PI; Lp.push([xc + sx*Math.cos(a)*w/2, py + Math.sin(a)*w/2]); }
       Lp.push([xc, py + w/2], [x0, py + w/2]);
-      out.solids.push(C.extrudePolysAt([{ outer: encOrient(Lp, true), holes:[encOrient(C.ringCircle(hole/2, 32).map(([x, y]) => [x + xc, y + py]), false)] }], 0, T));
+      out.solids.push(C.extrudePolysAt([{ outer: encOrient(Lp, true), holes:[encOrient(circ(hole/2, 32).map(([x, y]) => [x + xc, y + py]), false)] }], 0, T));
       if (fin > 1) for (const e of [-1,1]){                   // the fins stand at the ear's edges, clear of the screw head
         // (Session 64: the 45° edge ends 0.6 mm out from the wall in a little step, not in a knife-edge the slicer drops)
         const prof = [[x0, T - 0.5], [sx*(W/2 + fin), T - 0.5], [sx*(W/2 + fin), T], [sx*(W/2 + 0.6), T + fin - 0.6], [x0, T + fin - 0.6]];
@@ -4680,10 +4682,10 @@ function encMount(E, B, warn){
     const fl = B.fl, nut = ENC_TRIPOD, hf = nut.af/2 + encFit().gap/2, ro = hf*2/Math.sqrt(3) + 2.4, zt = nut.t + 0.3, hexAt = h2 => C.ringCircle(h2*2/Math.sqrt(3), 6).map(([x, y]) => [x, y]);
     if (zt + 4 > H - 4) { warn.push({ t:"Too shallow for a tripod nut", s:"The box needs to be at least 14 mm tall for the nut's boss." }); return out; }
     out.floorHoles.push(hexAt(hf));
-    out.solids.push(C.extrudePolysAt([{ outer:encOrient(C.ringCircle(ro, 40), true), holes:[encOrient(hexAt(hf), false)] }], fl - 0.01, zt));
+    out.solids.push(C.extrudePolysAt([{ outer:encOrient(circ(ro, 40), true), holes:[encOrient(hexAt(hf), false)] }], fl - 0.01, zt));
     let z = zt, h2 = hf;
-    while (h2 - 0.2 > nut.hole/2 + 0.05){ h2 -= 0.2; out.solids.push(C.extrudePolysAt([{ outer:encOrient(C.ringCircle(ro, 40), true), holes:[encOrient(hexAt(h2), false)] }], z, z + 0.2)); z += 0.2; }
-    out.solids.push(C.extrudePolysAt([{ outer:encOrient(C.ringCircle(ro, 40), true), holes:[encOrient(C.ringCircle(nut.hole/2, 32), false)] }], z, z + 2));
+    while (h2 - 0.2 > nut.hole/2 + 0.05){ h2 -= 0.2; out.solids.push(C.extrudePolysAt([{ outer:encOrient(circ(ro, 40), true), holes:[encOrient(hexAt(h2), false)] }], z, z + 0.2)); z += 0.2; }
+    out.solids.push(C.extrudePolysAt([{ outer:encOrient(circ(ro, 40), true), holes:[encOrient(circ(nut.hole/2, 32), false)] }], z, z + 2));
     out.taken.push(["bottom", "the tripod nut", [-ro, -ro, ro, ro]]); out.tripod = { r:ro, top:z + 2 };
     out.lines.push(`A 1/4-inch tripod nut (${nut.af} mm across its flats) presses into the floor from below, in a boss ${(z + 2 - fl).toFixed(1)} mm tall inside: the box screws onto a tripod, a camera clamp or a GoPro adapter.`);
   } else if (E.mount === "magnets"){
@@ -4693,7 +4695,7 @@ function encMount(E, B, warn){
     const need = DIN.rail + 2*(DIN.play + DIN.wall);
     if (D < need + 2 || W < DIN.len + 4){ warn.push({ t:"Too small for a DIN rail clip", s:`The clip is ${DIN.len} × ${need.toFixed(0)} mm under the floor: make the box at least ${DIN.len + 4} × ${Math.ceil(need + 2)} mm.` }); return out; }
     for (const sx of [-1,1]){
-      out.floorHoles.push(C.ringCircle(SCREWS.M3.clear/2, 28).map(([x, y]) => [x + sx*DIN.screws/2, y]));
+      out.floorHoles.push(circ(SCREWS.M3.clear/2, 28).map(([x, y]) => [x + sx*DIN.screws/2, y]));
       out.taken.push(["bottom", "a DIN clip screw", [sx*DIN.screws/2 - 3.5, -3.5, sx*DIN.screws/2 + 3.5, 3.5]]);
     }
     out.din = true;
@@ -4756,7 +4758,7 @@ function encMount(E, B, warn){
         for (let i=0;i<=24;i++){ const a = -Math.PI/4 + i/24*1.5*Math.PI; drop.push([x + r*Math.cos(a), hc + r*Math.sin(a)]); }
         drop.push([x, hc - r*Math.SQRT2]);
         out.solids.push(outways([{ outer: drop }], -0.5, L));
-        out.solids.push(C.extrudePolysAt([{ outer: encOrient(C.ringCircle(r, 24).map(([u, v]) => [u + x, v + o + L - r]), true), holes:[] }], hc, hc + r + 8));
+        out.solids.push(C.extrudePolysAt([{ outer: encOrient(circ(r, 24).map(([u, v]) => [u + x, v + o + L - r]), true), holes:[] }], hc, hc + r + 8));
         out.taken.push(["back", "a peg", [-x - r, hc - r*1.5, -x + r, hc + r]]);
       }
     });
@@ -4772,7 +4774,7 @@ function encMount(E, B, warn){
 function encDinClip(){
   const g = DIN.play, e = DIN.rail/2 + g, o = e + DIN.wall, pt = DIN.plate, zl = pt + DIN.flange + DIN.lift, len = DIN.len, parts = [];
   const rect = (x0, y0, x1, y1) => encOrient([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], true);
-  parts.push(C.extrudePolysAt([{ outer: rect(-len/2, -o, len/2, o), holes: [-1, 1].map(sx => encOrient(C.ringCircle(encScrew("M3").pilot/2, 24).map(([x, y]) => [x + sx*DIN.screws/2, y]), false)) }], 0, pt));
+  parts.push(C.extrudePolysAt([{ outer: rect(-len/2, -o, len/2, o), holes: [-1, 1].map(sx => encOrient(circ(encScrew("M3").pilot/2, 24).map(([x, y]) => [x + sx*DIN.screws/2, y]), false)) }], 0, pt));
   for (const sy of [-1, 1]) parts.push(C.extrudePolysAt([{ outer: rect(-len/2, Math.min(sy*e, sy*o), len/2, Math.max(sy*e, sy*o)), holes:[] }], pt - 0.5, zl));
   const n = Math.round(DIN.lip/0.2);
   for (let k=0;k<n;k++){
@@ -4894,7 +4896,7 @@ function encJoinSolids(P, g, s, side){
     for (const sp of [-1, 1]){
       const c0 = sp > 0 ? A - b : -A - ov, c1 = sp > 0 ? A + ov : -A + b, cc = sp*(A - b/2);
       const rect = axis === 0 ? encRect(a0, -c1, a1, -c0) : encRect(c0, -a1, c1, -a0), hx = axis === 0 ? ac : cc, hz = axis === 0 ? cc : ac;   // plan: (x, -z)
-      const hole = r => [encOrient(C.ringCircle(r, 28).map(([x, y]) => [x + hx, y - hz]), false)];
+      const hole = r => [encOrient(circ(r, 28).map(([x, y]) => [x + hx, y - hz]), false)];
       if (g.magnet){
         out.push(C.extrudePolysAt([{ outer:encOrient(rect, true), holes:[] }], yTop, g.H - g.pocketH));
         out.push(C.extrudePolysAt([{ outer:encOrient(rect.slice(), true), holes:hole(g.pocketD/2) }], g.H - g.pocketH, g.H));
@@ -5252,7 +5254,7 @@ function encMapSolid(polys, map, d0, d1, maxLen){
 const encPlanTo3 = (q, y) => [q[0], y, -q[1]];
 function encPrism(L, y0, y1){ return C.extrudePolysAt([{ outer:encOrient(L, true), holes:[] }], y0, y1); }
 function encRingPrism(outer, inner, y0, y1){ return C.extrudePolysAt([{ outer:encOrient(outer, true), holes:[encOrient(inner, false)] }], y0, y1); }
-function encCyl(x, y, r, y0, y1, n){ return encPrism(C.ringCircle(r, n || 32).map(q => [q[0] + x, q[1] + y]), y0, y1); }
+function encCyl(x, y, r, y0, y1, n){ return encPrism(circ(r, n || 32).map(q => [q[0] + x, q[1] + y]), y0, y1); }
 // a post for the lid's screws, n mm in from the outline along the way to the middle: as far in as keeps it `keep` mm inside
 function encShapePost(O, dir, keep){
   const far = Math.max(...O.map(q => Math.abs(q[0]) + Math.abs(q[1]))) + 1;
@@ -5349,7 +5351,7 @@ function encShapeCheck(G, X){
     const has = (v, what) => { if (v) S.dropped.push(what); };
     has(Array.isArray(E0.levels) && E0.levels.length, "levels"); has(Array.isArray(E0.walls) && E0.walls.length, "dividers"); has(Array.isArray(E0.ducts) && E0.ducts.length, "cable channels");
     has(["ears","tabs","straps","skadis","pegboard"].includes(E0.mount), "the mounting " + (E0.mount === "ears" || E0.mount === "tabs" ? "ears" : E0.mount === "straps" ? "strap loops" : "hooks"));
-    has(E0.texture === "grooves" || E0.texture === "hex", "the wall texture"); has(E0.band === true, "the band"); has(E0.pull === true, "the finger pull");
+    has(E0.pull === true, "the finger pull");
     has(ENC_MOUNT_FACES.includes(E0.boardFace) || (Array.isArray(E0.more) && E0.more.some(m => m && ENC_MOUNT_FACES.includes(m.face))), "boards on a wall or under the lid");
     has((E0.cut || []).some(c => c && ENC_WALLS.has(c.face) && c.hood === true), "rain hoods"); has((E0.cut || []).some(c => c && c.window === true), "clear windows");
     has((Array.isArray(E0.art) ? E0.art : []).some(a => a && a.finish !== "engrave"), "inlaid and raised art (engraved instead)");
@@ -5443,7 +5445,7 @@ function encShapeJob(G, S, X){
   }
   // posts for the lid's screws, and what keeps the lip and the halves' rebate clear of them
   // (on a slope each post is a stadium from where its screw meets the lid back to where the hole's foot is)
-  const stadium = (x, y, r, y0, y1) => S.tops ? encPrism(C.convexHull([...C.ringCircle(r, 40).map(q => [q[0] + x, q[1] + y]), ...C.ringCircle(r, 40).map(q => [q[0] + x, q[1] + y + S.drift])]), y0, y1) : encCyl(x, y, r, y0, y1, 40);
+  const stadium = (x, y, r, y0, y1) => S.tops ? encPrism(C.convexHull([...circ(r, 40).map(q => [q[0] + x, q[1] + y]), ...circ(r, 40).map(q => [q[0] + x, q[1] + y + S.drift])]), y0, y1) : encCyl(x, y, r, y0, y1, 40);
   const postAt = S.tops || S.posts;
   const posts = postAt.map(([x, y]) => sol(stadium(x, y, S.bossR, fl - 0.01, k === "slope" ? H + 2 : k === "clam" ? H + 0.01 : H), "a post"));
   const keepOut = (y0, y1) => postAt.map(([x, y]) => sol(stadium(x, y, S.bossR + fit + 0.3, y0, y1), "room round a post"));
@@ -5493,6 +5495,56 @@ function encShapeJob(G, S, X){
       X.need.push([S.posts.length, `${E0.screw} screws, ${ln} mm long, for the lid`]); if (E0.fasten === "insert") X.need.push([S.posts.length, `${E0.screw} heat inserts for the lid`]); }
     const body = def("body", { union:[{ subtract:[shell, sol(cavity, "the inside")] }, { intersect:[sol(box.solid, "the box"), sol(cavPlus, "the inside")] }, ...posts] });
     out.box = { subtract:[body, ...wallCuts, ...wallLabels, ...holes, ...under] };
+    // The wall's style round the shape (Session 71, the shared face frame: the outline unrolled, s along it, v up, mapped
+    // onto the wall through G.frame as labels are): a band of another filament inlaid round the box, and grooves or
+    // hexagons cut into the outside, kept 2 mm clear of the openings, their labels and art, off a hexagon's or octagon's
+    // corners, and below a twist lid's neck. Evenly spaced all the way round, so there is no seam.
+    const texOn = ["grooves","hex"].includes(E0.texture) ? E0.texture : "", bandOn = E0.band === true;
+    if ((texOn || bandOn) && t >= 1.2){
+      const P = G.P, top = (tw ? tw.Hn - 1 : H) - 2.5, texD = clamp(+E0.textureDepth || 0.6, 0.3, Math.max(0.3, t - 0.8)), bandD = clamp(0.6, 0.3, Math.max(0.3, t - 0.8));
+      const avoid = [], box2 = (s0, b) => avoid.push([s0 + b[0] - 2, b[1] - 2, s0 + b[2] + 2, b[3] + 2]);
+      wallPO.forEach(po => { const s0 = G.faces[po.face].s0; box2(s0, po.bb); if (po.labBB) box2(s0, po.labBB); });
+      for (const f of ENC_WALLS) (X.artOn[f] || []).forEach(a => { const L = a.union.map(q => q.outer); if (L.length) box2(G.faces[f].s0, ringsBounds(L)); });
+      const n = O.length, cum = [0];
+      for (let i = 0; i < n; i++){ const a = O[i], b = O[(i + 1) % n]; cum.push(cum[i] + Math.hypot(b[0] - a[0], b[1] - a[1])); }
+      if (!G.curved) for (let i = 0; i < n; i++){
+        const A = O[(i + n - 1) % n], V = O[i], B = O[(i + 1) % n];
+        let turn = Math.abs(Math.atan2(B[1] - V[1], B[0] - V[0]) - Math.atan2(V[1] - A[1], V[0] - A[0])); if (turn > Math.PI) turn = 2*Math.PI - turn;
+        if (turn > 0.035) avoid.push([cum[i] - 1.5, -1e3, cum[i] + 1.5, 1e3]);
+      }
+      const unrolled = (polys, depth) => encMapSolid(polys.map(L => ({ outer:encOrient(L, true), holes:[] })),
+        d => q => { const fr = G.frame(q[0]); return [fr.p[0] + d*fr.n[0], q[1], -(fr.p[1] + d*fr.n[1])]; }, -depth, 1, G.curved ? 1.2 : 0);
+      if (bandOn){
+        const bandSlot = clamp(+E0.bandSlot || 0, 0, state.slots.length - 1), bandZ = clamp(+E0.bandZ || H/2, 2, H), bandW = clamp(+E0.bandH || 8, 2, 60);
+        const v0 = clamp(bandZ - bandW/2, 1.5, top - 2), v1 = clamp(bandZ + bandW/2, v0 + 1, top);
+        const ring = def("bandRing", { subtract:[sol(encPrism(O, v0, v1), "the band"), sol(encPrism(G.ring(bandD), v0 - 1, v1 + 1), "inside the band")] });
+        // the band is the wall's outer skin there, with the openings and labels through it; the box keeps a pocket for it
+        out.band = { subtract:[{ intersect:[ring, body] }, ...wallCuts, ...wallLabels] };
+        out.box.subtract.push(ring);
+        avoid.push([-1e4, v0 - 1.5, 1e4, v1 + 1.5]);
+        place.push({ key:"band", name:`Band (${(state.slots[bandSlot] || state.slots[0]).name})`, slot:bandSlot });
+      }
+      if (texOn){
+        const all = avoid.flatMap(r => [r, [r[0] - P, r[1], r[2] - P, r[3]], [r[0] + P, r[1], r[2] + P, r[3]]]), polys = [];
+        if (texOn === "grooves"){
+          const gw = 1.2, nG = Math.max(1, Math.round(P/4)), pitch = P/nG;
+          for (let g = 0; g < nG; g++){
+            const u = g*pitch; let runs = [[2.5, top]];
+            all.filter(r => r[0] < u + gw/2 && u - gw/2 < r[2]).forEach(r => { runs = runs.flatMap(([p, q]) => [[p, Math.min(q, r[1])], [Math.max(p, r[3]), q]]).filter(([p, q]) => q - p > 4); });
+            runs.forEach(([p, q]) => polys.push([[u - gw/2, p], [u + gw/2, p], [u + gw/2, q - gw/2], [u, q], [u - gw/2, q - gw/2]]));   // a pointed top: no bridge
+          }
+        } else {
+          const cs = 5, R0 = cs/Math.sqrt(3), nX = Math.max(2, Math.round(P/(cs + 1.3))), dx = P/nX, dy = dx*Math.sqrt(3)/2;
+          for (let j = 0, v = 2.5 + R0; v <= top - R0; j++, v += dy) for (let i = 0; i < nX; i++){
+            const u = i*dx + (j % 2 ? dx/2 : 0);
+            if (all.some(r => r[0] < u + R0 && u - R0 < r[2] && r[1] < v + R0 && v - R0 < r[3])) continue;
+            polys.push(encHex(cs, false).map(([a, b2]) => [a + u, b2 + v]));                                // a corner up: no flat roof
+          }
+        }
+        const cut = polys.length ? unrolled(polys, texD) : null;
+        if (cut) out.box.subtract.push(sol(cut, "the wall's texture", true));
+      }
+    }
     if (S.lid === "twist"){
       const nut = C.threadSolid({ rMajor:tw.rM, pitch:tw.p, depth:tw.dp, y0:tw.Hn, y1:H + 0.02, inside:true, gap:tw.g, outside:() => tw.R, segs:nT });
       const grips = [];
@@ -5515,7 +5567,7 @@ function encShapeJob(G, S, X){
     const body = def("body", { union:[sol(box.solid, "the box"), ...posts] });
     // on the slope: u across, v up the slope from the middle, d out of the lid's face (0 its inside)
     const onSlope = d => p => [p[0], sl.y0 + p[1]*sl.k/q + d/q, -p[1]/q + d*sl.k/q];
-    const circ = (x, v, r) => [{ outer:C.ringCircle(r, 32).map(c => [c[0] + x, c[1] + v]), holes:[] }];
+    const circ = (x, v, r) => [{ outer:C.ringCircle(r, C.segsFor(r, 32)).map(c => [c[0] + x, c[1] + v]), holes:[] }];
     const tops = S.tops || [];
     out.box = { subtract:[{ trim:body, normal:nDn, offset:-sl.o }, ...tops.map(([x, y]) => sol(encMapSolid(circ(x, y*q, S.bossHole/2), onSlope, -S.dep, 5), "a post's hole"))] };
     if (S.lid !== "none"){
@@ -5693,7 +5745,7 @@ function buildEnclosure(){
   if (E.solar && !lidOn) warn.push({ t:"No lid for the solar panel", s:"The panel sits in a pocket on the lid: give the box a lid." });
   if (solar){
     if (!solar.fits) warn.push({ t:"Solar panel bigger than the lid", s:`It needs ${solar.w.toFixed(0)} × ${solar.d.toFixed(0)} mm on the lid, inside the walls: make the box bigger or the panel smaller.` });
-    else { holesOn.top.push(C.ringCircle(2.5, 24).map(([u, v]) => [u + solar.hole[0], v + solar.hole[1]]));
+    else { holesOn.top.push(circ(2.5, 24).map(([u, v]) => [u + solar.hole[0], v + solar.hole[1]]));
       taken.top.push({ n:0, what:"the solar panel", bb:[solar.x - solar.w/2, solar.y - solar.d/2, solar.x + solar.w/2, solar.y + solar.d/2] }); }
   }
   // a hinge at the back (Session 56), for a press-fit lid: knuckles on the back wall and on the lid's back edge, in turn, on a
@@ -5730,7 +5782,7 @@ function buildEnclosure(){
       if (why){ warn.push({ t:`${B.label}: no door`, s:`It is in a strap tray instead: ${why}.` }); bd.hold = "strap"; }
       else {
         holesOn.bottom.push(encRect(bd.x - bw/2 - DR.g, bd.y - bdp/2 - DR.g, bd.x + bw/2 + DR.g, bd.y + bdp/2 + DR.g));
-        screws.forEach(([x, y]) => holesOn.bottom.push(C.ringCircle(encScrew("M2").pilot/2, 20).map(([u, v]) => [u + x, v + y])));
+        screws.forEach(([x, y]) => holesOn.bottom.push(circ(encScrew("M2").pilot/2, 20).map(([u, v]) => [u + x, v + y])));
         doorCuts.push({ depth:dt, holes:[encOrient(encRect(rc[0], rc[1], rc[2], rc[3]), false)], islands:[] });
         taken.bottom.push({ n:0, what:`${B.label}'s door`, bb:rc });
         bd.door = { rc, screws, dt, alongX };
@@ -5899,7 +5951,7 @@ function buildEnclosure(){
     for (let i = 0; i <= nx; i++) for (let j = 0; j <= ny; j++){
       const x = -nx*FG/2 + i*FG, y = -ny*FG/2 + j*FG;
       if (Math.abs(x) > iw/2 - 6 - ri*0.3 || Math.abs(y) > id/2 - 6 - ri*0.3 || busy.some(r => x > r[0] - 1.6 && x < r[2] + 1.6 && y > r[1] - 1.6 && y < r[3] + 1.6)) continue;
-      holesOn.bottom.push(C.ringCircle(1.6, 16).map(q => [q[0] + x, q[1] + y])); taken.bottom.push({ n:0, what:"a mounting hole", bb:[x - 1.6, y - 1.6, x + 1.6, y + 1.6] }); floorGridN++;
+      holesOn.bottom.push(circ(1.6, 16).map(q => [q[0] + x, q[1] + y])); taken.bottom.push({ n:0, what:"a mounting hole", bb:[x - 1.6, y - 1.6, x + 1.6, y + 1.6] }); floorGridN++;
     }
   }
   // split into parts (Session 40): planned once every opening and label is in place, so the joins keep clear of them
@@ -6029,12 +6081,12 @@ function buildEnclosure(){
     if (feet.length){
       const want = clamp(+E.footDepth || 1, 0.4, 3), depth = Math.min(want, Math.max(0, fl - 0.6));
       if (depth < want - 1e-6) warn.push({ t:"Floor too thin for the foot recesses", s:`The recesses are ${depth.toFixed(1)} mm deep instead of ${want.toFixed(1)}. Make the floor at least ${(want + 0.6).toFixed(1)} mm thick.` });
-      if (depth > 0) cuts.push({ depth, holes: feet.map(([x, y]) => encOrient(C.ringCircle(footR, 40).map(q => [q[0] + x, q[1] + y]), false)), islands: [] });
+      if (depth > 0) cuts.push({ depth, holes: feet.map(([x, y]) => encOrient(circ(footR, 40).map(q => [q[0] + x, q[1] + y]), false)), islands: [] });
     }
     if (backMags.length){
       const want = bmg.t + 0.2, depth = Math.min(want, Math.max(0, fl - 0.6));
       if (depth < want - 1e-6) warn.push({ t:"Floor too thin for the magnets", s:`Their pockets are ${depth.toFixed(1)} mm deep instead of ${want.toFixed(1)}: the magnets stand proud. Make the floor at least ${(want + 0.6).toFixed(1)} mm thick (Basics), or use thinner magnets.` });
-      if (depth > 0) cuts.push({ depth, holes: backMags.map(([x, y]) => encOrient(C.ringCircle(bmR, 40).map(q => [q[0] + x, q[1] + y]), false)), islands: [] });
+      if (depth > 0) cuts.push({ depth, holes: backMags.map(([x, y]) => encOrient(circ(bmR, 40).map(q => [q[0] + x, q[1] + y]), false)), islands: [] });
     }
     // the boards' names are cut into the floor's top (Session 54), 0.4 mm deep
     const nameD = floorNames.length && fl >= 1.2 ? 0.4 : 0, names = floorNames.flatMap(f => f.polys), top = nameD ? { from: fl - nameD, holes: labHoles(names), islands: labIslands(names) } : null;
@@ -6045,8 +6097,8 @@ function buildEnclosure(){
     }
   }
   // plan coordinates are (x, -z)
-  const post = (x, back, rOut, rIn, y0, y1) => C.extrudePolysAt([{ outer: encOrient(C.ringCircle(rOut, 40).map(p => [p[0] + x, p[1] + back]), true),
-    holes: rIn > 0 ? [encOrient(C.ringCircle(rIn, 28).map(p => [p[0] + x, p[1] + back]), false)] : [] }], y0, y1);
+  const post = (x, back, rOut, rIn, y0, y1) => C.extrudePolysAt([{ outer: encOrient(circ(rOut, 40).map(p => [p[0] + x, p[1] + back]), true),
+    holes: rIn > 0 ? [encOrient(circ(rIn, 28).map(p => [p[0] + x, p[1] + back]), false)] : [] }], y0, y1);
   if (magnet){
     const ph = Math.min(pocketH, Math.max(0, H - fl - 1));
     if (ph < pocketH - 1e-6) warn.push({ t:"Box too shallow for the magnets", s:`The corner posts are too short for ${mg.d} × ${mg.t} mm magnets. Make the box taller or use thinner magnets.` });
@@ -6075,7 +6127,7 @@ function buildEnclosure(){
     solids.push(encFaceSolid(po.face, prof, bb[0] - 2, bb[2] + 2, W, D));
     hoodInfo.push({ i:po.i, face:po.face, out:P, bb:[bb[0] - 2, vb, bb[2] + 2, vb + 1.27*P + 1] });
   });
-  if (postHang) bosses.forEach(([x, z]) => solids.push(encLoft(C.ringCircle(0.4, 40).map(p => [p[0] + x, p[1] - z]), postFree, C.ringCircle(bossR, 40).map(p => [p[0] + x, p[1] - z]), postBot + 0.01)));
+  if (postHang) bosses.forEach(([x, z]) => solids.push(encLoft(circ(0.4, 40).map(p => [p[0] + x, p[1] - z]), postFree, circ(bossR, 40).map(p => [p[0] + x, p[1] - z]), postBot + 0.01)));
   let board = null, boardNeed = null;
   const boardsInfo = [], doorParts = [], camInfo = [];
   // levels and their plates (Session 46): a board on a level stands on the level's top, and its mounts go on the plate
@@ -6157,7 +6209,7 @@ function buildEnclosure(){
       bd.door.screws.forEach(([x, y]) => dst.push(post(x, y, ENC_DOOR.post, encScrew("M2").pilot/2, fl - 0.01, fl + 6)));
       // the door: printed flat in front of the box, 0.25 mm smaller than its recess, with the screws' clearance holes
       const [a0, b0, a1, b1] = bd.door.rc, dw = a1 - a0 - 0.5, dd = b1 - b0 - 0.5, cx = (a0 + a1)/2, cy = (b0 + b1)/2;
-      const doorSol = C.extrudePolysAt([{ outer:encOrient(C.ringRect(dw, dd, 1, 4), true), holes:bd.door.screws.map(([x, y]) => encOrient(C.ringCircle(SCREWS.M2.clear/2, 20).map(([u, v]) => [u + x - cx, v + y - cy]), false)) }], 0, bd.door.dt - 0.1);
+      const doorSol = C.extrudePolysAt([{ outer:encOrient(C.ringRect(dw, dd, 1, 4), true), holes:bd.door.screws.map(([x, y]) => encOrient(circ(SCREWS.M2.clear/2, 20).map(([u, v]) => [u + x - cx, v + y - cy]), false)) }], 0, bd.door.dt - 0.1);
       doorParts.push({ inside:true, name:`Battery door (${B.label.replace(/\s*\(.*$/, "")})`, slot:clamp(+E.boxSlot || 0, 0, state.slots.length - 1), solid:doorSol, dd });
     }
     else if (bd.holes && bd.pins){                     // snap pins on solid standoffs (Session 59)
@@ -6300,7 +6352,7 @@ function buildEnclosure(){
       if (!encNotch(outer, du.face, along - half - 0.4, along + half + 0.4, depthN)) warn.push({ t:`Level ${k + 1} cannot pass cable channel ${du.k + 1}`, s:"The channel is too near a corner for the level's edge: move it nearer the middle." }); });
     const holes = [], ny0 = nc ? nc.y : 0, py = Math.max(7, ny0 + 7), postAt = postPlan[k];
     // its screws: through the plate into posts (from the floor, or from the level under it, printed on that one) or brackets
-    if (holdOf[k] !== "ledges") postAt.forEach(([x, y]) => holes.push(encOrient(C.ringCircle(ENC_LEVEL.clear/2, 24).map(q => [q[0] + x, q[1] + y]), false)));
+    if (holdOf[k] !== "ledges") postAt.forEach(([x, y]) => holes.push(encOrient(circ(ENC_LEVEL.clear/2, 24).map(q => [q[0] + x, q[1] + y]), false)));
     if (standsOnPosts(k) && k === 0) postAt.forEach(([x, y]) => solids.push(post(x, y, ENC_LEVEL.post, ENC_LEVEL.hole/2, fl, zb)));
     const upper = levels[k + 1], upPosts = upper && standsOnPosts(k + 1) ? postPlan[k + 1] : [];
     upPosts.forEach(([x, y]) => levelSolids[k].push(post(x, y, ENC_LEVEL.post, ENC_LEVEL.hole/2, zt - 0.01, fl + upper.z - upper.t)));
@@ -6312,7 +6364,7 @@ function buildEnclosure(){
       const toXY = q => fb ? [q[1], q[0]] : q, ccw = L2 => C.area2(L2) > 0 ? L2 : L2.slice().reverse();
       const ring = ccw(top.map(toXY)), z1 = zb, z0 = zb - BRK.boss;
       const foot = ring.map(([px, py2]) => fb ? [px, wall + (py2 - wall)*0.06] : [wall + (px - wall)*0.06, py2]);
-      solids.push(C.extrudePolysAt([{ outer:encOrient(ring, true), holes:[encOrient(C.ringCircle(ENC_LEVEL.hole/2, 24).map(q => [q[0] + x, q[1] + y]), false)] }], z0, z1));
+      solids.push(C.extrudePolysAt([{ outer:encOrient(ring, true), holes:[encOrient(circ(ENC_LEVEL.hole/2, 24).map(q => [q[0] + x, q[1] + y]), false)] }], z0, z1));
       solids.push(encLoft(foot, z0 - BRK.drop, ring, z0 + 0.01));
     });
     if (holdOf[k] === "ledges"){                                                    // 45° ledges along the side walls, under the plate's edges
@@ -6328,7 +6380,7 @@ function buildEnclosure(){
     if (L.pass === "back" || L.pass === "front"){ const cy = (L.pass === "back" ? 1 : -1)*(d/2 - inset); holes.push(encOrient(C.ringRect(pw, ph, ph/2 - 0.1, 6).map(q => [q[0], q[1] + cy]), false)); passRects.push([-pw/2, cy - ph/2, pw/2, cy + ph/2]); }
     else if (L.pass === "left" || L.pass === "right"){ const cx = (L.pass === "right" ? 1 : -1)*(w/2 - inset); holes.push(encOrient(C.ringRect(ph, pw, ph/2 - 0.1, 6).map(q => [q[0] + cx, q[1]]), false)); passRects.push([cx - ph/2, -pw/2, cx + ph/2, pw/2]); }
     else if (L.pass === "corners"){ const r = L.passBig ? 8 : 5.5, ox = w/2 - (L.hold === "posts" ? 18 : 12) - r + 5.5, oy = d/2 - Math.max(py + 11, 12) - r + 5.5;
-      for (const sx of [-1, 1]) for (const sy of [-1, 1]){ holes.push(encOrient(C.ringCircle(r, 32).map(q => [q[0] + sx*ox, q[1] + sy*oy]), false)); passRects.push([sx*ox - r, sy*oy - r, sx*ox + r, sy*oy + r]); } }
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]){ holes.push(encOrient(circ(r, 32).map(q => [q[0] + sx*ox, q[1] + sy*oy]), false)); passRects.push([sx*ox - r, sy*oy - r, sx*ox + r, sy*oy + r]); } }
     // the zip-tie anchors' spots on the plate (Session 51), decided before the mounting holes so none lands under one: along its
     // back edge, clear of its boards and cable passes
     const yA = d/2 - 4, anchorX = [];
@@ -6356,7 +6408,7 @@ function buildEnclosure(){
       for (let i = 0; i <= nx; i++) for (let j = 0; j <= ny; j++){
         const x = -nx*G/2 + i*G, y = -ny*G/2 + j*G;
         if (busy.some(r => x > r[0] - 1.6 && x < r[2] + 1.6 && y > r[1] - 1.6 && y < r[3] + 1.6)) continue;
-        holes.push(encOrient(C.ringCircle(1.6, 16).map(q => [q[0] + x, q[1] + y]), false)); gridN++;
+        holes.push(encOrient(circ(1.6, 16).map(q => [q[0] + x, q[1] + y]), false)); gridN++;
       }
     }
     if (L.vent){ const sw = 2.4, gap = 3, n2 = Math.max(1, Math.floor((w*0.5 + gap)/(sw + gap))), x0v = -((n2 - 1)*(sw + gap))/2, hv = Math.min(30, d*0.35);
@@ -6470,10 +6522,10 @@ function buildEnclosure(){
     const sc = encScrew(E.spacerScrew), sh2 = clamp(+E.spacerH || 5, 1, 40), od = sc.clear + 3.2, pcs = [], step = Math.max(od, 12) + 4;
     const cols = Math.max(1, Math.floor((W + 20)/step)), at = n => [-(Math.min(cols, spN + zmN) - 1)*step/2 + (n % cols)*step, Math.floor(n/cols)*(step + 8)];
     for (let n = 0; n < spN; n++){ const [x, y] = at(n);
-      pcs.push(C.extrudePolysAt([{ outer:encOrient(C.ringCircle(od/2, 32).map(q => [q[0] + x, q[1] + y]), true), holes:[encOrient(C.ringCircle(sc.clear/2, 24).map(q => [q[0] + x, q[1] + y]), false)] }], 0, sh2)); }
+      pcs.push(C.extrudePolysAt([{ outer:encOrient(circ(od/2, 32).map(q => [q[0] + x, q[1] + y]), true), holes:[encOrient(circ(sc.clear/2, 24).map(q => [q[0] + x, q[1] + y]), false)] }], 0, sh2)); }
     for (let n = 0; n < zmN; n++){ const [x, y] = at(spN + n);
       // a 12 × 18 mm base with a screw hole at one end, and a bridge a zip tie threads under at the other
-      pcs.push(C.extrudePolysAt([{ outer:xb(x - 6, y - 9, x + 6, y + 9), holes:[encOrient(C.ringCircle(1.75, 24).map(q => [q[0] + x, q[1] + y - 4.5]), false)] }], 0, 1.6));
+      pcs.push(C.extrudePolysAt([{ outer:xb(x - 6, y - 9, x + 6, y + 9), holes:[encOrient(circ(1.75, 24).map(q => [q[0] + x, q[1] + y - 4.5]), false)] }], 0, 1.6));
       pcs.push(C.extrudePolysAt([{ outer:xb(x - 5.75, y + 3, x - 1.75, y + 7), holes:[] }], 1.59, 5.6));
       pcs.push(C.extrudePolysAt([{ outer:xb(x + 1.75, y + 3, x + 5.75, y + 7), holes:[] }], 1.59, 5.6));
       pcs.push(C.extrudePolysAt([{ outer:xb(x - 5.75, y + 3, x + 5.75, y + 7), holes:[] }], 5.59, 6.8)); }
@@ -6493,8 +6545,8 @@ function buildEnclosure(){
       const pipe = po.c.kind === "lightpipe", dh = Math.min(po.bb[2] - po.bb[0], (po.bb[3] - po.bb[1]) || 99), wallT = po.face === "top" ? lidT : po.face === "bottom" ? fl : t;
       const d = Math.max(1.6, dh - (pipe ? 0.2 : 0.5)), df = d + 3, reach = clamp(+po.c.reach || (pipe ? 6 : 5), 0.5, 60), out = pipe ? 0.5 : 1.5;
       const cap = wallT + out, cone = (df - d)/2, stem = pipe ? d : Math.min(3, d), list = [];
-      const cyl = (r, z0, z1) => C.extrudePolysAt([{ outer:encOrient(C.ringCircle(r, 32), true), holes:[] }], z0, z1);
-      list.push(cyl(d/2, 0, cap + 0.01), encLoft(C.ringCircle(d/2, 32), cap, C.ringCircle(df/2, 32), cap + cone), cyl(df/2, cap + cone - 0.01, cap + cone + 1.2), cyl(stem/2, cap + cone + 1.19, cap + cone + 1.2 + reach));
+      const cyl = (r, z0, z1) => C.extrudePolysAt([{ outer:encOrient(circ(r, 32), true), holes:[] }], z0, z1);
+      list.push(cyl(d/2, 0, cap + 0.01), encLoft(circ(d/2, 32), cap, circ(df/2, 32), cap + cone), cyl(df/2, cap + cone - 0.01, cap + cone + 1.2), cyl(stem/2, cap + cone + 1.19, cap + cone + 1.2 + reach));
       (pipe ? lps : plg).push({ sol:C.mergeSolids(list), r:df/2, h:cap + cone + 1.2 + reach, i:po.i, len:+(cap + cone + 1.2 + reach).toFixed(1) });
     });
     const row = (items, name, slot) => { if (!items.length) return null;
@@ -6529,9 +6581,9 @@ function buildEnclosure(){
   // the hinge's knuckles on the back wall (plan y = D/2 is the back's outside), each: a 45° hull of the knuckle and a point on
   // the wall under it, and a strip into the wall; the pin hole a teardrop pointing up
   const Mx = [0,1,0, 0,0,-1, -1,0,0], xBar = (prof, holes, x0, x1) => C.affineSolid(C.extrudePolysAt([{ outer:encOrient(prof, true), holes:holes.map(h => encOrient(h, false)) }], x0, x1), Mx, [0, 0, 0]);
-  const tear = (a, b) => C.convexHull([...C.ringCircle(HG.pin/2, 20).map(([u, v]) => [u + a, v + b]), [a, b + HG.pin/2*Math.SQRT2]]);
+  const tear = (a, b) => C.convexHull([...circ(HG.pin/2, 20).map(([u, v]) => [u + a, v + b]), [a, b + HG.pin/2*Math.SQRT2]]);
   if (hinge){ const r = HG.r, ca = D/2 + r + HG.clear, cb = H + hinge.za, bot = cb - 2.6*r;
-    const hull = C.convexHull([...C.ringCircle(r, 40).map(([u, v]) => [u + ca, v + cb]), [D/2, bot], [D/2, cb]]);
+    const hull = C.convexHull([...circ(r, 40).map(([u, v]) => [u + ca, v + cb]), [D/2, bot], [D/2, cb]]);
     hinge.segs.filter(sg => sg.box).forEach(sg => { solids.push(xBar(hull, [tear(ca, cb)], sg.x0, sg.x1));
       solids.push(xBar([[D/2 - 0.6, bot], [D/2 + 0.01, bot], [D/2 + 0.01, H - 0.6], [D/2 - 0.6, H - 0.6]], [], sg.x0, sg.x1)); }); }
   const parts = [{ name:"Box", slot:clamp(+E.boxSlot || 0, 0, state.slots.length - 1), solid:C.mergeSolids(solids.filter(Boolean)) }, ...artParts];
@@ -6571,7 +6623,7 @@ function buildEnclosure(){
     // the lid prints upside down (turned about the x axis), so a point (x, z) of the box lands on (x, z) in plan
     const lidOuter = encOrient(C.ringRect(W, D, R, seg), true);
     const topHoles = () => holesOn.top.map(L => encOrient(L.map(([x, y]) => [x, -y]), false));
-    const screwHoles = r => lidPins.map(([x, z]) => encOrient(C.ringCircle(r, 32).map(p => [p[0] + x, p[1] + z]), false));
+    const screwHoles = r => lidPins.map(([x, z]) => encOrient(circ(r, 32).map(p => [p[0] + x, p[1] + z]), false));
     // lid labels are cut into its outside, which is the face on the bed
     const flipY = list => list.map(q => ({ outer: q.outer.map(([x, y]) => [x, -y]), holes: q.holes.map(hl => hl.map(([x, y]) => [x, -y])) }));
     const lidLabs = flipY(labelsOn.top), lidCuts = [];
@@ -6626,14 +6678,14 @@ function buildEnclosure(){
       if (depth > 0) lid.push(slab(lidT - depth, lidT, pocketD/2));
     } else lid.push(slab(0, lidT, 0));
     // standoffs for boards under the lid (Session 63), on its inside face (the lid's plan has front to back the other way)
-    lidMounts.forEach(lm => lm.pts.forEach(([x, y]) => lid.push(C.extrudePolysAt([{ outer:encOrient(C.ringCircle(lm.sr, 32).map(q => [q[0] + x, q[1] - y]), true), holes:[encOrient(C.ringCircle(lm.hole/2, 24).map(q => [q[0] + x, q[1] - y]), false)] }], lidT - 0.01, lidT + lm.sh))));
+    lidMounts.forEach(lm => lm.pts.forEach(([x, y]) => lid.push(C.extrudePolysAt([{ outer:encOrient(circ(lm.sr, 32).map(q => [q[0] + x, q[1] - y]), true), holes:[encOrient(circ(lm.hole/2, 24).map(q => [q[0] + x, q[1] - y]), false)] }], lidT - 0.01, lidT + lm.sh))));
     // a camera held in the lid (Session 64): a three-sided frame round the lens hole on the lid's inside face holds an OV2640
     // (8.5 mm square, ENC_CAM) with its lens through the hole, open on one side for its ribbon cable (towards the front, or the
     // right when turned); it stands up as the lid prints face down, so no support
     // flexing buttons (Session 64): a nub under each tongue's tip, standing on the lid's inside face (its reach is c.reach, to the button)
     placedOpen.filter(po => po.face === "top" && po.c.kind === "flexbtn").forEach(po => {
       const c = po.c, tl = Math.max(0.5, +c.h || 16), x = +c.u || 0, y = (+c.v || 0) + tl/2 - 2.5, reach = clamp(+c.reach || 3, 0.5, 40);
-      lid.push(C.extrudePolysAt([{ outer:encOrient(C.ringCircle(1.6, 24).map(([a, b]) => [a + x, b - y]), true), holes:[] }], lidT - 0.01, lidT + reach));
+      lid.push(C.extrudePolysAt([{ outer:encOrient(circ(1.6, 24).map(([a, b]) => [a + x, b - y]), true), holes:[] }], lidT - 0.01, lidT + reach));
       if (tl < 10) warn.push({ t:`${po.lab}: a short tongue`, s:"Under 10 mm long it hardly bends: make it longer, or the lid thinner, or print it in PETG." });
     });
     camFrames.forEach(cf => {
@@ -6675,7 +6727,7 @@ function buildEnclosure(){
     }
     // the hinge's knuckles on the lid (its frame: y = -D/2 is the back, z = 0 its outside on the bed): flat on the bed
     if (hinge){ const r = HG.r, ca = -D/2 - r - HG.clear, cb = r;     // HG.clear off the back wall when shut
-      const hull = C.convexHull([...C.ringCircle(r, 40).map(([u, v]) => [u + ca, v + cb]), [ca - r, 0], [ca + r, 0]]);
+      const hull = C.convexHull([...circ(r, 40).map(([u, v]) => [u + ca, v + cb]), [ca - r, 0], [ca + r, 0]]);
       hinge.segs.filter(sg => !sg.box).forEach(sg => { lid.push(xBar(hull, [tear(ca, cb)], sg.x0, sg.x1));
         lid.push(xBar([[ca + r - 0.01, 0], [-D/2 + 0.6, 0], [-D/2 + 0.6, lidT - 0.01], [ca + r - 0.01, lidT - 0.01]], [], sg.x0, sg.x1)); }); }
     // the snap bumps on the outside of the lip's front and back (the lid prints face down, lip up): a 45° ridge each
@@ -7541,7 +7593,7 @@ function buildLightbox(){
   }
 
   const frameHoles = [C.ringRect(inW+0.4, inH+0.4, 1, 6)];
-  if (L.hang) frameHoles.push(C.ringCircle(L.hangDia/2, 32).map(q=>[q[0], q[1] + outH/2 - L.frame/2]));
+  if (L.hang) frameHoles.push(circ(L.hangDia/2, 32).map(q=>[q[0], q[1] + outH/2 - L.frame/2]));
   const frame = C.extrudePolys([{ outer:C.ringRect(outW, outH, Math.min(6,L.frame), 8), holes:frameHoles }], L.frameThick);
   if (frame) parts.push({ name:"Frame", slot:frameSlot, solid:frame, layout:L.mode === "backlit" ? [colX, 0, outH/2 + gap/2] : [0, 0, outH + 10] });
 
@@ -7565,7 +7617,7 @@ let lithoInfo = null;
 const LITHO_MAX_NODES = 380000;          // about 780k triangles: small enough for the printability check
 const LITHO_OUTLINES = [["rect","Rectangle"],["arch","Arch window"],["oval","Oval"],["heart","Heart"]];
 function lithoOutline(kind, W, H, r, squareBottom){
-  if (kind === "oval") return C.ringCircle(1, 240).map(p=>[p[0]*W/2, p[1]*H/2]);
+  if (kind === "oval") return circ(1, 240).map(p=>[p[0]*W/2, p[1]*H/2]);
   if (kind === "heart"){
     const ring = C.ringHeart(1, 320); let x0=Infinity, x1=-Infinity, y0=Infinity, y1=-Infinity;
     ring.forEach(p=>{ x0=Math.min(x0,p[0]); x1=Math.max(x1,p[0]); y0=Math.min(y0,p[1]); y1=Math.max(y1,p[1]); });
@@ -7698,7 +7750,7 @@ function buildLithophane(){
         if ((p[0] > 0) !== (r2[0] > 0)) top = Math.max(top, p[1] + (0-p[0])*(r2[1]-p[1])/(r2[0]-p[0])); }
       const hy = top - rim - (up ? hr*Math.SQRT2 : hr), hring = [];
       for (let k=0;k<=96;k++){ const a = Math.PI/4 - k/96*1.5*Math.PI; hring.push([Math.cos(a)*hr, hy + Math.sin(a)*hr]); }   // 45° round the bottom to 135°
-      if (up) hring.push([0, hy + hr*Math.SQRT2]); else hring.splice(0, hring.length, ...C.ringCircle(hr, 96).map(q=>[q[0], hy+q[1]]));
+      if (up) hring.push([0, hy + hr*Math.SQRT2]); else hring.splice(0, hring.length, ...circ(hr, 96).map(q=>[q[0], hy+q[1]]));
       hole = { x:0, y:hy, r:hr, rim, teardrop:up };
       const fh = C.ringField([hring], g, rim + 3*c);
       for (let j=0;j<gy;j++) for (let i=0;i<gx;i++){
@@ -7825,7 +7877,7 @@ function buildPCB(){
   if (p.holes){
     const hx = boardW/2-p.holeInset, hy = boardH/2-p.holeInset;
     [[-hx,-hy],[hx,-hy],[hx,hy],[-hx,hy]].forEach(([x,y])=>
-      holes.push(C.ringCircle(p.holeDia/2,36).map(q=>[q[0]+x, q[1]+y])));
+      holes.push(circ(p.holeDia/2,36).map(q=>[q[0]+x, q[1]+y])));
   }
   const board = C.extrudePolys([{ outer:C.ringRect(boardW, boardH, p.radius, 10), holes }], p.thick);
   if (board) parts.push({ name:"Board", slot:boardSlot, solid:board });
@@ -7896,7 +7948,7 @@ let jigsawInfo = null;
 const JIGSAW_SHAPES = [["rect","Rectangle"],["rounded","Rounded corners"],["oval","Oval"],["heart","Heart"],["hex","Hexagon"]];
 function jigsawOutline(shape, W, H){
   if (shape === "rounded") return C.ringRect(W, H, Math.min(W,H)*0.09, 12);
-  if (shape === "oval") return C.ringCircle(1, 360).map(p=>[p[0]*W/2, p[1]*H/2]);
+  if (shape === "oval") return circ(1, 360).map(p=>[p[0]*W/2, p[1]*H/2]);
   if (shape === "hex") return C.ringPoly(6, 1, 0).map(p=>[p[0]*W/2, p[1]*H/2]);
   if (shape === "heart"){
     const r = C.ringHeart(1, 480); let a = Infinity, b = -Infinity, c = Infinity, d = -Infinity;
@@ -8416,7 +8468,7 @@ async function buildNamePlate(){
       if (spots.length < (two ? 2 : 1)) plateInfo.magnet = { ok:false, why:"small", need:+(mag.d + 1.9).toFixed(1) };
       else {
         pocketD = pd;
-        pocketPolys = spots.map(([x, y]) => ({ outer:C.ringCircle(r, 48).map(([u, v]) => [u + (x + 0.5 - W/2)*mmPerPx, v + (H/2 - (y + 0.5))*mmPerPx]), holes:[] }));
+        pocketPolys = spots.map(([x, y]) => ({ outer:circ(r, 48).map(([u, v]) => [u + (x + 0.5 - W/2)*mmPerPx, v + (H/2 - (y + 0.5))*mmPerPx]), holes:[] }));
         plateInfo.magnet = { ok:true, n:spots.length, d:mag.d, t:mag.t, at:spots.map(([x, y]) => [+((x + 0.5 - W/2)*mmPerPx).toFixed(2), +(-(H/2 - (y + 0.5))*mmPerPx).toFixed(2)]) };
       }
     }
@@ -9296,7 +9348,7 @@ function buildRelief(){
   if (R.hole){
     const hr = clamp(R.holeDia, 2, 12)/2, rim = Math.max(2.5, b);
     let top = -Infinity; for (let a=0,n=ring.length,q=n-1;a<n;q=a++){ const p = ring[a], r2 = ring[q]; if ((p[0] > 0) !== (r2[0] > 0)) top = Math.max(top, p[1] + (0-p[0])*(r2[1]-p[1])/(r2[0]-p[0])); }
-    const hy = top - rim - hr, fhh = C.ringField([C.ringCircle(hr, 64).map(q => [q[0], hy + q[1]])], grid, rim + 3*c);
+    const hy = top - rim - hr, fhh = C.ringField([circ(hr, 64).map(q => [q[0], hy + q[1]])], grid, rim + 3*c);
     for (let j=0;j<gy;j++) for (let i=0;i<gx;i++){ const k = j*gx+i, dh = -fhh[(gy-1-j)*gx+i]; sdf[k] = Math.max(sdf[k], -dh); if (dh < rim) inside[k] = Math.min(inside[k], dh - rim + b); }
     hole = { y:hy, r:hr };
   }
@@ -13869,7 +13921,7 @@ async function cardOne(K, who, G, ol, info, warn){
     if (!at && where !== "centre") warn.push({ t:"The NFC tag went in the middle", s:`There is no ${where === "qr" ? "QR code" : "logo"} to put it behind.` });
     [pocket.x, pocket.y] = at || [0, 0];
     // it needs a millimetre of card all round it
-    const ring = pocket.rect ? C.ringRect(pocket.w, pocket.h, 1, 6) : C.ringCircle(pocket.w/2, 64);
+    const ring = pocket.rect ? C.ringRect(pocket.w, pocket.h, 1, 6) : circ(pocket.w/2, 64);
     if (Math.max(...ring.map(([px, py]) => ol.sdf(pocket.x + px, pocket.y - py))) > -1){
       warn.push({ t:"The NFC tag does not fit there", s:`A ${pocket.rect ? `${w} × ${h} mm` : `${w} mm`} tag needs a millimetre of card all round it: move it, make the card bigger or pick a smaller tag.` });
       pocket = null;
@@ -13939,7 +13991,7 @@ async function cardOne(K, who, G, ol, info, warn){
   const cTop = T - topCut;
   if (pocket){
     const px = top === "front" ? pocket.x : -pocket.x, py = -pocket.y;
-    const ring = (pocket.rect ? C.ringRect(pocket.w, pocket.h, 1, 6) : C.ringCircle(pocket.w/2, 64)).map(([x, y]) => [x + px, y + py]);
+    const ring = (pocket.rect ? C.ringRect(pocket.w, pocket.h, 1, 6) : circ(pocket.w/2, 64)).map(([x, y]) => [x + px, y + py]);
     const holed = coreOut.map(q => C.insideRing(q.outer)(px, py) ? { outer:q.outer, holes:[...q.holes, encOrient(ring, false)] } : q);
     if (z0 > dBed + 1e-6) bodySolids.push(C.extrudePolysAt(coreOut, dBed, z0));
     bodySolids.push(C.extrudePolysAt(holed, z0, z1));

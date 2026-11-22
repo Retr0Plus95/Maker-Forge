@@ -3038,6 +3038,52 @@ Fingerprints, the suites and the browser check: in the pull request.
 **Not done:** a worker for the builds; rough builds for the tracer, relief and lithophane (quick enough since 0.59); a rough
 build that stops for a newer one (they are short).
 
+## Session 71: the engine, steps four and five: a shaped box's style, and circles by chord error (v0.61.0)
+
+Continuing "finish the engine upgrades" (Session 70's request). On a branch from `main` at `1f3c1d2`.
+
+**E4, shared face frames, begun where users see it.** A shaped box's walls already had their frame (`G.frame(s)`: a point
+s mm round the outline, its tangent and outward normal) and labels wrapped through it. The roadmap's E4 is one frame for
+every generator; the first use is the shaped-box list's wall style. In `encShapeJob` (walls branch, after `out.box`):
+- **The band:** `bandRing` is the outline's prism between `v0` and `v1` minus the outline `bandD` (0.6 mm) in. The box
+  subtracts it; `out.band` is `bandRing ∩ body` minus the openings and labels, placed as `Band (filament)` in `bandSlot`.
+  The band runs through openings (cut by them) where a rectangle's breaks 2 mm before them.
+- **Grooves and hexagons:** laid out unrolled (u = s round the whole outline, v up), `P/round(P/4)` apart for grooves and
+  `P/round(P/6.3)` for hexagon rows (offset rows), so they meet at the seam. Mapped through `G.frame` by `unrolled()`, as
+  labels are by `wrapped()`.
+- **What they keep clear of** (2 mm round each): the openings (`po.bb`, `po.labBB`), art on the walls, the band; on a
+  hexagon or octagon 1.5 mm either side of each corner (turns over 2°); below a twist lid's neck (`tw.Hn - 1`, then 2.5 mm
+  from the top as on a rectangle).
+- `encShapeCheck` no longer lists "the wall texture" and "the band" as left out. Sloped and clamshell boxes already had
+  them (they are built from the rectangle's walls).
+
+**E5, curves by chord error, for circles.** `C.segsFor(r, min, tol)`: the sides a circle of radius r needs to stay within
+`tol` (default 0.025 mm, a sixteenth of a 0.4 mm nozzle), at least `min`, at most 720. The page's `circ(r, n, cw)` uses
+it, and every `C.ringCircle` with a fixed count of 16 or more (57 of them) and `encCyl` now go through `circ`. Counts
+under 16 (a nut's 6) and counts already worked out from the radius are left alone. No default object or quick start has a
+circle big enough to change (fingerprints: all 55 unchanged); a 120 mm fan opening goes from 48 sides to 109.
+- **A bug the rewrite made, caught in review:** a local `const circ = (x, v, r) => [{ outer:circ(r, 32)… }]` in the
+  sloped lid's code became a call to itself. Written out now with `C.ringCircle(r, C.segsFor(r, 32))`. Another local
+  `circ` (the holders' fit test) has its own signature and none of the rewritten calls in its scope.
+
+**`tools-partshot.js`** takes `MF_URL`, for a page served over http (the cutting tool loads from `models/` next to it), so
+shaped boxes can be pictured; `docs/images/box-shape-style.jpg` is made that way.
+
+**Tested:**
+- `tools-boxshape-test.js` (new section):
+  - a round box's band is its own part, closed, in its filament, the wall's outer 0.6 mm from 10 to 18 mm up;
+  - box plus band equals the plain box (32,240.4 mm³ both); they don't overlap;
+  - grooves all the way round, broken round an opening (62.1 grooves' worth of 63); the wall behind a groove is whole;
+  - a hexagon with hexagons and a band, an octagon with grooves and a band: built, closed, nothing left out;
+  - no support for any of them; the left-out list no longer names the texture.
+- `CORE=1 npm run test:memo` (new section): from 0.3 to 250 mm every circle within 0.025 mm and never fewer sides than
+  before; 3 and 4 mm holes keep 32 and 24 sides; a 120 mm fan opening gets 109; at most 720; a zero or bad radius keeps
+  the count.
+- The suites, the print survey and the browser check: in the pull request.
+
+**Not done:** the rest of the shaped-box list through the same frame (mounting ears and loops, levels and dividers cut to
+the shape, inlaid and raised art, rain hoods, windows); arcs in files (no slicer format takes them from a mesh).
+
 ## Next
 
 **The plan from here to 2.5 is in `ROADMAP.md`** (Session 66, the owner's request): releases 0.58 to 0.95, 1.0, the parametric

@@ -746,8 +746,8 @@
  "object enclosure": [
   {
    "name": "Box",
-   "tris": 2084,
-   "vol": 37583.8,
+   "tris": 1980,
+   "vol": 37563.4,
    "size": [
     100,
     36,
@@ -1556,8 +1556,8 @@
  "preset Project box": [
   {
    "name": "Box",
-   "tris": 2084,
-   "vol": 37583.8,
+   "tris": 1980,
+   "vol": 37563.4,
    "size": [
     100,
     36,
@@ -1608,8 +1608,8 @@
  "preset Power bank box": [
   {
    "name": "Box",
-   "tris": 7464,
-   "vol": 37302.6,
+   "tris": 7200,
+   "vol": 37272.1,
    "size": [
     110,
     30,
@@ -1660,8 +1660,8 @@
  "preset PSU box": [
   {
    "name": "Box",
-   "tris": 3336,
-   "vol": 131968.7,
+   "tris": 3180,
+   "vol": 131945.8,
    "size": [
     160,
     75,

@@ -101,6 +101,8 @@ Plus, depending on what changed:
   `exactModel`, `buildYield`) → `npm run test:rough` and the smoke test
 - a circle's sides (`C.segsFor`, the page's `circ()` for every fixed count of 16 or more) → `CORE=1 npm run test:memo` and `npm run fingerprint`;
   a local helper named `circ` must not shadow the page's where the page's is meant (two do, Session 71)
+- a bug hunt, or after changing how a panel's controls reach the build → `node tools-fuzz.js index.html` (random settings on every
+  object, `OBJ=`, `SEED=`, `RUNS=`, `STEPS=`; slow, not in a suite)
 - `tools-after-squash.js` or `.github/workflows/after-squash.yml` → `npm run test:squash`
 - the icon maker (`ICONS`, `iconCanvas`, `cleanIcon`, `iconPanel`), AI help (`AI`, `aiAsk`, `aiFromWords`, `aiCleanPlan`) or "Describe your project" (`encApplyPlan`,
   `encPlaceOpening`, `encLogoSpot`) → `npm run test:iconai` (no key needed: the AI and `fetch` are stand-ins) and `npm run test:enclosure`;

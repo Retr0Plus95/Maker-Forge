@@ -3093,6 +3093,45 @@ shaped boxes can be pictured; `docs/images/box-shape-style.jpg` is made that way
 **Not done:** the rest of the shaped-box list through the same frame (mounting ears and loops, levels and dividers cut to
 the shape, inlaid and raised art, rain hoods, windows); arcs in files (no slicer format takes them from a mesh).
 
+## Session 72: a bug hunt, with random settings on every object (v0.62.0)
+
+Engine I (E1 to E5) is done with 0.61. E6 to E10 are the roadmap's "Engine II" (0.80): each is a release or more of
+its own (smooth-shape modelling, fit simulation, one layout solver, a layer preview, the GPU), so the owner's next ask,
+the bug hunt, came first. E7 was looked at: several box features overlap by design (snap catches, a printed gasket), so
+an in-app collision check needs to know them apart, and the box tests already check each lid's fit with Manifold. On a
+branch from `main` at `8d4bdba`.
+
+**`tools-fuzz.js`** (new; not part of a suite, as `tools-boxfuzz.js`): every object, `RUNS` × `STEPS` random steps on its
+pages. Each step is a slider anywhere in its range (a quarter of them at an end), a list's other choice, a checkbox, a
+row's button, or odd text (empty, emoji, markup, 140 characters, two lines). After each it checks: no page error or
+console error, no "Could not build" notice, every part closed, outward and free of NaN, the print on the bed. `SEED`
+repeats a run. Seed 1 (2 runs × 14 steps over all 24 objects, 672 steps) found nothing; the longer runs (seeds 2 to 5
+at 3 × 20, and `tools-boxfuzz.js` on seeds 7 and 8) are reported in the pull request. The bugs below came from reading
+the browser check's pictures and the quick starts' own checks.
+
+**Found and fixed:**
+- **Picking Round left the default box's push button out.** A twist lid's neck starts at `tw.Hn - tw.cone` (23.4 mm on
+  the default 36 mm box) and the button's top was at 24.1 mm. The shape picker's first pick of Round now lowers each wall
+  opening that reaches the neck (`ringsBounds(placedRings(c, E))` against `tw.Hn - tw.cone - 0.8`) when its bottom stays
+  1.5 mm over the floor, and says which (`notify`). `tools-boxshape-test.js` clicks the real button: a twist lid, nothing
+  left out, the button 18 → 16.3 mm, the others where they were.
+- **The Project box quick start needed 25 mm² of support:** the tops of its 8 mm pilot-light hole and 12 mm button hole.
+  `DEFAULTS().base.enclosure.teardrop` is `"flat"` now (pointed, cut flat 1 mm over the circle, Session 64's choice for
+  outdoor boxes): 0 mm². Projects that saved `teardrop` keep it, and older projects still open with round holes (the
+  enclosure test checks both). The fingerprints of the four boxes with round wall holes moved on purpose (20 to 30 mm³
+  each, fewer triangles; `fingerprint:update`). `tools-enclosure-test.js`: round when asked for, pointed when asked
+  for, and by default between the two.
+
+**Looked at, not changed:**
+- **The jigsaw quick start's six walls thinner than the nozzle** (0.19 mm, in a picture colour). Its picture's slivers
+  are dropped before the pieces are cut (`dropSlivers` at half a nozzle), and a cut line passing close to a colour's
+  edge leaves a strip along it. The fix is dropping slivers again per piece after the cut.
+- **The phone case's 0.35 mm wall in its back picture:** the same kind, in the inlaid picture.
+
+**Tested:**
+- `test:enclosure` (all 20 box tests), `test:project`, `test:print`: all pass.
+- The smoke test and the browser check: in the pull request.
+
 ## Next
 
 **The plan from here to 2.5 is in `ROADMAP.md`** (Session 66, the owner's request): releases 0.58 to 0.95, 1.0, the parametric

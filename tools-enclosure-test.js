@@ -345,9 +345,11 @@ async function settle() {
   const directNow = over => { freshNow(over); return MF.buildEnclosure(); };
   const buildNow = async over => { freshNow(over); MF.rebuild(false); await settle(); return MF.parts; };
   const holeVol = async over => { const v0 = vol(directNow({ cut: [], ...over })[0]); const v1 = vol(directNow({ cut: [{ ...MF.newOpening("round", "front"), dia: 20, v: 18 }], ...over })[0]); return v0 - v1; };
-  const round = await holeVol({}), wantRound = Math.PI * 10.2 * 10.2 * 2, tear = await holeVol({ teardrop: true });
-  check(Math.abs(round - wantRound) / wantRound < 0.03, "a 20 mm hole in a wall is round by default", `${round.toFixed(0)} mm³ removed, a round one ${wantRound.toFixed(0)}`);
+  const round = await holeVol({ teardrop: false }), wantRound = Math.PI * 10.2 * 10.2 * 2, tear = await holeVol({ teardrop: true }), flatDef = await holeVol({});
+  check(Math.abs(round - wantRound) / wantRound < 0.03, "a 20 mm hole in a wall is round when asked for", `${round.toFixed(0)} mm³ removed, a round one ${wantRound.toFixed(0)}`);
   check(tear > round * 1.05, "pointed tops are still there when asked for", `${tear.toFixed(0)} mm³`);
+  // since Session 72 a new box's round holes are pointed and cut flat: a little more than round, less than pointed
+  check(MF.defaults.enclosure.teardrop === "flat" && flatDef > round * 1.005 && flatDef < tear, "by default it is pointed and cut flat 1 mm over the circle (no support)", `${round.toFixed(0)} < ${flatDef.toFixed(0)} < ${tear.toFixed(0)} mm³`);
   const load = async (v, teardrop) => {
     const st = JSON.parse(JSON.stringify(Object.assign({}, MF.state, { items: [] }))); st.base.type = "enclosure"; st.base.enclosure.teardrop = teardrop; st.base.enclosure.w = 101 + (v === 5 ? 1 : 0);
     const f = new win.File([JSON.stringify({ app: "Maker Forge", v, state: st })], "p.json", { type: "application/json" });

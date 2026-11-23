@@ -484,7 +484,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.62.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.62.1</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -8766,7 +8766,9 @@ function applySnapshot(json){
   // an imported model is not in the snapshot: take the one it was made with, if this tab still has it
   const want = state.base.type === "stl" && state.base.stl ? state.base.stl.name : null;
   if (want && want !== stlName){ const m = openedModels.get(want); stlData = m ? m.data : null; stlPaint = m ? m.paint : null; stlColour = m ? m.colour : null; stlName = m ? want : null; stlCache = null; }
-  state.items.forEach(it => { it.solids = null; it._imgKey = ""; it._srcSig = ""; });
+  state.items.forEach(it => { it.solids = null; it._imgKey = ""; it._srcSig = "";
+    // the picture back from its asset, for everything that reads it straight from the item (Session 72)
+    if (!it.src && it.asset && assets[it.asset] && assets[it.asset].canvas){ it.src = assets[it.asset].canvas; if (!it.thumb && assets[it.asset].thumb) it.thumb = assets[it.asset].thumb; } });
   applyTheme(); renderTab(); rebuildAll(true);
 }
 function undo(){ if (history.past.length < 2) return; history.future.push(history.past.pop()); applySnapshot(history.past[history.past.length-1]); updateHistoryButtons(); }
@@ -8952,6 +8954,9 @@ function cutoutCanvas(src, tol){
 function sourceCanvas(d){
   if (d && d.icon) iconSrc(d);                     // an icon is drawn from its recipe (Session 49)
   if (d && d.qr) qrSrc(d);                         // a QR code from its text (Session 65)
+  // a picture whose canvas was left behind by an undo or a redo (the snapshot is text): its asset still has it (Session 72:
+  // the example picture beside a name, and a box's lid logo, went missing after Undo)
+  if (d && !d.src && d.asset && assets[d.asset] && assets[d.asset].canvas) d.src = assets[d.asset].canvas;
   if (!d.src) return null;
   const a = d.adjust||{ bright:0, contrast:0, sat:0 };
   const sig = [d.rot90||0, d.crop?1:0, a.bright, a.contrast, a.sat, d.src.width, d.src.height].join("|");

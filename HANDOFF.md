@@ -3136,6 +3136,31 @@ the browser check's pictures and the quick starts' own checks.
   box that already has them does not offer.
 - The smoke test and the browser check: in the pull request.
 
+## Session 73: Undo and Redo keep the pictures (v0.62.1)
+
+The bug hunt continued (Session 72). `tools-fuzz.js` got `UNDO=1`: before each step it notes every part (name, triangles,
+hashes of corners and corners' order), and after the step Undo must bring those back exactly and Redo the ones after.
+It found a real bug on its first run (seed 11, three objects).
+
+**The bug.** `applySnapshot` (Undo and Redo) rebuilds `state` from a JSON snapshot, which has no canvases: every item lost
+its `src`. The build restores an item's `src` from `assets[d.asset].canvas` in its loop over the artwork, but some objects
+read an item straight from `state.items` before that loop: the name plate's picture beside the name (`sourceCanvas`),
+and a box's lid logo. So after Undo the name plate's example picture parts and the Project box's lid logo were gone (and
+Redo did not bring them back). Fixed twice over:
+- `sourceCanvas` takes the canvas from the item's asset when the item has none;
+- `applySnapshot` puts each item's canvas (and thumbnail) back from its asset at once.
+
+**Tested:**
+- `tools-project-test.js` (new section, first in the file): the name plate and the Project box quick start, a slider
+  moved, Undo brings back every part, the example picture's too (3 and 2 picture parts), and Redo the parts after the
+  change.
+  - It runs first because jsdom cannot decode an opened project's pictures (`dataURLToCanvas`), so later in the file the
+    assets have no canvas to restore from. In a browser they do.
+- `UNDO=1 tools-fuzz.js` over every object (seed 21, one run of 10 steps each, 240 steps): after the fix, one finding,
+  on the tracer, which was the tool's own: it lowers the tracer's working resolution behind the history's back for
+  speed, so Undo brought the setting back. It no longer does that under `UNDO=1`. Run again, the tracer had no
+  findings, and Undo after "Back plate" brings the traced part back exactly (checked by hand too).
+
 ## Next
 
 **The plan from here to 2.5 is in `ROADMAP.md`** (Session 66, the owner's request): releases 0.58 to 0.95, 1.0, the parametric

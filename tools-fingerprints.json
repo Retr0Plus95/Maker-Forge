@@ -302,18 +302,18 @@
   },
   {
    "name": "Sky blue picture",
-   "tris": 32368,
-   "vol": 4973.4,
+   "tris": 33308,
+   "vol": 4973.1,
    "size": [
     150,
     0.6,
-    84.63
+    84.55
    ]
   },
   {
    "name": "Cream picture",
-   "tris": 19688,
-   "vol": 1762,
+   "tris": 20172,
+   "vol": 1760.1,
    "size": [
     150,
     0.6,
@@ -322,18 +322,18 @@
   },
   {
    "name": "Red picture",
-   "tris": 8784,
-   "vol": 539.8,
+   "tris": 9256,
+   "vol": 541.5,
    "size": [
-    117.17,
+    117.24,
     0.6,
-    54.67
+    54.8
    ]
   },
   {
    "name": "Green picture",
-   "tris": 17668,
-   "vol": 2466.9,
+   "tris": 18304,
+   "vol": 2467.8,
    "size": [
     150,
     0.6,
@@ -1428,18 +1428,18 @@
   },
   {
    "name": "Sky blue picture",
-   "tris": 32368,
-   "vol": 4973.4,
+   "tris": 33308,
+   "vol": 4973.1,
    "size": [
     150,
     0.6,
-    84.63
+    84.55
    ]
   },
   {
    "name": "Cream picture",
-   "tris": 19688,
-   "vol": 1762,
+   "tris": 20172,
+   "vol": 1760.1,
    "size": [
     150,
     0.6,
@@ -1448,18 +1448,18 @@
   },
   {
    "name": "Red picture",
-   "tris": 8784,
-   "vol": 539.8,
+   "tris": 9256,
+   "vol": 541.5,
    "size": [
-    117.17,
+    117.24,
     0.6,
-    54.67
+    54.8
    ]
   },
   {
    "name": "Green picture",
-   "tris": 17668,
-   "vol": 2466.9,
+   "tris": 18304,
+   "vol": 2467.8,
    "size": [
     150,
     0.6,
@@ -1480,8 +1480,8 @@
   },
   {
    "name": "Pale blue picture",
-   "tris": 10752,
-   "vol": 3042.8,
+   "tris": 10884,
+   "vol": 3043.8,
    "size": [
     120,
     0.6,
@@ -1490,8 +1490,8 @@
   },
   {
    "name": "Sea blue picture",
-   "tris": 6176,
-   "vol": 2235.4,
+   "tris": 6240,
+   "vol": 2235.1,
    "size": [
     120,
     0.6,
@@ -1500,8 +1500,8 @@
   },
   {
    "name": "Navy picture",
-   "tris": 6708,
-   "vol": 1429.5,
+   "tris": 6696,
+   "vol": 1428.7,
    "size": [
     90.59,
     0.6,
@@ -1510,8 +1510,8 @@
   },
   {
    "name": "Sunflower picture",
-   "tris": 2752,
-   "vol": 317.4,
+   "tris": 2772,
+   "vol": 317.7,
    "size": [
     104.98,
     0.6,

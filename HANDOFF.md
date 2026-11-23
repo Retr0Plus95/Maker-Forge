@@ -3270,6 +3270,39 @@ A back text or credit already fits itself 1.2 or 0.8 mm inside the plate's edge,
 - The smoke test, `tools-audit.js nameplate`, `test:fit`, `test:print`, `test:project`, `test:rough`.
 - `npm run fingerprint:update`: only the Double-sided tag's plate moved (0.46 mm longer, 12 mm³ more, 5272 → 5288 triangles).
 
+## Session 78: project files held to the sliders, tall pictures capped (v0.62.6)
+
+A bug hunt. `tools-fuzz.js` (seeds 15 to 18, every object, with and without Undo) and `tools-boxfuzz.js` (seed 14) found
+nothing. A new scratch fuzzer that opens project files with random settings set far out of range or to the wrong type (in
+the session's scratchpad, not committed: `tools-project-test.js` keeps the cases) ran the test out of memory on a circuit board.
+
+**What it was:** `stripDangerous` holds a number to its `LIMITS_AT` / `LIMITS` range, and any other number to ±100 000.
+`pcb.margin` had no range, so a project's border of 100 000 mm made a board 200 m long. With its hatch on, `buildPCB`'s hatch
+grid (1100 cells across, `hg × boardH / boardW` down) asked for two billion cells. A probe (each object's sliders driven to both
+ends, which saved setting moved, and its limit when a project opens) found 63 settings on the objects that `sanitizeProject`
+does not clean itself (the circuit board, photo frame, lightbox, jigsaw, cookie cutter, tracer, name plate, lithophane and shell)
+held only at ±100 000. Each is now in `LIMITS_AT` at its slider's range, read from the `numField` in the panel (the jigsaw's
+variety is 0 to 1: its slider shows a percentage). The card, the box, the phone case, the relief, the sign, mechanisms and
+fix-it parts have their own cleaners and were already in range. The probe found no slider that goes past its limit.
+
+The same uncapped grid was in every generator that sizes a grid from the picture's shape: `gx` cells across (clamped) and
+`gx / aspect` down (not). A picture a hundred times taller than wide made a circuit board's trace grid 40 million cells (800 MB
+in the test), and its hatch more again. A new `gridCells(gx, gy, max = 2e6)` keeps the proportions and scales both down to 2
+million cells at most. It is used by the circuit board (traces and hatch), the cookie cutter, the lightbox, `gridFor` (picture
+decals) and "Match to artwork" on the Art tab (160 across, there at most 256 000). Each caller already measures in `width / gx`, so a
+capped grid is just coarser. A saved picture's `aspect` is now held to 0.005 to 200 (it is taken again from the picture when it
+loads). No quick start or object reaches the cap: `npm run fingerprint` shows nothing moved.
+
+Left as it is: settings that are words (a turned shape, a name plate's end charm) keep any text up to 4000 letters from a
+project file. Where they are used, an unknown word falls back to the usual choice, so nothing breaks.
+
+**Tested:**
+- `tools-project-test.js`, new section: a circuit board with a border of 10⁹ mm and its hatch on, a photo frame, a lightbox and a
+  jigsaw with settings at ±10⁹ (each clamped to its slider and built), and a hatched circuit board from a picture with an aspect
+  of 0.01 (2 million cells, about 12 s in jsdom). On 0.62.5 the four clamping checks fail (each kept at ±100 000), and the tall picture runs the test out of memory.
+- Every quick start and object still comes back unchanged from a saved project (`test:project`).
+- The smoke test, `tools-audit.js pcb,cutter,lightbox`, `test:print`, `test:jigsaw`, `test:art`, the print survey and `npm run fingerprint` (no change).
+
 ## Next
 
 **The plan from here to 2.5 is in `ROADMAP.md`** (Session 66, the owner's request): releases 0.58 to 0.95, 1.0, the parametric

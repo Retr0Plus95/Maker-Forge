@@ -45,6 +45,27 @@ async function settle() {
   for (const v of objects) { const s = document.querySelector("#objectSel"); s.value = v; s.dispatchEvent(new win.Event("change")); await settle(); await roundTrip("object " + v); }
   check(!changed.length, `${presets.length} quick starts and ${objects.length} objects come back unchanged`, changed.slice(0, 4).join(" | "));
 
+  console.log("\nUndo and Redo bring the pictures back (Session 72: the example picture beside a name and a box's lid logo went missing; first, as jsdom cannot decode an opened project's pictures)");
+  {
+    const parts = () => MF.parts.map(p => p.name + ":" + p.solid.idx.length).join(" ");
+    // the name plate object (its example picture beside the name) and the Project box quick start (its example lid logo)
+    for (const [obj, label, v, preset] of [["nameplate", "Letter spacing (mm)", "6"], ["enclosure", "Height (mm)", "40", "Project box"]]) {
+      if (preset) [...document.querySelectorAll("#presetGallery button")].find(b => b.dataset.k === preset).click();
+      else { const sel = document.querySelector("#objectSel"); sel.value = obj; sel.dispatchEvent(new win.Event("change")); }
+      await settle(); await sleep(600); await settle();
+      [...document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "make").click(); await sleep(50);
+      const before = parts(), pics = MF.parts.filter(p => /Picture \(|Lid logo/.test(p.name)).length;
+      const rng = document.querySelector(`input[type=range][aria-label="${label}"]`);
+      if (!rng) { check(false, `${obj}: the ${label} slider`); continue; }
+      rng.value = v; rng.dispatchEvent(new win.Event("input")); await settle(); await sleep(600); await settle();
+      const after = parts();
+      document.querySelector("#undoBtn").click(); await settle(); await sleep(100); await settle();
+      check(pics > 0 && parts() === before, `${obj}: Undo brings back every part, its example picture's too`, `${pics} picture parts; ${parts() === before ? "the same" : before + " → " + parts()}`);
+      document.querySelector("#redoBtn").click(); await settle(); await sleep(100); await settle();
+      check(parts() === after, `${obj}: and Redo the parts after the change`);
+    }
+  }
+
   console.log("\nsettings that used to run away, set far out of range in a project file");
   const cases = [
     ["turned", "wall", -1e9], ["turned", "neck", 1e9], ["bobble", "plinthH", -1e9], ["bobble", "bore", 1e9], ["bobble", "shoulder", 1e9],

@@ -3,6 +3,13 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.62.1
+
+A fix for Undo and Redo, found by trying random settings on every object and undoing each one.
+
+**Fixed**
+- Undo or Redo could make a picture disappear from the model: the example picture beside a name plate's name, and a project box's lid logo. A picture's image is now taken back from where it is kept, so Undo brings back exactly what was there.
+
 ## 0.62.0
 
 A bug hunt, with a new tool that tries random settings on every object.

@@ -4,6 +4,7 @@
 // no page error and no "Could not build the model", every part closed, facing outward, free of NaN, and the print standing on
 // the bed. A seed repeats the same steps, so a finding can be run again.
 //   node tools-fuzz.js index.html        OBJ=nameplate,sign (default: all)  SEED=1  RUNS=2  STEPS=14  VERBOSE=1
+//   UNDO=1: after each step, Undo must bring back the parts from before it (number for number) and Redo the ones after it
 (async () => {
   const env = require("./tools-test-env.js")(process.argv[2] || "index.html");
   const win = env.window, document = win.document, sleep = ms => new Promise(r => setTimeout(r, ms)), $$ = s => [...document.querySelectorAll(s)];
@@ -25,6 +26,9 @@
     .filter(v => !process.env.OBJ || process.env.OBJ.split(",").includes(v));
   const RUNS = +(process.env.RUNS || 2), STEPS = +(process.env.STEPS || 14), findings = [];
   const visible = el => !el.closest("[hidden]") && !el.disabled && el.offsetParent !== undefined;
+  // the parts as they are: each one's name, triangles and a hash of its corners
+  const sig = () => MF.parts.map(p => p.name + ":" + p.solid.idx.length + ":" + C.memo.hash(p.solid.pos) + ":" + C.memo.hash(p.solid.idx)).join(" ");
+  const sigBrief = x => x.split(" ").map(q => q.split(":").slice(0, 2).join(":")).join(" ").slice(0, 160);
   function check(where) {
     const out = [];
     MF.parts.forEach(p => {
@@ -45,8 +49,9 @@
       const sel = document.querySelector("#objectSel"); sel.value = obj; sel.dispatchEvent(new win.Event("change")); await settle();
       MF.state.base.tracer && Object.assign(MF.state.base.tracer, { workRes: 300, paperRes: 500 });
       const tabBtn = $$("#tabs button").find(b => b.dataset.k === "make"); if (tabBtn) { tabBtn.click(); await sleep(20); }
-      const log = [];
+      const log = []; let sigBefore = null;
       for (let step = 0; step < STEPS; step++) {
+        if (process.env.UNDO) { await sleep(500); await settle(); sigBefore = sig(); }
         const icons = $$("#secrail button"); if (icons.length) { const ic = pick(icons); if (ic.getAttribute("aria-pressed") !== "true") { ic.click(); await sleep(15); } }
         const ranges = $$("#panel input[type=range]").filter(visible), selects = $$("#panel select").filter(visible),
           checks = $$("#panel input[type=checkbox]").filter(visible), segs = $$("#panel .seg button").filter(visible),
@@ -66,6 +71,16 @@
         } catch (e) { findings.push(`${obj} run ${run} step ${step} (${what || label}): threw ${e.message}`); }
         log.push(what);
         if (!(await settle())) findings.push(`${obj} run ${run} step ${step}: the build after ${what} never finished`);
+        // UNDO=1: Undo brings back the parts from before the step, number for number, and Redo the ones after it
+        if (process.env.UNDO && sigBefore !== null && MF.state.base.type === obj) {
+          await sleep(500); await settle(); const sigAfter = sig(), ub = document.querySelector("#undoBtn"), rb = document.querySelector("#redoBtn");
+          if (sigAfter !== sigBefore && ub && !ub.disabled) {
+            ub.click(); await settle(); await sleep(60); await settle();
+            if (sig() !== sigBefore) findings.push(`${obj} run ${run} step ${step}: Undo after [${what}] did not bring back the parts from before (${sigBrief(sigBefore)} → ${sigBrief(sig())})`);
+            if (rb && !rb.disabled) { rb.click(); await settle(); await sleep(60); await settle();
+              if (sig() !== sigAfter) findings.push(`${obj} run ${run} step ${step}: Redo after Undo of [${what}] did not bring back the parts (${sigBrief(sigAfter)} → ${sigBrief(sig())})`); }
+          }
+        }
         if (MF.state.base.type !== obj) { log.push("(object changed, back)"); const s2 = document.querySelector("#objectSel"); s2.value = obj; s2.dispatchEvent(new win.Event("change")); await settle(); }
         const f = check(`${obj} run ${run} step ${step} after [${log.slice(-3).join(" | ")}]`);
         if (f.length) { findings.push(...f); if (process.env.VERBOSE) console.log("  !", f.join("\n  ! ")); }

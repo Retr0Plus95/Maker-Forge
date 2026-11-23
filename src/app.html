@@ -8006,7 +8006,7 @@ async function buildJigsaw(){
   let t0 = performance.now();
   for (let n = 0; n < cut.pieces.length; n++){
     const pc = cut.pieces[n];
-    const r = C.jigsawPiece(pc, { gap, s, outline:cut.clip, extra, colours,
+    const r = C.jigsawPiece(pc, { gap, s, outline:cut.clip, extra, colours, nozzle:state.printer.nozzle || 0.4,
       label: labels ? { text:pc.label, height:labelH, minHeight:2.2, minHalf:0.3, mirror:true, near:pc.anchor } : null });
     if (labels && !r.label) unlabelled++;
     if (!r.body.length) continue;

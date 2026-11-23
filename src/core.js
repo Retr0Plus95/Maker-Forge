@@ -2850,7 +2850,8 @@
         return false;
       });
       if (present.length === 1) out.top.push({ slot: present[0].slot, polys: body });
-      else for (const c of present) {
+      else {
+       const fields = present.map(c => {
         const G = new Float32Array(N), k = 3 * c.cell;
         for (let j = 0; j < g.h; j++) {
           const py = Math.min(c.gy - 1, Math.max(0, (c.H / 2 - (g.y1 - j * s)) / c.cell - 0.5)), y0 = Math.min(c.gy - 2, Math.floor(py)), fy = py - y0;
@@ -2862,8 +2863,29 @@
             G[n] = v < F[n] ? v : F[n];
           }
         }
-        const polys = gridPolys(G, g, 0, Math.max(g.s * g.s * 4, 0.05));
+        return G;
+       });
+       // a colour cut by the piece's edge close to its own edge leaves a strip thinner than the nozzle: per piece, each
+       // cell gets its colour, the slivers go to the colour beside them (cells outside the piece count as none, so a
+       // strip along the cut is measured as thin), and the fields follow the cells that changed (Session 76)
+       if (o.nozzle > 0) {
+         const L = new Int8Array(N).fill(-1);
+         for (let n = 0; n < N; n++) {
+           if (F[n] <= 0) continue;
+           let best = -1, bv = 0;
+           for (let c = 0; c < fields.length; c++) if (fields[c][n] > bv) { bv = fields[c][n]; best = c; }
+           L[n] = best;
+         }
+         const L2 = dropSlivers(L, g.w, g.h, o.nozzle * 0.5 / s + 0.5), e = s * 0.5;
+         for (let n = 0; n < N; n++) if (L2[n] !== L[n]) {
+           if (L[n] >= 0) fields[L[n]][n] = -e;
+           if (L2[n] >= 0) fields[L2[n]][n] = Math.min(e, F[n]);
+         }
+       }
+       present.forEach((c, ci) => {
+        const polys = gridPolys(fields[ci], g, 0, Math.max(g.s * g.s * 4, 0.05));
         if (polys.length) out.top.push({ slot: c.slot, polys });
+       });
       }
     }
     return out;

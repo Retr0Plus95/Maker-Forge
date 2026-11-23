@@ -3,6 +3,13 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.62.3
+
+Another fix found by trying random settings on every object.
+
+**Fixed**
+- A long name curved on a name plate, such as "Maximilian Johnson" at 10 mm letters curved 120°, didn't build at all ("that name is too long at this letter height"). It now builds, drawn on a slightly coarser grid.
+
 ## 0.62.2
 
 A fix found by trying random settings on every object.

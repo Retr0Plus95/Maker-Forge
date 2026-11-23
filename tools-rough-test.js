@@ -92,6 +92,20 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
     await drag(E, "h", [31, 32, 33, 34, 35]); await settle();
     check(B.count.rough === c0.rough, "a project box (tens of milliseconds) is built exactly every time", `${Math.round(B.lastExact.enclosure)} ms a build`);
   }
+  // Session 75: a long name curved at small letters needed a canvas over the limit and did not build at all (found by
+  // tools-fuzz.js); now it is drawn on a coarser grid, exactly and while dragging
+  console.log("\na long curved name at small letters builds on a coarser grid");
+  {
+    await pick("nameplate");
+    const np = MF.state.base.nameplate, keep = { text: np.text, letterHeight: np.letterHeight, arc: np.arc };
+    Object.assign(np, { text: "Maximilian Johnson", letterHeight: 10, arc: 120 }); env.errors.length = 0;
+    await MF.rebuild(false); await settle();
+    const b = MF.parts.length ? C.solidBounds(MF.parts[0].solid) : null;
+    check(MF.parts.length > 1 && b && b.mx[0] - b.mn[0] > 150 && !env.errors.length, "“Maximilian Johnson”, 10 mm letters, curved 120°: it builds", b ? `${MF.parts.length} parts, ${(b.mx[0] - b.mn[0]).toFixed(0)} mm wide` : env.errors[0]);
+    await drag(np, "arc", [110, 115, 120]); await settle();
+    check(MF.parts.length > 1 && !env.errors.length, "and again after dragging the curve (rough builds on the coarser grid too)", env.errors[0] || `${MF.parts.length} parts`);
+    Object.assign(np, keep); env.errors.length = 0; await MF.rebuild(false); await settle();
+  }
   check(env.errors.length === 0, "no page errors", env.errors.join(" | "));
   console.log(fails ? `\n${fails} FAILED` : "\nall passed");
   process.exit(fails ? 1 : 0);

@@ -24,7 +24,7 @@
   const TEXTS = ["", " ", "W", "Ωmega Ünïcödé", "😀👍", "a\nb", "<b>x</b>&amp;", "x".repeat(140), "123", "Mr. O'Neil-Smith"];
   const objects = [...document.querySelector("#objectSel").options].map(o => o.value).filter(v => v !== "stl" && v !== "none")
     .filter(v => !process.env.OBJ || process.env.OBJ.split(",").includes(v));
-  const RUNS = +(process.env.RUNS || 2), STEPS = +(process.env.STEPS || 14), findings = [];
+  const RUNS = +(process.env.RUNS || 2), STEPS = +(process.env.STEPS || 14), findings = [], dumped = new Set();
   const visible = el => !el.closest("[hidden]") && !el.disabled && el.offsetParent !== undefined;
   // the parts as they are: each one's name, triangles and a hash of its corners
   const sig = () => MF.parts.map(p => p.name + ":" + p.solid.idx.length + ":" + C.memo.hash(p.solid.pos) + ":" + C.memo.hash(p.solid.idx)).join(" ");
@@ -38,7 +38,9 @@
       if (v < -1e-6) out.push(`${p.name}: faces inward (volume ${v.toFixed(2)})`);
     });
     const pp = MF.printParts();
-    if (pp.length) { let lo = Infinity; pp.forEach(p => { for (let i = 1; i < p.pos.length; i += 3) lo = Math.min(lo, p.pos[i]); }); if (Math.abs(lo) > 0.02 && isFinite(lo)) out.push(`the print stands ${lo.toFixed(3)} mm off the bed`); }
+    if (pp.length) { let lo = Infinity, who = "";
+      pp.forEach(p => { let l = Infinity; for (let i = 1; i < p.pos.length; i += 3) l = Math.min(l, p.pos[i]); if (l < lo){ lo = l; who = p.name; } });
+      if (Math.abs(lo) > 0.02 && isFinite(lo)) out.push(`the print stands ${lo.toFixed(3)} mm off the bed (lowest: ${who})`); }
     const n = notice(); if (/Could not build|failed|went wrong/i.test(n)) out.push(`notice: ${n.slice(0, 200)}`);
     said.splice(0).forEach(s => out.push(`console: ${s.slice(0, 200)}`));
     env.errors.splice(0).forEach(s => out.push(`page error: ${s.split("\n").slice(0, 2).join(" / ").slice(0, 200)}`));
@@ -84,7 +86,11 @@
         }
         if (MF.state.base.type !== obj) { log.push("(object changed, back)"); const s2 = document.querySelector("#objectSel"); s2.value = obj; s2.dispatchEvent(new win.Event("change")); await settle(); }
         const f = check(`${obj} run ${run} step ${step} after [${log.slice(-3).join(" | ")}]`);
-        if (f.length) { findings.push(...f); if (process.env.VERBOSE) console.log("  !", f.join("\n  ! ")); }
+        if (f.length) {
+          findings.push(...f); if (process.env.VERBOSE) console.log("  !", f.join("\n  ! "));
+          // the first time on an object: what is shared between objects (the model's settings, the pictures), to find a cause
+          if (!dumped.has(obj)) { dumped.add(obj); findings.push(`${obj}: shared state at the first finding: model ${JSON.stringify(MF.state.model)}; pictures ${JSON.stringify(MF.state.items.map(d => ({ n:d.name, on:d.enabled, mode:d.mode, w:d.width, h:d.height, place:d.place, cut:d.cut })))}`.slice(0, 1500)); }
+        }
       }
       if (process.env.VERBOSE) console.log(`${obj} run ${run}: ${log.join(" · ")}`);
     }

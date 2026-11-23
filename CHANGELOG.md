@@ -8,7 +8,7 @@ Every release of Maker Forge, newest first. The [README](README.md) describes th
 A bug hunt, with a new tool that tries random settings on every object.
 
 - **New boxes print without support.** Round holes in a new box's walls are now pointed, cut flat: 45° sides and a flat top 1 mm over the circle. That's a short bridge, so the hole needs no support, and a button's or gland's flange still covers it all round. The Project box quick start needed 25 mm² of support under its pilot light and button holes; now it needs none. Boxes you saved keep the holes they had.
-- **Picking Round keeps your openings.** A round box gets a lid that twists onto a neck at the top of the wall, and an opening reaching that neck was left out. Now it is lowered to clear the neck when there's room under it, and the app says which ones moved. The default box's push button used to be left out.
+- **Picking Round keeps your openings.** A round box gets a lid that twists onto a neck at the top of the wall, and an opening reaching that neck was left out. Now it is lowered to clear the neck when there's room under it, and the app says which ones moved. The default box's push button used to be left out; now it and the pilot light are lowered a little.
 
 **Fixed**
 - Picking Round for a project box left out any opening that reached the twist lid's neck (the default box's push button), instead of lowering it.

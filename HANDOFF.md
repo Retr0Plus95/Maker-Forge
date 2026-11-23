@@ -3114,7 +3114,9 @@ the browser check's pictures and the quick starts' own checks.
   the default 36 mm box) and the button's top was at 24.1 mm. The shape picker's first pick of Round now lowers each wall
   opening that reaches the neck (`ringsBounds(placedRings(c, E))` against `tw.Hn - tw.cone - 0.8`) when its bottom stays
   1.5 mm over the floor, and says which (`notify`). `tools-boxshape-test.js` clicks the real button: a twist lid, nothing
-  left out, the button 18 → 16.3 mm, the others where they were.
+  left out, the button 18 → 16.3 mm and named as lowered, the USB-C opening where it was. (With the new default
+  below, the pilot light's 8 mm hole is pointed and cut flat 1 mm over its circle, so it reaches the neck as well and is
+  lowered too.)
 - **The Project box quick start needed 25 mm² of support:** the tops of its 8 mm pilot-light hole and 12 mm button hole.
   `DEFAULTS().base.enclosure.teardrop` is `"flat"` now (pointed, cut flat 1 mm over the circle, Session 64's choice for
   outdoor boxes): 0 mm². Projects that saved `teardrop` keep it, and older projects still open with round holes (the

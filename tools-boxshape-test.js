@@ -81,7 +81,9 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
     const T = MF.boxRoom.shape.twist(MF.boxRoom.shape.geo(E()), +E().fit || 0);
     check(btn >= 0 && E().cut[btn].v < before[btn] && E().cut[btn].v + 12.2/2 <= T.Hn - T.cone - 0.8 + 1e-6 && /Lowered/.test(notice),
       "the push button, which reached the neck the lid twists onto, is lowered to clear it, and the page says so", `${before[btn]} → ${E().cut[btn].v} mm; ${notice}`);
-    check(E().cut.every((c, i) => i === btn || c.v === before[i]), "the openings that cleared the neck stay where they were");
+    // (since 0.62 a round hole's top is pointed and cut flat 1 mm over its circle, so the pilot light's 8 mm hole reaches the neck too)
+    const usb = E().cut.findIndex(c => c.kind === "usbc");
+    check(usb >= 0 && E().cut[usb].v === before[usb] && /push button/.test(notice), "the USB-C opening, well under the neck, stays where it was; the button is named as lowered", notice);
   }
 
   console.log("\nhexagonal, octagonal and round boxes with screwed lids");

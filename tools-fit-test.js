@@ -221,7 +221,26 @@ async function appTests() {
       if (ys.every(y => Math.abs(y - 0.8) < 1e-4)) mid.push([(P[I[t]*3] + P[I[t+1]*3] + P[I[t+2]*3]) / 3, 0.4, (P[I[t]*3+2] + P[I[t+1]*3+2] + P[I[t+2]*3+2]) / 3]); } }
     check(mid.length >= 4 && mid.filter(pt => insideMesh(pl.solid, pt)).length === 0, "the plate is cut away where the back name is", `${mid.length} points, ${mid.filter(pt => insideMesh(pl.solid, pt)).length} in the plate`);
     const ds = await supportOf();
-    check(ds >= 0 && ds < 3, "and the tag needs no support", ds.toFixed(1) + " mm²"); }
+    check(ds >= 0 && ds < 3, "and the tag needs no support", ds.toFixed(1) + " mm²");
+    // Session 77: the keyring hole sat 0.2 mm from a straight-sided first letter, leaving a sliver of plate between the
+    // hole and the back name too thin to print. At 0.4 mm up, the nearest empty spot (the hole, or the plate's edge
+    // 3.2 mm out) to the back name, on a 0.05 mm grid over the hole's end of the tag
+    const sl = s => { const P = s.pos, I = s.idx, out = []; for (let t = 0; t < I.length; t += 3) { const pts = [];
+      for (let e = 0; e < 3; e++) { const a = I[t + e] * 3, b = I[t + (e + 1) % 3] * 3; if ((P[a + 1] >= 0.4) === (P[b + 1] >= 0.4)) continue;
+        const f = (0.4 - P[a + 1]) / (P[b + 1] - P[a + 1]); pts.push(P[a] + (P[b] - P[a]) * f, P[a + 2] + (P[b + 2] - P[a + 2]) * f); }
+      if (pts.length === 4) out.push(pts); } return out; };
+    const inS = (S, x, z) => { let k = 0; for (const [xa, za, xb, zb] of S) if ((za <= z) !== (zb <= z) && xa + (xb - xa) * (z - za) / (zb - za) > x) k++; return k & 1; };
+    const q2 = await build("nameplate", b => { b.nameplate.sym.side = "none"; b.nameplate.pic.on = false; b.nameplate.hole = "left"; b.nameplate.line2 = ""; });
+    const pl2 = q2.find(r => r.name === "Plate"), nb2 = q2.find(r => r.name === "Name (back)"), b3 = C.solidBounds(nb2.solid);
+    const SP = sl(pl2.solid), SN = sl(nb2.solid), pB2 = C.solidBounds(pl2.solid), g = 0.05, x0 = pB2.mn[0] - 0.5, z0 = pB2.mn[2] - 0.5;
+    const gw = Math.ceil((b3.mn[0] + 6 - x0) / g), gh = Math.ceil((pB2.mx[2] + 0.5 - z0) / g), cell = new Uint8Array(gw * gh);   // 1 letter, 2 empty
+    for (let i = 0; i < gw; i++) for (let j = 0; j < gh; j++) { const x = x0 + i * g, z = z0 + j * g; cell[j * gw + i] = inS(SN, x, z) ? 1 : inS(SP, x, z) ? 0 : 2; }
+    const edge = k => { const out = []; for (let i = 1; i < gw - 1; i++) for (let j = 1; j < gh - 1; j++) { const n = j * gw + i;
+      if (cell[n] === k && (cell[n - 1] !== k || cell[n + 1] !== k || cell[n - gw] !== k || cell[n + gw] !== k)) out.push([i * g, j * g]); } return out; };
+    const ink = edge(1), gap = edge(2);
+    let near0 = Infinity; for (const [x, z] of ink) for (const [u, v] of gap) { const d = Math.hypot(x - u, z - v); if (d < near0) near0 = d; }
+    check(good(q2) && near0 > 0.5 && near0 < 3, "the keyring hole keeps clear of the name set into the back: no sliver of plate between them", `${near0.toFixed(2)} mm of plate at the narrowest`);
+    st().base.nameplate.sym.side = "both"; }
   // Session 42: the credit goes where it fits, nearest the middle (it was only tried at the middle of the name's outline:
   // on a script name that is often a narrow neck or a gap, and in a browser it was always left out)
   q = await build("nameplate", b => { const np = b.nameplate; np.doubleSided = false; np.text = "Ab          Cd"; np.style = "traced"; np.join = 0; np.line2 = "";

@@ -168,7 +168,7 @@ Session 7 started from `HANDOFF.md`, `index.html`, then the real `src/app.html` 
 **Audit tool strengthened.** The model signature now also covers the exported parts (scale, mirror, turn, brim) and, with the `export` tab argument, the printability result and overlay. Scale and Mirror are therefore tested for real instead of being listed as expected. Expected-dead entries can carry a condition: Mirror only on a model measured to be left-right symmetric; the overhang and bridge sliders and the overlay switch only when the model has nothing for them to act on.
 
 **What the survey says** (`tools-print-survey.js`, default settings, test picture dropped in). Clean: tracer, board, canvas, cookie cutter, PCB, lightbox, frame, shell, box, cylinder, hex and presets Iron-on patch, Car badge, Ornament, Tea light, Cookie cutter, Trace a part, Lightbox, Circuit board, Photo frame. Reported, and checked by rendering slices:
-- Name keychain and Double-sided tag: one 0.35 mm neck in the plate where the keyring loop meets the body (real; seen with the test canvas's box glyphs, may differ with real fonts).
+- Name keychain and Double-sided tag: one 0.35 mm neck in the plate where the keyring loop meets the body (real; seen with the test canvas's box glyphs, may differ with real fonts). (The hole came within 0.2 mm of a straight-sided first letter; fixed in Session 77.)
 - Plastic canvas preset: 11 charcoal slivers 0.2–0.35 mm where the star is clipped by the holes (real).
 - Bobble head ~1030–1130 mm² and sphere ~2180 mm² of support plus a 12 mm² contact (real).
 - Turned vase ~630 mm², all in the bottom 5 mm on the outside: the default profile `0.62 + … sin(π u^0.85)` leaves the bed almost horizontally. Real; see Unfinished.
@@ -3243,6 +3243,32 @@ three of 0.19 mm in the jigsaw test, and 18 on a 300-piece puzzle.
 - `tools-art-test.js`: the stripe jigsaw now allows 3 thin walls (was 10).
 - `test:jigsaw`, `test:art`, `test:rough`, `test:memo`, the smoke test, `tools-audit.js jigsaw`, the print survey.
 - `npm run fingerprint:update`: only the three puzzles' picture parts moved (12 parts, each under 3 mm³).
+
+## Session 77: the keyring hole keeps clear of the letters (v0.62.5)
+
+Found in the print survey after Session 76: the Double-sided tag quick start (with the survey's test badge) had one wall of
+plate 0.35 mm wide in the first layer, at the left end of the name set into the back. HANDOFF's survey notes (Session 7)
+had it as "a neck where the keyring loop meets the body", but it is the keyring hole itself: `buildNamePlate` put the
+hole's middle `tabR × 0.3` in from the plate's edge (1.38 mm with the 4 mm hole and 2.6 mm rim), so its far edge was 3.38
+mm in, while the letters start `border` (3.2 mm) in. A first letter with a straight side (an E, B, D, or the test page's box
+letters) was 0.2 mm from the hole or over it. On a double-sided tag the plate between the hole and the mirrored name in the
+bottom was too thin to print (0.25 mm in a slice of the quick start, 0.05 mm in the fit test's setup); on the front the
+letter hung over the hole's edge. The print check only flagged it with the badge loaded: the strip is short, and it skips
+walls under 2.5 nozzles long.
+
+**The fix:** after the hole's usual place is set, it moves out sideways (left or right, as the hole is) until its edge is
+1.5 nozzle widths (at least 0.5 mm) from every letter pixel: the name's coverage on the front, and, on a double-sided tag
+showing the name on the back, the same mirrored. Letters on the far side of the hole's middle are skipped (moving would not
+help). A tag whose letters are already clear is unchanged; the quick starts' plates grow 0.4 mm at the hole's end.
+A back text or credit already fits itself 1.2 or 0.8 mm inside the plate's edge, the hole included, so it needs nothing.
+
+**Tested:**
+- `tools-fit-test.js`, in the double-sided tag section: with no charms, picture or second line, at 0.4 mm up, the narrowest
+  plate between the back name and any empty spot (the hole, or the edge 3.2 mm out), on a 0.05 mm grid: 0.70 mm (0.05 mm on
+  0.62.4, which fails it).
+- The print survey: Double-sided tag 1 thin wall → 0; nothing else changed.
+- The smoke test, `tools-audit.js nameplate`, `test:fit`, `test:print`, `test:project`, `test:rough`.
+- `npm run fingerprint`: FINGERPRINT_NOTE
 
 ## Next
 

@@ -3268,7 +3268,7 @@ A back text or credit already fits itself 1.2 or 0.8 mm inside the plate's edge,
   0.62.4, which fails it).
 - The print survey: Double-sided tag 1 thin wall → 0; nothing else changed.
 - The smoke test, `tools-audit.js nameplate`, `test:fit`, `test:print`, `test:project`, `test:rough`.
-- `npm run fingerprint`: FINGERPRINT_NOTE
+- `npm run fingerprint:update`: only the Double-sided tag's plate moved (0.46 mm longer, 12 mm³ more, 5272 → 5288 triangles).
 
 ## Next
 

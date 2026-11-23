@@ -902,10 +902,10 @@
  "preset Double-sided tag": [
   {
    "name": "Plate",
-   "tris": 5272,
-   "vol": 8044.6,
+   "tris": 5288,
+   "vol": 8056.9,
    "size": [
-    132.45,
+    132.91,
     3,
     28.47
    ]

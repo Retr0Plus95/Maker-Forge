@@ -3,6 +3,13 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.62.4
+
+Cleaner colours on jigsaw puzzles.
+
+**Fixed**
+- A puzzle's picture could leave strips of colour thinner than the nozzle where a cut ran close to a colour's edge: the Jigsaw puzzle quick start had three, 0.19 to 0.35 mm wide, and a 300-piece puzzle eighteen. A slicer drops strips that thin and leaves a pit in the top. Each piece now gives such a strip to the colour beside it, so the quick starts have none.
+
 ## 0.62.3
 
 Another fix found by trying random settings on every object.

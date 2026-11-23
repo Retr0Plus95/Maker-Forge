@@ -3127,7 +3127,7 @@ the browser check's pictures and the quick starts' own checks.
 **Looked at, not changed:**
 - **The jigsaw quick start's six walls thinner than the nozzle** (0.19 mm, in a picture colour). Its picture's slivers
   are dropped before the pieces are cut (`dropSlivers` at half a nozzle), and a cut line passing close to a colour's
-  edge leaves a strip along it. The fix is dropping slivers again per piece after the cut.
+  edge leaves a strip along it. The fix is dropping slivers again per piece after the cut. (Done in Session 76.)
 - **The phone case's 0.35 mm wall in its back picture:** the same kind, in the inlaid picture.
 
 **Tested:**
@@ -3203,6 +3203,46 @@ side); it was left as it is, since the canvas's size and the grid's place under 
   dragging the curve (rough builds); before, a page error.
 - The smoke test, `tools-audit.js nameplate`, `npm run fingerprint` (unchanged: no example is that big) and the print
   survey.
+
+## Session 76: no colour slivers along a puzzle piece's cut (v0.62.4)
+
+Left from Session 72 ("Looked at, not changed"): the jigsaw quick start's picture walls thinner than the nozzle. The
+picture's slivers are dropped once, on the picture's grid, before the pieces are cut (`dropSlivers`, Session 34), and a
+cut passing close to a colour's edge leaves a strip of it along the cut: 2 or 3 walls of 0.35 mm in the print survey,
+three of 0.19 mm in the jigsaw test, and 18 on a 300-piece puzzle.
+
+**The fix, in `jigsawPiece` (`src/core.js`), when the app passes `nozzle` (not in a rough build):**
+- Each colour's field is built as before; then every cell inside the piece gets the colour with the largest value (none
+  outside the piece or where no colour is over its half), and `dropSlivers` runs on that, per piece. Cells outside the
+  piece count as no colour, so a strip along the cut is measured as thin, and a sliver goes to the colour beside it.
+- The fields follow the cells that changed: a changed cell is just inside its new colour (`+s/2`, or the piece's own
+  distance near its edge) and just outside every other (`-s/2`). On the unchanged cells round it, the new colour takes
+  the old colour's value, so its edge falls where the old one's did (against the cut or the colour beside it). Without
+  that, the colours left hairline cracks between them: 17.7 mm² uncovered on the quick start against 12.5 before.
+- Small pieces have a fine grid (the piece grid is `u/180`, down to 0.035 mm): the sliver step then runs on a grid of
+  `f` cells a side, no finer than the nozzle / 2.5. A coarse cell takes the colour most of its cells have; a fine cell
+  keeps its colour when its coarse cell or one beside it kept that colour after the opening, and otherwise takes its
+  coarse cell's colour. (Following only the coarse cells that changed left scraps of a sliver in coarse cells another
+  colour had most of; the polygon tracer dropped them as too small, which left cracks: 11.7 mm² against 4.5.)
+- `dropSlivers` opens each colour inside its own box with a margin of `ceil(r) + 2`: the margin's ring is empty, so the
+  map is exactly the one over the whole grid (checked against the old way on random maps), and small patches cost little.
+- Rough builds skip it (`nozzle: buildRough ? 0 : …`): a rough jigsaw built slower and the rough test's drag saw none.
+
+**Measured** (`MF.print.thin`, and each piece's body area against its colours' area):
+- Jigsaw puzzle quick start (96 pieces): thin walls 3 → 0; uncovered 12.5 → 11.2 mm² of 32 486; pieces 259 → about
+  650 ms, the exact build about 1.25 → 1.5 s.
+- 300 pieces on the same picture: thin 18 → 1 (0.35 mm); uncovered 4.5 → 4.2 mm² of 15 150; the worst piece 0.23 →
+  0.24 mm²; the exact build 3.5 → 4.3 s.
+- The art test's stripe picture: 5 → 2 thin walls left.
+
+**Tested:**
+- `tools-jigsaw-test.js`, new core section: `dropSlivers` in boxes equals the whole-grid opening on 12 random maps; a
+  one-piece puzzle with a colour starting 0.2 mm inside its edge: the strip prints without a nozzle size and is gone with
+  0.4 mm (the other colour covers the whole piece); a 3 mm band stays. In the app: the example puzzle has no thin wall.
+  Both new checks fail on 0.62.3.
+- `tools-art-test.js`: the stripe jigsaw now allows 3 thin walls (was 10).
+- `test:jigsaw`, `test:art`, `test:rough`, `test:memo`, the smoke test, `tools-audit.js jigsaw`, the print survey.
+- `npm run fingerprint:update`: only the three puzzles' picture parts moved (12 parts, each under 3 mm³).
 
 ## Next
 

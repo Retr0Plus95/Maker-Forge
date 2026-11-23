@@ -149,6 +149,40 @@ console.log("\ntracing a shape that reaches the edge of the grid");
   check(f.length === 1 && f[0].holes.length === 1 && near(polyArea(f), 1200, 12), "closeEdges: a frame round the whole edge keeps its outline", `${polyArea(f).toFixed(1)} of 1200 mm²`);
   check(f0.length === 0, "without it, a region covering the whole edge has no outline (a picture's background is dropped)", `${f0.length} outlines`); }
 
+// Session 76: a colour's strip left thinner than the nozzle by the cut goes to the colour beside it, per piece
+console.log("\na colour's strip thinner than the nozzle along a piece's edge");
+{ // dropSlivers opens each colour in its own box now: the same map as opening it over the whole map
+  const ref = (idx, gx, gy, r) => { const n = gx * gy, out = new Int8Array(idx), keep = new Uint8Array(n), slots = new Set(idx); slots.delete(-1);
+    for (const sl of slots) { const m = new Uint8Array(n); for (let i = 0; i < n; i++) m[i] = idx[i] === sl ? 1 : 0; const o = C.dilateMask(C.erodeMask(m, gx, gy, r), gx, gy, r); for (let i = 0; i < n; i++) if (m[i] && o[i]) keep[i] = 1; }
+    const q = [], seen = new Uint8Array(n); for (let i = 0; i < n; i++) if (keep[i]) { seen[i] = 1; q.push(i); }
+    for (let h = 0; h < q.length; h++) { const i = q[h], x = i % gx, y = (i - x) / gx; for (const j of [x > 0 ? i - 1 : -1, x < gx - 1 ? i + 1 : -1, y > 0 ? i - gx : -1, y < gy - 1 ? i + gx : -1]) if (j >= 0 && !seen[j] && idx[j] >= 0) { seen[j] = 1; out[j] = out[i]; q.push(j); } }
+    return out; };
+  let same = 0; const T = 12;
+  for (let t = 0; t < T; t++) {
+    const gx = 40 + Math.floor(rnd() * 60), gy = 30 + Math.floor(rnd() * 50), L = new Int8Array(gx * gy), r = 1 + rnd() * 3;
+    const blobs = Array.from({ length: 6 }, () => [rnd() * gx, rnd() * gy, 2 + rnd() * 12, Math.floor(rnd() * 4) - 1]);
+    for (let y = 0; y < gy; y++) for (let x = 0; x < gx; x++) { let v = 0; for (const b of blobs) if (Math.hypot(x - b[0], y - b[1]) < b[2]) v = b[3]; L[y * gx + x] = (x + 2 * y) % 17 === 0 ? 2 : v; }
+    const a = C.dropSlivers(L, gx, gy, r), b = ref(L, gx, gy, r); if (a.every((v, i) => v === b[i])) same++;
+  }
+  check(same === T, "dropSlivers in each colour's box gives the same map as over the whole map", `${same} of ${T} random maps`);
+  // one piece the size of the puzzle; the picture's right-hand colour starts 0.2 mm inside the piece's edge, or 3 mm
+  const W = 60, H = 40, gap = 0.3, cut = C.jigsawCut({ w: W, h: H, nx: 1, ny: 1, seed: 3, gap }), pc = cut.pieces[0];
+  const strip = (inset, nozzle) => {
+    const cell = 0.1, gx = W / cell, gy = H / cell, xe = W / 2 - gap / 2 - inset;
+    const m1 = new Uint8Array(gx * gy), m0 = new Uint8Array(gx * gy);
+    for (let y = 0; y < gy; y++) for (let x = 0; x < gx; x++) { const on = (x + 0.5) * cell - W / 2 > xe; m1[y * gx + x] = on ? 1 : 0; m0[y * gx + x] = on ? 0 : 1; }
+    const colours = [{ slot: 0, cov: C.blurMask(m0, gx, gy, 1), gx, gy, cell, W, H }, { slot: 1, cov: C.blurMask(m1, gx, gy, 1), gx, gy, cell, W, H }];
+    const r = C.jigsawPiece(pc, { gap, s: 0.1, outline: cut.clip, colours, nozzle });
+    const a = sl => polyArea((r.top.find(t => t.slot === sl) || { polys: [] }).polys);
+    let mx = -Infinity, mny = Infinity, mxy = -Infinity; r.body.forEach(q => q.outer.forEach(v => { mx = Math.max(mx, v[0]); mny = Math.min(mny, v[1]); mxy = Math.max(mxy, v[1]); }));
+    return { a0: a(0), a1: a(1), body: polyArea(r.body), band: (mx - xe) * (mxy - mny) };
+  };
+  const off = strip(0.2, 0), on = strip(0.2, 0.4), wide = strip(3, 0.4);
+  check(off.a1 > 0.15 * (H - gap) * 0.8, "without a nozzle size: the 0.2 mm strip prints (as before)", `${off.a1.toFixed(1)} mm²`);
+  check(on.a1 < 0.5 && near(on.a0, on.body, on.body * 0.002), "with a 0.4 mm nozzle: the strip goes, and the colour beside it covers the whole piece", `${on.a1.toFixed(2)} mm² left; ${on.a0.toFixed(1)} of ${on.body.toFixed(1)} mm²`);
+  check(near(wide.a1, wide.band, wide.band * 0.03), "a 3 mm band of the colour stays", `${wide.a1.toFixed(1)} of ${wide.band.toFixed(1)} mm²`);
+}
+
 console.log("\ntiming");
 { const t0 = Date.now(), cut = make({ w: 200, h: 150, count: 100, seed: 5 }), t1 = Date.now(), s = Math.min(0.15, cut.u / 180);
   cut.pieces.forEach(p => C.jigsawPiece(p, { gap: 0.25, s, outline: cut.clip }));
@@ -180,6 +214,12 @@ async function setFile(input, name, bytes, type) {
   await choose("jigsaw");
   check(MF.state.items.some(d => d.example) && MF.parts.length >= 3 && MF.parts.every(p => MF.core.checkMesh(p.solid).open === 0),
     "a new puzzle opens with its example picture, in colour, every part closed", MF.parts.map(p => p.name).join(","));
+  // Session 76: a cut running close to a colour's edge left a strip of it thinner than the nozzle (2 of 0.35 mm here,
+  // 6 of 0.19 mm in Session 72); each piece's slivers now go to the colour beside them
+  {
+    let pr = null; for (let i = 0; i < 800 && !(pr = MF.print); i++) await sleep(25);
+    check(pr && pr.thin.length === 0, "the example's picture has no wall thinner than the nozzle", pr ? pr.thin.slice(0, 3).map(t => `${t.name} ${t.width.toFixed(2)} mm`).join(", ") || "none" : "no print check");
+  }
   MF.examples.drop(); MF.rebuild(false); await settle();
   check(MF.parts.length === 1 && MF.parts[0].name === "Pieces", "no picture yet: plain pieces", MF.parts.map(p => p.name).join(","));
   // a picture: blue disc with a yellow square on white

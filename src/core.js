@@ -800,10 +800,17 @@
     const n = gx * gy, out = new Int8Array(idx);
     if (!(r > 0)) return out;
     const keep = new Uint8Array(n), slots = new Set(idx); slots.delete(-1);
+    // each colour opened in its own box, with a margin past the reach of the opening: the margin's ring is empty, so
+    // the result is the same as over the whole map, and a small patch costs little (Session 76: per jigsaw piece)
+    const pad = Math.ceil(r) + 2;
     for (const sl of slots) {
-      const m = new Uint8Array(n); for (let i = 0; i < n; i++) m[i] = idx[i] === sl ? 1 : 0;
-      const o = dilateMask(erodeMask(m, gx, gy, r), gx, gy, r);
-      for (let i = 0; i < n; i++) if (m[i] && o[i]) keep[i] = 1;
+      let x0 = gx, x1 = -1, y0 = gy, y1 = -1;
+      for (let y = 0, i = 0; y < gy; y++) for (let x = 0; x < gx; x++, i++) if (idx[i] === sl) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      x0 = Math.max(0, x0 - pad); x1 = Math.min(gx - 1, x1 + pad); y0 = Math.max(0, y0 - pad); y1 = Math.min(gy - 1, y1 + pad);
+      const w = x1 - x0 + 1, h = y1 - y0 + 1, m = new Uint8Array(w * h);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) m[y * w + x] = idx[(y + y0) * gx + x + x0] === sl ? 1 : 0;
+      const o = dilateMask(erodeMask(m, w, h, r), w, h, r);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (m[y * w + x] && o[y * w + x]) keep[(y + y0) * gx + x + x0] = 1;
     }
     const q = new Int32Array(n), seen = new Uint8Array(n); let h = 0, t = 0;
     for (let i = 0; i < n; i++) if (keep[i]) { seen[i] = 1; q[t++] = i; }
@@ -2850,7 +2857,8 @@
         return false;
       });
       if (present.length === 1) out.top.push({ slot: present[0].slot, polys: body });
-      else for (const c of present) {
+      else {
+       const fields = present.map(c => {
         const G = new Float32Array(N), k = 3 * c.cell;
         for (let j = 0; j < g.h; j++) {
           const py = Math.min(c.gy - 1, Math.max(0, (c.H / 2 - (g.y1 - j * s)) / c.cell - 0.5)), y0 = Math.min(c.gy - 2, Math.floor(py)), fy = py - y0;
@@ -2862,8 +2870,71 @@
             G[n] = v < F[n] ? v : F[n];
           }
         }
-        const polys = gridPolys(G, g, 0, Math.max(g.s * g.s * 4, 0.05));
+        return G;
+       });
+       // a colour cut by the piece's edge close to its own edge leaves a strip thinner than the nozzle: per piece, each
+       // cell gets its colour, the slivers go to the colour beside them (cells outside the piece count as none, so a
+       // strip along the cut is measured as thin), and the fields follow the cells that changed (Session 76)
+       if (o.nozzle > 0) {
+         const L = new Int8Array(N).fill(-1);
+         for (let n = 0; n < N; n++) {
+           if (F[n] <= 0) continue;
+           let best = -1, bv = 0;
+           for (let c = 0; c < fields.length; c++) if (fields[c][n] > bv) { bv = fields[c][n]; best = c; }
+           L[n] = best;
+         }
+         // on a grid no finer than a fifth of the nozzle's width across (the piece's grid is often a fifth of that):
+         // a coarse cell takes the colour most of its cells have. A cell keeps its colour when its coarse cell or one
+         // beside it kept that colour; otherwise it was part of a sliver (or a scrap of one in a coarse cell another
+         // colour has most of) and takes its coarse cell's colour. Four to sixteen times fewer cells to open
+         const f = Math.max(1, Math.floor(o.nozzle / (2.5 * s))), e = s * 0.5;
+         let L2 = L;
+         if (f === 1) L2 = dropSlivers(L, g.w, g.h, o.nozzle * 0.5 / s + 0.5);
+         else {
+           const cw = Math.ceil(g.w / f), ch = Math.ceil(g.h / f), K = new Int8Array(cw * ch), cnt = new Int32Array(fields.length + 1);
+           for (let cy = 0; cy < ch; cy++) for (let cx = 0; cx < cw; cx++) {
+             cnt.fill(0);
+             for (let y = cy * f; y < Math.min(g.h, cy * f + f); y++) for (let x = cx * f; x < Math.min(g.w, cx * f + f); x++) cnt[L[y * g.w + x] + 1]++;
+             let best = 0; for (let c = 1; c < cnt.length; c++) if (cnt[c] > cnt[best]) best = c;
+             K[cy * cw + cx] = best - 1;
+           }
+           const K2 = dropSlivers(K, cw, ch, o.nozzle * 0.5 / (s * f) + 0.5);
+           L2 = new Int8Array(L);
+           let changed = false; for (let k = 0; k < K.length; k++) if (K2[k] !== K[k]) { changed = true; break; }
+           if (changed) for (let n = 0; n < N; n++) {
+             const a = L[n]; if (a < 0) continue;
+             const x = n % g.w, y = (n - x) / g.w, cx = (x / f) | 0, cy = (y / f) | 0, k = cy * cw + cx;
+             if (K2[k] === a) continue;
+             let kept = false, other = K2[k] >= 0 ? K2[k] : -1;
+             for (let dy = -1; dy <= 1 && !kept; dy++) for (let dx = -1; dx <= 1; dx++) {
+               const xx = cx + dx, yy = cy + dy; if (xx < 0 || yy < 0 || xx >= cw || yy >= ch) continue;
+               const q = K2[yy * cw + xx]; if (q === a) { kept = true; break; } if (other < 0 && q >= 0) other = q;
+             }
+             if (!kept && other >= 0) L2[n] = other;
+           }
+         }
+         // a changed cell: just inside its new colour and just outside every other. On the cells round it that did not
+         // change (another colour's, none, or outside the piece) the new colour takes the old one's value, so its edge
+         // falls where the old colour's did: against the piece's edge or the colour beside it, with no crack between
+         const old = fields.map(G => G.slice());
+         for (let n = 0; n < N; n++) if (L2[n] !== L[n]) {
+           const nw = L2[n], was = L[n];
+           for (let c = 0; c < fields.length; c++) fields[c][n] = c === nw ? Math.min(e, F[n]) : -e;
+           if (nw < 0 || was < 0) continue;
+           const x = n % g.w, y = (n - x) / g.w;
+           for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+             const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= g.w || yy >= g.h) continue;
+             const m = yy * g.w + xx;
+             if (L2[m] !== L[m] || L2[m] === was || L2[m] === nw) continue;
+             const v = Math.min(old[was][m], 0);
+             if (fields[nw][m] < v) fields[nw][m] = v;
+           }
+         }
+       }
+       present.forEach((c, ci) => {
+        const polys = gridPolys(fields[ci], g, 0, Math.max(g.s * g.s * 4, 0.05));
         if (polys.length) out.top.push({ slot: c.slot, polys });
+       });
       }
     }
     return out;

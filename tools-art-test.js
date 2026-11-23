@@ -301,7 +301,7 @@ async function addPicture(MF) {                      // the smoke test's two-col
     await dropPic(900, 600, x => ((x % 60) < 1.25 && x < 450) || ((x % 60) < 3 && x >= 450) ? red : blue, "stripes");
     MF.rebuild(false); await settle();
     let pj = null; for (let i = 0; i < 800 && !(pj = MF.print); i++) await sleep(25);
-    check(pj && pj.thin.length <= 10 && MF.parts.some(q => /picture/.test(q.name) && q.slot === 1), "a jigsaw's stripes thinner than the nozzle take the colour beside them; the wider ones print", pj && `${pj.thin.length} thin walls left (where a cut crosses a colour)`);
+    check(pj && pj.thin.length <= 3 && MF.parts.some(q => /picture/.test(q.name) && q.slot === 1), "a jigsaw's stripes thinner than the nozzle take the colour beside them; the wider ones print", pj && `${pj.thin.length} thin walls left (where a cut crosses a colour)`);
   }
 
   // ---- Session 74: a raised picture low on the tea light's wall, which leans out at its foot, reached below the bed

@@ -3,6 +3,14 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.62.6
+
+Sturdier project files and tall pictures.
+
+**Fixed**
+- A circuit board, cookie cutter, lightbox or picture decal made from a very tall, thin picture (a hundred times taller than wide) could run the page out of memory, more so with a circuit board's hatched copper on. Each now works on at most 2 million points, so the page stays responsive.
+- A project file with a setting far out of range for a circuit board, photo frame, lightbox, jigsaw, cookie cutter, outline trace, name plate, lithophane or shell could freeze the page. A circuit board's border of 100 000 mm with its hatch on used all the memory. Each of these 63 settings is now held to its slider's range when a project opens, as most others already were.
+
 ## 0.62.5
 
 A fix found by the print check on the quick starts.

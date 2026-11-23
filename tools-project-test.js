@@ -150,6 +150,35 @@ async function settle() {
     check(!document.querySelector("#panel b, #panel img[src=x]") || ![...document.querySelectorAll("#panel b")].some(b => b.textContent === "hi"), "no markup from the file reached the page");
   }
 
+  console.log("\nsettings held only at ±100 000 before Session 78, and a very tall picture");
+  {
+    const hostile = async (type, edit, test, what, empty) => {   // empty: built from a picture, which jsdom cannot decode from a file
+      const s = document.querySelector("#objectSel"); s.value = type; s.dispatchEvent(new win.Event("change")); await settle();
+      const st = JSON.parse(MF.projectPayload()).state; edit(st.base[type]);
+      const t0 = Date.now(), e0 = env.errors.length, done = await open(JSON.stringify({ app: "Maker Forge", v: 5, state: st })), ms = Date.now() - t0;
+      const errs = env.errors.slice(e0).filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
+      const tris = MF.parts.reduce((n, p) => n + C.checkMesh(p.solid).tris, 0), out = test(MF.state.base[type]);
+      check(done && ms < 15000 && (tris > 0 || empty) && !errs.length && out === true, what, `${ms} ms, ${tris} triangles${errs.length ? ", " + errs[0].split("\n")[0] : ""}${out !== true ? ", " + out : ""}`);
+    };
+    // a border of 100 000 mm made a board 200 m long, and its hatch asked for two billion cells: the tab ran out of memory
+    await hostile("pcb", p => { p.margin = 1e9; p.hatch = true; p.hatchPitch = -5; p.fingerCount = 1e9; p.fingers = true; },
+      p => p.margin === 30 && p.hatchPitch === 1 && p.fingerCount === 40 || JSON.stringify([p.margin, p.hatchPitch, p.fingerCount]),
+      "a circuit board with a border of a billion mm, its hatch on: a 30 mm border, the hatch at 1 mm, 40 fingers", true);
+    await hostile("frame", f => { f.pw = 1e9; f.winW = -1e9; f.overlap = 1e9; }, f => f.pw === 300 && f.winW === 10 && f.overlap === 10 || JSON.stringify([f.pw, f.winW, f.overlap]),
+      "a photo frame for a photo a billion mm wide: 300 mm, the window at its smallest");
+    await hostile("lightbox", L => { L.frame = 1e9; L.layerGap = 1e9; L.standH = -1e9; }, L => L.frame === 40 && L.layerGap === 10 && L.standH === 8 || JSON.stringify([L.frame, L.layerGap, L.standH]),
+      "a lightbox with a frame a billion mm wide: 40 mm", true);
+    await hostile("jigsaw", J => { J.gap = 1e9; J.vary = 1e9; J.floor = -1; }, J => J.gap === 1 && J.vary === 1 && J.floor === 0.6 || JSON.stringify([J.gap, J.vary, J.floor]),
+      "a jigsaw with a gap of a billion mm: 1 mm, the variety at 100%");
+    // a picture 1 wide by 100 tall (or a hostile file's shape) asked for a grid 40 million cells and more, and the hatch more again
+    const s = document.querySelector("#objectSel"); s.value = "pcb"; s.dispatchEvent(new win.Event("change")); await settle();
+    MF.state.base.pcb.hatch = true; MF.state.items.forEach(d => { d.aspect = 0.01; });
+    const t0 = Date.now(), e0 = env.errors.length; MF.rebuild(false); const done = await settle(), ms = Date.now() - t0;
+    const rss = process.memoryUsage().rss / 1048576, tris = MF.parts.reduce((n, p) => n + C.checkMesh(p.solid).tris, 0);
+    check(done && ms < 30000 && env.errors.length === e0 && tris > 0 && rss < 2500, "a circuit board from a picture a hundred times taller than wide, hatched, builds without running out of memory", `${ms} ms, ${tris} triangles, ${rss.toFixed(0)} MB`);
+    MF.state.base.pcb.hatch = false; MF.state.items.forEach(d => { d.aspect = d.src ? d.src.width / d.src.height : 1; }); MF.rebuild(false); await settle();
+  }
+
   console.log("\na picture's settings that are not numbers");
   {
     const s = document.querySelector("#objectSel"); s.value = "cutter"; s.dispatchEvent(new win.Event("change")); await settle();

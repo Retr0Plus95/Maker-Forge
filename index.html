@@ -7268,6 +7268,14 @@ const C = window.PRCore, $ = s => document.querySelector(s);
 // a circle with at least n sides, more where it is big enough for n to show (Session 71: C.segsFor)
 const circ = (r, n, cw) => C.ringCircle(r, C.segsFor(r, n), cw);
 const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+// a grid across a picture: gx cells wide, as tall as the picture's shape asks, at most 2 million cells in all
+// (a very tall, thin picture asked for 40 million and more, and a hatch on a board from a hostile project billions)
+function gridCells(gx, gy, max = 2e6){
+  gx = Math.max(2, Math.round(gx)); gy = Math.max(2, Math.round(isFinite(gy) ? gy : max));
+  if (gx*gy <= max) return [gx, gy];
+  const k = Math.sqrt(max/(gx*gy));
+  return [Math.max(2, Math.floor(gx*k)), Math.max(2, Math.floor(gy*k))];
+}
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c]);
 
 /* ---------- 1. constants ---------- */
@@ -9781,7 +9789,7 @@ function buildCutter(){
   const src = d && sourceCanvas(d);
   if (!src){ notify("The cookie cutter is traced from artwork: add a logo or photo on the Art tab."); return []; }
   const cut = state.base.cutter;
-  const gx = clamp(Math.round(d.width/0.15), 80, 900), gy = Math.max(4, Math.round(gx/d.aspect));
+  const gw = clamp(Math.round(d.width/0.15), 80, 900), [gx, gy] = gridCells(gw, Math.max(4, gw/d.aspect));
   const W = d.width, px = gx/W;
   let mask = silhouetteMask(d, gx, gy);
   const lab = C.labelMask(mask, gx, gy);
@@ -15279,7 +15287,7 @@ function buildLightbox(){
   if (!src){ notify("The lightbox is built from artwork: add a photo or a silhouette on the Art tab."); return []; }
   const inW = Math.max(20, L.width - L.frame*2), inH = inW/d.aspect;
   const outW = L.width, outH = inH + L.frame*2;
-  const cell = 0.2, gx = clamp(Math.round(inW/cell), 60, 900), gy = Math.max(6, Math.round(gx/d.aspect));
+  const cell = 0.2, gw = clamp(Math.round(inW/cell), 60, 900), [gx, gy] = gridCells(gw, Math.max(6, gw/d.aspect));
   const img = resample(src, gx, gy, d.mirror);
   const opt = { mmPerPx:inW/gx, smooth:2, eps:0.06 };
   const parts = [];
@@ -15571,7 +15579,7 @@ function buildPCB(){
   const artW = Math.max(10, p.width - p.margin*2), artH = artW/d.aspect;
   const boardW = p.width, boardH = artH + p.margin*2;
   const cell = clamp(p.quality, 0.06, 0.4);
-  const gx = clamp(Math.round(artW/cell), 60, 1100), gy = Math.max(6, Math.round(gx/d.aspect));
+  const gw = clamp(Math.round(artW/cell), 60, 1100), [gx, gy] = gridCells(gw, Math.max(6, gw/d.aspect));
   const img = resample(src, gx, gy, d.mirror);
 
   // ink: the dark lines of a schematic (or the light ones, inverted)
@@ -15639,7 +15647,7 @@ function buildPCB(){
 
   // hatched ground pour, kept clear of the traces
   if (p.hatch){
-    const hg = clamp(Math.round(boardW/cell), 60, 1100), hgy = Math.max(6, Math.round(hg*boardH/boardW));
+    const hw = clamp(Math.round(boardW/cell), 60, 1100), [hg, hgy] = gridCells(hw, Math.max(6, hw*boardH/boardW));
     const hpx = hg/boardW;
     const keepOut = C.dilateMask(mask, gx, gy, p.clearance*px);
     const hatch = new Uint8Array(hg*hgy);
@@ -17220,7 +17228,7 @@ function frameFor(d){
 }
 function gridFor(d){
   const gx = d.mode === "relief" ? Math.round(d.res) : clamp(Math.round(d.width/QUALITY[d.quality]),40,(state.view && state.view.maxCells)||700);
-  return [gx, Math.max(2, Math.round(gx/d.aspect))];
+  return gridCells(gx, Math.max(2, Math.round(gx/d.aspect)));
 }
 function cellMapFor(d){
   const src = sourceCanvas(d);
@@ -24313,7 +24321,7 @@ function turnedFields(p){
 function matchToArtwork(){
   const d = state.items[state.active] || state.items[0];
   if (!d || !sourceCanvas(d)){ notify("Add some artwork first."); return; }
-  const w = 160, h = Math.max(2, Math.round(160/d.aspect)), img = resample(sourceCanvas(d), w, h, false), px = img.data;
+  const [w, h] = gridCells(160, 160/d.aspect, 160*1600), img = resample(sourceCanvas(d), w, h, false), px = img.data;
   const T = state.base.type, P0 = state.base.phonecase, E0 = state.base.enclosure;
   const keepSlot = T === "phonecase" && P0 && P0.style !== "bumper" && P0.logo && P0.logo.on ? clamp(state.base.slot, 0, state.slots.length - 1)
     : T === "enclosure" && E0 && E0.lid !== "none" && E0.logo && E0.logo.on ? clamp(+E0.lidSlot || 0, 0, state.slots.length - 1) : -1;
@@ -26057,7 +26065,20 @@ const LIMITS_AT = { "sym.size":[0.4,3], "pic.size":[0.4,3], "outline.width":[0.2
   "fuse.dia":[2,12], "fuse.len":[10,60], "fuse.wire":[1,6], "fuse.coil":[0.4,3], "fuse.od":[10,60],
   "sign.letterH":[15,400], "sign.depth":[2,80], "sign.wall":[0.8,6], "sign.back":[0.8,10], "sign.diffuser":[0.6,3], "sign.strip":[3,20], "sign.margin":[2,60],
   "relief.width":[20,300], "relief.base":[0.6,20], "relief.height":[0.3,40], "relief.flatten":[0,0.9], "relief.contrast":[0.3,3], "relief.smooth":[0,6], "relief.cell":[0.15,1.5],
-  "tracer.edgeSize":[0.2,5], "tracer.edgeBottom":[0,1], "relief.border":[0,20], "relief.rim":[0,1.5], "relief.holeDia":[2,12], "relief.boost":[0,2] };
+  "tracer.edgeSize":[0.2,5], "tracer.edgeBottom":[0,1], "relief.border":[0,20], "relief.rim":[0,1.5], "relief.holeDia":[2,12], "relief.boost":[0,2],
+  // Session 78, found by fuzzing project files: these were held only at ±100 000 (a circuit board's border of 100 000 mm
+  // with its hatch on ran out of memory). Each is its slider's range, read from the panel (a jigsaw's variety is 0-1)
+  "frame.pw":[30,300], "frame.ph":[30,300], "frame.overlap":[2,10], "frame.sheet":[0,3], "frame.panelT":[1.2,4], "frame.winW":[10,240], "frame.winH":[10,240],
+  "shell.wall":[0.4,6], "shell.floor":[0,10],
+  "nameplate.nameH":[0.3,5], "nameplate.accentInset":[0.2,4], "nameplate.accentH":[0.2,4], "nameplate.dotScale":[0.8,3], "pic.gap":[0,15], "nameplate.backH":[0.2,1.2], "nameplate.lineGap":[0.8,2],
+  "cutter.height":[6,40], "cutter.blade":[0.4,2], "cutter.rim":[0,15], "cutter.rimH":[0.8,6],
+  "tracer.threshold":[2,98], "tracer.specks":[0,100], "tracer.minHole":[0,10], "tracer.colourH":[0.2,2], "tracer.offset":[-2,2], "tracer.snap":[0,2], "tracer.holeClear":[-0.5,1.5], "tracer.circularity":[0.6,0.98],
+  "lightbox.frame":[3,40], "lightbox.panelThick":[0.4,3], "lightbox.colourH":[0.2,3], "lightbox.layerGap":[1,10], "lightbox.layerThick":[0.6,4], "lightbox.spread":[0.3,1], "lightbox.frameThick":[1,10],
+  "lightbox.standDepth":[15,80], "lightbox.standH":[8,60], "lightbox.ledW":[5,20], "lightbox.hangDia":[3,10],
+  "jigsaw.knob":[0.7,1.3], "jigsaw.vary":[0,1], "jigsaw.gap":[0.05,1], "jigsaw.firstGap":[0,0.4], "jigsaw.colourH":[0.2,2], "jigsaw.floor":[0.6,4],
+  "lithophane.radius":[0,20],
+  "pcb.thr":[5,95], "pcb.thicken":[0,3], "pcb.traceH":[0.2,3], "pcb.textMax":[0.5,60], "pcb.margin":[0,30], "pcb.radius":[0,20], "pcb.holeInset":[2,25], "pcb.hatchPitch":[1,8], "pcb.hatchWidth":[0.4,3],
+  "pcb.hatchAngle":[0,90], "pcb.clearance":[0.2,3], "pcb.fingerCount":[2,40], "pcb.fingerW":[0.8,6], "pcb.fingerLen":[3,25], "pcb.despeckle":[0,8] };
 // a print orientation must be a real rotation: nine numbers, orthonormal, no mirror
 function cleanRotation(m){
   if (!Array.isArray(m) || m.length !== 9 || !m.every(v => typeof v === "number" && isFinite(v))) return null;
@@ -26251,6 +26272,7 @@ function sanitizeProject(data){
     sameShape(it, { width:40, rotation:0, aspect:1, zoom:1, rot90:0, outline:{ width:0.8, slot:1 }, adjust:{ bright:0, contrast:0, sat:0 }, pixel:{ cells:40 } }, 0);
     if (it.width === undefined) it.width = 40;
     if (it.rotation === undefined) it.rotation = 0;
+    if (typeof it.aspect === "number") it.aspect = Math.min(200, Math.max(0.005, it.aspect));   // taken again from the picture when it loads
     if (it.asset != null) it.asset = cleanStr(String(it.asset), 40, null);
     if (typeof it.uncut === "string" && it.uncut) it.uncut = cleanStr(it.uncut, 40, null); else delete it.uncut;
     if (typeof it.depthMap === "string" && it.depthMap) it.depthMap = cleanStr(it.depthMap, 40, null); else delete it.depthMap;

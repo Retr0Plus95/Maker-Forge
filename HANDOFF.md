@@ -3161,6 +3161,27 @@ Redo did not bring them back). Fixed twice over:
   speed, so Undo brought the setting back. It no longer does that under `UNDO=1`. Run again, the tracer had no
   findings, and Undo after "Back plate" brings the traced part back exactly (checked by hand too).
 
+## Session 74: a tea light's picture stays on the bed (v0.62.2)
+
+The bug hunt continued (Session 73). `tools-fuzz.js` (seeds 4 and 5) reported "the print stands −0.09 mm off the bed"
+on the shell (tea light), lowest part a picture colour. The fuzz tool now names the lowest part, and the first time an
+object has a finding it notes the shared state (the model's settings and the pictures), which found the cause.
+
+**The bug.** The tea light's wall leans out at its foot. A raised picture placed low on it (its example picture moved
+down to `place.c[1] = 13`, 60 mm wide) is pushed out along the wall's normal, which points a little downwards there, so
+its outer face reached below y = 0: −0.46 mm at 100% size, −0.09 mm at 20%. `printShift` does not lift a model that has
+no orientation (it would leave the base floating), so the picture printed below the bed.
+
+**The fix.** `buildItem` sets every corner of a raised picture's solids below y = 0 to 0 (not for an imported model,
+whose bed is its own, and not for cutters). The solids stay closed; the flattened bit is joined to the base by
+`joinSolid` as before.
+
+**Tested:**
+- `tools-art-test.js` (new section): the tea light's picture moved low at 100% and 20% size: it prints, it is closed,
+  and nothing is below the bed (−0.46 and −0.09 mm before).
+- The smoke test, `tools-audit.js shell`, `npm run fingerprint` (unchanged: the example pictures don't reach the bed)
+  and the print survey.
+
 ## Next
 
 **The plan from here to 2.5 is in `ROADMAP.md`** (Session 66, the owner's request): releases 0.58 to 0.95, 1.0, the parametric

@@ -17199,6 +17199,8 @@ function buildItem(d){
       solids[slot] = solids[slot] ? C.mergeSolids([solids[slot], halo]) : halo;
     }
   }
+  // a raised picture low on a wall that leans out at its foot (the tea light) stood out past the bottom: kept on the bed
+  if (!cut && state.base.type !== "stl") solids.forEach(s => { if (s) for (let i=1;i<s.pos.length;i+=3) if (s.pos[i] < 0) s.pos[i] = 0; });
   d.solids = solids;
 }
 function normalizeItem(d){

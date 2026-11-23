@@ -304,6 +304,21 @@ async function addPicture(MF) {                      // the smoke test's two-col
     check(pj && pj.thin.length <= 10 && MF.parts.some(q => /picture/.test(q.name) && q.slot === 1), "a jigsaw's stripes thinner than the nozzle take the colour beside them; the wider ones print", pj && `${pj.thin.length} thin walls left (where a cut crosses a colour)`);
   }
 
+  // ---- Session 74: a raised picture low on the tea light's wall, which leans out at its foot, reached below the bed
+  // (found by tools-fuzz.js: −0.09 to −0.46 mm) ----
+  console.log("\na raised picture low on a leaning wall stays on the bed");
+  await choose("shell");
+  const tl = MF.state.items.find(q => q.enabled);
+  for (const sc of [100, 20]) {
+    if (!tl) break;
+    MF.state.model.scale = sc; tl.place = { c: [0, 13, 0], n: [0, 0, 1] }; tl.offU = tl.offV = 0; tl.width = 60; tl.solids = null; MF.rebuild(false); await settle();
+    let lo = Infinity, who = ""; MF.printParts().forEach(p => { for (let i = 1; i < p.pos.length; i += 3) if (p.pos[i] < lo) { lo = p.pos[i]; who = p.name; } });
+    const pics = MF.parts.filter(p => p.name !== "Shell");
+    check(pics.length >= 1 && lo > -0.005 && pics.every(p => C.checkMesh(p.solid).open === 0), `at ${sc}% size the picture prints and nothing goes below the bed`, `lowest ${lo.toFixed(3)} mm (${who}), ${pics.length} picture parts`);
+  }
+  check(!!tl, "the tea light has its example picture");
+  MF.state.model.scale = 100;
+
   const errs = env.errors.filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
   check(!errs.length, "no page errors", errs.slice(0, 2).join(" / "));
   console.log(fails ? `\n${fails} FAILED` : "\nall passed");

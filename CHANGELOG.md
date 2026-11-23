@@ -3,6 +3,13 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.62.2
+
+A fix found by trying random settings on every object.
+
+**Fixed**
+- A picture raised low on the tea light's wall reached up to half a millimetre below the bed, because the wall leans out at its foot. The picture now stops at the bed.
+
 ## 0.62.1
 
 A fix for Undo and Redo, found by trying random settings on every object and undoing each one.

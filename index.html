@@ -484,7 +484,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.62.1</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.62.2</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -17199,6 +17199,8 @@ function buildItem(d){
       solids[slot] = solids[slot] ? C.mergeSolids([solids[slot], halo]) : halo;
     }
   }
+  // a raised picture low on a wall that leans out at its foot (the tea light) stood out past the bottom: kept on the bed
+  if (!cut && state.base.type !== "stl") solids.forEach(s => { if (s) for (let i=1;i<s.pos.length;i+=3) if (s.pos[i] < 0) s.pos[i] = 0; });
   d.solids = solids;
 }
 function normalizeItem(d){

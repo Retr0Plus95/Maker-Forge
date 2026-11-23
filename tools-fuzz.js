@@ -47,7 +47,8 @@
   for (const obj of objects) {
     for (let run = 0; run < RUNS; run++) {
       const sel = document.querySelector("#objectSel"); sel.value = obj; sel.dispatchEvent(new win.Event("change")); await settle();
-      MF.state.base.tracer && Object.assign(MF.state.base.tracer, { workRes: 300, paperRes: 500 });
+      // a coarser trace for speed, but not when checking Undo: a change made outside the history would come back as a difference
+      if (!process.env.UNDO && MF.state.base.tracer) Object.assign(MF.state.base.tracer, { workRes: 300, paperRes: 500 });
       const tabBtn = $$("#tabs button").find(b => b.dataset.k === "make"); if (tabBtn) { tabBtn.click(); await sleep(20); }
       const log = []; let sigBefore = null;
       for (let step = 0; step < STEPS; step++) {

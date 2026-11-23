@@ -3156,7 +3156,10 @@ Redo did not bring them back). Fixed twice over:
   change.
   - It runs first because jsdom cannot decode an opened project's pictures (`dataURLToCanvas`), so later in the file the
     assets have no canvas to restore from. In a browser they do.
-- `UNDO=1 tools-fuzz.js` over every object: in the pull request.
+- `UNDO=1 tools-fuzz.js` over every object (seed 21, one run of 10 steps each, 240 steps): after the fix, one finding,
+  on the tracer, which was the tool's own: it lowers the tracer's working resolution behind the history's back for
+  speed, so Undo brought the setting back. It no longer does that under `UNDO=1`. Run again, the tracer had no
+  findings, and Undo after "Back plate" brings the traced part back exactly (checked by hand too).
 
 ## Next
 

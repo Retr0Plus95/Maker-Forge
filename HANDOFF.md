@@ -3131,7 +3131,9 @@ the browser check's pictures and the quick starts' own checks.
 - **The phone case's 0.35 mm wall in its back picture:** the same kind, in the inlaid picture.
 
 **Tested:**
-- `test:enclosure` (all 20 box tests), `test:project`, `test:print`: all pass.
+- `test:enclosure` (all 20 box tests), `test:project`, `test:print`: all pass. Three box tests set `teardrop:false` where
+  they test something about round holes: the lid's lip and the Outdoors page's "Round holes that seal" button, which a
+  box that already has them does not offer.
 - The smoke test and the browser check: in the pull request.
 
 ## Next

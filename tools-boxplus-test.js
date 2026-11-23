@@ -72,7 +72,8 @@ const EASYEDA = JSON.stringify({ head:{ docType:"3", c_para:{ name:"Weather node
 
   console.log("\noutdoors");
   {
-    await fresh({ w:120, d:90, h:40, wall:3, cut:[{ kind:"gland", face:"back", u:0, v:15, dia:12.6 }, { kind:"usbc", face:"front", u:-20, v:12 }, { kind:"pirmini", face:"left", u:0, v:18, dia:10.4 }] });
+    // round holes to start with, so the button is offered (since 0.62 a new box's are already pointed and cut flat, and it is not)
+    await fresh({ w:120, d:90, h:40, wall:3, teardrop:false, cut:[{ kind:"gland", face:"back", u:0, v:15, dia:12.6 }, { kind:"usbc", face:"front", u:-20, v:12 }, { kind:"pirmini", face:"left", u:0, v:18, dia:10.4 }] });
     page("Outdoors"); await press(/^Round holes that seal/); await press(/^Rain hoods over/); await press(/^Add a breather vent/);
     const s = await support();
     check(E().teardrop === "flat" && I().hoods.length === 3 && E().cut.some(c => c.kind === "breather") && closed() && s < 3, "round holes that seal, hoods over the three wall openings, a breather: closed, no support", `${s} mm², ${I().hoods.length} hoods`);

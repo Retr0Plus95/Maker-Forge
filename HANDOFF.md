@@ -3182,6 +3182,28 @@ whose bed is its own, and not for cutters). The solids stay closed; the flattene
 - The smoke test, `tools-audit.js shell`, `npm run fingerprint` (unchanged: the example pictures don't reach the bed)
   and the print survey.
 
+## Session 75: a long curved name builds (v0.62.3)
+
+The bug hunt continued (Session 74). `tools-fuzz.js` seed 6 found the name plate failing with "that name is too long
+at this letter height" after "Curve the name" was set to 90°.
+
+**The bug.** `buildNamePlate` draws the name on a canvas at `PLATE_PX` pixels a millimetre (9 to 24, finer for small
+letters) and refuses a canvas over 30 million pixels. A curve pads the canvas by `|arc|/90 × 0.3 ×` the name's width on
+every side and once more in height, so a long name at small letters (the finest grid) went over: an ordinary
+"Maximilian Johnson" at 10 mm curved 120° did not build at all.
+
+**The fix.** When the canvas would be too big, `buildNamePlate(pxCap)` is tried once more with the grid scaled down to
+fit (`PLATE_PX × √(30e6 / W·H) × 0.95`, at least 4 pixels a millimetre; a rough build's grid is half of that). The
+outline is traced sub-pixel, so the name keeps its shape. Only when even 4 pixels a millimetre is too big does it stop
+with the old message. The curve's padding is generous (a 90° arc needs about 0.2 × the width below, not 0.3 on every
+side); it was left as it is, since the canvas's size and the grid's place under the letters would change every curved plate's triangles a little.
+
+**Tested:**
+- `tools-rough-test.js` (new section): "Maximilian Johnson", 10 mm, 120°: it builds (183 mm wide), and again after
+  dragging the curve (rough builds); before, a page error.
+- The smoke test, `tools-audit.js nameplate`, `npm run fingerprint` (unchanged: no example is that big) and the print
+  survey.
+
 ## Next
 
 **The plan from here to 2.5 is in `ROADMAP.md`** (Session 66, the owner's request): releases 0.58 to 0.95, 1.0, the parametric

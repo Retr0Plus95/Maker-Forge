@@ -8100,10 +8100,11 @@ async function buildNameBatch(){
   plateInfo = { pieces:worst.pieces || 1, holes:worst.holes, name:worst.name, count:plates.length };
   return [...groups.values()].map(g => ({ name:g.name, slot:g.slot, solid:C.mergeSolids(g.list) }));
 }
-async function buildNamePlate(){
+async function buildNamePlate(pxCap){
   const np = state.base.nameplate, f = FONTS[clamp(np.font,0,FONTS.length-1)];
   // raster finer for small letters: the outline is traced sub-pixel, but a denser grid still helps
-  const PLATE_PX0 = clamp(Math.round(320/Math.max(6, np.letterHeight)), 9, 24), PLATE_PX = buildRough ? Math.max(5, Math.round(PLATE_PX0/2)) : PLATE_PX0;   // half while a slider moves (Session 70)
+  const PLATE_PX1 = clamp(Math.round(320/Math.max(6, np.letterHeight)), 9, 24), PLATE_PX0 = pxCap ? Math.min(pxCap, PLATE_PX1) : PLATE_PX1;
+  const PLATE_PX = buildRough ? Math.max(4, Math.round(PLATE_PX0/2)) : PLATE_PX0;   // half while a slider moves (Session 70)
   const text = (np.text||"").trim() || " ";
   const lines = text.split("\n");
   await document.fonts.load(`${f.w} 120px "${f.n}"`);
@@ -8162,7 +8163,13 @@ async function buildNamePlate(){
   const padX = Math.ceil(np.border*PLATE_PX + tabR*2 + endR*2.4 + arcPad + symPad + picPad + 8*PLATE_PX);
   const padY = Math.ceil(np.border*PLATE_PX + tabR*2 + endR*2.4 + arcPad + Math.max(0, picH/2 - inkH/2, symR*1.1 - inkH/2) + 8*PLATE_PX);
   const W = Math.ceil(inkW+padX*2), H = Math.ceil(inkH+padY*2+arcPad);
-  if (W*H > 30e6) throw new Error("that name is too long at this letter height");
+  if (W*H > 30e6){
+    // a long name, curved or with charms, at small letters: drawn on a coarser grid rather than not at all (Session 75)
+    // (tried once; a rough build's grid is half the cap)
+    const px = Math.floor(PLATE_PX*Math.sqrt(30e6/(W*H))*0.95);
+    if (!pxCap && px >= 4 && px < PLATE_PX) return buildNamePlate(buildRough ? px*2 : px);
+    throw new Error("that name is too long at this letter height");
+  }
 
   const cvs = document.createElement("canvas"); cvs.width = W; cvs.height = H;
   const ctx = cvs.getContext("2d", { willReadFrequently:true });

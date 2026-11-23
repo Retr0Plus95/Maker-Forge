@@ -3,6 +3,13 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.62.5
+
+A fix found by the print check on the quick starts.
+
+**Fixed**
+- On a name keychain or double-sided tag whose name starts with a straight-sided letter (E, B, D, …), the keyring hole came within about 0.2 mm of that letter. On a double-sided tag that left a strip of plate between the hole and the name set into the back too thin to print; on the front the letter hung over the hole's edge. The hole now moves out just far enough to stay 1.5 nozzle widths clear of the letters on both faces (about 0.4 mm on the quick starts).
+
 ## 0.62.4
 
 Cleaner colours on jigsaw puzzles.

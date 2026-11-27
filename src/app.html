@@ -739,7 +739,7 @@ const CONSUMES_ART = { cutter:1, pcb:1, lightbox:1, tracer:1, jigsaw:1, lithopha
 // which of the picture's own settings each of those objects reads; the Art tab shows only these
 const ART_USED_BY = { cutter:["width","mirror","colours","smooth"], lightbox:["mirror","colours","smooth"], enclosure:["mirror","colours","smooth"], phonecase:["mirror","colours","smooth"], card:["mirror","colours","smooth"],
   jigsaw:["mirror","colours","smooth"], pcb:["mirror"], tracer:[], lithophane:["mirror"], canvas:["mirror","colours","smooth"] };
-const SHAPES = [["tracer","Photo to 3D tracer"],["lithophane","Lithophane"],["board","Flat shape"],["nameplate","Name plate & keychain"],["card","Business card"],["mech","Mechanisms"],["fixit","Fix-it parts"],["sign","Sign"],["relief","3D relief from a photo"],["canvas","Plastic canvas / mosaic"],["jigsaw","Jigsaw puzzle"],
+const SHAPES = [["tracer","Photo to 3D tracer"],["lithophane","Lithophane"],["board","Flat shape"],["nameplate","Name plate & keychain"],["card","Business card"],["mech","Mechanisms"],["parts","Mechanical parts"],["fixit","Fix-it parts"],["sign","Sign"],["relief","3D relief from a photo"],["canvas","Plastic canvas / mosaic"],["jigsaw","Jigsaw puzzle"],
   ["bobble","Bobble head"],["cutter","Cookie cutter from artwork"],["turned","Turned shape (vase, egg, cone)"],
   ["pcb","Circuit board from a schematic"],["lightbox","Lightbox / shadow box"],["frame","Photo frame"],["shell","Tea light / lantern"],["box","Plaque / box"],["cylinder","Cylinder"],
   ["hex","Hex prism"],["sphere","Sphere"],["enclosure","Project box / enclosure"],["phonecase","Phone case"],["stl","Import a model"],["none","No object"]];
@@ -944,6 +944,7 @@ const DEFAULTS = () => ({
     relief:{ source:"ai", shape:"rect", width:100, base:2, height:5, subject:true, boost:1, flatten:0.15, contrast:1, smooth:1, invert:false, cell:0.3, border:3, rim:0.6, hole:false, holeDia:4, colour:"one", stand:false },
     sign:{ style:"channel", text:"BAR", font:Math.max(0, FONTS.findIndex(f => f.n === "Anton")), letterH:100, depth:25, wall:1.6, back:2,
       diffuser:1, diffuserSlot:0, wallSlot:0, strip:6, backing:"none", margin:10, mount:"keyhole", holes:true, stand:false },
+    parts:{ kind:"servoMount", clearance:0.2, set:{} },          // the mechanical parts library (Session 82)
     mech:{ kind:"gears",
       gears:{ teeth1:24, teeth2:12, module:1.5, thick:6, bore:5, boreShape:"d", hub:true, hubDia:12, hubH:4, layout:"apart", angle:20 },
       bolt:{ size:"M10", dia:10, pitch:1.5, af:16, length:25, head:"hex", headH:6.5, nut:true, nutH:8.4 },
@@ -9019,6 +9020,44 @@ function fitGapField(p){
     buttonRow(g2, [[same ? "This is your printer's gap (new parts start with it)" : `Keep ${+state.base.fit.gap || 0} mm for every new part`, ()=>{ fitSave({ move:+state.base.fit.gap || 0 }); renderTab(); notify("Kept with your printer: new mechanisms and fix-it parts start with this gap."); }]]);
   }, true);
 }
+/* ---- Mechanical parts (Session 82): one part from the parts library (src/core.js, C.parts) at a time, its settings from its own
+   list, the printer clearance on every fit; the part's notes, BOM, connectors and travel shown under its settings ---- */
+let partsInfo = null, renderedPartsSig = "";
+function partsKey(){ const P = state.base.parts, L = C.parts.list(); return L.some(x => x.key === P.kind) ? P.kind : "servoMount"; }
+function buildMechParts(){
+  const P = state.base.parts, key = partsKey(); P.set = P.set && typeof P.set === "object" ? P.set : {};
+  const r = C.parts.make(key, P.set[key] || {}, { clearance:clamp(+P.clearance, 0, 1) });
+  partsInfo = r;
+  const b = C.solidBounds(r.solid);                                 // on the bed, in the middle (its own frame is how it prints)
+  return [{ name:r.label, slot:clamp(state.base.slot || 0, 0, state.slots.length - 1), solid:C.affineSolid(r.solid, [1,0,0, 0,1,0, 0,0,1], [-(b.mn[0] + b.mx[0])/2, -b.mn[1], -(b.mn[2] + b.mx[2])/2]) }];
+}
+function partsFields(p){
+  const P = state.base.parts, L = C.parts.list(), key = partsKey(), spec = L.find(x => x.key === key);
+  P.set = P.set && typeof P.set === "object" ? P.set : {};
+  const S = P.set[key] = C.parts.clean(key, P.set[key]);
+  selField(p, "Part", L.map(x => [x.key, `${x.group}: ${x.label}`]), ()=>key, v=>{ P.kind = v; renderTab(); baseChanged(); });
+  for (const [k, sp] of Object.entries(spec.settings)){
+    if (Array.isArray(sp)) numField(p, { label:sp[4], min:sp[1], max:sp[2], step:sp[3], get:()=>S[k], set:v=>S[k] = v, onChange:()=>{ baseChanged(); } });
+    else selField(p, sp.label, sp.opts.map(o => [o, o]), ()=>S[k], v=>{ S[k] = v; renderTab(); baseChanged(); });
+  }
+  group(p, "Fit", g2 => {
+    numField(g2, { label:"Printer clearance (mm)", min:0, max:1, step:0.05, get:()=>P.clearance, set:v=>P.clearance = v, onChange:baseChanged,
+      sub:()=>"Added to every fit: pockets, holes and seats. 0.2 mm suits most printers; the fit test finds yours." });
+    buttonRow(g2, [["Print the fit test", ()=>{ chooseObject("mech"); state.base.mech.kind = "coupon"; baseChanged(); renderTab(); pushHistory(); notify("The fit test: print it, find the gap that turns freely, and use it as the printer clearance here."); }]]);
+  });
+  const I = partsInfo && partsInfo.key === key ? partsInfo : null;
+  if (I){
+    group(p, "About this part", g2 => {
+      (I.meta.notes || []).forEach(n => note(g2, esc(n)));
+      if (I.meta.bom && I.meta.bom.length) note(g2, "<b>You'll need:</b> " + I.meta.bom.map(([n, w]) => `${n} × ${esc(w)}`).join(", ") + ".");
+      const T = I.meta.travel;
+      if (T && T.rows) note(g2, `<b>Travel</b> (${esc(T.input)} → ${esc(T.output)}): ` + T.rows.map(([a, v]) => `${a}° → ${v === null ? "jams" : v}`).join(", ") + ".");
+      const cs = Object.entries(I.connectors || {});
+      if (cs.length) note(g2, "<b>Connectors</b> (where other parts attach): " + cs.map(([n, q]) => `${esc(n)} (${esc(q.kind || "")})`).join(", ") + ".");
+      note(g2, "It prints as it lies here, with no support. Typical sizes: check yours.");
+    });
+  }
+}
 function mechFields(p){
   const M = state.base.mech;
   selField(p, "What to make", [["gears","Gears (a pair)"],["bolt","Bolt and nut"],["hinge","Print-in-place hinge"],["snap","Snap-fit clip"],["coupon","Fit test"]],
@@ -9666,7 +9705,7 @@ function heightOf(d, slot){
 // artwork cut into the object (Session 32): "engrave" cuts it in, "inlay" cuts it in and fills the cut with the
 // artwork's colours, flush with the surface. Its solids are then the cutters: from CUT_OUT above the surface (so the
 // whole surface is cut, also between the points it was laid on) to its depth below it
-const CUT_OUT = 0.6, NO_DECALS = { jigsaw:1, lithophane:1, enclosure:1, phonecase:1, card:1, mech:1, fixit:1, sign:1, relief:1 };
+const CUT_OUT = 0.6, NO_DECALS = { jigsaw:1, lithophane:1, enclosure:1, phonecase:1, card:1, mech:1, parts:1, fixit:1, sign:1, relief:1 };
 let cutBlocked = "";                                 // why artwork cannot be cut into this model ("open", "load"), or ""
 const cutWanted = d => d.enabled !== false && d.mode !== "relief" && (d.cut === "engrave" || d.cut === "inlay") && !NO_DECALS[state.base.type];
 const cutMode = d => baseSoup && !cutBlocked && cutWanted(d) ? d.cut : null;
@@ -11908,6 +11947,7 @@ async function rebuildAll(resetItems, mode){
     else if (t === "phonecase") parts = buildPhoneCase();
     else if (t === "card") parts = await buildCard();
     else if (t === "mech") parts = buildMech();
+    else if (t === "parts") parts = buildMechParts();
     else if (t === "fixit") parts = buildFixit();
     else if (t === "sign") parts = await buildSign();
     else if (t === "relief") parts = buildRelief();
@@ -11949,7 +11989,7 @@ async function rebuildAll(resetItems, mode){
       if (d.enabled === false){ d.solids = null; continue; }
       if (t === "jigsaw"){ d.solids = null; continue; }      // a decal across the pieces would glue them together
       if (t === "lithophane"){ d.solids = null; continue; }  // other artwork would only cast a shadow on it
-      if (t === "mech" || t === "fixit" || t === "sign" || t === "relief"){ d.solids = null; continue; }   // parts that fit: a picture on them would spoil the fit
+      if (t === "mech" || t === "parts" || t === "fixit" || t === "sign" || t === "relief"){ d.solids = null; continue; }   // parts that fit: a picture on them would spoil the fit
       if (t === "enclosure"){ d.solids = null; continue; }   // not stamped on boxes yet
       if (t === "phonecase"){ d.solids = null; continue; }   // a case takes its picture as an inlay in the back
       if (t === "card"){ d.solids = null; continue; }        // a card takes its picture as its logo
@@ -11986,6 +12026,12 @@ async function rebuildAll(resetItems, mode){
     // the lines under sliders often describe the result ("Inside: …"): bring them up to date, and
     // show a box's new placement messages on its pages
     document.querySelectorAll("#panel .field").forEach(w => w._refreshSub && w._refreshSub());
+    // (Session 82) a mechanical part's notes, BOM and travel follow its settings: shown when someone is not dragging a slider
+    if (t === "parts" && tab === "make" && partsInfo){
+      const sig = JSON.stringify([partsInfo.key, partsInfo.meta.notes, partsInfo.meta.bom, partsInfo.meta.travel && partsInfo.meta.travel.rows]);
+      if (sig !== renderedPartsSig){ const a = document.activeElement, inPanel = a && a.closest && a.closest("#panel") && a.matches("input,textarea,select");
+        if (!inPanel){ renderedPartsSig = sig; renderTab(); } else a.addEventListener("blur", () => { if (tab === "make" && state.base.type === "parts"){ renderedPartsSig = sig; renderTab(); } }, { once:true }); }
+    }
     if (t === "enclosure" && tab === "make" && enclosureInfo){
       const sig = encPanelSig(enclosureInfo);
       if (sig !== renderedEncWarn){
@@ -12956,7 +13002,7 @@ const OBJECT_GROUPS = [
   ["Personalise", [["nameplate","🔑"],["card","💳"],["sign","🔤"],["board","🏷️"],["frame","🖼️"],["box","🪧"]]],
   ["From a picture", [["tracer","📐"],["relief","🗿"],["lithophane","🌅"],["jigsaw","🧩"],["cutter","🍪"],["pcb","🔌"],["lightbox","💡"],["canvas","🧶"]]],
   ["Figures and décor", [["bobble","🙂"],["shell","🕯️"],["turned","🏺"]]],
-  ["Functional", [["enclosure","🧰"],["phonecase","📱"],["mech","⚙️"],["fixit","🔧"]]],
+  ["Functional", [["enclosure","🧰"],["phonecase","📱"],["mech","⚙️"],["parts","🔩"],["fixit","🔧"]]],
   ["Basic shapes", [["cylinder","🥫"],["hex","⬢"],["sphere","⚪"]]],
   ["Bring your own", [["stl","📦"],["none","✦"]]]
 ];
@@ -13021,7 +13067,7 @@ function tabMake(p){
   ({ nameplate:nameplateFields, canvas:canvasFields, bobble:bobbleFields, cutter:cutterFields, turned:turnedFields,
      pcb:pcbFields, lightbox:lightboxFields, tracer:tracerFields, jigsaw:jigsawFields, lithophane:lithophaneFields,
      board:boardFields, frame:frameFields, shell:shellFields, box:boxFields, cylinder:cylFields, hex:hexFields,
-     sphere:sphereFields, enclosure:enclosureFields, phonecase:phonecaseFields, card:cardFields, mech:mechFields, fixit:fixitFields, sign:signFields, relief:reliefFields, stl:stlFields, none:noneFields })[b.type](p);
+     sphere:sphereFields, enclosure:enclosureFields, phonecase:phonecaseFields, card:cardFields, mech:mechFields, parts:partsFields, fixit:fixitFields, sign:signFields, relief:reliefFields, stl:stlFields, none:noneFields })[b.type](p);
   if (!["none","bobble","lightbox","jigsaw","enclosure"].includes(b.type))
     slotField(p, "Object filament", ()=>String(b.slot), v=>{ b.slot = +v; baseChanged(); });
   buttonRow(p, [["Change the object →", ()=>{ setSide("right", true); const el = $("#objectSel"); if (el) el.focus(); }]]);
@@ -18771,6 +18817,12 @@ function sanitizeProject(data){
     K.logo = { on:L0.on === true, mode:one(L0.mode, ["inlay","engrave"]), width:num(L0.width, 5, 120, 40), x:num(L0.x, -60, 60, 0), y:num(L0.y, -110, 110, -10), depth:num(L0.depth, 0.2, 1.6, 0.6) };
   }
   if (st.base && "card" in st.base) st.base.card = cleanCard(st.base.card);
+  // the mechanical parts (Session 82): a known part, the clearance 0 to 1, each part's settings cleaned by the library
+  if (st.base && "parts" in st.base){
+    const Pp = st.base.parts && typeof st.base.parts === "object" && !Array.isArray(st.base.parts) ? st.base.parts : {}, keys = C.parts.list().map(x => x.key), set = {};
+    if (Pp.set && typeof Pp.set === "object" && !Array.isArray(Pp.set)) for (const k of keys) if (Pp.set[k] && typeof Pp.set[k] === "object") set[k] = C.parts.clean(k, Pp.set[k]);
+    st.base.parts = { kind:keys.includes(Pp.kind) ? Pp.kind : "servoMount", clearance:Math.min(1, Math.max(0, cleanNum(Pp.clearance, 0.2))), set };
+  }
   if (st.base && st.base.enclosure && typeof st.base.enclosure === "object"){
     const E = st.base.enclosure, one = (v, list) => list.includes(v) ? v : list[0];
     E.lid = one(E.lid, ["screw","press","magnet","slide","none","twist"]); E.postStyle = one(E.postStyle, ["full","hang"]); E.snap = E.snap === true; E.hinge = E.hinge === true; E.gasket = [1.5, 2, 2.5, 3].includes(+E.gasket) ? +E.gasket : 0; E.fasten = one(E.fasten, ["insert","screw","nut","none"]); E.head = one(E.head, ["sink","bore","plain"]);
@@ -19468,6 +19520,7 @@ window.MakerForge = {
   // room for parts (Session 61), for the tests
   boxRoom:{ shape:{ kinds:ENC_SHAPES, geo:encShapeGeo, twist:encTwist, slope:encSlope, clam:encClam, cache:() => encShapeCache }, place:encPlace, freeU:encFreeU, onFace:encRoomOnFace, shrink:encShrinkWrap, fixAll:encFixAll, makeRoom:encMakeRoom, busy:encBusy, assembly:encAssembly, kicad:kicadParse, importKicad:encImportKicad, heat:encHeat, wires:encWires, kits:ENC_KITS, startKit:encStartKit, battery:encBattery, batteryWh:encBatteryWh, firmware:encFirmware, boardFromPhoto, openPhotoBoard, boardFile:boardFileParse, addCustomBoard:encAddCustomBoard, myParts, myPartsSave, measuredBoard:encMeasuredBoard, faceSVG:encFaceSVG, faceDXF:encFaceDXF, faceDrawings:encFaceDrawings, fit:{ printer:printerFit, sample:fitSample, defaults:FIT_DEFAULT, clean:cleanFit, rows:FIT_ROWS, save:fitSave, screw:encScrew, card:ENC_HOLDERS } }, boxDrag:{ pick:boxDragPick, start:h => { boxDrag = Object.assign(h, { id:-1, moved:false, t:0 }); }, to:lr => { const ok = boxDragTo(lr); if (ok && boxDrag) boxDrag.moved = true; return ok; }, end:boxDragEnd }, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
   get jigsaw(){ return jigsawInfo; },
+  get mechParts(){ return partsInfo; },
   get lithophane(){ return lithoInfo; },
   get print(){ return printFresh() ? printInfo : null; },
   printNow: runPrintability, optimize: optimizePrint, revertOptimize, exportParts,

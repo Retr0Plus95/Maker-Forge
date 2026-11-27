@@ -44,6 +44,8 @@ const EXPECTED_DEAD = [
   [/^Preview zoom/, "only zooms the picture preview on the Art tab"],
   [/^A card for each name in a list/, "the list of names is empty (the card says so)", () => !String(win.MakerForge.state.base.card.names || "").trim()],
   [/^Clean up specks/, "the test picture has no specks, and a cutter's silhouette ignores colour boundaries", () => win.MakerForge.state.base.type === "cutter"],
+  // Session 82: a mechanical part's calculator settings change its travel table and notes, not its shape
+  [/^(Horn hole radius|Output lever radius|Servo shaft to output pivot|Servo start|Servo travel|Ground, pivot to pivot|Teeth on the gear it meshes with)/, "a calculator setting: it changes the part's travel or spacing on the panel, not its shape", () => win.MakerForge.state.base.type === "parts"],
 ];
 async function settle() {
   // a change schedules a rebuild after a short debounce: wait for the build counter to move,

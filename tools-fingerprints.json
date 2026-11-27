@@ -191,6 +191,18 @@
    ]
   }
  ],
+ "object parts": [
+  {
+   "name": "Servo mount",
+   "tris": 360,
+   "vol": 1549,
+   "size": [
+    40.2,
+    3,
+    20.2
+   ]
+  }
+ ],
  "object fixit": [
   {
    "name": "Knob",

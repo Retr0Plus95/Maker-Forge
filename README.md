@@ -5,7 +5,7 @@
 Free and open source (MIT). One HTML file: no install, no account, no uploads. It runs on your own computer, tablet or phone, even offline.
 
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-2a9d8f)](LICENSE)
-[![Version 0.62.9](https://img.shields.io/badge/version-0.62.9-1f6f8b)](CHANGELOG.md)
+[![Version 0.63.0](https://img.shields.io/badge/version-0.63.0-1f6f8b)](CHANGELOG.md)
 [![Runs in the browser](https://img.shields.io/badge/runs%20in-your%20browser-e9c46a)](#get-started-in-a-minute)
 [![Exports 3MF, STL, OBJ](https://img.shields.io/badge/exports-3MF%20·%20STL%20·%20OBJ-d1495b)](#printers-and-slicers)
 
@@ -75,8 +75,10 @@ Every button in the **Start from** sidebar opens with a finished example, so you
 | ![An arch-shaped relief of a bobble head figure: the head a dome, the body standing out, made from a picture with the AI depth model](docs/images/relief-ai.jpg) | See [the manual](MANUAL.md#the-model-doctor) |
 | **Mechanisms**: two gears meshed, with the shafts' distance worked out | **Bolt and nut**: ISO threads that print standing, with your printer's play |
 | ![Two yellow spur gears meshed, 24 and 12 teeth, with D-shaped shaft holes and hubs; the panel says to put the shafts 27 mm apart](docs/images/fit-gears.jpg) | ![A red M10 bolt with a hex head beside its nut](docs/images/fit-bolt.jpg) |
-| **Fix-it parts**: a replacement knob for a D shaft, printed on its top | **Keychain**: a surname on a second line, and a credit on the back |
-| ![A dark fluted knob with a D-shaped hole, upside down as it prints](docs/images/fit-knob.jpg) | ![The Emma keychain with Svensson on a second line under the name](docs/images/fit-name.jpg) |
+| **Mechanical parts**: 26 parts to build with, servo mounts to gears, each with its connectors and BOM | **Fix-it parts**: a replacement knob for a D shaft, printed on its top |
+| ![Six parts from the library: an SG90 servo mount, a printed servo horn, an ESP32 board tray, a NeoPixel ring holder, a pin hinge and a spur gear](docs/images/parts-library.jpg) | ![A dark fluted knob with a D-shaped hole, upside down as it prints](docs/images/fit-knob.jpg) |
+| **Keychain**: a surname on a second line, and a credit on the back | |
+| ![The Emma keychain with Svensson on a second line under the name](docs/images/fit-name.jpg) | |
 | **Phone case** with a picture inlaid in the back | **Paint** any model: a fade, stripes and bands |
 | ![A phone case turned over to show a retro sunset inlaid in its back](docs/images/phone-case-example.jpg) | ![The Paint tab with a vase painted in teal, gold and apricot](docs/manual/paint-tab.jpg) |
 | **Trace a part** from a photo on paper | **Lightbox** with a backlit colour panel, frame and stand |

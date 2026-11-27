@@ -3413,6 +3413,86 @@ battery box (Session 80's case) stands on the floor now, with rounded edges.
   30 mm tall).
 - `npm run test:enclosure`, `npm run test:project`, `node tools-boxfuzz.js` (seed 81), the smoke test, `npm run fingerprint`.
 
+## Session 82: the mechanical parts library and the core primitives (v0.63.0)
+
+The owner's new direction, step 1 (see "The new direction" under Next). On a branch from `main` after 0.62.9.
+
+### The parts library API (`src/core.js`, `PRCore.parts`), for generators to use
+
+```js
+const P = PRCore.parts;
+P.list()                       // [{ key, label, group, settings }]: settings as below, a copy
+P.clean(key, raw)              // the settings cleaned: each number in its range, each choice one of its options, the rest dropped; null for an unknown part
+P.make(key, raw, { clearance })// { key, label, group, settings, clearance, solid, connectors, meta }
+P.snap(A, a, B, b)             // { m, t, connectors }: the move (for affineSolid) that puts B's connector b on A's connector a
+P.travel(kind, d)              // "fourbar" { g, a, b, c, start, sweep } or "slider" { a, b, e, start, sweep } → { rows:[[servo°, out]], ok, min, max, stroke }
+P.fourBarAngle(g, a, b, c, deg), P.crankSliderX(a, b, e, deg)
+P.servos, P.fasteners, P.boards, P.rings, P.bearings, P.clearance   // the tables (typical sizes) and the default clearance (0.2)
+```
+
+- **settings:** each part's `settings` is `{ name: [default, min, max, step, "Label (mm)"] }` for a number, or
+  `{ name: { opts:[...], def, label } }` for a choice. The app builds its panel from this; a generator can pass any subset (the
+  rest take their defaults).
+- **solid:** closed, outward, finite, in mm, Y up (as everything in core), in the part's own frame, which is also how it prints:
+  its base on y = 0. Pieces may overlap (`mergeSolids`): the export joins them (Manifold). The print check still looks at the
+  pieces, so a face hidden inside an overlap can read as an overhang; parts that would show one are drawn as one outline (the
+  diffuser).
+- **connectors:** `{ name: { at:[x, y, z], dir:[unit], up:[unit], kind } }`. `dir` points out of the part, the way a mating part
+  comes in; `up` is at right angles to it and fixes the turn about it. `snap` lines B's `dir` against A's and the ups together.
+- **meta:** `{ bom:[[count, "what"]], orient:[3 × 3, row-major, the identity: each is built as it prints], support:false (or why,
+  for the coil spring), notes:["…"], travel?, strain?, pitch?, centre?, grashof? }`.
+- **clearance** (0 to 1, 0.2 by default) is added to every fit. Pins in holes get half of it on the diameter (they turn); pockets,
+  seats and bores get it a side; a bearing's bore a quarter (a press fit); a servo spline none (its teeth must bite).
+- Adding a part: an entry in `PARTS` with `label`, `group`, `settings` and `build(s, c)` returning `{ solid, connectors, meta }`.
+  Build in the world frame with `prismXZ` (an outline in plan x, z from height y0 to y1), `prismXY` (a profile in x, y, extruded
+  along z), `prismZY`, `revolveLoop`, `sweepTube`; `pCirc`, `pRect`, `pHex`, `pStadium`, `pTear` (a teardrop for a horizontal
+  hole), `pBore` (round or D). `tools-parts-test.js` then builds it at every setting's ends.
+
+**The 26 parts** (groups as in the panel): Servos: `servoMount`, `servoHorn`, `hornLink`. Fasteners: `standoff`,
+`fastenerBlock`. Electronics: `boardMount`, `usbcPanel`, `strainRelief`, `ventPanel`. Lights: `ledRing`, `led5Holder`,
+`ledFilament`, `diffuser`. Hinges: `pinHinge`, `livingHinge`. Linkages: `pushRod`, `fourBar`, `crankSlider`. Gears: `spurGear`,
+`rack`. Fits: `snapFit`, `bushing`, `bearingSeat`, `coupler`, `flexureSpring`, `fanMount`. Each prints with no support (the print
+check on every part at its defaults: 0 mm²), except the flexure spring's coil style, whose `meta.support` says why.
+
+Sizes: the servos are TowerPro's usual figures (sources differ by up to 2 mm: SG90 given as 22.2 × 11.8 or 23 × 12.2); the
+rest as in the box maker's catalogue. Notes on the panel say "check yours", and the fit test tunes the clearance.
+
+**The core primitives** (step 2 of the new direction, done here too): `C.loft(loops)`: loops of 3D points (each the same count)
+along the loft, the sides between them, each end a flat cap (earcut, seen along the loop's normal) or a single point when the end
+loop has shrunk to one; closed and outward whichever way the loops run. `C.sweep(profile, path, { scale(t), twist(t), up })`: a 2D
+outline carried along a 3D path square to it (sweepTube's parallel-transport frames), shaped as it goes. `C.shellSurface(f, nu,
+nv, thick, { side })`: f(u, v) → [x, y, z] on 0..1 × 0..1, thickened along its normal (centred, or to one side), the edges
+closed with strips; where the surface pinches to a point (a petal's tip) the normal is taken from a row in. `revolve` and
+`revolveLoop` were already there. Checked by volume: a lofted cube 1000 mm³, a frustum 520, a pyramid 333.3; a swept half torus
+within 0.1% of its 24-sided area times its path; a sheet 200; a petal's volume doubles with its wall.
+
+**The app:** object `parts` ("Mechanical parts", under Functional): `state.base.parts = { kind, clearance, set:{ [key]: settings } }`
+(each part keeps its own settings). `buildMechParts` makes the chosen part, on the bed in the middle; `partsFields` builds the
+panel from the part's settings, with Fit (the clearance and a button to the fit test) and "About this part" (notes, BOM,
+connectors, travel), refreshed after a build when no slider is held. `sanitizeProject` keeps a known part, clamps the clearance and
+cleans each part's settings with `C.parts.clean`. `MakerForge.mechParts` is the last part made.
+
+**What the print check found while building it** (fixed before the release): the fastener samples' nut trap from below needed a
+bridge (now from the top); the diffuser's 45° cone read as overhang where facets tipped past 45° (now 50°: a sphere to 40°, then
+a tangent cone), and its lip, a separate piece, left a hidden underside the print check counted (now one outline); the coil spring
+needs support standing up (the flat zigzag is the default now).
+
+**Tested:**
+- `tools-parts-test.js` (`npm run test:parts`; `CORE=1` for the library): 26 parts, 293 builds (defaults, every number at its ends,
+  every choice), each closed, outward, finite, on the bed, with unit connectors, a BOM and no support; the clearance widens the SG90's
+  pocket by exactly its volume and the ring seat by 0.6 mm; a link snapped onto the horn's end hole lines up; the travel
+  calculators (a parallelogram four-bar follows the crank; a crank-slider at 0°, 90° and 180°; a jam reported; a gear's centre
+  distance; a snap fit's strain); hostile settings cleaned. In the app (`tools-parts-app.js`): every part from the panel, 192 slider
+  ends, each closed and none dead (the calculator settings change the travel, as expected); the MG996R, the clearance and a push
+  rod's travel on the panel; a saved project; a hostile project.
+- `node tools-audit.js index.html parts` (no findings; the calculators' settings are listed as expected), the print survey, the
+  smoke test, `npm run test:project`, `npm run fingerprint:update` (the new object only).
+- New manual picture `docs/images/parts-library.jpg`; `docs/bench-2.md` (the Bench note).
+
+The count (Session 81): improvements 4 to 8: 4. the parts library and its API (connectors, `snap`, BOM, print orientation); 5. one
+printer clearance on every part, with the fit test a button away; 6. the linkage travel calculators; 7. the Mechanical parts object
+and its panel built from each part's settings; 8. the Bench 2.0 plan. Bugs: still 3 of 10.
+
 ## Next
 
 ### The new direction (Session 81, the owner): a mechanical parts library, then the blooming flower lamp

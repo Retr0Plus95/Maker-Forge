@@ -405,6 +405,58 @@
    ]
   }
  ],
+ "object birdhouse": [
+  {
+   "name": "Body",
+   "tris": 1156,
+   "vol": 322165.2,
+   "size": [
+    126,
+    201,
+    129.3
+   ]
+  },
+  {
+   "name": "Front",
+   "tris": 1420,
+   "vol": 79837.1,
+   "size": [
+    123,
+    18,
+    197.7
+   ]
+  },
+  {
+   "name": "Loft",
+   "tris": 1444,
+   "vol": 107155.4,
+   "size": [
+    126,
+    68,
+    129.3
+   ]
+  },
+  {
+   "name": "Roof",
+   "tris": 332,
+   "vol": 94398,
+   "size": [
+    162.6,
+    15,
+    174.16
+   ]
+  },
+  {
+   "name": "Solar panel frame",
+   "tris": 64,
+   "vol": 8228.3,
+   "size": [
+    117.2,
+    4.8,
+    67.2
+   ]
+  }
+ ],
  "object fixit": [
   {
    "name": "Knob",

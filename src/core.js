@@ -8096,7 +8096,7 @@
     const bom = [];
     if (P.cam) bom.push([1, "ESP32-CAM (AI-Thinker) with its OV2640 camera, and a microSD card"], [1, "USB-to-serial adapter (FTDI, 5 V) to load the sketch"]);
     if (P.pir) bom.push([1, "AM312 motion sensor"]);
-    if (PW.cell){ bom.push([1, PW.cell.name], [s.power === "2x18650" ? 2 : 1, "18650 cells, protected, flat top"], [1, FLOWER_WALL.charge.name], [1, FLOWER_WALL.switch.name]); }
+    if (PW.cell){ bom.push([1, PW.cell.name], s.power === "2x18650" ? [2, "18650 cells, protected, flat top"] : [1, "18650 cell, protected, flat top"], [1, FLOWER_WALL.charge.name], [1, FLOWER_WALL.switch.name]); }
     if (PW.port === "usbc") bom.push([1, FLOWER_WALL.usbc.name], [1, "USB-C cable to a 5 V supply, outdoor-rated"]);
     if (P.solar) bom.push([1, `${P.solar.label}, with its lead`], [1, "outdoor silicone or sealant (round the panel's lead)"]);
     if (P.elec) bom.push([1, "thin silicone wires"]);

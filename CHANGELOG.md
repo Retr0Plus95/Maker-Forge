@@ -3,6 +3,16 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.62.8
+
+A cover over plugs, for boxes outdoors.
+
+**New**
+- **Cover over it, for plugs** (Openings page, each wall opening): a printed hood that screws on over a port with its cable plugged in, like an outdoor socket's: a roof, two sides and a short front, open underneath so cables leave downwards and rain runs off. You can still plug in from the front. Openings on the same wall share one; its depth is a setting (30 mm takes a USB plug). It prints roof-down beside the box without support and is held by two M3 self-tapping screws into ribs inside the wall.
+
+**Fixed**
+- Nothing this time.
+
 ## 0.62.7
 
 Plugs reach a board held in a cradle.

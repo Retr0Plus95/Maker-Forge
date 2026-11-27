@@ -184,6 +184,57 @@ const EASYEDA = JSON.stringify({ head:{ docType:"3", c_para:{ name:"Weather node
     check(/^kc_/.test(E().board) && E().customBoards[0].label === "Photo test" && document.querySelector("#modal").hidden && closed(), "Make the board puts it in the box", E().board);
   }
 
+  console.log("\na cover over plugs (Session 80)");
+  {
+    // any surface crossed by the straight line from a to b
+    const segHit = (s, a, b) => {
+      const P = s.pos, I2 = s.idx, d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+      for (let t = 0; t < I2.length; t += 3) {
+        const i0 = I2[t] * 3, i1 = I2[t + 1] * 3, i2 = I2[t + 2] * 3;
+        const e1 = [P[i1] - P[i0], P[i1 + 1] - P[i0 + 1], P[i1 + 2] - P[i0 + 2]], e2 = [P[i2] - P[i0], P[i2 + 1] - P[i0 + 1], P[i2 + 2] - P[i0 + 2]];
+        const h = [d[1] * e2[2] - d[2] * e2[1], d[2] * e2[0] - d[0] * e2[2], d[0] * e2[1] - d[1] * e2[0]], det = e1[0] * h[0] + e1[1] * h[1] + e1[2] * h[2];
+        if (Math.abs(det) < 1e-12) continue;
+        const f = 1 / det, sv = [a[0] - P[i0], a[1] - P[i0 + 1], a[2] - P[i0 + 2]], u = f * (sv[0] * h[0] + sv[1] * h[1] + sv[2] * h[2]);
+        if (u < 0 || u > 1) continue;
+        const q = [sv[1] * e1[2] - sv[2] * e1[1], sv[2] * e1[0] - sv[0] * e1[2], sv[0] * e1[1] - sv[1] * e1[0]], v = f * (d[0] * q[0] + d[1] * q[1] + d[2] * q[2]);
+        if (v < 0 || u + v > 1) continue;
+        const tt = f * (e2[0] * q[0] + e2[1] * q[1] + e2[2] * q[2]); if (tt > 0 && tt < 1) return true;
+      }
+      return false;
+    };
+    const bounds = s => { const mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9]; for (let i = 0; i < s.pos.length; i += 3) for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], s.pos[i + k]); mx[k] = Math.max(mx[k], s.pos[i + k]); } return [mn, mx]; };
+    // the power bank in the owner's bird house: a charger board at the right wall, USB-A above and micro-USB under it, both covered
+    const ports = () => [Object.assign(MF.newOpening("usba", "right"), { u:0, v:10.5, cover:true }), Object.assign(MF.newOpening("micro", "right"), { u:0, v:4.7, cover:true })];
+    await fresh({ w:129, d:70, h:29, wall:3, gasket:1.5, mount:"tabs", board:"custom", bw:25, bd:17, bsx:0, bsy:0, boardHold:"edges", standH:4, boardX:48, boardY:0, cut:ports() });
+    const cp = MF.parts.find(p => p.name === "Plug cover (right side)"), cv = I().covers[0], box = MF.parts.find(p => p.name === "Box").solid;
+    check(cp && closed() && !I().warn.length && I().covers.length === 1 && cv.opens.join() === "0,1", "both ports under one cover: a part of its own, closed, no warnings", cp ? `${cv.depth} mm deep, its front down to ${cv.front} mm` : I().warn.map(w => w.t).join("; "));
+    const [cmn, cmx] = bounds(cp.solid);
+    check(Math.abs(cmn[1]) < 1e-6 && Math.abs(cmx[1] - cv.v[1]) < 1e-6 && Math.abs(cmx[2] - cmn[2] - cv.depth - 2) < 0.02, "it prints roof-down on the bed, as tall as it stands on the wall and as deep as asked", `${cmn[1].toFixed(2)}..${cmx[1].toFixed(2)} mm up, ${(cmx[2] - cmn[2]).toFixed(1)} mm deep`);
+    // the screws: a clear line through each tab's hole, and through the wall into its rib; the rib there round it
+    const iw = I().inner[0], W2 = 129/2, hS = cv.v[1] - cv.screws[0][1];
+    const tabX = [cmn[0] + 4.5, cmx[0] - 4.5], tabsOk = tabX.every(x => !segHit(cp.solid, [x, hS, cmx[2] - 2.5], [x, hS, cmx[2] + 0.5]) && segHit(cp.solid, [x, hS + 3, cmx[2] - 2.5], [x, hS + 3, cmx[2] + 0.5]));
+    const wallOk = cv.screws.every(([u, v]) => !segHit(box, [iw/2 - 5.5, v, -u], [W2 + 0.5, v, -u]) && segHit(box, [iw/2 - 9, v + 2.5, -u], [iw/2 - 0.3, v + 2.5, -u]));
+    check(tabsOk && wallOk, "a square hole through each tab, and a pilot hole through the wall into a rib behind it, at the same place");
+    check(I().need.some(([n, w]) => n === 2 && /M3 self-tapping screws, \d+ mm long, for the plug cover/.test(w)), "What you'll need lists its two screws", I().need.map(([n, w]) => `${n} ${w}`).filter(w => /cover/.test(w)).join());
+    // nothing in front of the ports, the cradle opened for them as for any wall opening (Session 79)
+    const plugOk = [10.5, 4.7].every(v => !segHit(box, [60.55, v, 0], [iw/2 - 0.05, v, 0]));
+    check(plugOk, "the plugs still reach the board's ports");
+    const s = await support();
+    check(s >= 0 && s < 30, "the box and its cover print without support (a bridge over a port at most)", `${s} mm²`);
+    // deeper, and no cover
+    E().coverDepth = 45; MF.rebuild(false); await settle();
+    const [, mx2] = bounds(MF.parts.find(p => p.name === "Plug cover (right side)").solid), [mn2] = bounds(MF.parts.find(p => p.name === "Plug cover (right side)").solid);
+    check(Math.abs(mx2[2] - mn2[2] - 47) < 0.02, "Cover depth makes it deeper", `${(mx2[2] - mn2[2]).toFixed(1)} mm`);
+    E().cut.forEach(c => { c.cover = false; }); MF.rebuild(false); await settle();
+    check(!MF.parts.some(p => /^Plug cover/.test(p.name)) && !I().covers.length && !I().need.some(([, w]) => /plug cover/.test(w)), "unticked: no cover, no ribs' screws");
+    // no room: an opening at the wall's end leaves nowhere for its tab
+    await fresh({ w:129, d:70, h:29, cut:[Object.assign(MF.newOpening("usbc", "front"), { u:52, v:10, cover:true })] });
+    check(!MF.parts.some(p => /^Plug cover/.test(p.name)) && warnT().some(t => /^No room for the cover over/.test(t)), "an opening at the end of the wall: no cover, and a warning that says why", warnT().join("; "));
+    // saved and opened again
+    await fresh({ w:129, d:70, h:29, coverDepth:40, cut:ports() }); await reload();
+    check(E().coverDepth === 40 && E().cut.every(c => c.cover === true) && MF.parts.some(p => p.name === "Plug cover (right side)"), "a saved project keeps the cover and its depth");
+  }
+
   console.log("\nsaved and opened again; a hostile project");
   {
     await fresh({ w:140, d:100, h:50, wall:3, gasket:1.5, gasketPrint:true, gasketSlot:1, fasten:"nut", mount:"magnets", mountMagnet:"6x2", floor:3, solar:"custom", solarW:70, solarD:50, solarX:5, solarY:-5, teardrop:"flat",
@@ -199,7 +250,7 @@ const EASYEDA = JSON.stringify({ head:{ docType:"3", c_para:{ name:"Weather node
     const st = JSON.parse(MF.projectPayload()).state;
     Object.assign(st.base.enclosure, { fasten:"<b>", mount:"rocket", mountMagnet:"huge", gasketPrint:"yes", gasketSlot:99, solar:"999x999", solarW:-5, solarX:1e9, teardrop:"sharp",
       power:{ mode:"warp", wakes:1e9, secs:-1, extW:"x", eff:500, junk:1 }, boardWh:-3, boardSleepMw:"q",
-      cut:[{ kind:"pot", face:"front", u:0, v:20, dial:"<script>", knob:1e6, hood:"yes", plunger:1, reach:-50, window:"y" }] });
+      cut:[{ kind:"pot", face:"front", u:0, v:20, dial:"<script>", knob:1e6, hood:"yes", plunger:1, reach:-50, window:"y", cover:"yes" }], coverDepth:1e9 });
     st.base.enclosure.more = [{ kind:"lipo906090", x:0, y:0, wh:1e9, sleepMw:-4 }];
     const f = new win.File([JSON.stringify({ app:"Maker Forge", v:6, state:st })], "h.json", { type:"application/json" }), inp = document.querySelector("#projInput"), r0 = MF.rev;
     Object.defineProperty(inp, "files", { value:[f], configurable:true }); inp.dispatchEvent(new win.Event("change")); for (let i = 0; i < 100 && MF.rev === r0; i++) await sleep(30); await settle();
@@ -208,7 +259,7 @@ const EASYEDA = JSON.stringify({ head:{ docType:"3", c_para:{ name:"Weather node
       "hostile settings: back to safe ones", JSON.stringify({ f:H.fasten, m:H.mount, mm:H.mountMagnet, g:H.gasketPrint, s:H.solar, t:H.teardrop }));
     check(JSON.stringify(H.power) === JSON.stringify({ wakes:1440, secs:1, eff:100 }) && H.boardWh === 0 && H.boardSleepMw === undefined && m.wh === 5000 && m.sleepMw === 0,
       "the power schedule and the batteries' numbers clamped, junk dropped", JSON.stringify({ p:H.power, wh:m.wh, mw:m.sleepMw }));
-    check(c.dial === undefined && c.knob === 60 && c.hood === undefined && c.plunger === undefined && c.reach === 0.5 && c.window === undefined && closed(), "an opening's new settings clamped, junk dropped, and it builds", JSON.stringify(c));
+    check(c.dial === undefined && c.knob === 60 && c.hood === undefined && c.plunger === undefined && c.reach === 0.5 && c.window === undefined && c.cover === undefined && H.coverDepth === 60 && closed(), "an opening's new settings clamped, junk dropped, and it builds", JSON.stringify(c));
   }
 
   check(env.errors.length === e0, "no page errors", env.errors.slice(e0).join(" | "));

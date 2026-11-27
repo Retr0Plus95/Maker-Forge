@@ -292,6 +292,10 @@ Some objects in brief:
 
     ![A box for outdoors: a rain hood over the motion sensor's dome, round holes that seal, a breather low on the front and screw ears](docs/images/box-outdoors.jpg)
 
+  - **Cover over it, for plugs** (new in 0.62.8, each wall opening on the Openings page, for a box outdoors): a printed hood that screws on over a port with a cable plugged in, like an outdoor socket's. It has a roof, two sides down to the bottom of the box and a front that stops just above the lowest port, so you can still plug in; it is open underneath, so the cables leave downwards and rain runs off. Openings with a cover on the same wall share one. **Cover depth** (15–60 mm, 30 by default) is its room for a plug and the cable's bend. It prints roof-down beside the box without support, and two M3 self-tapping screws go through its tabs into ribs inside the wall (What you'll need lists them). A covered opening's label stays on the wall under it. The box must hang upright, floor down (hanging tabs or a strap, not screw ears on its sides), for the cover to open downwards.
+
+    ![A box for a power bank with its plug cover printed beside it: a roof on the bed, two sides, a short front and a screw tab each side](docs/images/plug-cover.jpg)
+
   - **Templates and drawings** (new in 0.56, its own page): **Drilling templates (SVG)** draws each face with its openings at true size, as they are cut, with a red cross and the distances from the left and bottom (or front) edges at each opening's middle, and a 50 mm bar. Print it at 100% (not fit to page), check the bar, tape it on a bought box and drill. **The faces (DXF)** is the same for CAD or a laser cutter. The download has both, in cad/.
 
     ![Drilling templates: the front, back, left side and lid at true size, each opening with a red cross and its distances, and a 50 mm bar](docs/images/box-templates.jpg)

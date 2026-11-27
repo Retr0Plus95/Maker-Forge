@@ -3303,6 +3303,35 @@ project file. Where they are used, an unknown word falls back to the usual choic
 - Every quick start and object still comes back unchanged from a saved project (`test:project`).
 - The smoke test, `tools-audit.js pcb,cutter,lightbox`, `test:print`, `test:jigsaw`, `test:art`, the print survey and `npm run fingerprint` (no change).
 
+## Session 79: plugs reach a board in a cradle (v0.62.7)
+
+Found while making a case for the owner's own power bank (a 126090 8000 mAh LiPo and a small charge-and-boost board: micro-USB
+in under the board, USB-A out on top, about 25 × 17 mm). The board has no holes, so it sits in a cradle; with its port end 1 mm
+from the right wall and both openings in front of it, the cradle stood in the plugs' way:
+- the rim on the short side (no finger gap there, as the side is under 24 mm) rises from the floor to 1.2 mm above the board, so
+  it blocked the whole micro-USB path under the board and the bottom 1.2 mm of the USB-A's;
+- the crush rib in the middle of each short side (`encGrip`, u = 0) stood in the same place;
+- the L-shaped seats under each corner run `min(8, w/3, d/3)` along each side, under the micro-USB socket itself.
+The same held for every board from the list held by its edges: the ESP32 DevKit's micro-USB, its ports added for it, was
+blocked at 9.2 mm. "Add this board's ports" put the openings in the right place (Session 61), so nothing warned.
+
+**The fix** (`src/app.html`): `encCradlePortGaps(E, x, y, w, d, z0, z1, iw, id)` takes every wall opening (`placedRings`, so its
+pointed top and rotation count) within 6 mm of a side of the board, overlapping the rim's height and that side's length, and
+returns a gap 1 mm wider than it each way, on that side only (`[a, b, side]`). `encCradle` takes them (`ports`): `encRim` leaves
+the rim out there (its gaps may now name a side; the finger gaps still apply to both), `encGrip` leaves out a rib or a snap
+clip in one, and a seat's arm that runs into one is left out (the corner rests on its other arm). The long sides keep their rim.
+
+Making the owner's case also showed: an opening put straight into `E.cut` without its size (`w`, `h`, `r`) is cut as a point.
+The panel and the quick starts always go through `newOpening`, and project files keep the sizes, so nothing users do reaches it.
+
+**Tested:**
+- `tools-boards-test.js`, new section: from the board's edge to the wall's inside, across each side-wall opening 0.6 mm in from
+  its edges, no surface is crossed. A measured 25 × 17 mm module with USB-A above and micro-USB under it at the right wall, and the
+  ESP32 DevKit held by its edges with its ports added. Both fail on 0.62.6 (USB-A at 8.2 mm and micro-USB at 3.7 mm; micro-USB at
+  9.2 mm) and pass now. Without the openings, the rim closes again.
+- `npm run test:enclosure`, `node tools-boxfuzz.js index.html`, the smoke test, and `npm run fingerprint`: all 55 unchanged (no
+  quick start has a cradled board with an opening in front of it).
+
 ## Next
 
 **The plan from here to 2.5 is in `ROADMAP.md`** (Session 66, the owner's request): releases 0.58 to 0.95, 1.0, the parametric

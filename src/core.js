@@ -7910,9 +7910,10 @@
     const solar = PW.cell ? BIRD_SOLAR[s.solar] || null : null;
     if (s.solar !== "none" && !PW.cell) warn.push("A solar panel needs a battery to charge: choose one under Power.");
     if (s.sensor !== "none" && s.camera === "none") warn.push("The motion sensor wakes the camera: with no camera it has nothing to do, so it is left out.");
-    // the loft: tall enough at the back for the battery, the camera board and the switch; higher at the front (the roof slopes back)
+    // the loft: tall enough at its low front for the battery and the camera board; higher at the back (the roof slopes down to the
+    // front, so rain runs off over the hole's overhang and away from the wall or tree it hangs on), where the switch and the port go
     const tanS = Math.tan(s.slope * Math.PI / 180), elec = s.camera !== "none" || PW.cell || PW.port;
-    const hB = Math.ceil(BH.ct + (elec ? Math.max(30, PW.cell ? PW.cell.w + 6 : 0) : 18)), hF = Math.ceil(hB + Dout * tanS);
+    const hF = Math.ceil(BH.ct + (elec ? Math.max(30, PW.cell ? PW.cell.w + 6 : 0) : 18)), hB = Math.ceil(hF + Dout * tanS);   // low at the front, high at the back
     return { s, B, t, c, W, D, k, tp, open, hole, up, Hn, zB, zF, Wout, Dout, yTop, PW, solar, tanS, hB, hF, elec, warn,
       cam:s.camera !== "none", pir:s.camera !== "none" && s.sensor !== "none" };
   }
@@ -7965,7 +7966,7 @@
   // rise to the roof's slope; the battery, the charge board and the switch inside, their ports in the back wall
   function birdLoft(P, screw){
     const { c, zB, zF, Wout, Dout, hB, hF, tanS, PW } = P, ct = BH.ct, lt = BH.lt, out = [], hw = Wout / 2;
-    const yT = z => hB + (z - zB) * tanS;                                           // the roof's underside over z
+    const yT = z => hF + (zF - z) * tanS;                                           // the roof's underside over z: down to the front
     const inner = [-hw + lt, zB + lt, hw - lt, zF - lt], bought = [], ports = [];
     // what goes where, in plan: the camera's frame in the middle, the sensor towards the entrance, the battery to the left,
     // the charge board (or the USB-C socket) and the switch at the back wall
@@ -7975,7 +7976,7 @@
     if (P.cam) holes.push(pCirc(7, lens[0], lens[1], 32));
     if (P.pir) holes.push(pCirc(5.2 + c, pirAt[0], pirAt[1], 32));
     out.push(prismXZ([[-hw, zB], [hw, zB], [hw, zF], [-hw, zF]], holes, 0, ct));
-    // walls: the sides and the front follow the slope; the back is level at its lowest, with the ports and the switch
+    // walls: the sides and the front follow the slope; the back is level at its highest, with the ports and the switch
     // (the roof's two screws go through each side wall into a boss standing on the plate; placed by the roof's frame: birdMake)
     const pilot = () => tearAB(PART_FASTENERS.M3.pilot / 2, screw.z, screw.y, 16);
     for (const sg of [-1, 1]){ const x0 = sg * hw, x1 = sg * (hw - lt), x2 = sg * (hw - lt - 6);
@@ -8003,7 +8004,7 @@
       // along the depth, clear of the switch at the back; flat if there is room beside the camera, else on its long edge
       const flat = x1 - x0 >= C1.w + k2, w = flat ? C1.w + k2 : C1.h + k2, h = flat ? C1.h : C1.w, zb = inner[1] + FLOWER_WALL.switch.d + 2, l = C1.l + k2;
       const r = [x1 - w, Math.max(zb, Math.min(inner[3] - 1 - l, camAt[1] - l / 2)), x1, 0]; r[3] = r[1] + l;
-      if (r[0] < x0 || r[3] > inner[3] - 1 || h + ct + 2 > hB){ P.warn.push(`The ${C1.name.split(",")[0]} doesn't fit the loft beside the camera: give the house more room inside.`); }
+      if (r[0] < x0 || r[3] > inner[3] - 1 || h + ct + 2 > yT(r[3])){ P.warn.push(`The ${C1.name.split(",")[0]} doesn't fit the loft beside the camera: give the house more room inside.`); }
       out.push(prismXZ(rect(...r), [rect(r[0] + 1.6, r[1] + 1.6, r[2] - 1.6, r[3] - 1.6)], ct - 0.01, ct + Math.min(flat ? 6 : 10, h * 0.5)));
       cellBox = { r, h, flat }; bought.push({ name:C1.name, solid:pBox(r[0] + 2.1, r[2] - 2.1, ct, ct + h, r[1] + 2.1, r[3] - 2.1), colour:"#3a3d42" }); }
     ports.forEach(p => { const it = FLOWER_WALL[p.key];
@@ -8031,12 +8032,12 @@
     const s = birdClean(raw), P = birdPlan(s), body = birdBody(P), front = birdFront(P), roof = birdRoof(P);
     const { zB, zF, yTop, hB, hF, tanS, tp, t, c, Wout, D } = P, cosS = 1 / Math.sqrt(1 + tanS * tanS), sinS = tanS * cosS;
     // the roof's frame on the house: its underside on the plane through the loft's walls' tops; local x mirrored (a turn, not a flip)
-    const O = [0, yTop + (hB + hF) / 2, (zB + zF) / 2], ez = [0, sinS, cosS], nd = [0, -cosS, sinS];
+    const O = [0, yTop + (hB + hF) / 2, (zB + zF) / 2], ez = [0, -sinS, cosS], nd = [0, -cosS, -sinS];   // ez down the slope to the front, nd into the house
     const roofM = cols([-1, 0, 0], nd, ez), roofT = [O[0] - nd[0] * BH.rt, O[1] - nd[1] * BH.rt, O[2] - nd[2] * BH.rt];
     const toWorld = p => [roofM[0] * p[0] + roofM[1] * p[1] + roofM[2] * p[2] + roofT[0], roofM[3] * p[0] + roofM[4] * p[1] + roofM[5] * p[2] + roofT[1], roofM[6] * p[0] + roofM[7] * p[1] + roofM[8] * p[2] + roofT[2]];
     // the roof's two screws: through the rim's sides at its middle, into bosses on the loft's side walls (standing on its plate)
     const sw = toWorld([roof.iw + BH.rimT / 2, roof.screwY, 0]), sy = sw[1] - yTop, sz = sw[2];
-    if (sy + 4.5 > hB + (sz - zB) * tanS - 0.5 || sy - 4 < BH.ct + 1) P.warn.push("The roof's screws don't fit the loft's sides: make the roof slope gentler.");
+    if (sy + 4.5 > hF + (zF - sz) * tanS - 0.5 || sy - 4 < BH.ct + 1) P.warn.push("The roof's screws don't fit the loft's sides: make the roof slope gentler.");
     const loft = birdLoft(P, { y:sy, z:sz });
     const loftSolid = mergeSolids(loft.solid);
     let frame = null;
@@ -8065,7 +8066,12 @@
       return { parts:out };
     };
     const info = birdInfo(P, { loft, roof, front });
-    return { settings:s, printed, assembly, info, plan:P };
+    // where things are, in the house as it stands (for the tests and the panel): the ports in the loft's back wall, the lens's
+    // window, the sensor's hole, the battery, the roof's screws
+    const L = (x, y, z) => [x, y + yTop, z];
+    const layout = { ports:loft.ports.map(q => ({ key:q.key, at:L(q.x, q.y, zB) })), lens:P.cam ? L(loft.lens[0], 0, loft.lens[1]) : null, pir:P.pir ? L(loft.pirAt[0], 0, loft.pirAt[1]) : null,
+      cell:loft.cellBox, screw:sw, keyholes:(s.keyholes === "two" ? [-P.W / 4, P.W / 4] : [0]).map(x => [x, P.t + P.Hn * 0.62, zB]), hole:P.open ? null : [0, P.t + P.up + P.hole / 2, D / 2] };
+    return { settings:s, printed, assembly, info, plan:P, layout };
   }
   // what it needs, the checks, the steps, the battery's life and the camera's sketch
   function birdInfo(P, X){
@@ -8092,7 +8098,8 @@
       "Hang it 2 to 4 m up, out of the hottest sun and the worst rain (in Europe, facing between north and east), with a clear flight path in. Clean it out in autumn: lift the roof and the loft, and slide the front up.",
       "Ridges inside the front help the fledglings climb out. Drain holes in the floor and slots under the roof let it breathe."
     ];
-    if (P.cam) notes.push("The camera looks down through the ceiling at the nest; set it in its frame so the lens sits in the window. Point the motion sensor's dome down at the nest too.");
+    if (P.cam) notes.push("The camera looks down through the ceiling at the nest; set it in its frame so the lens sits in the window. Point the motion sensor's dome down at the nest too.",
+      "It is dim inside a nest box: an OV2640 without its infrared filter (sold as night vision) with one or two 850 nm infrared LEDs gives clearer pictures without disturbing the birds. Never use the board's white flash; the sketch leaves it off.");
     const steps = [
       `Slide the front down its grooves${P.open ? "" : ", the hole to the outside"}.`,
       ...(P.cam ? ["Set the ESP32-CAM face down in its frame in the loft, the lens in the window; push the motion sensor's dome down through its hole."] : []),
@@ -8104,7 +8111,7 @@
       "Put the roof on and fit its two screws through the rim into the loft's sides.",
       `Hang it on ${s.keyholes === "two" ? "two screws" : "a screw"} through the keyhole${s.keyholes === "two" ? "s" : ""} in the back.`
     ];
-    const size = { inside:[P.W, P.D, P.Hn], outside:[Math.round(X.roof.px * 2), Math.round(P.Dout + P.s.overhang), Math.round(P.yTop + P.hF + BH.rt + 2)] };
+    const size = { inside:[P.W, P.D, P.Hn], outside:[Math.round(X.roof.px * 2), Math.round(P.Dout + P.s.overhang), Math.round(P.yTop + Math.max(P.hB, P.hF) + BH.rt + 2)] };
     return { checks, ok:checks.every(q => q.ok), bom, notes, steps, size, life, warn:P.warn.slice(), sketch:P.cam ? birdSketch(P) : "" };
   }
   function birdSketch(P){
@@ -8120,7 +8127,9 @@
       `const int PHOTOS = 3;           // photos for each visit`,
       `const int PHOTO_GAP_MS = 1500;  // between them`,
       P.pir ? "const gpio_num_t PIR = GPIO_NUM_13;   // the AM312's OUT (SD in 1-bit mode leaves GPIO 13 free)" : "const int WAKE_EVERY_S = 600;  // no motion sensor: a photo every 10 minutes",
-      "RTC_DATA_ATTR int counter = 0;",
+      "RTC_DATA_ATTR int counter = 0;  // kept while it sleeps",
+      "",
+      "String photoName(int visit, int i) { return \"/visit\" + String(visit) + \"_\" + String(i) + \".jpg\"; }",
       "",
       "void setupCamera() {",
       "  camera_config_t c = {};",
@@ -8133,13 +8142,15 @@
       "}",
       "",
       "void setup() {",
+      "  rtc_gpio_hold_dis(GPIO_NUM_4);",
       "  setupCamera();",
       "  if (SD_MMC.begin(\"/sdcard\", true)) {           // 1-bit mode",
+      "    while (SD_MMC.exists(photoName(counter, 0))) counter++;   // after a power cut, carry on after the last visit",
+      "    for (int i = 0; i < 2; i++) { camera_fb_t *fb = esp_camera_fb_get(); if (fb) esp_camera_fb_return(fb); }   // let the exposure settle",
       "    for (int i = 0; i < PHOTOS; i++) {",
       "      camera_fb_t *fb = esp_camera_fb_get();",
       "      if (fb) {",
-      "        String path = \"/visit\" + String(counter) + \"_\" + String(i) + \".jpg\";",
-      "        File f = SD_MMC.open(path.c_str(), FILE_WRITE);",
+      "        File f = SD_MMC.open(photoName(counter, i).c_str(), FILE_WRITE);",
       "        if (f) { f.write(fb->buf, fb->len); f.close(); }",
       "        esp_camera_fb_return(fb);",
       "      }",
@@ -8148,6 +8159,7 @@
       "    counter++;",
       "  }",
       P.pir ? "  esp_sleep_enable_ext0_wakeup(PIR, 1);           // wake when the sensor goes high" : "  esp_sleep_enable_timer_wakeup((uint64_t)WAKE_EVERY_S * 1000000ULL);",
+      "  pinMode(4, OUTPUT); digitalWrite(4, LOW); rtc_gpio_hold_en(GPIO_NUM_4);   // the white flash stays off while it sleeps",
       "  esp_deep_sleep_start();",
       "}",
       "",

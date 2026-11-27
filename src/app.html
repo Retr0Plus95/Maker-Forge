@@ -12349,6 +12349,12 @@ async function rebuildAll(resetItems, mode){
       if (sig !== renderedFlowerSig){ const a = document.activeElement, inPanel = a && a.closest && a.closest("#panel") && a.matches("input,textarea,select");
         if (!inPanel){ renderedFlowerSig = sig; renderTab(); } else a.addEventListener("blur", () => { if (tab === "make" && state.base.type === "flower"){ renderedFlowerSig = sig; renderTab(); } }, { once:true }); }
     }
+    // the bird house (Session 89): its checks, notes, sizes, list and battery's life follow the settings
+    if (t === "birdhouse" && tab === "make" && birdInfo){
+      const I = birdInfo.info, sig = JSON.stringify([I.checks, I.warn, I.size, I.bom, I.life, !!I.sketch]);
+      if (sig !== renderedBirdSig){ const a = document.activeElement, inPanel = a && a.closest && a.closest("#panel") && a.matches("input,textarea,select");
+        if (!inPanel){ renderedBirdSig = sig; renderTab(); } else a.addEventListener("blur", () => { if (tab === "make" && state.base.type === "birdhouse"){ renderedBirdSig = sig; renderTab(); } }, { once:true }); }
+    }
     if (t === "enclosure" && tab === "make" && enclosureInfo){
       const sig = encPanelSig(enclosureInfo);
       if (sig !== renderedEncWarn){
@@ -13167,6 +13173,7 @@ document.querySelectorAll(".viewtools button[title]").forEach(b => { if (!b.getA
    active page is shown, so panels stay short, and the active page plus its scroll position are
    remembered per tab and object, so changing a setting never loses your place. */
 const SECTION_ICONS = [
+  [/put together/i,"🔧"], [/sketch/i,"⌨"],      // the flower lamp's and the bird house's steps and their boards' sketches (Session 89)
   [/^plan of the inside/i,"⊞"], [/^heat and air/i,"♨"], [/^battery life/i,"🔋"], [/^outdoors$/i,"☂"], [/^templates and drawings/i,"⌖"], [/^start from a recipe/i,"★"], [/^style$/i,"✎"], [/^wiring$/i,"⌇"],
   [/^art, words and icons/i,"✦"], [/^floor, names and extras/i,"▦"], [/^what you'll need/i,"≡"],
   [/hanging hole/i,"◎"], [/^thickness$/i,"⇕"], [/^feet$/i,"⊥"], [/cut it flat/i,"✂"],

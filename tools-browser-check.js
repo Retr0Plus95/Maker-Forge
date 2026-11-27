@@ -496,6 +496,23 @@ function pageCoverage() {
     if (!fl.ok || fl.open || !fl.zip) findings.push({ where: "flower lamp", what: JSON.stringify(fl) });
     notes.push(`flower lamp: ${fl.parts} parts, every check passing ${fl.ok}; the export has the sketch, the steps and the plates: ${fl.zip}`);
   }
+  // the bird house (Session 89): the export's camera sketch, steps and plates (JSZip runs only in a real browser), and the house
+  if (!ONLY || ONLY.includes("birdhouse")) {
+    const bh = await page.evaluate(async () => {
+      const MF = window.MakerForge, C = MF.core, sleep = ms => new Promise(q => setTimeout(q, ms));
+      const settle = async () => { const r0 = MF.rev; for (let i = 0; i < 40 && MF.rev === r0 && !MF.busy; i++) await sleep(30); for (let i = 0; i < 1200; i++){ if (!MF.busy){ await sleep(60); if (!MF.busy) break; } await sleep(25); } };
+      const sel = document.querySelector("#objectSel"); sel.value = "birdhouse"; sel.dispatchEvent(new Event("change")); await settle();
+      const out = { parts:MF.parts.length, open:MF.parts.reduce((a, p) => a + C.checkMesh(p.solid).open, 0), ok:MF.birdhouse.info.ok };
+      const zip = await MF.paint.buildZip(MF.exportParts(), "bird house"), names = Object.keys(zip.files);
+      const ino = await zip.file("birdhouse-camera.ino").async("string"), steps = await zip.file("how-to-assemble.txt").async("string"), readme = await zip.file("README.txt").async("string");
+      out.zip = /esp_deep_sleep_start/.test(ino) && /What you'll need/.test(steps) && /birdhouse-camera\.ino/.test(readme) && names.some(n => /^plates\/plate-1/.test(n));
+      return out;
+    });
+    await byText(page, "#tabs button", "make");
+    await shot(page, "birdhouse", "The bird house: the picture of the house, the roof down to the front (the files are the parts laid out to print)", {});
+    if (!bh.ok || bh.open || !bh.zip) findings.push({ where: "bird house", what: JSON.stringify(bh) });
+    notes.push(`bird house: ${bh.parts} parts, every check passing ${bh.ok}; the export has the camera's sketch, the steps and the plates: ${bh.zip}`);
+  }
   if (!ONLY || ONLY.includes("sign")) {
     const sg = await page.evaluate(async () => {
       const MF = window.MakerForge, C = MF.core, sleep = ms => new Promise(q => setTimeout(q, ms));

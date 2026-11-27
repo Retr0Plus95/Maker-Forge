@@ -2325,7 +2325,7 @@ const CUTOUTS = {
   camholder:{ g:"sensor", label:"Camera holder in the lid (OV2640): lens hole + a frame inside", k:"esp32-cam esp32cam ov2640 camera holder bird house nest lens frame", kind:"round", dia:8.6 },
   picam:{ g:"sensor", label:"Raspberry Pi camera module: lens + 4 screws", kind:"camera", dia:9, hw:21, hh:12.5, hd:2.2, holeShift:1.2 },
   pir501:{ g:"sensor", label:"Motion sensor HC-SR501: dome + 2 screws", kind:"pir", dia:23.2, hw:28, hd:2.2, deep:15, body:33 },
-  pirmini:{ g:"sensor", label:"Mini motion sensor (AM312 / HC-SR505): its dome", kind:"round", dia:10.4, deep:12 },
+  pirmini:{ g:"sensor", label:"Mini motion sensor (AM312 / HC-SR505): its dome", kind:"round", dia:10.4, deep:20 },     // (Session 81: 12 × 25 mm with its pins; the 12 mm shoulder stops it against the wall)
   hcsr04:{ g:"sensor", label:"Distance sensor HC-SR04: its two eyes", kind:"twin", dia:16.4, hw:26 },
   ldr:{ g:"sensor", label:"Light sensor (LDR, 5 mm)", kind:"round", dia:5.3 },
   irrx:{ g:"sensor", label:"IR remote receiver (VS1838B)", kind:"round", dia:6.2 },
@@ -3791,12 +3791,27 @@ function encFixAll(E){
     if (bb[1] - over >= lim[0]){ c.v = +(v0 - over).toFixed(2); buildEnclosure(); if (enclosureInfo.warn.length < warn0){ n++; return; } c.v = v0; }
     E.h = +((+E.h || 30) + Math.ceil(over*10)/10 + 0.2).toFixed(1); n++; buildEnclosure();
   });
+  // (Session 81) a part in the lid whose body meets a board: first slide its opening to the nearest place clear of the board
+  // (beside it in the lid), then, if none is free, the box grows taller below
+  (enclosureInfo.behind || []).filter(q => q.hit && q.face === "top").forEach(q => {
+    const c = E.cut[q.i], hb = (enclosureInfo.boards || []).find(b => b.label === q.hit && b.bb && !b.face); if (!c || !hb) return;
+    const hu = (q.rect[2] - q.rect[0])/2, hv = (q.rect[3] - q.rect[1])/2, u0 = +c.u || 0, v0 = +c.v || 0, warn0 = enclosureInfo.warn.length;
+    const tries = [[hb.bb[0] - hu - 0.6, v0], [hb.bb[2] + hu + 0.6, v0], [u0, hb.bb[1] - hv - 0.6], [u0, hb.bb[3] + hv + 0.6]]
+      .sort((a, b) => Math.hypot(a[0] - u0, a[1] - v0) - Math.hypot(b[0] - u0, b[1] - v0));
+    for (const [u, v] of tries){
+      c.u = +u.toFixed(1); c.v = +v.toFixed(1); buildEnclosure();
+      if (!enclosureInfo.left.includes(q.i) && enclosureInfo.warn.length < warn0){ n++; return; }
+    }
+    c.u = u0; c.v = v0; buildEnclosure();
+  });
   // (Session 64) a switch's or a jack's body that meets a board: that wall moves out by enough
   for (let it = 0; it < 3; it++){
     const g = { l:0, r:0, f:0, b:0 }, side = { front:"f", back:"b", left:"l", right:"r" };
-    (enclosureInfo.behind || []).filter(q => q.hit && q.pen > 0).forEach(q => { const k2 = side[q.face]; g[k2] = Math.max(g[k2], Math.ceil(q.pen + 1)); });
-    if (!Object.values(g).some(v => v > 0) || (+E.w || 0) + g.l + g.r > 400 || (+E.d || 0) + g.f + g.b > 400) break;
-    encGrowSides(E, g); n++; buildEnclosure();
+    (enclosureInfo.behind || []).filter(q => q.hit && q.pen > 0 && q.face !== "top").forEach(q => { const k2 = side[q.face]; g[k2] = Math.max(g[k2], Math.ceil(q.pen + 1)); });
+    const up = Math.max(0, ...(enclosureInfo.behind || []).filter(q => q.hit && q.pen > 0 && q.face === "top").map(q => Math.ceil(q.pen + 1)));   // (Session 81) under the lid: taller
+    if ((!Object.values(g).some(v => v > 0) && !up) || (+E.w || 0) + g.l + g.r > 400 || (+E.d || 0) + g.f + g.b > 400 || (+E.h || 0) + up > 300) break;
+    if (up) E.h = (+E.h || 30) + up;
+    if (Object.values(g).some(v => v > 0)) encGrowSides(E, g); n++; buildEnclosure();
   }
   return { n, before, after:[E.w, E.d, E.h], left:enclosureInfo.warn.length };
 }
@@ -4298,13 +4313,15 @@ const ENC_KITS = [
   { name:"Guitar pedal", what:"An Arduino Nano under a footswitch, a knob and an LED on the lid, jacks in and out on the sides, power at the back.",
     words:"Arduino Nano, footswitch, 6.35 mm jack, DC barrel jack, 5 mm LED, potentiometer", extra:[{ kind:"jack635", face:"right" }],
     set:{ lid:"screw", fasten:"insert", wall:2.4, lidThick:3, feet:"recess", radius:3 }, min:{ w:112, d:60, h:38 }, faces:{ footswitch:"top", pot:"top", led5:"top", jack635:"left", barrel:"back" } },
-  // (Session 64) a bird house camera in two boxes: the battery and the motion sensor in one, the camera in the other
-  { name:"Bird house battery and motion sensor", what:"An 8000 mAh LiPo (126090) on strap loops, a TP4056 charger with its USB-C through the wall, an MT3608 boost to 5 V, a small dome motion sensor in front and a cable gland to the camera box; a gasket and screw ears.",
-    words:"LiPo pouch 126090, TP4056 charger, MT3608 boost converter, mini motion sensor AM312, cable gland PG7",
-    set:{ lid:"screw", fasten:"insert", wall:3, gasket:1.5, mount:"ears", radius:4 }, round:true, faces:{ pirmini:"front", gland:"back" }, main:"tp4056", holds:{ lipo126090:{ hold:"strap", strapBy:"loops" } }, power:{ mode:"wake", wakes:20, secs:30, extW:1, extSleepMw:20 } },
-  { name:"Bird house camera", what:"An ESP32-CAM held by snap clips, its camera in a holder in the lid with the lens through it (the lid faces the nest), a cable gland for power from the battery box; a gasket and screw ears.",
-    words:"ESP32-CAM camera board, camera holder in the lid, cable gland PG7",
-    set:{ lid:"screw", fasten:"insert", wall:3, gasket:1.5, mount:"ears", radius:4, boardHold:"edges", boardGrip:"clips" }, round:true, faces:{ camholder:"top", gland:"back" }, over:{ camholder:"main" }, h:22 }
+  // (Session 64) a bird house camera in two boxes: the battery in one, the camera in the other. (Session 81, the owner: the battery
+  // box sits on the bird house's floor, the camera box hangs from one point, and the motion sensor goes with the camera, in its lid,
+  // which faces the nest: its signal wire then stays inside the camera box)
+  { name:"Bird house battery", what:"An 8000 mAh LiPo (126090) on strap loops, a TP4056 charger with its USB-C through the wall, an MT3608 boost to 5 V and a cable gland to the camera box; a gasket, rounded edges, and a flat floor to stand on the bird house's floor.",
+    words:"LiPo pouch 126090, TP4056 charger, MT3608 boost converter, cable gland PG7",
+    set:{ lid:"screw", fasten:"insert", wall:3, gasket:1.5, mount:"none", radius:6, edge:"round", edgeSize:1.4 }, round:true, faces:{ gland:"back" }, main:"tp4056", holds:{ lipo126090:{ hold:"strap", strapBy:"loops" } }, power:{ mode:"wake", wakes:20, secs:30, extW:1, extSleepMw:20 } },
+  { name:"Bird house camera", what:"An ESP32-CAM held by snap clips, its camera in a holder in the lid with the lens through it and a small dome motion sensor beside it (the lid faces the nest), a cable gland for power from the battery box; a gasket, rounded edges, and one keyhole in the floor to hang it on one screw.",
+    words:"ESP32-CAM camera board, camera holder in the lid, mini motion sensor AM312, cable gland PG7",
+    set:{ lid:"screw", fasten:"insert", wall:3, gasket:1.5, mount:"keyhole", radius:6, edge:"round", edgeSize:1.4, boardHold:"edges", boardGrip:"clips" }, round:true, faces:{ camholder:"top", pirmini:"top", gland:"back" }, over:{ camholder:"main" }, h:30, min:{ w:62 } }
 ];
 function encStartKit(kit){
   const keepAI = state.base.enclosure && state.base.enclosure.logo;
@@ -4326,8 +4343,10 @@ function encStartKit(kit){
   if (kit.main){ encAddBoardPorts(true, true); if (!encArrange(true).ok) encArrange(false); encPortsFollow(E); }
   if (kit.h) E.h = kit.h;
   if (kit.power) E.power = JSON.parse(JSON.stringify(kit.power));
-  if (kit.over) (E.cut || []).forEach(c => { if (kit.over[c.kind] === "main"){ c.face = "top"; c.u = +(+E.boardX || 0).toFixed(1); c.v = +(+E.boardY || 0).toFixed(1); } });
+  // (Session 81: the smallest size first, then what goes over the board: arranging in the bigger box moved the board from under
+  // the camera holder already put over it)
   if (kit.min){ for (const k of ["w","d","h"]) if (kit.min[k] && (+E[k] || 0) < kit.min[k]) E[k] = kit.min[k]; encArrange(true); }
+  if (kit.over) (E.cut || []).forEach(c => { if (kit.over[c.kind] === "main"){ c.face = "top"; c.u = +(+E.boardX || 0).toFixed(1); c.v = +(+E.boardY || 0).toFixed(1); } });
   (E.cut || []).forEach(c => { if (!encLabelText(c.label) && encAutoLabel(c.kind)) c.label = encAutoLabel(c.kind); });
   encFixAll(E); encTidyLabels(E);
   return Object.assign(r, { size:[E.w, E.d, E.h] });
@@ -4735,6 +4754,20 @@ function encMount(E, B, warn){
     out.solids.push(C.extrudePolysAt([{ outer:encOrient(circ(ro, 40), true), holes:[encOrient(circ(nut.hole/2, 32), false)] }], z, z + 2));
     out.taken.push(["bottom", "the tripod nut", [-ro, -ro, ro, ro]]); out.tripod = { r:ro, top:z + 2 };
     out.lines.push(`A 1/4-inch tripod nut (${nut.af} mm across its flats) presses into the floor from below, in a boss ${(z + 2 - fl).toFixed(1)} mm tall inside: the box screws onto a tripod, a camera clamp or a GoPro adapter.`);
+  } else if (E.mount === "keyhole"){
+    // one keyhole in the floor (Session 81): the box hangs on one screw, its floor against a wall or a ceiling. The head goes in
+    // through the round hole and the box slides onto it (the slot runs towards the back: hang it back edge up). The head is held
+    // in a closed pocket on the floor's inside, so the box stays sealed; the pocket's roof is a short bridge (the head's width)
+    const fl = B.fl, K = ENC_KEYHOLE, rh = K.head/2, w2 = K.slot/2, a = rh + K.rim;
+    const lx = W/2 - t - a - 1, ly0 = -D/2 + t + a + 1, ly1 = D/2 - t - K.len - a - 1;
+    if (lx < 0 || ly1 < ly0 || fl + K.room + K.roof > H - 4){ warn.push({ t:"No room for the keyhole", s:"The floor needs about 16 × 25 mm clear and the box 10 mm of height for the keyhole's pocket: make the box bigger." }); return out; }
+    const x = clamp(+E.keyX || 0, -lx, lx), y = clamp(+E.keyY || 0, ly0, ly1), bb = [x - a, y - a, x + a, y + K.len + a];
+    const blockO = encOrient([[bb[0], bb[1]], [bb[2], bb[1]], [bb[2], bb[3]], [bb[0], bb[3]]], true);
+    out.floorHoles.push(unionHeadSlot(x, y, rh, w2, K.len));
+    out.solids.push(C.extrudePolysAt([{ outer:blockO, holes:[encOrient(unionHeadSlot(x, y, rh, rh, K.len), false)] }], fl - 0.01, fl + K.room));
+    out.solids.push(C.extrudePolysAt([{ outer:blockO.slice(), holes:[] }], fl + K.room - 0.01, fl + K.room + K.roof));
+    out.taken.push(["bottom", "the keyhole", bb]); out.keyhole = { x, y, bb, top:fl + K.room + K.roof };
+    out.lines.push(`One keyhole in the floor for a 4 mm screw (head up to ${(K.head - 1).toFixed(1)} mm across): put the screw in, leaving its head ${(fl + 0.5).toFixed(1)}–${(fl + K.room - 0.5).toFixed(1)} mm out, hold the box with its floor to the wall (back edge up) or the ceiling, push the head into the round hole and slide the box down onto it. The head sits in a closed pocket, so the box stays sealed.`);
   } else if (E.mount === "magnets"){
     // magnets in the floor's underside (Session 64): four pockets, for a fridge, a car or a steel shelf (cut with the feet, below)
     out.lines.push("Four magnets in pockets under the floor: glue them in, all the same way up, and the box holds onto steel.");
@@ -5097,6 +5130,9 @@ function encSolarRect(E, W, D, t){
 const ENC_DIAL_KINDS = new Set(["pot", "encoder", "rotary"]);
 // a 1/4-20 UNC tripod nut: 7/16 inch (11.1 mm) across its flats, 5.6 mm thick, and the screw's hole (Session 64)
 const ENC_TRIPOD = { af:11.1, t:5.6, hole:6.6 };
+// one keyhole in the floor (Session 81): the head hole and the slot for a 4 mm screw, how far the slot runs, the head's room
+// behind the floor and the roof over it, and the wall round the pocket
+const ENC_KEYHOLE = { head:9.5, slot:4.5, len:9, room:3.5, roof:1.2, rim:2 };
 // outlines drawn on a wall, (u, v) as the openings', made a slab from n0 to n1 outwards from the wall's outside plane, in world
 // coordinates, outward-facing (Session 64: clear windows)
 function encFaceSlab(face, rings, n0, n1, W, D){
@@ -6945,9 +6981,19 @@ function buildEnclosure(){
   const behind = [];
   placedOpen.forEach(po => {
     // (a board's own port, and a KiCad board's LEDs and buttons, belong to the board: nothing more behind the wall)
-    const k = encHas(CUTOUTS, po.c.kind) ? CUTOUTS[po.c.kind] : null; if (!k || !k.deep || !ENC_WALLS.has(po.face) || po.c.auto === "ports" || po.c.from === "panel") return;
+    // (Session 81: in the lid too: a motion sensor beside a camera reached down onto the board, and nothing said so)
+    const k = encHas(CUTOUTS, po.c.kind) ? CUTOUTS[po.c.kind] : null; if (!k || !k.deep || !(ENC_WALLS.has(po.face) || po.face === "top") || po.c.auto === "ports" || po.c.from === "panel") return;
     const cu = (po.bb[0] + po.bb[2])/2, cv = (po.bb[1] + po.bb[3])/2, hu = Math.max((po.bb[2] - po.bb[0])/2, (k.body || 0)/2), hv = Math.max((po.bb[3] - po.bb[1])/2, (k.body || 0)/2);
     const u0 = cu - hu, u1 = cu + hu, dp = k.deep, f = po.face;
+    if (f === "top"){                                    // the lid's (u, v) is plan (x, y); its body hangs down from under the lid
+      const r = [cu - hu, cv - hv, cu + hu, cv + hv], z1 = ceilZ, z0 = Math.max(fl, ceilZ - dp);
+      ghosts.push(ghostBox(r[0], r[1], z0, r[2], r[3], z1, "port", `${k.label.replace(/[:,(].*$/, "").trim()} (under the lid)`));
+      const hit = boardsInfo.find(b => b.bb && !b.face && b.bb[0] < r[2] - 0.2 && b.bb[2] > r[0] + 0.2 && b.bb[1] < r[3] - 0.2 && b.bb[3] > r[1] + 0.2 && (b.base || 0) < z1 && (b.top || 0) + (b.tall || 0) > z0);
+      const pen = hit ? (hit.top || 0) + (hit.tall || 0) - z0 : 0;
+      behind.push({ i:po.i, face:f, rect:r, z:[z0, z1], hit:hit ? hit.label : null, pen:+pen.toFixed(2) });
+      if (hit) warn.push({ t:`${po.lab} reaches ${hit.label}`, s:`Its body hangs about ${dp} mm down from the lid (shown in the 3D view) and meets ${hit.label}: move one of them, or make the box ${Math.ceil(pen + 1)} mm taller. (Typical sizes: check yours.)` });
+      return;
+    }
     const r = f === "front" ? [u0, -id/2, u1, -id/2 + dp] : f === "back" ? [-u1, id/2 - dp, -u0, id/2] : f === "left" ? [-iw/2, -u1, -iw/2 + dp, -u0] : [iw/2 - dp, u0, iw/2, u1];
     const z0 = cv - hv, z1 = cv + hv;
     ghosts.push(ghostBox(r[0], r[1], z0, r[2], r[3], z1, "port", `${k.label.replace(/[:,(].*$/, "").trim()} (behind the wall)`));
@@ -6966,7 +7012,11 @@ function buildEnclosure(){
       W:SG.W, D:SG.D, total:tot, front:shapeS.sl ? shapeS.sl.Hf : null, angle:shapeS.sl ? shapeS.sl.a*180/Math.PI : null, split:shapeS.cl ? shapeS.cl.hs : null,
       thread:shapeS.tw ? { pitch:shapeS.tw.p, len:shapeS.tw.len, neck:shapeS.tw.Hn } : null, faces:SG.faces, built:false };
   }
-  enclosureInfo = { test: !!state.base.enclosure.test, shape:shapeInfo, wallH:{ front:wallH("front"), back:wallH("back"), left:wallH("left"), right:wallH("right") }, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: shapeInfo ? shapeInfo.total : H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, gasket:gasket ? { cord:gasket.cord, length:gasket.length, depth:gasket.gd, width:gasket.gw, printed:gasket.printed || null } : null, snap:!!snap, hinge:hinge ? { length:hinge.Lh, knuckles:hinge.segs.length } : null, lidPosts:shapeS ? { n:shapeS.posts.length, hang:false, free:fl, r:shapeS.bossR, at:shapeS.posts.map(q => q.slice()) } : { n:bosses.length, hang:postHang, free:postFree, r:bossR, at:bosses.map(([x, z]) => [x, -z]) }, ceil:ceilZ, ri, lipH, wall:t, anchors:anchorsMade, faceU, clashes, wallV:Object.fromEntries(["front","back","left","right"].map(f => [f, [0.8, Math.min(wallH(f) - 0.8, lipTop)]])), cams:camInfo, behind, hoods:hoodInfo, covers:coverInfo, solar:solar && solar.fits ? solar : null, tripod:mount.tripod || null, ducts:ductInfo.length, ductRects:ductInfo.map(du => ({ fp:du.fp.slice(), isY:du.isY })),
+  // a board or a battery lying over the keyhole's pocket (Session 81)
+  if (mount.keyhole) boardsInfo.forEach(b => { if (b.lvl || b.face || !b.bb) return; const k = mount.keyhole.bb, under = b.hold === "strap" || b.hold === "door" ? b.base : b.top - 1.6;
+    if (b.bb[0] < k[2] && k[0] < b.bb[2] && b.bb[1] < k[3] && k[1] < b.bb[3] && under < mount.keyhole.top + 0.2)
+      warn.push({ t:`${b.label} sits on the keyhole's pocket`, s:`The pocket stands ${(mount.keyhole.top - fl).toFixed(1)} mm up from the floor: move one of them (the keyhole's place is on the Mounting page), or raise the board.` }); });
+  enclosureInfo = { test: !!state.base.enclosure.test, shape:shapeInfo, wallH:{ front:wallH("front"), back:wallH("back"), left:wallH("left"), right:wallH("right") }, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: shapeInfo ? shapeInfo.total : H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, gasket:gasket ? { cord:gasket.cord, length:gasket.length, depth:gasket.gd, width:gasket.gw, printed:gasket.printed || null } : null, snap:!!snap, hinge:hinge ? { length:hinge.Lh, knuckles:hinge.segs.length } : null, lidPosts:shapeS ? { n:shapeS.posts.length, hang:false, free:fl, r:shapeS.bossR, at:shapeS.posts.map(q => q.slice()) } : { n:bosses.length, hang:postHang, free:postFree, r:bossR, at:bosses.map(([x, z]) => [x, -z]) }, ceil:ceilZ, ri, lipH, wall:t, anchors:anchorsMade, faceU, clashes, wallV:Object.fromEntries(["front","back","left","right"].map(f => [f, [0.8, Math.min(wallH(f) - 0.8, lipTop)]])), cams:camInfo, behind, hoods:hoodInfo, covers:coverInfo, solar:solar && solar.fits ? solar : null, tripod:mount.tripod || null, keyhole:mount.keyhole || null, ducts:ductInfo.length, ductRects:ductInfo.map(du => ({ fp:du.fp.slice(), isY:du.isY })),
     takenOn:Object.fromEntries(Object.entries(taken).map(([f, l]) => [f, l.map(o => ({ n:o.n || 0, bb:o.bb.slice() }))])), count:(E.cut || []).length - left.length,
     split: splitInfo };
   return out;
@@ -15100,10 +15150,16 @@ function enclosureFields(p){
   group(p, "Mounting", g => {
     selField(g, "How it hangs", [["none","Not mounted"],["ears","Screw ears on the sides"],["tabs","Hanging tabs above the back"],["din","DIN rail clip"],
       ["straps","Strap or zip-tie loops"],["skadis","Hooks for IKEA SKÅDIS"],["pegboard","Pegs for pegboard (1/4-inch holes, 1-inch grid)"],
-      ["tripod","A tripod nut (1/4-inch) under the floor"],["magnets","Magnets on the back (under the floor)"]], ()=>E.mount || "none", v=>{ E.mount = v; renderTab(); baseChanged(); });
+      ["tripod","A tripod nut (1/4-inch) under the floor"],["magnets","Magnets on the back (under the floor)"],["keyhole","One keyhole in the floor (hangs on one screw)"]], ()=>E.mount || "none", v=>{ E.mount = v; renderTab(); baseChanged(); });
     if (E.mount === "magnets"){ selField(g, "Magnets", Object.keys(MAGNETS).map(k => [k, `${k.replace("x", " × ")} mm`]), ()=>encHas(MAGNETS, E.mountMagnet) ? E.mountMagnet : "8x3", v=>{ E.mountMagnet = v; renderTab(); baseChanged(); });
       const mg2 = MAGNETS[encHas(MAGNETS, E.mountMagnet) ? E.mountMagnet : "8x3"]; note(g, `Four pockets under the floor, ${(mg2.t + 0.2).toFixed(1)} mm deep: the floor needs to be at least ${(mg2.t + 0.8).toFixed(1)} mm thick (it is ${(+E.floor || 2)} mm). Glue the magnets in, all the same way up.` + (mg2.d + 0.3 > (state.printer.bridge ?? 10) ? ` Their pockets' tops are ${(mg2.d + 0.3).toFixed(1)} mm bridges, longer than your printer's ${state.printer.bridge ?? 10} mm: most printers manage, or pick a smaller magnet.` : "")); }
     if (E.mount === "tripod") note(g, "A boss on the floor's inside holds a 1/4-inch (1/4-20) nut pressed in from below. Keep the middle of the floor clear for it: boards go round it.");
+    if (E.mount === "keyhole"){                                       // (Session 81)
+      numField(g, { label:"Keyhole across (mm)", min:-150, max:150, step:0.5, get:()=>+E.keyX || 0, set:v=>E.keyX = v, onChange:baseChanged });
+      numField(g, { label:"Keyhole front to back (mm)", min:-150, max:150, step:0.5, get:()=>+E.keyY || 0, set:v=>E.keyY = v, onChange:baseChanged,
+        sub:()=>"From the middle of the floor; it stays inside the walls. Boards go over it: its pocket stands 4.7 mm up from the floor." });
+      note(g, "One keyhole in the floor: the box hangs on one screw, its floor against a wall (back edge up) or a ceiling. The screw's head is held in a closed pocket inside, so the box stays sealed. Its roof is a short bridge, so it prints without support.");
+    }
     if (E.mount === "ears"){
       segField(g, [["2","Two ears"],["4","Four ears"]], ()=>String(E.earN === 4 ? 4 : 2), v=>{ E.earN = +v; baseChanged(); }, "two");
       numField(g,{ label:"Screw hole (mm)", min:2,max:8,step:0.1, get:()=>E.earHole ?? 4.5, set:v=>E.earHole=v, onChange:baseChanged,
@@ -18443,7 +18499,7 @@ const LIMITS_AT = { "sym.size":[0.4,3], "pic.size":[0.4,3], "outline.width":[0.2
   "jigsaw.knob":[0.7,1.3], "jigsaw.vary":[0,1], "jigsaw.gap":[0.05,1], "jigsaw.firstGap":[0,0.4], "jigsaw.colourH":[0.2,2], "jigsaw.floor":[0.6,4],
   "lithophane.radius":[0,20],
   "pcb.thr":[5,95], "pcb.thicken":[0,3], "pcb.traceH":[0.2,3], "pcb.textMax":[0.5,60], "pcb.margin":[0,30], "pcb.radius":[0,20], "pcb.holeInset":[2,25], "pcb.hatchPitch":[1,8], "pcb.hatchWidth":[0.4,3],
-  "enclosure.coverDepth":[15,60], "pcb.hatchAngle":[0,90], "pcb.clearance":[0.2,3], "pcb.fingerCount":[2,40], "pcb.fingerW":[0.8,6], "pcb.fingerLen":[3,25], "pcb.despeckle":[0,8] };
+  "enclosure.coverDepth":[15,60], "enclosure.keyX":[-150,150], "enclosure.keyY":[-150,150], "pcb.hatchAngle":[0,90], "pcb.clearance":[0.2,3], "pcb.fingerCount":[2,40], "pcb.fingerW":[0.8,6], "pcb.fingerLen":[3,25], "pcb.despeckle":[0,8] };
 // a print orientation must be a real rotation: nine numbers, orthonormal, no mirror
 function cleanRotation(m){
   if (!Array.isArray(m) || m.length !== 9 || !m.every(v => typeof v === "number" && isFinite(v))) return null;
@@ -18718,7 +18774,7 @@ function sanitizeProject(data){
   if (st.base && st.base.enclosure && typeof st.base.enclosure === "object"){
     const E = st.base.enclosure, one = (v, list) => list.includes(v) ? v : list[0];
     E.lid = one(E.lid, ["screw","press","magnet","slide","none","twist"]); E.postStyle = one(E.postStyle, ["full","hang"]); E.snap = E.snap === true; E.hinge = E.hinge === true; E.gasket = [1.5, 2, 2.5, 3].includes(+E.gasket) ? +E.gasket : 0; E.fasten = one(E.fasten, ["insert","screw","nut","none"]); E.head = one(E.head, ["sink","bore","plain"]);
-    E.magnet = encHas(MAGNETS, E.magnet) ? E.magnet : "6x2"; E.feet = one(E.feet, ["none","recess"]); E.mount = one(E.mount, ["none","ears","tabs","din","straps","skadis","pegboard","tripod","magnets"], "none"); E.tabN = E.tabN === 1 ? 1 : 2;
+    E.magnet = encHas(MAGNETS, E.magnet) ? E.magnet : "6x2"; E.feet = one(E.feet, ["none","recess"]); E.mount = one(E.mount, ["none","ears","tabs","din","straps","skadis","pegboard","tripod","magnets","keyhole"], "none"); E.tabN = E.tabN === 1 ? 1 : 2;
     E.earN = E.earN === 4 ? 4 : 2; E.strapDir = one(E.strapDir, ["across","up"], "across"); E.footSize = encHas(FEET, E.footSize) ? String(E.footSize) : "8";
     const L0 = E.logo && typeof E.logo === "object" ? E.logo : {};
     E.logo = { on: L0.on === true, mode: one(L0.mode, ["inlay","engrave"]), width: Math.min(300, Math.max(5, cleanNum(L0.width, 40))),

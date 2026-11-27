@@ -107,15 +107,14 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
   console.log("\nthe bird house: two recipes, the 126090 LiPo, the camera in the lid, what panel parts take up behind the wall");
   {
     MF.state.printer.fit = {};
-    const kitBat = MF.boxRoom.kits.find(k => k.name === "Bird house battery and motion sensor"), kitCam = MF.boxRoom.kits.find(k => k.name === "Bird house camera");
+    const kitBat = MF.boxRoom.kits.find(k => k.name === "Bird house battery"), kitCam = MF.boxRoom.kits.find(k => k.name === "Bird house camera");
     MF.boxRoom.startKit(kitBat); MF.rebuild(false); await settle(); await make();
     let I = MF.enclosure, s = await support();
     const lipo = E().more.find(m => m.kind === "lipo126090"), usb = E().cut.find(c => c.kind === "usbc" && c.auto === "ports");
     check(!I.warn.length && closed() && s >= 0 && s < 3, "the battery box: no warnings, closed, no support", `${E().w} × ${E().d} × ${E().h}, ${s} mm², ${I.warn.map(w => w.t).join("; ")}`);
-    check(lipo && lipo.hold === "strap" && lipo.strapBy === "loops" && E().board === "tp4056" && usb && E().cut.some(c => c.kind === "pirmini" && c.face === "front") && E().cut.some(c => c.kind === "gland"),
-      "a 126090 LiPo on strap loops, the TP4056's USB-C through a wall, the dome in front, a gland", JSON.stringify(E().cut.map(c => c.kind + "@" + c.face)));
-    check(I.gasket && I.mount && I.mount.length, "a gasket and screw ears", JSON.stringify(I.gasket));
-    check(I.behind.some(q => E().cut[q.i].kind === "pirmini" && !q.hit) && I.ghosts.some(g => /behind the wall/.test(g.label)), "the motion sensor's body is shown behind the wall, clear of the battery");
+    check(lipo && lipo.hold === "strap" && lipo.strapBy === "loops" && E().board === "tp4056" && usb && !E().cut.some(c => c.kind === "pirmini") && E().cut.some(c => c.kind === "gland"),
+      "a 126090 LiPo on strap loops, the TP4056's USB-C through a wall, a gland (the motion sensor is in the camera box since Session 81)", JSON.stringify(E().cut.map(c => c.kind + "@" + c.face)));
+    check(I.gasket && E().mount === "none" && E().edge === "round", "a gasket, rounded edges, and a flat floor to stand on the bird house's floor", JSON.stringify({ g:I.gasket, m:E().mount, e:E().edge }));
     MF.boxRoom.startKit(kitCam); MF.rebuild(false); await settle(); await make();
     I = MF.enclosure; s = await support();
     const cam = E().cut.find(c => c.kind === "camholder");
@@ -123,6 +122,10 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
     check(E().board === "esp32cam" && E().boardGrip === "clips" && cam && cam.face === "top" && Math.abs(cam.u - E().boardX) < 0.1 && Math.abs(cam.v - E().boardY) < 0.1 && I.cams.length === 1,
       "an ESP32-CAM in snap clips, the camera holder in the lid right over it", JSON.stringify({ cam, x:E().boardX, y:E().boardY }));
     check(I.ghosts.some(g => g.label === "Camera (OV2640)"), "the camera shows in the 3D view under the lid");
+    // (Session 81) one keyhole to hang it by, and the motion sensor in the lid beside the camera, its body clear of the board
+    const pir = E().cut.find(c => c.kind === "pirmini"), pq = I.behind.find(q => E().cut[q.i] === pir);
+    check(E().mount === "keyhole" && I.keyhole && pir && pir.face === "top" && pq && !pq.hit && I.ghosts.some(g => /under the lid/.test(g.label)) && E().h <= 32,
+      "one keyhole in the floor; the motion sensor in the lid beside the camera, its body clear of the board, and the box still slim", JSON.stringify({ m:E().mount, pir:pir && [pir.face, pir.u, pir.v], h:E().h, hit:pq && pq.hit }));
     const lidWith = vol("Lid"); E().cut.forEach(c => { if (c.kind === "camholder") c.kind = "esp32cam"; }); MF.rebuild(false); await settle();     // the same hole, no frame
     check(lidWith > vol("Lid") + 80, "the frame is on the lid's inside", `${(lidWith - vol("Lid")).toFixed(1)} mm³`);
     // the frame too near a wall: the hole stays, the frame is left out with a word

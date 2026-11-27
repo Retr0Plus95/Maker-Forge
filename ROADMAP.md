@@ -65,13 +65,19 @@ frames, curves by chord error. Nothing new to see except that it is faster and t
 ### 0.62 to 0.69 One object family per release, brought to the box's level
 Each gets: a plan view, a catalogue with pictures, recipes, a fit test, Fix what it can, and real-print notes.
 - **0.62 Signs and name plates:** layouts, multi-line, borders, backlit and edge-lit signs, house numbers, braille.
-- **0.63 Lithophanes and lamps:** lamp bases with the electronics box built in, colour lithophanes (CMYW), night lights.
-- **0.64 Mechanisms:** gear trains worked out from a ratio, hinges, latches, print-in-place joints, a parts kit maker.
-- **0.65 Organisers:** Gridfinity-style bins and baseplates, drawer dividers, tool holders traced from a photo of the tool.
-- **0.66 Phone, tablet and controller cases and stands**, with a far larger device list and a "measure mine" wizard.
-- **0.67 Jigsaws, games and toys:** tile games, dice, tokens, board-game inserts worked out from the box's size.
-- **0.68 Home and garden:** hooks, brackets worked out from the load, planters with drainage, cable clips, wall plates.
-- **0.69 Wearables and gifts:** badges, medals, keychains in sets, ornaments, cookie cutters and stamps as kits.
+- **0.63 The mechanical parts library** (the owner's new direction, Session 81): every part a function returning a mesh, named
+  connectors and a BOM line, one printer clearance and a fit coupon; servo mounts, fasteners, electronics mounts, LED holders,
+  hinges, linkages with travel calculators, gears and racks, snap fits, bearing seats, couplers, the flexure spring.
+- **0.64 Core primitives:** revolve, loft, sweep, and thin shells from parametric surfaces.
+- **0.65 The blooming flower lamp:** one servo opening every petal, self-holding at both ends, LEDs, a base that opens, the
+  travel animated and checked for collisions, plates, BOM and a starter sketch.
+- **0.66 Lithophanes and lamps:** lamp bases with the electronics box built in, colour lithophanes (CMYW), night lights.
+- **0.67 Mechanisms:** what the parts library leaves: gear trains worked out from a ratio, latches, a parts kit maker.
+- **0.68 Organisers:** Gridfinity-style bins and baseplates, drawer dividers, tool holders traced from a photo of the tool.
+- **0.69 Phone, tablet and controller cases and stands**, with a far larger device list and a "measure mine" wizard.
+- **0.71 Jigsaws, games and toys** (after 0.70; moved in Session 81 for the parts library): tile games, dice, tokens, board-game inserts worked out from the box's size.
+- **0.72 Home and garden:** hooks, brackets worked out from the load, planters with drainage, cable clips, wall plates.
+- **0.73 Wearables and gifts:** badges, medals, keychains in sets, ornaments, cookie cutters and stamps as kits.
 
 ### 0.70 Electronics, complete
 - A real parts database (several hundred boards and modules), updated without a new release.

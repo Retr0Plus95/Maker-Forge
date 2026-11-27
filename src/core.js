@@ -7976,20 +7976,23 @@
     if (P.cam) holes.push(pCirc(7, lens[0], lens[1], 32));
     if (P.pir) holes.push(pCirc(5.2 + c, pirAt[0], pirAt[1], 32));
     out.push(prismXZ([[-hw, zB], [hw, zB], [hw, zF], [-hw, zF]], holes, 0, ct));
-    // walls: the sides and the front follow the slope; the back is level at its highest, with the ports and the switch
-    // (the roof's two screws go through each side wall into a boss standing on the plate; placed by the roof's frame: birdMake)
-    const pilot = () => tearAB(PART_FASTENERS.M3.pilot / 2, screw.z, screw.y, 16);
+    // walls: the sides and the front follow the slope; the back is level at its highest and plain, so the house hangs flat. The
+    // switch and the port are in the right-hand side wall, low and towards the back, under the roof's edge: reachable with the
+    // house hung up (the roof's two screws go through each side wall into a boss on the plate; placed by the roof's frame: birdMake)
+    const pilot = () => tearAB(PART_FASTENERS.M3.pilot / 2, screw.z, screw.y, 16), sideHoles = [], xin = hw - lt;
+    let zc = zB + lt + 2;                                                          // along the right wall from the back
+    if (PW.cell){ const S1 = FLOWER_WALL.switch, z = zc + S1.w / 2, y = ct + 12;   // a teardrop, its point up
+      sideHoles.push(tearAB(S1.hole / 2 + c, z, y, 24)); ports.push({ key:"switch", z, y }); zc += S1.w + 3; }
+    const portKey = PW.cell && PW.charge ? "charge" : PW.port === "usbc" ? "usbc" : null;
+    if (portKey){ const [bl, bw] = FLOWER_WALL[portKey].board, z = zc + bw / 2 + c + 1.2, y0 = ct + 1.2, y1 = ct + 1.2 + 3.2 + 4.6 / 2 + 2.5, nw = 12.5 / 2 + c;
+      sideHoles.push([[z - nw, y0], [z + nw, y0], [z + nw, y1], [z, y1 + nw * Math.tan(50 * Math.PI / 180)], [z - nw, y1]]);   // a plug's room, pointed at the top
+      ports.push({ key:portKey, z, y:ct + 1.2 + 3.2, board:[bl, bw] }); zc = z + bw / 2 + c + 1.2; }
+    if (zc > screw.z - 6) P.warn.push("The switch and the charge board don't fit beside the roof's screw: give the house more room inside.");
     for (const sg of [-1, 1]){ const x0 = sg * hw, x1 = sg * (hw - lt), x2 = sg * (hw - lt - 6);
-      out.push(prismZY([[zB, ct - 0.01], [zF, ct - 0.01], [zF, yT(zF)], [zB, yT(zB)]], [pilot()], Math.min(x0, x1), Math.max(x0, x1)));
+      out.push(prismZY([[zB, ct - 0.01], [zF, ct - 0.01], [zF, yT(zF)], [zB, yT(zB)]], [pilot(), ...(sg > 0 ? sideHoles : [])], Math.min(x0, x1), Math.max(x0, x1)));
       out.push(prismZY([[screw.z - 5, ct - 0.01], [screw.z + 5, ct - 0.01], [screw.z + 5, screw.y + 4.5], [screw.z - 5, screw.y + 4.5]], [pilot()], Math.min(x1, x2) - 0.01, Math.max(x1, x2) + 0.01)); }
     out.push(prismZY([[zF - lt, ct - 0.01], [zF, ct - 0.01], [zF, yT(zF)], [zF - lt, yT(zF - lt)]], [], -hw + 0.01, hw - 0.01));
-    const backHoles = [], w2 = (inner[2] - inner[0]) / 4;
-    if (PW.cell){                                                                  // the switch, left of the middle; a teardrop, its point up
-      backHoles.push(tearAB(FLOWER_WALL.switch.hole / 2 + c, -w2, ct + 14, 24)); ports.push({ key:"switch", x:-w2, y:ct + 14 }); }
-    const portKey = PW.cell && PW.charge ? "charge" : PW.port === "usbc" ? "usbc" : null;
-    if (portKey){ const y0 = ct + 1.2, y1 = ct + 1.2 + 3.2 + 4.6 / 2 + 2.5, x = w2, nw = 12.5 / 2 + c;   // a plug's room, pointed at the top
-      backHoles.push([[x - nw, y0], [x + nw, y0], [x + nw, y1], [x, y1 + nw * Math.tan(50 * Math.PI / 180)], [x - nw, y1]]); ports.push({ key:portKey, x, y:ct + 1.2 + 3.2 }); }
-    out.push(prismXY([[-hw + 0.01, ct - 0.01], [hw - 0.01, ct - 0.01], [hw - 0.01, hB], [-hw + 0.01, hB]], backHoles, zB, zB + lt));
+    out.push(prismXY([[-hw + 0.01, ct - 0.01], [hw - 0.01, ct - 0.01], [hw - 0.01, hB], [-hw + 0.01, hB]], [], zB, zB + lt));
     // inside: the camera's frame (the board face down on its ledge, the lens through the window), the battery's cradle, the boards'
     const rect = (x0, z0, x1, z1) => [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
     if (P.cam){ const r = [camAt[0] - cam.w / 2, camAt[1] - cam.d / 2, camAt[0] + cam.w / 2, camAt[1] + cam.d / 2];
@@ -8001,31 +8004,33 @@
       bought.push({ name:"AM312 motion sensor (its dome down through the ceiling)", solid:prismXZ(pCirc(6, pirAt[0], pirAt[1], 24), [], ct - 4, ct + 18), colour:"#eaeaea" }); }
     let cellBox = null;
     if (PW.cell){ const C1 = PW.cell, k2 = 2 * (1.6 + 0.5), x1 = (P.cam ? camAt[0] - cam.w / 2 - 3.2 : 0) - 1, x0 = inner[0] + 1;
-      // along the depth, clear of the switch at the back; flat if there is room beside the camera, else on its long edge
-      const flat = x1 - x0 >= C1.w + k2, w = flat ? C1.w + k2 : C1.h + k2, h = flat ? C1.h : C1.w, zb = inner[1] + FLOWER_WALL.switch.d + 2, l = C1.l + k2;
+      // along the depth, left of the camera; flat if there is room beside it, else on its long edge
+      const flat = x1 - x0 >= C1.w + k2, w = flat ? C1.w + k2 : C1.h + k2, h = flat ? C1.h : C1.w, zb = inner[1] + 1, l = C1.l + k2;
       const r = [x1 - w, Math.max(zb, Math.min(inner[3] - 1 - l, camAt[1] - l / 2)), x1, 0]; r[3] = r[1] + l;
       if (r[0] < x0 || r[3] > inner[3] - 1 || h + ct + 2 > yT(r[3])){ P.warn.push(`The ${C1.name.split(",")[0]} doesn't fit the loft beside the camera: give the house more room inside.`); }
       out.push(prismXZ(rect(...r), [rect(r[0] + 1.6, r[1] + 1.6, r[2] - 1.6, r[3] - 1.6)], ct - 0.01, ct + Math.min(flat ? 6 : 10, h * 0.5)));
       cellBox = { r, h, flat }; bought.push({ name:C1.name, solid:pBox(r[0] + 2.1, r[2] - 2.1, ct, ct + h, r[1] + 2.1, r[3] - 2.1), colour:"#3a3d42" }); }
     ports.forEach(p => { const it = FLOWER_WALL[p.key];
-      if (it.board){ const [bl, bw] = it.board, z0 = zB + lt + 0.2, L = bl + c, Wd = bw / 2 + c;
-        for (const q of [rect(p.x - Wd - 1.2, z0, p.x - Wd, z0 + L), rect(p.x + Wd, z0, p.x + Wd + 1.2, z0 + L), rect(p.x - Wd - 1.2, z0 + L, p.x + Wd + 1.2, z0 + L + 1.2)])
+      if (it.board){ const [bl, bw] = it.board, x1 = xin - 0.2, L = bl + c, x0 = x1 - L, Wd = bw / 2 + c;          // the board flat, its port end at the wall
+        for (const q of [rect(x0, p.z - Wd - 1.2, x1, p.z - Wd), rect(x0, p.z + Wd, x1, p.z + Wd + 1.2), rect(x0 - 1.2, p.z - Wd - 1.2, x0, p.z + Wd + 1.2)])
           out.push(prismXZ(q, [], ct - 0.01, ct + 3));
-        bought.push({ name:it.name, solid:pBox(p.x - bw / 2, p.x + bw / 2, ct, ct + 1.6 + 3.2, z0 + 0.2, z0 + 0.2 + bl), colour:"#1f7a4d" }); }
-      else bought.push({ name:it.name, solid:affineSolid(prismXZ(pCirc(it.hole / 2 - 0.3, 0, 0, 24), [], -3, it.d - 3), [-1,0,0, 0,0,1, 0,1,0], [p.x, p.y, zB + lt]), colour:"#2b2b2b" });
+        bought.push({ name:it.name, solid:pBox(x1 - 0.2 - bl, x1 - 0.2, ct, ct + 1.6 + 3.2, p.z - bw / 2, p.z + bw / 2), colour:"#1f7a4d" }); }
+      else bought.push({ name:it.name, solid:prismZY(pCirc(it.hole / 2 - 0.3, p.z, p.y, 24), [], xin - (it.d - 3), hw + 3), colour:"#2b2b2b" });   // its cap 3 mm proud
     });
     // the bosses the roof's two screws go into, on the side walls, standing on the plate; placed by the roof's own frame below
     return { solid:out, bought, yT, ports, camAt, lens, pirAt, cellBox, inner };
   }
-  // the roof: a flat plate (its top down as it prints) with a rim that fits over the loft's walls, the solar panel's recess
+  // the roof: a flat plate (its top down as it prints) with a rim that fits over the loft's sides and front; flush at the back
   function birdRoof(P){
     const { c, Wout, Dout, tanS, solar } = P, rt = BH.rt, rimD = BH.rimD, rimT = BH.rimT, cosS = 1 / Math.sqrt(1 + tanS * tanS), Ls = Dout / cosS;
-    const iw = Wout / 2 + c, il = Ls / 2 + c, ow = iw + rimT, ol = il + rimT, px = ow + 12, zBk = -(ol + 8), zFr = il + P.s.overhang;
+    const iw = Wout / 2 + c, il = Ls / 2 + c, ow = iw + rimT, ol = il + rimT, px = ow + 16, zBk = -Ls / 2, zFr = il + P.s.overhang;
     const out = [], rect = (x0, z0, x1, z1) => [[x0, z0], [x1, z0], [x1, z1], [x0, z1]], screwY = rt + rimD - 4;
     if (solar && (solar.w + 12 > 2 * px || solar.d + 12 > zFr - zBk)) P.warn.push(`The ${solar.label} is bigger than the roof: choose the small one, or give the house more room.`);
     out.push(prismXZ(rect(-px, zBk, px, zFr), solar ? [pCirc(3.5, 0, 0, 24)] : [], 0, rt));          // the plate, with the panel's cable hole
-    for (const sg of [-1, 1]) out.push(prismZY(rect(-ol, rt - 0.01, ol, rt + rimD), [tearAB(PART_FASTENERS.M3.clear / 2 + 0.1, 0, screwY, 20)], Math.min(sg * iw, sg * ow), Math.max(sg * iw, sg * ow)));
-    for (const sg of [-1, 1]) out.push(prismXY(rect(-ow, rt - 0.01, ow, rt + rimD), [], Math.min(sg * il, sg * ol), Math.max(sg * il, sg * ol)));
+    // the side rims end on the plane of the house's back (leaning with the slope), so nothing stands out behind it
+    const side = [[zBk, rt - 0.01], [ol, rt - 0.01], [ol, rt + rimD], [zBk + tanS * (rimD + 0.01), rt + rimD]];
+    for (const sg of [-1, 1]) out.push(prismZY(side, [tearAB(PART_FASTENERS.M3.clear / 2 + 0.1, 0, screwY, 20)], Math.min(sg * iw, sg * ow), Math.max(sg * iw, sg * ow)));
+    out.push(prismXY(rect(-ow, rt - 0.01, ow, rt + rimD), [], il, ol));                                // the front rim
     return { solid:mergeSolids(out), Ls, iw, screwY, solarAt:[0, 0], px, zBk, zFr };
   }
   function birdMake(raw){
@@ -8069,7 +8074,7 @@
     // where things are, in the house as it stands (for the tests and the panel): the ports in the loft's back wall, the lens's
     // window, the sensor's hole, the battery, the roof's screws
     const L = (x, y, z) => [x, y + yTop, z];
-    const layout = { ports:loft.ports.map(q => ({ key:q.key, at:L(q.x, q.y, zB) })), lens:P.cam ? L(loft.lens[0], 0, loft.lens[1]) : null, pir:P.pir ? L(loft.pirAt[0], 0, loft.pirAt[1]) : null,
+    const layout = { ports:loft.ports.map(q => ({ key:q.key, at:L(Wout / 2, q.y, q.z), out:[1, 0, 0] })), lens:P.cam ? L(loft.lens[0], 0, loft.lens[1]) : null, pir:P.pir ? L(loft.pirAt[0], 0, loft.pirAt[1]) : null,
       cell:loft.cellBox, screw:sw, keyholes:(s.keyholes === "two" ? [-P.W / 4, P.W / 4] : [0]).map(x => [x, P.t + P.Hn * 0.62, zB]), hole:P.open ? null : [0, P.t + P.up + P.hole / 2, D / 2] };
     return { settings:s, printed, assembly, info, plan:P, layout };
   }
@@ -8098,14 +8103,15 @@
       "Hang it 2 to 4 m up, out of the hottest sun and the worst rain (in Europe, facing between north and east), with a clear flight path in. Clean it out in autumn: lift the roof and the loft, and slide the front up.",
       "Ridges inside the front help the fledglings climb out. Drain holes in the floor and slots under the roof let it breathe."
     ];
+    if (PW.cell || PW.port) notes.push(`The ${PW.cell ? "switch and the charging port are" : "USB-C socket is"} on the right-hand side under the roof's edge, so you can reach ${PW.cell ? "them" : "it"} with the house hung up; the back stays flat against the wall.`);
     if (P.cam) notes.push("The camera looks down through the ceiling at the nest; set it in its frame so the lens sits in the window. Point the motion sensor's dome down at the nest too.",
       "It is dim inside a nest box: an OV2640 without its infrared filter (sold as night vision) with one or two 850 nm infrared LEDs gives clearer pictures without disturbing the birds. Never use the board's white flash; the sketch leaves it off.");
     const steps = [
       `Slide the front down its grooves${P.open ? "" : ", the hole to the outside"}.`,
       ...(P.cam ? ["Set the ESP32-CAM face down in its frame in the loft, the lens in the window; push the motion sensor's dome down through its hole."] : []),
-      ...(PW.cell ? [`Seat the battery holder in its cradle; push the charge board into its cradle at the back, its USB-C port in the wall's opening, and screw the switch into its hole (the nut inside).`,
+      ...(PW.cell ? [`Seat the battery holder in its cradle; push the charge board into its cradle on the right-hand side, its USB-C port in the wall's opening, and screw the switch into its hole beside it (the nut inside).`,
         `Wire: battery to the charge board; its 5 V out through the switch to the ESP32-CAM's 5V and GND pins${P.pir ? "; the motion sensor's + and − to 3.3 V and GND, its OUT to GPIO 13" : ""}.`] : []),
-      ...(PW.port === "usbc" ? ["Push the USB-C socket board into its cradle at the back, its socket in the wall's opening; wire its 5 V and GND to the ESP32-CAM."] : []),
+      ...(PW.port === "usbc" ? ["Push the USB-C socket board into its cradle on the right-hand side, its socket in the wall's opening; wire its 5 V and GND to the ESP32-CAM."] : []),
       ...(P.solar ? ["Glue the panel's frame onto the roof (outdoor silicone) round the cable's hole; lay the panel in it, its lead down through the hole to the charge board's input, and seal round its edge."] : []),
       "Set the loft on the body and screw it down to the corner columns (four M3 × 12); this also holds the front in.",
       "Put the roof on and fit its two screws through the rim into the loft's sides.",

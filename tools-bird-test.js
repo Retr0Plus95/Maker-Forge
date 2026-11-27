@@ -94,9 +94,14 @@ function coreTests(C){
         if (!meets(body, [x, y, z - 5], Z, 5 + P.t + 6)) bad.push(`${tag}: the keyhole at ${x} opens into the nest`);
         if (!meets(body, [x + 9, y, z - 5], Z, 5 + P.t + 0.5)) bad.push(`${tag}: the back is open beside the keyhole`);
       }
-      // the ports and the switch: open through the loft's back wall
-      for (const q of lay.ports) if (meets(loft, [q.at[0], q.at[1] + 0.5, q.at[2] - 5], Z, 5 + 2.4 + 0.5)) bad.push(`${tag}: the ${q.key} opening is closed`);
-      if ((raw.power || "18650") !== "none" && !lay.ports.length) bad.push(`${tag}: nothing in the back wall`);
+      // the ports and the switch: open through the loft's right-hand wall, and the roof's rim clear above them
+      for (const q of lay.ports){ const o = q.at.map((v, k) => v + q.out[k] * 5), d = q.out.map(v => -v);
+        if (meets(loft, [o[0], o[1] + 0.5, o[2]], d, 5 + 2.4 + 0.5)) bad.push(`${tag}: the ${q.key} opening is closed`);
+        if (meets(roof, [o[0], o[1] + 11, o[2]], d, 5 + 2.4 + 0.5)) bad.push(`${tag}: the roof's rim comes down over the ${q.key}`); }
+      if ((raw.power || "18650") !== "none" && !lay.ports.length) bad.push(`${tag}: no switch or port in the wall`);
+      // it hangs flat: nothing stands out behind the back
+      const behind = A.filter(q => C.solidBounds(q.solid).mn[2] < P.zB - 0.01).map(q => q.name);
+      if (behind.length) bad.push(`${tag}: behind the back: ${behind.join(", ")}`);
       // the lens's window and the sensor's hole: open up through the loft's plate (the nest's ceiling)
       for (const [k, at] of [["lens", lay.lens], ["sensor", lay.pir]]) if (at && meets(loft, [at[0], at[1] - 5, at[2]], Y, 5 + 2.4 + 0.5)) bad.push(`${tag}: the ${k}'s hole is closed`);
       // the roof's screws: through the rim's hole and the loft's pilot hole at their middle; 1.5 mm off it, the screw bites the loft
@@ -106,7 +111,7 @@ function coreTests(C){
       for (const o2 of [[o[0], o[1], o[2] + 1.5], [o[0], o[1], o[2] - 1.5], [o[0], o[1] - 1.5, o[2]]])    // (the pilot's top is pointed: not upwards)
         if (meets(roof, o2, d, 18) || !meets(loft, o2, d, 18)) bad.push(`${tag}: the screw doesn't bite the loft, or the roof's hole is too small (${o2.map((v, k) => (v - o[k]).toFixed(1))})`);
     }
-    check(!bad.length, "the hole and its guard, the keyholes and their pockets, the ports, the lens's window, the sensor's hole and the roof's screws are open where they should be", bad.slice(0, 4).join(" | "));
+    check(!bad.length, "the hole and its guard, the keyholes and their pockets, the side ports under the roof, the lens's window, the sensor's hole and the roof's screws are open where they should be; nothing stands out behind the back", bad.slice(0, 4).join(" | "));
   }
 
   console.log("\nthe battery, what you'll need, the warnings");

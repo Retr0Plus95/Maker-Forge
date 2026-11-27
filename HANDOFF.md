@@ -3795,6 +3795,72 @@ shows your servo's sizes only when chosen, with a note, and the battery's life u
 **Still to check:** a real build with a battery. The sizes are typical: the charge board (an IP5306 type, 25 × 18 mm), the jack
 (DC-099, 8 mm thread), the switch (12 mm), the holders. Check yours against the base; the cradles have 0.5 mm of play.
 
+## Session 89: the bird house (v0.66.0)
+
+The owner: "the bird house generator with similar ideas to the bird house project I have been working on, a full design" (their
+project, Session 81: an ESP32-CAM box hanging from one point, an AM312 in the lid towards the entrance, a battery on the floor).
+Here it is one nest box with a loft under the roof for all of it. On `claude/relaxed-dirac-cuhvec` after 0.65.0.
+
+**The library** (`src/core.js`, `PRCore.bird`):
+- `BIRDS`: the hole, the inside floor and the hole's height over the floor for each bird (typical nest-box guidance: 125 mm, 150
+  for a starling; an open front 100 mm tall for robins). `BIRD_SETTINGS`, `birdClean` (numbers clamped and stepped, choices from
+  their lists), `BIRD_SOLAR` (two 5 V panels).
+- `birdPlan`: sizes. The loft is low at the front (`hF`, tall enough for the battery on its edge or flat, the camera board) and
+  high at the back (`hB`): the roof slopes down to the front, so rain runs off over the hole and away from the wall.
+- `birdBody`: the floor with four drains; the sides in three layers (outside, inside behind the groove, the lip in front) so the
+  front's grooves need no support; pointed vent slots; the back with one or two keyholes (the slot's shoulders at 50°, the top
+  pointed), each with a pocket behind it closed by a skin so the screw's head stays out of the nest, and a 50° wedge under the
+  pocket's block; four corner columns with M3 pilot holes.
+- `birdFront`: printed flat, its inside down; ladder grooves in its first millimetre; the hole and its guard tube; a finger notch.
+- `birdLoft`: the plate is the nest's ceiling (on the bed as it prints) with the camera's window and the sensor's hole; walls up to
+  the slope; the camera's frame (a rim and a ledge, the board face down), the sensor's ring, the battery's cradle (flat beside the
+  camera when there is room, else on its long edge), and on the right-hand wall, low and towards the back, the switch (a teardrop)
+  and the charge board's or USB-C socket's port (a pentagon) with the board's cradle. The back wall is plain.
+- `birdRoof`: a plate with the panel's cable hole, a rim over the loft's sides and front, two M3 clearance teardrops. It ends on
+  the plane of the house's back (the side rims cut along it with the slope), so the house hangs flat. 16 mm over at the sides.
+- `birdMake`: places the roof with `cols([-1,0,0], nd, ez)` (`ez` down the slope to the front, `nd` into the house; a turn, not a
+  mirror), finds the roof screws' points in the world and gives them to `birdLoft`, which puts the pilot holes and bosses there.
+  The solar panel's frame is its own part (a recess in the roof would be a ceiling as the roof prints). Returns `printed`,
+  `assembly()`, `info`, `plan` and `layout` (where the ports, the lens, the sensor, the keyholes, the hole and the screws are).
+- `birdInfo`: the checks (the floor, the hole's height, the camera's view with a 52° lens), the battery's life (asleep about 6 mA
+  through the board's regulator, 200 mA for 10 s a visit, 85% through the boost; a panel's sunny day at 70%), what you'll need,
+  the notes and steps, the sizes, warnings (a panel with no battery, a sensor with no camera, parts that don't fit).
+- `birdSketch`: the AI-Thinker pins, SD in 1-bit mode (GPIO 13 stays free for the sensor), wake on GPIO 13 (ext0) or a 10-minute
+  timer, two frames thrown away for the exposure, three photos a visit, numbering carried on after a power cut (`SD_MMC.exists`),
+  the flash held off in deep sleep (`rtc_gpio_hold_en(GPIO_NUM_4)`).
+
+**The app** (`src/app.html`): `birdhouse` in SHAPES, OBJECT_GROUPS (Functional, 🐦), DEFAULTS, NO_DECALS, the build, the panel
+map, `sanitizeProject` (the library cleans the settings; the view and the roof's slot clamped), the API (`MakerForge.birdhouse`),
+the export (`birdhouse-camera.ino`, `how-to-assemble.txt`, a README line). `buildBirdhouse` lays the parts out on plates with the
+box maker's packer; `birdSceneMeshes` draws the house put together (the roof in its own filament, bought parts in their colours);
+`birdFields` is the panel, with the visits slider only for a camera on a battery; a post-build signature re-renders the panel
+when the checks, sizes or battery life change. `SECTION_ICONS` gives "put together" and "sketch" pages their own icons (the
+flower lamp's showed P and T). The audit expects the visits slider to leave the parts alone.
+
+**Found on the way** (in the new code, before release): the roof first sloped down to the back and stood 10 mm out behind it, and
+the switch and port were in the back wall, against the wall the house hangs on. Seen in the pictures; now tested with rays.
+
+**Tested** (`npm run test:bird`, new):
+- **Core:** 155 houses (every setting at its ends and every choice, for each bird), 755 parts: closed, outward, finite, on the
+  bed; each bird's house at its starting sizes fits a 256 mm bed (12 houses with a size at an end don't, and the app's bed check
+  says so); the roof's screws fit at every setting; seven houses need no support; each bird passes its checks.
+- **Rays:** the hole open at its middle and 1 mm in from its edge, solid 2 mm outside; each keyhole open into its pocket and
+  closed by the skin; the side ports open and the roof's rim clear of them; the lens window and the sensor's hole open; the
+  roof's screw line clear through the rim and the pilot, and 1.5 mm off it the screw bites the loft and clears the roof; nothing
+  behind the back.
+- The battery's life (two cells twice as long, more visits less), what you'll need for each power, the warnings, the sketch
+  (wake source, 1-bit SD, no overwriting, the flash held, brackets balanced), cleaning.
+- **App:** it builds with every check passing; the roof's filament; plates; every slider at both ends; eight choices each change
+  the parts; Parts to print leaves the files alone; the house's picture has the bought parts; a house too tall is flagged by the
+  bed check; a saved project, a hostile one and a list in its place.
+- `ONLY=birdhouse npm run check:browser`: the export's sketch, steps and plates in Chromium, and the house's picture.
+
+**The count:** improvements 24 and 25: 24. the bird house; 25. the page icons for the steps and the sketches. Bugs: still 9 of 10.
+
+**Still to check:** a real print and a season outdoors. The sizes are typical (the ESP32-CAM 27 × 40.5 mm, the AM312's 12 mm dome,
+the 18650 holders, the charge board, the 12 mm switch); check yours. The battery figures are estimates. Nest-box sizes differ by
+country: check local guidance.
+
 ## Next
 
 ### The new direction (Session 81, the owner): a mechanical parts library, then the blooming flower lamp

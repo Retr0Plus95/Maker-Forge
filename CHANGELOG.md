@@ -3,6 +3,26 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.65.0
+
+The flower lamp's power and servos.
+
+**New**
+- **Power the flower lamp your way:**
+  - the board's own USB, as before;
+  - a **USB-C socket** or a **DC jack** in the base's wall;
+  - or a battery: **one or two 18650 cells**, **three AA cells** or a **LiPo cell**.
+- **A battery's place in the base:**
+  - it sits in a cradle on the floor, and a holder stands on its edge where the base is tall enough, so the base grows little;
+  - a **push switch** goes in the wall;
+  - an 18650 or LiPo charges through a **charge-and-boost board** with its USB-C port in the wall.
+  - The panel says about how long a battery lasts, lit and waiting.
+- **More servos:** a **DS3218** standard servo, and **your own servo**: type its sizes, and the bracket, the base and the crank follow.
+- What you'll need, the steps and the picture of the lamp include the power parts. Every part still prints without support.
+
+**Fixed**
+- Nothing this time.
+
 ## 0.64.2
 
 The bobble head, fixed and support-free.

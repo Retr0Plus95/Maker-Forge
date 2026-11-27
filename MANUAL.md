@@ -441,8 +441,21 @@ New in 0.64: a lamp whose petals open and light up when you touch it, and close 
   in translucent PETG or PLA the petals glow) and the **stem's height**. **Opens by** sets how far the petals open; 0 keeps
   the flower's own (a tulip opens 32°, a rose 45°, a lotus 55°). A tulip opens 45° at most and a rose 60°: further, their
   petals would come down on their links.
-- **Servo** (SG90, MG90S or MG996R), the **NeoPixel ring** (12, 16 or 24 LEDs), the **board** (ESP32 DevKit, Arduino Nano or
-  Pro Mini) and **Switch it with** (a touch pad of copper tape, or a push button). The base grows to hold them.
+- **Servo** (SG90, MG90S, MG996R or DS3218), the **NeoPixel ring** (12, 16 or 24 LEDs), the **board** (ESP32 DevKit, Arduino
+  Nano or Pro Mini) and **Switch it with** (a touch pad of copper tape, or a push button). The base grows to hold them.
+- **My own servo** (new in 0.65): type its sizes, from calipers or its data sheet: the body's length, width and height, how far
+  across its mounting tabs and between their holes, the tabs' height, and where its shaft is. The bracket, the base and the
+  crank follow (a servo 17 mm wide or more gets the standard horn). Sizes that can't go together are made to, and it says so.
+- **Power** (new in 0.65): the board's own **USB** through a notch in the wall; a **USB-C socket** or a **DC jack** (5.5 ×
+  2.1 mm, 5 V) in the wall; or a battery: **one or two 18650 cells**, **three AA cells** or a **LiPo cell**. A battery sits in
+  a cradle on the base's floor (a holder stands on its edge where the base is tall enough, so the base grows little), with a
+  latching **push switch** in the wall; an 18650 or LiPo is charged through a **charge-and-boost board** whose USB-C port is
+  in the wall, and which gives 5 V. The panel says about how long a battery lasts lit, and waiting in the dark. The parts in
+  the wall sit in flat panels; round holes are teardrops, so the base still prints upside down with no support. The board's
+  own USB stays reachable for the sketch.
+
+  ![Inside two bases, cut away: two 18650 cells standing in their cradle with the charge board at the back wall, the ESP32 in its tray and the servo; and a DS3218 standard servo with a DC jack in the wall](docs/images/flower-power.jpg)
+
 - **Petals' filament:** put the petals in a second, translucent filament; the rest prints in the first.
 - **How it works:** the petals hinge on the head with pins cut from filament. A small runner high inside the bud has a link to
   each petal; a 4 mm rod through the stem pulls it down and the petals open. In the base the servo turns a crank that goes

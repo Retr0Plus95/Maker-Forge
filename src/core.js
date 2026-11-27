@@ -6788,7 +6788,8 @@
   const PART_SERVOS = {
     SG90:   { label:"SG90 micro servo", L:22.5, W:12.2, H:22.7, span:32.2, tabT:2.5, tabY:15.9, holes:27.6, rows:0, holeD:2.0, pilot:1.6, shaftX:5.35, shaftY:26.5, spline:4.8, teeth:21, hornScrew:2.2 },
     MG90S:  { label:"MG90S metal-gear micro servo", L:22.8, W:12.2, H:22.7, span:32.5, tabT:2.5, tabY:15.9, holes:27.8, rows:0, holeD:2.0, pilot:1.6, shaftX:5.5, shaftY:28.4, spline:4.8, teeth:21, hornScrew:2.2 },
-    MG996R: { label:"MG996R standard servo", L:40.7, W:19.7, H:37.0, span:54.5, tabT:2.6, tabY:26.6, holes:49.5, rows:10, holeD:4.6, pilot:3.3, shaftX:10.15, shaftY:42.9, spline:5.8, teeth:25, hornScrew:3.2 }
+    MG996R: { label:"MG996R standard servo", L:40.7, W:19.7, H:37.0, span:54.5, tabT:2.6, tabY:26.6, holes:49.5, rows:10, holeD:4.6, pilot:3.3, shaftX:10.15, shaftY:42.9, spline:5.8, teeth:25, hornScrew:3.2 },
+    DS3218: { label:"DS3218 20 kg digital standard servo", L:40, W:20, H:40.5, span:54.5, tabT:2.6, tabY:28, holes:49.5, rows:10, holeD:4.6, pilot:3.3, shaftX:10, shaftY:46.5, spline:5.8, teeth:25, hornScrew:3.2 }
   };
   const PART_FASTENERS = {
     M2:    { clear:2.4, pilot:1.7, insert:3.2, insertDepth:4, nutAF:4, nutT:1.6, head:3.8, headH:2, csk:4.4 },
@@ -7301,11 +7302,51 @@
     wall:[1, 0.8, 1.2, 0.05, "Petal wall (mm)"],
     stem:[140, 60, 200, 1, "Stem height (mm)"],
     open:[0, 0, 70, 1, "Opens by (°, 0: the flower's own)"],
-    servo:{ opts:["SG90", "MG90S", "MG996R"], def:"SG90", label:"Servo" },
+    servo:{ opts:["SG90", "MG90S", "MG996R", "DS3218", "custom"], def:"SG90", label:"Servo" },
+    // your own servo (Session 88): its sizes, from calipers or its data sheet; a sixth entry says when a setting is shown
+    servoL:[22.5, 15, 60, 0.1, "Servo body length (mm)", { servo:"custom" }],
+    servoW:[12.2, 8, 30, 0.1, "Servo body width (mm)", { servo:"custom" }],
+    servoH:[22.7, 12, 50, 0.1, "Servo body height, below the tabs' top (mm)", { servo:"custom" }],
+    servoSpan:[32.2, 20, 80, 0.1, "Across its mounting tabs (mm)", { servo:"custom" }],
+    servoHoles:[27.6, 15, 76, 0.1, "Between its mounting holes (mm)", { servo:"custom" }],
+    servoTab:[15.9, 5, 40, 0.1, "The tabs' underside, from its bottom (mm)", { servo:"custom" }],
+    servoShaftX:[5.4, 3, 20, 0.1, "Shaft from the body's nearer end (mm)", { servo:"custom" }],
+    servoShaftY:[26.5, 14, 60, 0.1, "Top of the shaft, from its bottom (mm)", { servo:"custom" }],
     led:{ opts:["12", "16", "24"], def:"12", label:"NeoPixel ring (LEDs)" },
     board:{ opts:["esp32devkit", "nano", "promini"], def:"esp32devkit", label:"Board" },
-    control:{ opts:["touch", "button"], def:"touch", label:"Switch it with" }
+    control:{ opts:["touch", "button"], def:"touch", label:"Switch it with" },
+    power:{ opts:["usb", "usbc", "dc", "18650", "2x18650", "3xAA", "lipo"], def:"usb", label:"Power" }
   };
+  // how the lamp is powered (Session 88): a socket in the base's wall, or a battery in a cradle on its floor with a power switch
+  // (and, for a rechargeable one, a charge-and-boost board whose USB-C port is in the wall). Typical sizes: check yours
+  const FLOWER_POWER = {
+    usb:       { label:"The board's own USB" },
+    usbc:      { label:"A USB-C socket (5 V)", port:"usbc" },
+    dc:        { label:"A DC jack (5 V, 5.5 × 2.1 mm)", port:"dc" },
+    "18650":   { label:"One 18650 cell, charged by USB-C", cell:{ w:21, l:77, h:19, name:"18650 holder, 1 cell (77 × 21 mm)" }, charge:true, mAh:3000, V:3.7 },
+    "2x18650": { label:"Two 18650 cells, charged by USB-C", cell:{ w:41, l:77, h:19, name:"18650 holder, 2 cells side by side (77 × 41 mm), wired in parallel" }, charge:true, mAh:6000, V:3.7 },
+    "3xAA":    { label:"Three AA cells (4.5 V)", cell:{ w:47, l:58, h:16, name:"3 × AA holder, flat (58 × 47 mm)" }, charge:false, mAh:2000, V:4.5 },
+    lipo:      { label:"A LiPo cell (1200 mAh), charged by USB-C", cell:{ w:34, l:50, h:6, name:"LiPo cell 603450 (50 × 34 × 6 mm, 1200 mAh) with a JST plug" }, charge:true, mAh:1200, V:3.7 }
+  };
+  // the parts that go in the wall, as panels: their width along the wall, how far they reach in, and the opening
+  const FLOWER_WALL = {
+    usbc:   { name:"USB-C socket board (2-pin, about 13 × 10 mm)", w:13, d:11, notch:[10, 4.6], board:[13, 10] },
+    charge: { name:"charge-and-boost board, USB-C in, 5 V out (about 25 × 18 mm, IP5306 type)", w:18, d:26, notch:[10, 4.6], board:[25, 18] },
+    dc:     { name:"DC jack, 5.5 × 2.1 mm, panel mount with an 8 mm thread (DC-099)", w:14, d:18, hole:8.2 },
+    switch: { name:"latching push switch, 12 mm, panel mount (push on, push off)", w:16, d:22, hole:12.3 }
+  };
+  // the servo as sizes: one from the library, or yours (sizes that can't go together are made to)
+  function flowerServo(s){
+    if (s.servo !== "custom"){ const S = PART_SERVOS[s.servo]; return { S, horn:s.servo, big:S.W >= 17, warn:[] }; }
+    const L = s.servoL, W = s.servoW, H = s.servoH, big = W >= 17, warn = [];
+    const span = Math.max(s.servoSpan, L + 6), holes = Math.min(Math.max(s.servoHoles, L + 1.5), span - 3);
+    const shaftX = Math.min(s.servoShaftX, L / 2 - 1), tabY = Math.min(s.servoTab, H - 3), shaftY = Math.max(s.servoShaftY, H + 2);
+    if (span !== s.servoSpan || holes !== s.servoHoles || shaftX !== s.servoShaftX || tabY !== s.servoTab || shaftY !== s.servoShaftY)
+      warn.push(`Some of your servo's sizes don't go together, so the base uses: tabs ${span.toFixed(1)} mm across, holes ${holes.toFixed(1)} mm apart, the shaft ${shaftX.toFixed(1)} mm from the end and ${shaftY.toFixed(1)} mm up, the tabs ${tabY.toFixed(1)} mm up.`);
+    const S = { label:`your servo (${L} × ${W} × ${H} mm)`, L, W, H, span, tabT:big ? 2.6 : 2.5, tabY, holes, rows:W >= 18 ? 10 : 0, holeD:big ? 4.6 : 2, pilot:big ? 3.3 : 1.6,
+      shaftX, shaftY, spline:big ? 5.8 : 4.8, teeth:big ? 25 : 21, hornScrew:big ? 3.2 : 2.2 };
+    return { S, horn:big ? "MG996R" : "SG90", big, warn };
+  }
   function flowerClean(raw){
     const r = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}, out = {};
     for (const [k, sp] of Object.entries(FLOWER_SETTINGS)){
@@ -7331,7 +7372,7 @@
     L.push([ca, cb + r / Math.cos(rho)]); return L; };
   // the over-centre crank, the petals' linkage and every height, from the settings
   function flowerPlan(s, c){
-    const st = FLOWER_STYLES[s.style], N = s.petals, S = PART_SERVOS[s.servo], ring = PART_RINGS[+s.led], warn = [];
+    const st = FLOWER_STYLES[s.style], N = s.petals, SV = flowerServo(s), S = SV.S, ring = PART_RINGS[+s.led], warn = SV.warn.slice();
     const slotW = FL.wk + 2 * c, Rh = Math.max(9, 3.5 + 1.16 * N);
     let Rf = s.dia / 2;
     const Rp = Math.max(ring.od / 2 + 7, N * (slotW + 2 * FL.cheek + 1.2) / (2 * Math.PI), Rh + 8, 0.55 * Rf);
@@ -7363,11 +7404,13 @@
     if (openReached < open - 1.5) warn.push(`The crank's shortest arm still moves the runner further than these petals follow: they open by ${openReached.toFixed(0)}°, not ${open}°.`);
     // heights in the lamp
     const yC = FL.top + Math.max(S.W / 2 + 2, r + 6), blockH = 12, blockPin = 4;
-    const ledge = FL.stemOD / 2 + c - FL.hole, Hb = Math.ceil(yC + oc.xTop - blockPin + blockH + 1.5 + ledge + FL.sockB);
+    const ledge = FL.stemOD / 2 + c - FL.hole, PW = FLOWER_POWER[s.power];
+    // tall enough for a battery in its cradle, and for the power switch in the wall (Session 88)
+    const Hb = Math.ceil(Math.max(yC + oc.xTop - blockPin + blockH + 1.5 + ledge + FL.sockB, PW.cell ? 3 + PW.cell.h + 3 + 3 + 2 : 0, PW.cell ? 13 + FLOWER_WALL.switch.hole / 2 + 7 : 0));
     const so = FL.stemOD / 2 + c, sockR = so + 2.4, Rd = Rp + 4.5, coneH = Rd - sockR;
     const stemBottom = Hb - FL.sockB, stemLen = s.stem + FL.sockB + FL.sockH, stemTop = stemBottom + stemLen;
     const yDisc = stemTop + 2 + coneH - 1.5, yPiv = yDisc + FL.rk + FL.lift, yLedTop = yDisc + FL.ledH;
-    return { st, N, S, ring, Rf, Rp, Rh, Hf, open, R, y0, vAt, hL, lug, lugAt, hubY, l, yHub0, stroke, r, oc, yC, blockH, blockPin, Hb, so, sockR, Rd, coneH,
+    return { st, N, S, SV, PW, ring, Rf, Rp, Rh, Hf, open, R, y0, vAt, hL, lug, lugAt, hubY, l, yHub0, stroke, r, oc, yC, blockH, blockPin, Hb, so, sockR, Rd, coneH,
       stemBottom, stemLen, stemTop, yDisc, yPiv, yLedTop, angleFor, warn, slotW, openReached, D, wall:s.wall };
   }
   function petalHalf(P, v){
@@ -7455,32 +7498,109 @@
       prismXZ(pRect(0, 0, 10, 10, 0), [pCirc(FL.rod / 2 + c / 2, 0, 0, 24)], h - 8, h)]) };
   }
   function flowerBase(P, s, c){
-    const S = P.S, e = P.oc.e, T = 3, W = FL.wall, zs = -13.3, tabZ = zs - S.shaftY + S.tabY;
+    const S = P.S, e = P.oc.e, T = 3, W = FL.wall, zs = -13.3, tabZ = zs - S.shaftY + S.tabY, PW = P.PW;
     const tray = part("boardMount", { board:s.board, openEnd:"right" }, { clearance:c });
     const tb = solidBounds(tray.solid), tw = tb.mx[0] - tb.mn[0], td = tb.mx[2] - tb.mn[2], zt = 8 + td / 2;
     const bodyX = -e - S.shaftX, xs = [bodyX - S.span / 2 - 3, bodyX + S.span / 2 + 3];
     const keep = [[xs[0], tabZ - T], [xs[1], tabZ - T], [xs[0], zs - S.shaftY - 1], [xs[1], zs - S.shaftY - 1], [-e - P.r - 6, 0], [-e + P.r + 6, 0]];
-    const fits = R => { const Ri = R - W - 1.5; if (keep.some(([x, z]) => Math.hypot(x, z) > Ri)) return null;
+    const trayAt = R => { const Ri = R - W - 1.5; if (keep.some(([x, z]) => Math.hypot(x, z) > Ri)) return null;
       const xEnd = Math.sqrt(Math.max(0, Ri * Ri - (zt + td / 2) ** 2)), xc = xEnd - tw / 2 + tb.mn[0] + tw / 2;
       return Math.hypot(xc + tb.mn[0], zt + td / 2) <= Ri ? xc - (tb.mx[0] + tb.mn[0]) / 2 : null; };
-    let Rb = 46; while (fits(Rb) === null && Rb < 130) Rb++;
-    const xc = fits(Rb) ?? 0, Hb = P.Hb, Ri = Rb - W, n = Math.max(96, segsFor(Rb, 96));
+    const angDist = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+    // (Session 88) what stands on the floor already, as boxes in plan: the board's tray, the servo and its bracket, the crank
+    // round the middle (and the stem's socket over it)
+    const servoTop = Math.max(tabZ, zs - S.shaftY + S.H) + 2, mid = Math.max(12, P.sockR + 2);
+    const fixedBusy = xc => [[xc + tb.mn[0] - 2, zt - td / 2 - 2, xc + tb.mx[0] + 2, zt + td / 2 + 2], [xs[0] - 2, zs - S.shaftY - 3, xs[1] + 2, servoTop],
+      [Math.min(-e - P.r - 8, -mid), -16, mid, mid]];
+    const hits = (x, z, busy, m) => busy.some(r => x > r[0] - m && x < r[2] + m && z > r[1] - m && z < r[3] + m);
+    // the parts that go in the wall, each at an angle from the back round both ways, clear of the rest; and the room each takes
+    const wallKeys = [PW.port, PW.cell && PW.charge ? "charge" : null, PW.cell ? "switch" : null].filter(Boolean);
+    const wallRoom = (it, a, Ri) => { const n = [Math.cos(a), Math.sin(a)], t = [-Math.sin(a), Math.cos(a)], pts = [];
+      for (let i = 0; i <= 4; i++) for (let j = 0; j <= 4; j++){ const u = (i / 4 - 0.5) * it.w, d = Ri - 0.5 - j / 4 * it.d; pts.push([n[0] * d + t[0] * u, n[1] * d + t[1] * u]); }
+      return pts; };
+    const placeWall = (R, busy, taken) => {
+      const Ri = R - W, out = [];
+      for (const key of wallKeys){
+        const it = FLOWER_WALL[key], half = (it.w / 2 + 6) / Ri; let got = null;
+        for (let k = 0; k <= 90 && !got; k++) for (const sg of [1, -1]){
+          const a = -Math.PI / 2 + sg * k * Math.PI / 90;
+          if ([...taken, ...out].some(q => angDist(a, q.a) < half + q.h)) continue;
+          if (wallRoom(it, a, Ri).some(([x, z]) => hits(x, z, busy, 1))) continue;
+          got = { key, a, h:half }; break;
+        }
+        if (!got) return null;
+        out.push(got);
+      }
+      return out;
+    };
+    // a battery's cradle: on the floor where there is room, as far out as it goes (the middle stays clear for the wires)
+    // flat, or standing on its long edge where the base is tall enough (it takes far less floor): r is the cradle's box, h how
+    // tall the holder stands
+    const placeCell = (R, busy) => {
+      if (!PW.cell) return null;
+      const lim = R - W - 1.5, k = 2 * (1.6 + 0.5), cl = PW.cell.l + k, ways = [{ w:PW.cell.w + k, h:PW.cell.h }];
+      if (PW.cell.w + 2 * T + 6 <= P.Hb && PW.cell.w > PW.cell.h * 1.4) ways.push({ w:PW.cell.h + k, h:PW.cell.w, edge:true });
+      let best = null, bd = -Infinity;
+      for (const way of ways) for (const [w2, l2] of [[cl, way.w], [way.w, cl]]) for (let x = -lim; x <= lim; x += 2) for (let z = -lim; z <= lim; z += 2){
+        const r = [x - w2 / 2, z - l2 / 2, x + w2 / 2, z + l2 / 2];
+        if (![[r[0], r[1]], [r[2], r[1]], [r[0], r[3]], [r[2], r[3]]].every(([u, v]) => u * u + v * v <= lim * lim)) continue;
+        if (busy.some(b => r[0] < b[2] && b[0] < r[2] && r[1] < b[3] && b[1] < r[3])) continue;
+        const d = Math.hypot(x, z) + (way.edge ? 0 : 1000); if (d > bd){ bd = d; best = { r, h:way.h, edge:!!way.edge }; }   // flat when both fit
+      }
+      return best || false;
+    };
+    let Rb = 46, lay = null;
+    for (; Rb <= 160 && !lay; Rb++){
+      const xc = trayAt(Rb); if (xc === null) continue;
+      const usbAng = Math.atan2(zt, Math.sqrt(Math.max(0, Rb * Rb - zt * zt))), busy = fixedBusy(xc);
+      const walls = placeWall(Rb, busy, [{ a:usbAng, h:(6.5 + 6) / (Rb - W) }]); if (!walls) continue;
+      const wallBoxes = walls.map(w => { const pts = wallRoom(FLOWER_WALL[w.key], w.a, Rb - W), xsP = pts.map(q => q[0]), zsP = pts.map(q => q[1]);
+        return [Math.min(...xsP), Math.min(...zsP), Math.max(...xsP), Math.max(...zsP)]; });
+      const cell = placeCell(Rb, [...busy, ...wallBoxes]); if (cell === false) continue;
+      lay = { Rb, xc, usbAng, walls, wallBoxes, cell };
+    }
+    if (!lay){ const xc = trayAt(Rb) ?? 0; lay = { Rb, xc, usbAng:0, walls:[], wallBoxes:[], cell:null }; P.warn.push("There is no room in the base for everything chosen: it is as big as it goes."); }
+    Rb = lay.Rb;
+    const xc = lay.xc, Hb = P.Hb, Ri = Rb - W, n = Math.max(96, segsFor(Rb, 96)), usbAng = lay.usbAng;
     // screw columns where nothing else is: four (or three) round the wall
-    const busy = [[xc + tb.mn[0] - 7, zt - td / 2 - 7, xc + tb.mx[0] + 7, zt + td / 2 + 7], [xs[0] - 6, zs - S.shaftY - 7, xs[1] + 6, tabZ + 6], [-e - P.r - 9, -16, 12, 12]];
-    const usbAng = Math.atan2(zt, Math.sqrt(Math.max(0, Rb * Rb - zt * zt))), front = [0, Rb * 0.58], frontAng = Math.PI / 2;
+    const busy = [[xc + tb.mn[0] - 7, zt - td / 2 - 7, xc + tb.mx[0] + 7, zt + td / 2 + 7], [xs[0] - 6, zs - S.shaftY - 7, xs[1] + 6, tabZ + 6], [-e - P.r - 9, -16, 12, 12],
+      ...lay.wallBoxes.map(r => [r[0] - 5, r[1] - 5, r[2] + 5, r[3] + 5]), ...(lay.cell ? [[lay.cell.r[0] - 5, lay.cell.r[1] - 5, lay.cell.r[2] + 5, lay.cell.r[3] + 5]] : [])];
+    const front = [0, Rb * 0.58], frontAng = Math.PI / 2;
     const free = a => { const x = Math.cos(a) * (Ri - 4), z = Math.sin(a) * (Ri - 4);
       if (busy.some(([x0, z0, x1, z1]) => x > x0 && x < x1 && z > z0 && z < z1)) return false;
-      const d = b => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))); return d(usbAng) > 0.35 && d(frontAng) > 0.3; };
+      return angDist(a, usbAng) > 0.35 && angDist(a, frontAng) > 0.3 && lay.walls.every(w => angDist(a, w.a) > w.h + 0.1); };
     const screws = [];
     for (const want of [45, 135, 225, 315]){ let best = null;
-      for (let k = 0; k <= 40 && best === null; k++) for (const sg of [1, -1]){ const a = (want + sg * k) * Math.PI / 180; if (free(a) && screws.every(b => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))) > 1)){ best = a; break; } }
+      for (let k = 0; k <= 40 && best === null; k++) for (const sg of [1, -1]){ const a = (want + sg * k) * Math.PI / 180; if (free(a) && screws.every(b => angDist(a, b) > 1)){ best = a; break; } }
       if (best !== null) screws.push(best); }
     const scr = screws.map(a => [Math.cos(a) * (Ri - 4), Math.sin(a) * (Ri - 4)]);
     // the shell: its wall (a notch up from the rim for the USB plug), the top with the stem's socket and the switch, the
     // socket's sleeve and its 45° ledge, the screw columns. Printed upside down
-    const notchH = 3 + 12, nh = 6.5 / Rb, wallLo = [], arc = (r, a0, a1, k) => { const L = []; for (let i = 0; i <= k; i++){ const a = a0 + (a1 - a0) * i / k; L.push([r * Math.cos(a), r * Math.sin(a)]); } return L; };
-    wallLo.push(...arc(Rb, usbAng + nh, usbAng + Math.PI * 2 - nh, n), ...arc(Ri, usbAng + Math.PI * 2 - nh, usbAng + nh, n));
-    const shell = [prismXZ(wallLo, [], 0, notchH), prismXZ(pCirc(Rb, 0, 0, n), [pCirc(Ri, 0, 0, n)], notchH - 0.01, Hb - T + 0.01)];
+    const notchH = 3 + 12, nh = 6.5 / Rb, arc = (r, a0, a1, k) => { const L = []; for (let i = 0; i <= k; i++){ const a = a0 + (a1 - a0) * i / k; L.push([r * Math.cos(a), r * Math.sin(a)]); } return L; };
+    // (Session 88) the wall in sectors between gaps; each part in the wall sits in a flat panel filling its gap
+    const panels = lay.walls.map(w => { const it = FLOWER_WALL[w.key], pw = it.w + 8, ga = Math.asin(Math.min(0.95, pw / 2 / Rb)); return Object.assign({ it, pw, ga }, w); });
+    const sectors = (gaps, y0, y1) => {
+      if (!gaps.length) return [prismXZ(pCirc(Rb, 0, 0, n), [pCirc(Ri, 0, 0, n)], y0, y1)];
+      const g = gaps.map(([a0, a1]) => { const base = gaps[0][0]; let s0 = a0; while (s0 < base) s0 += Math.PI * 2; while (s0 >= base + Math.PI * 2) s0 -= Math.PI * 2; return [s0, s0 + (a1 - a0)]; }).sort((p, q) => p[0] - q[0]);
+      const out = [];
+      g.forEach((gp, i) => { const from = gp[1], to = i + 1 < g.length ? g[i + 1][0] : g[0][0] + Math.PI * 2; if (to - from < 1e-3) return;
+        const k = g.length === 1 ? n : Math.max(2, Math.ceil(n * (to - from) / (Math.PI * 2)));
+        out.push(prismXZ([...arc(Rb, from, to, k), ...arc(Ri, to, from, k)], [], y0, y1)); });
+      return out;
+    };
+    const pGaps = panels.map(q => [q.a - q.ga, q.a + q.ga]);
+    const shell = [...sectors([[usbAng - nh, usbAng + nh], ...pGaps], 0, notchH), ...sectors(pGaps, notchH - 0.01, Hb - T + 0.01)];
+    panels.forEach(q => {
+      // the panel: across the gap (u) and up the wall (h), as thick as the wall; the gap's chord is its face
+      const hw = q.pw / 2 + 0.3, top = Hb - T + 0.01, it = q.it;
+      let outer = [[-hw, 0], [hw, 0], [hw, top], [-hw, top]], holes = [];
+      if (it.notch){ const nw = 12.5 / 2 + c, nt = T + 3.2 + it.notch[1] / 2 + 1.5 + c;          // a plug's overmould, from the rim (no bridge)
+        outer = [[-hw, 0], [-nw, 0], [-nw, nt], [nw, nt], [nw, 0], [hw, 0], [hw, top], [-hw, top]]; }
+      if (it.hole){ const hc = q.key === "switch" ? 13 : 12;                                       // a teardrop, its point to the rim (up, as it prints)
+        holes = [tearAB(it.hole / 2 + c, 0, -hc, 24).map(([u, v]) => [u, -v])]; }
+      const rOut = Rb * Math.cos(q.ga), t = [-Math.sin(q.a), 0, Math.cos(q.a)], nn = [Math.cos(q.a), 0, Math.sin(q.a)];
+      shell.push(affineSolid(prismXY(outer, holes, rOut - W - 0.3, rOut), cols([-t[0], -t[1], -t[2]], [0, 1, 0], nn), [0, 0, 0]));
+    });
     const so = P.so, sockR = P.sockR, topHoles = [pCirc(so, 0, 0, 48)];
     if (s.control === "touch") topHoles.push(pCirc(1.6, front[0], front[1], 16)); else topHoles.push(pCirc(6.1 + c, front[0], front[1], 32));
     if (s.control === "touch"){
@@ -7501,7 +7621,17 @@
     const tabHoles = [bodyX - S.holes / 2, bodyX + S.holes / 2].map(x => tearAB(S.pilot / 2, x, P.yC, 12));
     floorP.push(prismXY(plate, tabHoles, tabZ - T, tabZ));
     floorP.push(affineSolid(tray.solid, PART_I, [xc, T - 0.01, zt]));
-    return { shell:mergeSolids(shell), floor:mergeSolids(floorP), Rb, Ri, Hb, front, screws:scr, usbAng, notchH, tray:{ xc, zt, w:tw, d:td, b:tb }, zs, tabZ, bodyX, xs };
+    // (Session 88) a battery's cradle: a low rim round it; a board in the wall's cradle: a rim on three sides, open to the wall
+    if (lay.cell){ const r = lay.cell.r, rect = (x0, z0, x1, z1) => [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
+      floorP.push(prismXZ(rect(...r), [rect(r[0] + 1.6, r[1] + 1.6, r[2] - 1.6, r[3] - 1.6)], T - 0.01, T + (lay.cell.edge ? Math.min(12, lay.cell.h * 0.35) : Math.min(6, lay.cell.h * 0.6)))); }
+    panels.filter(q => q.it.board).forEach(q => {
+      const [bl, bw] = q.it.board, nn = [Math.cos(q.a), Math.sin(q.a)], t = [-Math.sin(q.a), Math.cos(q.a)], P2 = (d, u) => [nn[0] * (Ri - d) + t[0] * u, nn[1] * (Ri - d) + t[1] * u];
+      const L = bl + c, Wd = bw / 2 + c, k = 1.2, d0 = 0.2;
+      for (const quad of [[[d0, -Wd - k], [d0 + L, -Wd - k], [d0 + L, -Wd], [d0, -Wd]], [[d0, Wd], [d0 + L, Wd], [d0 + L, Wd + k], [d0, Wd + k]], [[d0 + L, -Wd - k], [d0 + L + k, -Wd - k], [d0 + L + k, Wd + k], [d0 + L, Wd + k]]])
+        floorP.push(prismXZ(quad.map(([d, u]) => P2(d, u)), [], T - 0.01, T + 3));
+    });
+    return { shell:mergeSolids(shell), floor:mergeSolids(floorP), Rb, Ri, Hb, front, screws:scr, usbAng, notchH, tray:{ xc, zt, w:tw, d:td, b:tb }, zs, tabZ, bodyX, xs,
+      walls:panels.map(q => ({ key:q.key, a:q.a, name:q.it.name })), cell:lay.cell };
   }
   // the bought parts, as plain shapes for the picture of the lamp (never printed)
   function flowerBought(P, s, B){
@@ -7510,6 +7640,14 @@
     out.push({ name:S.label, solid:pBox(B.bodyX - S.L / 2, B.bodyX + S.L / 2, P.yC - S.W / 2, P.yC + S.W / 2, B.zs - S.shaftY, B.zs - S.shaftY + S.H), colour:"#2e6fd8" });
     const bd = PART_BOARDS[s.board], tb = B.tray;
     out.push({ name:bd.label, solid:pBox(tb.xc - bd.w / 2, tb.xc + bd.w / 2, 3 + 6, 3 + 7.6, tb.zt - bd.d / 2, tb.zt + bd.d / 2), colour:"#1f7a4d" });
+    // (Session 88) the battery in its holder, the boards in the wall's cradles, the jack and the switch in the wall
+    if (B.cell){ const r = B.cell.r, C1 = P.PW.cell; out.push({ name:C1.name, solid:pBox(r[0] + 2.1, r[2] - 2.1, 3, 3 + B.cell.h, r[1] + 2.1, r[3] - 2.1), colour:"#3a3d42" }); }
+    (B.walls || []).forEach(w => { const it = FLOWER_WALL[w.key], nn = [Math.cos(w.a), Math.sin(w.a)], t = [-Math.sin(w.a), Math.cos(w.a)];
+      if (it.board){ const [bl, bw] = it.board, pts = [[0.4, -bw / 2], [0.4 + bl, -bw / 2], [0.4 + bl, bw / 2], [0.4, bw / 2]].map(([d, u]) => [nn[0] * (B.Ri - d) + t[0] * u, nn[1] * (B.Ri - d) + t[1] * u]);
+        out.push({ name:it.name, solid:prismXZ(pts, [], 3, 3 + 1.6 + 3.2), colour:"#1f7a4d" }); }
+      else { const hc = w.key === "switch" ? 13 : 12, L = it.d - 2;
+        out.push({ name:it.name, solid:affineSolid(prismXY(pCirc(it.hole / 2 - 0.3, 0, 0, 24), [], -L / 2, L / 2 + 3), cols([-t[0], 0, -t[1]], [0, 1, 0], [nn[0], 0, nn[1]]), [nn[0] * (B.Ri - L / 2), hc, nn[1] * (B.Ri - L / 2)]), colour:"#2b2b2b" }); }
+    });
     return out;
   }
   function flowerMake(raw, opts){
@@ -7517,7 +7655,7 @@
     const P = flowerPlan(s, c);
     const petal = petalSolid(P, s, c), head = flowerHead(P, s, c), runner = flowerRunner(P, s, c), slider = flowerSlider(P, s, c), base = flowerBase(P, s, c);
     const stem = prismXZ(pCirc(FL.stemOD / 2, 0, 0, 48), [stemBore(c)], 0, P.stemLen);
-    const crank = part("servoHorn", { servo:s.servo, arm:P.r, holes:1, pin:2 }, { clearance:c });
+    const crank = part("servoHorn", { servo:P.SV.horn, arm:P.r, holes:1, pin:2 }, { clearance:c });
     const link = part("hornLink", { length:+P.l.toFixed(2), pinA:FL.pin, pinB:FL.pin, width:FL.linkW, thick:FL.linkT }, { clearance:c });
     const conrod = part("hornLink", { length:+P.oc.b.toFixed(2), pinA:2, pinB:2, width:6, thick:3 }, { clearance:c });
     // where the rod's top is at closed: the runner's disc top; its bottom: in the slider block
@@ -7601,13 +7739,13 @@
     const force = drop => { const e = 0.05, a0 = P.angleFor(Math.max(0, drop - e)), a1 = P.angleFor(drop + e); return P.N * mass / 1000 * 9.81 * (cog(a0, 0) - cog(a1, 0)) / (Math.min(drop, e) + e); };
     const dxdth = th => Math.abs(crankSliderX(P.r, P.oc.b, P.oc.e, th + 0.01) - crankSliderX(P.r, P.oc.b, P.oc.e, th - 0.01)) / (0.02 * D);
     const tqClosed = Math.abs(force(0.06)) * dxdth(P.oc.start), tqOpen = Math.abs(force(P.stroke - 0.06)) * dxdth(P.oc.end);
-    const friction = s.servo === "MG996R" ? 80 : 20;                                   // N·mm: an unpowered servo's gears, typical (not measured)
+    const friction = P.SV.big ? 80 : 20;                                               // N·mm: an unpowered servo's gears, typical (not measured)
     const hold = { closed:+tqClosed.toFixed(3), open:+tqOpen.toFixed(3), friction, ok:Math.max(tqClosed, tqOpen) < friction / 3 };
     const bd = PART_BOARDS[s.board], screws = X.base.screws.length;
     const bom = [[1, P.S.label], [1, `NeoPixel ring, ${s.led} LEDs (${P.ring.od} mm)`], [1, bd.label], [1, `${FL.rod} mm rod (steel, brass or carbon), ${X.rod} mm long`],
       [3 * P.N, "pins cut from 1.75 mm filament, 12 mm long (petals, lugs, runner)"], [2, "M2 × 12 screws and nuts (the crank's pins)"], [screws, "M3 × 8 screws (the base's floor)"],
       [s.control === "touch" ? 1 : 1, s.control === "touch" ? "24 mm disc of copper tape (the touch pad) and a wire" : "12 mm round push button (panel mount)"],
-      [1, `3 thin silicone wires, about ${Math.round(s.stem + 180)} mm (the ring to the board)`], [1, "USB cable for the board"], [4, "stick-on rubber feet"]];
+      [1, `3 thin silicone wires, about ${Math.round(s.stem + 180)} mm (the ring to the board)`], ...flowerPowerBom(P.PW, s), [4, "stick-on rubber feet"]];
     const notes = [
       `Petals: print standing on their pin, in translucent PETG or PLA (they glow), ${s.wall} mm walls. No support.`,
       "Head: upright, cone down. Base: upside down (its top on the bed). Floor, runner, links and the crank: flat, as they are. No support anywhere.",
@@ -7622,12 +7760,47 @@
       `Screw the servo into its bracket; run the sketch once so it moves to closed, then fit the crank pointing ${(P.oc.start).toFixed(0)}° from straight up, towards the rod.`,
       "Pin the crank rod between the crank and the rod block; push the block onto the rod's lower end and glue it.",
       "Fit the board in its tray, the USB plug through the notch; wire the servo, the ring and the touch pad or button.",
+      ...flowerPowerSteps(P.PW),
       "Screw the floor on. Touch the pad: the flower opens and lights up; touch again to close."
     ];
+    notes.push(flowerPowerNote(P.PW, s));
     return { checks, ok:checks.every(q => q.ok), hold, bom, notes, assembly, travel:{ input:"servo angle (°)", rows, output:"rod drop (mm), petal angle (°)" },
       size:{ base:[2 * X.base.Rb, X.base.Hb], height:+(P.yPiv + P.Hf + 2).toFixed(1), flower:2 * P.Rf, open:+P.openReached.toFixed(1), stroke:+P.stroke.toFixed(2) },
       crank:{ arm:P.r, rod:+P.oc.b.toFixed(1), offset:+P.oc.e.toFixed(2), start:+P.oc.start.toFixed(1), end:+P.oc.end.toFixed(1) },
-      link:+P.l.toFixed(2), rod:X.rod, warn:P.warn.slice(), sketch:flowerSketch(s, P) };
+      link:+P.l.toFixed(2), rod:X.rod, warn:P.warn.slice(), sketch:flowerSketch(s, P),
+      power:Object.assign(flowerPowerLife(P.PW, s), { walls:X.base.walls.map(w => ({ key:w.key, a:+w.a.toFixed(4), name:w.name })), cell:X.base.cell ? { edge:X.base.cell.edge, h:X.base.cell.h } : null }) };
+  }
+  // (Session 88) what the power needs, how to fit and wire it, and how long a battery lasts
+  function flowerPowerBom(PW, s){
+    const W = FLOWER_WALL;
+    if (PW.port === "usbc") return [[1, W.usbc.name], [1, "USB-C cable and a 5 V charger (2 A)"]];
+    if (PW.port === "dc") return [[1, W.dc.name], [1, "5 V, 2 A power supply with a 5.5 × 2.1 mm plug"]];
+    if (!PW.cell) return [[1, "USB cable for the board, and a 5 V USB charger"]];
+    const cells = s.power === "2x18650" ? [[2, "18650 cells, protected, flat top"]] : s.power === "18650" ? [[1, "18650 cell, protected, flat top"]] : s.power === "3xAA" ? [[3, "AA cells"]] : [];
+    return [[1, PW.cell.name], ...cells, ...(PW.charge ? [[1, W.charge.name], [1, "USB-C cable (to charge it)"]] : []), [1, W.switch.name]];
+  }
+  function flowerPowerSteps(PW){
+    if (PW.port === "usbc") return ["Push the USB-C socket board into its cradle, its socket in the notch in the wall (a dab of hot glue); wire its 5 V and ground to the servo, the ring and the board's 5 V pin."];
+    if (PW.port === "dc") return ["Screw the DC jack into its hole in the wall (the nut inside); wire its centre (+) and sleeve (−) to the servo, the ring and the board's 5 V pin."];
+    if (!PW.cell) return [];
+    return [`Seat the ${PW.cell.name.split(" (")[0].replace(/,.*$/, "")} in its cradle on the floor (a dab of hot glue or a strip of double-sided tape).`,
+      ...(PW.charge ? ["Push the charge board into its cradle, its USB-C port in the notch in the wall (a dab of hot glue)."] : []),
+      "Screw the push switch into its hole in the wall (the nut inside).",
+      PW.charge ? "Wire: battery to the charge board's battery pads; its 5 V out through the switch to the servo, the ring and the board's 5 V pin; every ground together."
+        : "Wire: the holder's + through the switch to the servo, the ring and the board's VIN pin; every ground together."];
+  }
+  function flowerPowerNote(PW, s){
+    if (PW.port === "usbc" || PW.port === "dc") return `Power: 5 V through the ${PW.port === "dc" ? "DC jack" : "USB-C socket"} in the wall, to the servo, the ring and the board. The board's own USB stays reachable through its notch, for the sketch.`;
+    if (!PW.cell) return "Power: the board's own USB, through the notch in the wall. A 5 V, 2 A charger copes with the servo and the ring together.";
+    return PW.charge ? `Power: ${PW.label.toLowerCase()}. The charge board lifts the cell's 3.7 V to 5 V for the servo, the ring and the board, and charges it from its USB-C port; the switch cuts the 5 V. Use protected cells.`
+      : "Power: three AA cells, 4.5 V straight to the servo, the ring and the board's VIN pin (the board's regulator needs fresh cells). The switch cuts it.";
+  }
+  // typical draws (not measured): the ring at the sketch's brightness about 12 mA an LED, each LED 0.6 mA when dark; the board
+  function flowerPowerLife(PW, s){
+    if (!PW.cell) return { label:PW.label, battery:false };
+    const esp = s.board === "esp32devkit", leds = +s.led, lit = leds * 12 + (esp ? 70 : 25), dark = leds * 0.6 + (esp ? 45 : 15);
+    const usable = PW.charge ? PW.mAh * PW.V * 0.85 / 5 : PW.mAh * 0.9;                    // mAh at 5 V (the charge board's boost loses about 15%)
+    return { label:PW.label, battery:true, mAh:PW.mAh, litHours:+(usable / lit).toFixed(1), darkDays:+(usable / dark / 24).toFixed(1), litmA:Math.round(lit), darkmA:+dark.toFixed(1) };
   }
   function flowerSketch(s, P){
     const esp = s.board === "esp32devkit", touch = s.control === "touch";
@@ -7695,7 +7868,7 @@
   global.PRCore = {
     // loft, sweep, thin shells (Session 83) and the mechanical parts library (Session 82)
     loft, sweep, shellSurface,
-    flower:{ make:flowerMake, clean:flowerClean, settings:FLOWER_SETTINGS, styles:FLOWER_STYLES, sketch:flowerSketch },
+    flower:{ make:flowerMake, clean:flowerClean, settings:FLOWER_SETTINGS, styles:FLOWER_STYLES, sketch:flowerSketch, power:FLOWER_POWER, wall:FLOWER_WALL },
     parts:{ list:partList, make:part, clean:partClean, snap, travel:partTravel, fourBarAngle, crankSliderX, overCentre, petalAngle, petalArm, servos:PART_SERVOS, bearings:PART_BEARINGS, fasteners:PART_FASTENERS, boards:PART_BOARDS, rings:PART_RINGS, clearance:PART_CLEARANCE },
     hexToRgb, rgbToHex, colorDist, luma, kmeans, buildCellMap, makeProjector, buildDecalSolids, weldSoup, parseSTL,
     prepareParts, make3MF, make3MF_BBL, makeSTL, makeOBJ, traceMask, groupLoops, rectUnion, triangulate, solidFromTris, buildVectorSolid,

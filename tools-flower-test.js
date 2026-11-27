@@ -15,7 +15,7 @@ function coreTests(C){
     for (const style of S.style.opts){
       cases.push({ style });
       for (const [k, sp] of Object.entries(S)){
-        if (Array.isArray(sp)){ cases.push({ style, [k]:sp[1] }); cases.push({ style, [k]:sp[2] }); }
+        if (Array.isArray(sp)){ cases.push({ style, ...(sp[5] || {}), [k]:sp[1] }); cases.push({ style, ...(sp[5] || {}), [k]:sp[2] }); }   // (a setting shown only for a choice: with it)
         else for (const o of sp.opts) cases.push({ style, [k]:o });
       }
       cases.push({ style, petals:14, dia:70, led:"24" }, { style, petals:5, dia:160, open:70, servo:"MG996R" }, { style, petals:14, open:70 }, { style, dia:70, open:70, wall:1.2 });
@@ -65,6 +65,59 @@ function coreTests(C){
       }
     }
     check(!bad.length, "every part of five lamps prints as it lies with no support (at most 5 mm² of steep faces)", bad.slice(0, 3).join(" | "));
+  }
+
+  console.log("\npower and servos (Session 88)");
+  {
+    // where a ray from outside, level, towards the middle, first meets the base's shell within its wall: none means it is open
+    const meets = (sol, o, d, far) => { const P = sol.pos, I = sol.idx; let n = 0;
+      for (let t = 0; t < I.length; t += 3){ const a = 3*I[t], b = 3*I[t + 1], c = 3*I[t + 2];
+        const e1 = [P[b] - P[a], P[b + 1] - P[a + 1], P[b + 2] - P[a + 2]], e2 = [P[c] - P[a], P[c + 1] - P[a + 1], P[c + 2] - P[a + 2]];
+        const pv = [d[1]*e2[2] - d[2]*e2[1], d[2]*e2[0] - d[0]*e2[2], d[0]*e2[1] - d[1]*e2[0]], det = e1[0]*pv[0] + e1[1]*pv[1] + e1[2]*pv[2]; if (Math.abs(det) < 1e-12) continue;
+        const tv = [o[0] - P[a], o[1] - P[a + 1], o[2] - P[a + 2]], u = (tv[0]*pv[0] + tv[1]*pv[1] + tv[2]*pv[2])/det; if (u < 0 || u > 1) continue;
+        const qv = [tv[1]*e1[2] - tv[2]*e1[1], tv[2]*e1[0] - tv[0]*e1[2], tv[0]*e1[1] - tv[1]*e1[0]], v = (d[0]*qv[0] + d[1]*qv[1] + d[2]*qv[2])/det; if (v < 0 || u + v > 1) continue;
+        const tt = (e2[0]*qv[0] + e2[1]*qv[1] + e2[2]*qv[2])/det; if (tt > 0 && tt < far) n++; }
+      return n; };
+    const boxes = parts => parts.map(p => ({ name:p.name, b:C.solidBounds(p.solid) }));
+    const overlap = (p, q) => [0, 1, 2].every(k => p.b.mn[k] < q.b.mx[k] - 0.05 && q.b.mn[k] < p.b.mx[k] - 0.05);
+    const bad = [], room = [];
+    for (const power of S.power.opts) for (const servo of ["SG90", "MG996R"]){
+      const L = F.make({ power, servo }), I = L.info, Rb = I.size.base[0]/2, base = L.assembly(0).parts.find(p => p.name === "Base").solid;
+      const want = { usbc:/USB-C socket board/, dc:/DC jack/, "18650":/18650 holder, 1 cell/, "2x18650":/2 cells/, "3xAA":/3 × AA/, lipo:/LiPo/ }[power];
+      if (want && !I.bom.some(([, w]) => want.test(w))) bad.push(`${power}: the list has no ${want}`);
+      if (I.power.battery !== !!(["18650", "2x18650", "3xAA", "lipo"].includes(power))) bad.push(`${power}: battery ${I.power.battery}`);
+      if (I.power.battery && !(I.power.litHours > 0 && I.power.darkDays > 0)) bad.push(`${power}: no battery life`);
+      if (I.power.battery && !I.bom.some(([, w]) => /latching push switch/.test(w))) bad.push(`${power}: no switch`);
+      if (/18650|lipo/.test(power) && !I.bom.some(([, w]) => /charge-and-boost/.test(w))) bad.push(`${power}: no charge board`);
+      for (const w of I.power.walls){
+        const y = w.key === "switch" ? 13 : w.key === "dc" ? 12 : 6.2, n = [Math.cos(w.a), Math.sin(w.a)], o = [n[0]*(Rb + 4), y, n[1]*(Rb + 4)], d = [-n[0], 0, -n[1]];
+        if (meets(base, o, d, 4 + 3.5)) bad.push(`${power} ${servo}: the ${w.key} opening is closed`);
+        const a2 = w.a + 0.5, n2 = [Math.cos(a2), Math.sin(a2)];
+        if (!meets(base, [n2[0]*(Rb + 4), 30, n2[1]*(Rb + 4)], [-n2[0], 0, -n2[1]], 4 + 3.5)) bad.push(`${power} ${servo}: the wall beside the ${w.key} is open`);
+      }
+      const want2 = { usbc:["usbc"], dc:["dc"], "18650":["charge", "switch"], "2x18650":["charge", "switch"], "3xAA":["switch"], lipo:["charge", "switch"], usb:[] }[power];
+      if (I.power.walls.map(w => w.key).sort().join() !== want2.slice().sort().join()) bad.push(`${power}: in the wall ${I.power.walls.map(w => w.key).join()}`);
+      // the bought parts don't run into each other (the battery, the servo, the board, the boards in the wall)
+      const bought = boxes(L.assembly(0).parts.filter(p => p.role === "bought" && !/rod|NeoPixel/.test(p.name)));
+      for (let i = 0; i < bought.length; i++) for (let j = i + 1; j < bought.length; j++) if (overlap(bought[i], bought[j])) bad.push(`${power} ${servo}: ${bought[i].name} runs into ${bought[j].name}`);
+      for (const k of ["base", "floor"]){ const p = L.printed.find(q => q.key === k), r = C.analyzePrint([{ name:k, slot:0, pos:p.solid.pos, idx:p.solid.idx }], { overhang:45, bridge:20 });
+        if (r.overhang.area > 5) bad.push(`${power} ${servo}: the ${k} needs ${r.overhang.area.toFixed(1)} mm² of support`); }
+      if (!I.ok || !I.hold.ok) bad.push(`${power} ${servo}: a check fails`);
+      room.push(`${power}/${servo} ${Math.round(2*Rb)}`);
+    }
+    check(!bad.length, "every way to power it, with a micro and a standard servo: the right parts listed, the openings open and the wall beside them closed, nothing running into anything, no support", bad.slice(0, 4).join(" | "));
+    console.log("    base diameters (mm): " + room.join(", "));
+    const usb = F.make({}).info.size.base[0], aa = F.make({ power:"3xAA" }), two = F.make({ power:"2x18650" });
+    check(aa.info.size.base[0] <= usb + 20 && two.info.size.base[0] <= usb + 30 && two.info.power.cell.edge, "a battery holder stands on its edge where the base is tall enough, so the base grows little", `${usb} mm on USB; 3 × AA ${aa.info.size.base[0]} mm, two 18650s ${two.info.size.base[0]} mm (on edge: ${two.info.power.cell.edge})`);
+    // servos: the standard digital one, and your own
+    const ds = F.make({ servo:"DS3218" });
+    check(ds.plan.S.label.startsWith("DS3218") && ds.info.ok && ds.info.hold.friction === 80 && ds.info.bom.some(([, w]) => /DS3218/.test(w)), "a DS3218 standard servo: listed, held by its stronger gears");
+    const mine = F.make({ servo:"custom", servoL:30, servoW:15, servoH:28, servoSpan:40, servoHoles:35, servoTab:19, servoShaftX:7, servoShaftY:33 });
+    check(mine.plan.S.L === 30 && mine.plan.S.W === 15 && mine.plan.SV.horn === "SG90" && mine.info.ok && !mine.info.warn.length && mine.printed.every(p => C.checkMesh(p.solid).open === 0),
+      "your own servo, 30 × 15 × 28 mm: its sizes used, the micro horn, every part closed", mine.info.warn.join(" "));
+    const big = F.make({ servo:"custom", servoL:41, servoW:20, servoH:38, servoSpan:30, servoHoles:60, servoTab:45, servoShaftX:25, servoShaftY:20 });
+    check(big.plan.SV.horn === "MG996R" && big.plan.S.span >= 47 && big.plan.S.holes < big.plan.S.span && big.plan.S.shaftY > 38 && big.info.warn.some(w => /don't go together/.test(w)) && big.printed.every(p => C.checkMesh(p.solid).open === 0),
+      "sizes that can't go together (tabs narrower than the body, holes past the tabs): made to, and said; a 20 mm wide servo gets the standard horn", big.info.warn.find(w => /go together/.test(w)));
   }
 
   console.log("\nthe sketch, the list, the steps");

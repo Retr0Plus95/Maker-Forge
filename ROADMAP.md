@@ -72,6 +72,7 @@ Each gets: a plan view, a catalogue with pictures, recipes, a fit test, Fix what
 - **0.64 The blooming flower lamp** (done in 0.64.0): one servo opening every petal through a runner and links, self-holding at both
   ends (an over-centre crank), a NeoPixel ring, a base that opens with screws, the travel animated and checked for collisions,
   plates, what you'll need and a starter sketch. Left for later: a pull line instead of the rod, more than one ring of petals.
+- **0.65 The flower lamp's power and servos** (done in 0.65.0, the owner's request): batteries (18650, 3 × AA, LiPo) in cradles with a charge board and a switch, a USB-C socket or a DC jack in the wall, a DS3218 and your own servo's sizes.
 - **0.66 Lithophanes and lamps:** lamp bases with the electronics box built in, colour lithophanes (CMYW), night lights.
 - **0.67 Mechanisms:** what the parts library leaves: gear trains worked out from a ratio, latches, a parts kit maker.
 - **0.68 Organisers:** Gridfinity-style bins and baseplates, drawer dividers, tool holders traced from a photo of the tool.

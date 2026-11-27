@@ -3646,6 +3646,18 @@ main board, the part's `y` otherwise) and reports `raised`, so `encMakeRoom` goe
 then reaches the lid. That box: 48 → 64 mm, the Pi at 30.9 mm. What's left there is a real warning (the Pi on the wall and the
 battery holder on the floor take the same room), which Make it all fit names.
 
+**Curved names** (found by `tools-fuzz.js` with `UNDO=1`, seed 12: a 140-letter name curved 120° with charms). Two things in
+`buildNamePlate`:
+- A negative curve's letters started at `-sweep/2`, which is +|sweep|/2, and each letter's angle only grows, so the name began right
+  of the middle and curled up and over (the room left for a curve hid it). They start at -|sweep|/2 either way now: a smile, its
+  ends level (in Chromium "Alexandra" at -90°: 70.8 × 89.7 mm, lopsided, became 137.4 × 33.4, its letters at 5.0, 19.9, 4.5 mm
+  across).
+- The canvas left 0.3 of the name's width per 90° of curve on every side, and once more in height (`arcPad`). An arc is never wider
+  than the name laid straight, and its ends drop (or rise) by R(1 - cos(sweep/2)) on that side only (`arcDrop`), plus a letter for
+  the tilted ends (`arcSide`). Positive curves come out exactly as before (sizes and volumes in Chromium; every fingerprint
+  unchanged); a long curved name gets a finer grid (40 letters at 120°: could not be built in Chromium, now 121 000 triangles).
+  A 140-letter name curved 120° (about 1.7 m long) is still refused, with its message.
+
 **Start pictures** for the five objects that had none (mechanisms, parts, the flower lamp, fix-it parts, signs): `tools-thumbs.js`
 took only objects with an example; it takes every object but an imported model and Nothing now. The flower lamp's came out blank:
 its meshes were tagged `userData.ghost`, which `modelThumb` hides (the box's see-through parts); they are `userData.lampPart` now.
@@ -3665,16 +3677,20 @@ The README badge's text said 0.63.0.
 - `tools-boxart-test.js`: words raised 2 and 3 mm, the widest flat underside 0.6 mm, full depth, 0 mm² (64 and 96 before); 0.8 mm
   and less built as before.
 - `tools-boxpro-test.js`: the seed 13 box: the Pi runs into the floor, and Make it all fit raises it and makes the box taller.
-- `tools-boxfuzz.js` seed 13: 0 problems (1 before). `tools-fuzz.js` seed 11 (2 × 16 steps on all 27 objects): no findings.
+- `tools-rough-test.js` (new section): "Alexandra" curved 90° arches with its middle highest, curved -90° bends the other way with
+  its ends level (fails on the 0.64.0 build: -10.9, -54.2, -69.2 mm); a 40-letter name curved 120° builds.
+- `tools-boxfuzz.js` seed 13: 0 problems (1 before). `tools-fuzz.js` seed 11 (2 × 16 steps on all 27 objects) and seed 21 (3 × 20
+  on the seven newest objects): no findings. `UNDO=1` seed 12: the curved name above.
 - `npm run test:enclosure`, `test:print`, `test:join`, `test:art`, the smoke test, the audit, the print survey (no new warnings; the
   Tea light 0 mm²), `npm run fingerprint` (only the tea light's picture moved, `fingerprint:update`).
 
 **Still to check:** a real print of a stepped raised picture and of raised box art at 2 to 3 mm (the 0.6 mm ledges, the slabs'
 seams), in a slicer and on a printer.
 
-The count: improvements 18 to 20: 18. the print check on the joined solids; 19. raised pictures and reliefs on upright faces
-without support; 20. Start pictures for the five newest objects. Bugs 5 and 6 of 10: 5. raised box art over 0.8 mm needed support
-the panel said it didn't; 6. Make it all fit couldn't fix a wall board reaching into the floor.
+The count: improvements 18 to 21: 18. the print check on the joined solids; 19. raised pictures and reliefs on upright faces
+without support; 20. Start pictures for the five newest objects; 21. long curved names drawn finer, and built. Bugs 5 to 7 of 10:
+5. raised box art over 0.8 mm needed support the panel said it didn't; 6. Make it all fit couldn't fix a wall board reaching into
+the floor; 7. a negative curve curled the name up and over.
 
 ## Next
 

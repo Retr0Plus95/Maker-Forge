@@ -8351,7 +8351,12 @@ async function buildNamePlate(pxCap){
     + (m2 ? gap2 + m2.asc + m2.desc : 0));
   const tabR = (np.holeDia/2+np.rim)*PLATE_PX;
   const endR = np.end !== "none" ? (inkH/lines.length)*0.34*np.endScale : 0;
-  const arcPad = np.arc ? Math.abs(np.arc)/90*inkW*0.3 : 0;
+  // a curved name (Session 86): the arc is never wider than the name laid straight, and its ends drop (or rise, for a negative
+  // curve) by R(1 - cos(sweep/2)) on that side only; the tilted letters at its ends reach out by about a letter. The room for it
+  // was 0.3 of the name's width per 90° on every side (and once more in height), so a long curved name was drawn on a grid
+  // coarser than it needed, or, past the canvas cap, not at all.
+  const arcOn = !!np.arc && lines.length === 1, sweepA = arcOn ? Math.abs(np.arc)*Math.PI/180 : 0;
+  const arcDrop = arcOn ? metrics[0].width/sweepA*(1 - Math.cos(Math.min(sweepA/2, Math.PI))) + inkH*0.5 : 0, arcSide = arcOn ? inkH : 0;
   // charms and a picture sit beside the name: leave room for them too, or the plate around them
   // runs off the canvas and its outline is cut short
   const sym0 = np.sym || { side:"none" };
@@ -8363,9 +8368,9 @@ async function buildNamePlate(pxCap){
   // charms and a picture need room across; up and down only as far as they stand taller than the letters
   // (both used to pad every side, which made the canvas four times taller than needed)
   const picH = picSrc ? inkH*(pic0.size||1) : 0;
-  const padX = Math.ceil(np.border*PLATE_PX + tabR*2 + endR*2.4 + arcPad + symPad + picPad + 8*PLATE_PX);
-  const padY = Math.ceil(np.border*PLATE_PX + tabR*2 + endR*2.4 + arcPad + Math.max(0, picH/2 - inkH/2, symR*1.1 - inkH/2) + 8*PLATE_PX);
-  const W = Math.ceil(inkW+padX*2), H = Math.ceil(inkH+padY*2+arcPad);
+  const padX = Math.ceil(np.border*PLATE_PX + tabR*2 + endR*2.4 + arcSide + symPad + picPad + 8*PLATE_PX);
+  const padY = Math.ceil(np.border*PLATE_PX + tabR*2 + endR*2.4 + Math.max(0, picH/2 - inkH/2, symR*1.1 - inkH/2) + 8*PLATE_PX);
+  const W = Math.ceil(inkW+padX*2), H = Math.ceil(inkH+padY*2+arcDrop);
   if (W*H > 30e6){
     // a long name, curved or with charms, at small letters: drawn on a coarser grid rather than not at all (Session 75)
     // (tried once; a rough build's grid is half the cap)
@@ -8384,12 +8389,14 @@ async function buildNamePlate(pxCap){
     let cx = x;
     for (const ch of text2){ ctx.fillText(ch, cx, y); cx += ctx.measureText(ch).width + spacePx; }
   };
-  const baseY = padY + metrics[0].actualBoundingBoxAscent + arcPad;
+  const baseY = padY + metrics[0].actualBoundingBoxAscent + (arcOn && np.arc < 0 ? arcDrop : 0);   // a negative curve's ends rise above
   if (np.arc && lines.length === 1){                 // bend the name along an arc
     const total = metrics[0].width, sweep = np.arc*Math.PI/180;
     const radius = Math.abs(total/(sweep||0.001));
     const cx = W/2, cy = baseY + (sweep>0 ? radius : -radius);
-    let a = -sweep/2;
+    // left to right along the arc, either way it bends (Session 86: a negative curve started at +sweep/2 and ran on past it, so
+    // the name began right of the middle and curled up and over instead of bending into a smile)
+    let a = -Math.abs(sweep)/2;
     ctx.save(); ctx.textAlign = "center";
     for (const ch of lines[0]){
       const cw = ctx.measureText(ch).width + (manual ? spacePx : 0), da = cw/radius;
@@ -8449,7 +8456,7 @@ async function buildNamePlate(pxCap){
     }
   }
   if (m2){                                          // the second line, drawn after the dots so its letters are not taken for dots
-    const last = metrics[metrics.length-1], y2 = baseY + (lines.length-1)*lineH + last.actualBoundingBoxDescent + (np.arc && lines.length === 1 ? arcPad : 0) + gap2 + m2.asc;
+    const last = metrics[metrics.length-1], y2 = baseY + (lines.length-1)*lineH + last.actualBoundingBoxDescent + (arcOn && np.arc > 0 ? arcDrop : 0) + gap2 + m2.asc;
     ctx.save(); ctx.font = font2; ctx.fillStyle = "#000"; ctx.textAlign = "left";
     if ("letterSpacing" in ctx) ctx.letterSpacing = manual ? "0px" : space2.toFixed(2)+"px";
     let x2 = W/2 - m2.width/2 + m2.left;

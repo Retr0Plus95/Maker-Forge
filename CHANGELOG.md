@@ -15,6 +15,7 @@ Less support, and truer print checks.
 **Fixed**
 - Raised words, icons or pictures on a project box's wall deeper than 0.8 mm needed support (64 mm² for a word raised 2 mm), though the panel said they didn't. They now step back in underneath at 45°.
 - **Make it all fit** couldn't fix a board on a box's wall that reached down into the floor, and said nothing could. It now moves the board up the wall and makes the box taller if it must.
+- A name curved the other way (**Curve the name** below 0°) began right of the middle and curled up and over, instead of bending evenly into a smile. A long curved name was also drawn coarser than it needed, and past about 30 letters at 120° it could not be built at all.
 
 ## 0.64.0
 

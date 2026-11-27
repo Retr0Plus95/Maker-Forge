@@ -3601,6 +3601,75 @@ and says so.
 The count: improvements 13 to 17: 13. the blooming flower lamp; 14. the over-centre crank and petal lever calculators;
 15. the lamp's checks over the travel; 16. the sketch; 17. the lamp's view and plates. Bugs: still 4 of 10.
 
+## Session 86: the print check on the joined solids, raised art without support (v0.64.1)
+
+After 0.64.0, on `claude/relaxed-dirac-cuhvec`: the owner's standing "bug hunting and improving". The engine's last E1 item first,
+then what the comparison turned up.
+
+**The print check on the joined solids** (`printOnJoined`, `printByPiece`, `runJoin` in `src/app.html`). Once the background pass
+has joined each colour for this build (and joined something), `runPrintability` checks `joinInfo.list` instead of the pieces;
+`runJoin` starts it again when it lands, so what the pieces gave stays up until then. With a brim it stays on the pieces: the brim
+is part of the joined solid and would count as bed. `printByPiece` gives the findings back by piece: each red triangle of
+`marks.support` and each thin spot goes to the piece whose box holds it (within 0.05 mm, the smallest where boxes overlap, else the
+nearest), so `perPart` still sums to the area and "Most of it is under …" still names a part. The Printability page has a row
+*Checked: each colour as one solid, as in the files*. Compared over every quick start and object (a scratch script, Manifold in
+Node): only the tea light changed (102 → 84 mm²) and the phone case's back picture gained one thin spot (its known 0.35 mm wall);
+the check itself is faster on joined solids where pieces overlap a lot (the flower lamp 2.3 s → 0.4 s, the photo frame 3 s → 0.7 s).
+
+**Raised art on an upright face.** The tea light's remaining 84 mm² was real: its picture (flat, 1.2 mm) has a flat underside
+1.5 mm deep. On objects (`uprightDir`, `uprightOrder`, `uprightRelief`, `uprightMaskSolid` before `buildItem`):
+- a relief: each cell is held to the one below it plus 0.85 of a cell's rise (about 40°), and a cell with nothing below to
+  0.6 mm (`UPRIGHT_FIRST`); lowest first;
+- a flat picture standing out more than 0.8 mm (`UPRIGHT_FROM`; 0.8, the default, prints as a ledge, so nothing at or under it
+  changes): a 0.6 mm base, then up to four slabs at most 0.6 mm thick, slab k keeping a cell only where the picture, in any of
+  its colours, runs unbroken below it for (k+1)·s/0.85 (built with `buildMaskSolid` and a negative embed). Each colour stepped on
+  its own left pockets where one colour stands on another, so the run is counted on all of them. Stepped pictures (colours at
+  heights of their own) and the cut modes are left as they were. A detailed picture gets fewer slabs rather than over 600 000
+  triangles.
+- On a box wall (`encRaisedSteps`): the art's polygons drawn on a 0.08 mm grid (nonzero winding), the same runs, each slab traced
+  back with `maskToPolys`. The panel said "needs no support" for raised art up to 3 mm deep; it needed 64 mm² at 2 mm and 96 at 3.
+"Down" is worked out from the picture's frame (`frameFor`: rows or columns, whichever lowers it most), so a turned picture steps the
+right way; on the top or underneath (|n.y| > 0.7) nothing changes.
+The print check on a round badge raised 2 to 3 mm still marks 10 to 16 mm² on its lower arcs: faces 45.2° to 47°, which any raised
+circle has, stepped or not (unstepped, the check missed the 3 mm badge's flat underside altogether). The tests measure the
+geometry instead: no face looking straight down reaches out more than about 0.8 mm.
+
+**Make it all fit and a board on a wall** (found by `tools-boxfuzz.js`, seed 13: Raspberry Pi case > addPart > shrink > mountOn >
+addPart > Make it all fit). A Pi mounted on the left wall of a 48 mm box, 15 mm up, ran 15.8 mm into the floor (`faceOver.b0`), and
+`encMakeRoom1` only ever grew the box at the top (`b1`). It now raises such a board up the wall by that much (`E.boardY` for the
+main board, the part's `y` otherwise) and reports `raised`, so `encMakeRoom` goes round again and makes the box taller if the board
+then reaches the lid. That box: 48 → 64 mm, the Pi at 30.9 mm. What's left there is a real warning (the Pi on the wall and the
+battery holder on the floor take the same room), which Make it all fit names.
+
+**Start pictures** for the five objects that had none (mechanisms, parts, the flower lamp, fix-it parts, signs): `tools-thumbs.js`
+took only objects with an example; it takes every object but an imported model and Nothing now. The flower lamp's came out blank:
+its meshes were tagged `userData.ghost`, which `modelThumb` hides (the box's see-through parts); they are `userData.lampPart` now.
+The README badge's text said 0.63.0.
+
+**Tested:**
+- `tools-join-test.js` (new section): the tea light's support drops once joined, the findings still told by piece (the same names,
+  `perPart` summing to the area), the checks list giving the joined figure, a brim keeping it on the pieces, and after a change the
+  check on the joined solids coming by itself (waiting → pieces → joined).
+- `tools-browser-check.js` (the join section): the same in Chromium, the result from the helper thread (66.4 → 60.1 mm² there,
+  with real fonts and canvas).
+- `tools-art-test.js` (new section): the Tea light quick start at 0 mm² with its picture still 1.2 mm out; a picture raised 2 and
+  3 mm on a cylinder's side with no flat underside over 0.8 mm (2.2 and 3.2 mm before), still at full height, closed; 0.8 mm and
+  stepped pictures built as before; on the top as before; a relief on the side at 0 mm². Against a build with the stepping off, four
+  of these fail.
+- `tools-boxart-test.js`: words raised 2 and 3 mm, the widest flat underside 0.6 mm, full depth, 0 mm² (64 and 96 before); 0.8 mm
+  and less built as before.
+- `tools-boxpro-test.js`: the seed 13 box: the Pi runs into the floor, and Make it all fit raises it and makes the box taller.
+- `tools-boxfuzz.js` seed 13: 0 problems (1 before). `tools-fuzz.js` seed 11 (2 × 16 steps on all 27 objects): no findings.
+- `npm run test:enclosure`, `test:print`, `test:join`, `test:art`, the smoke test, the audit, the print survey (no new warnings; the
+  Tea light 0 mm²), `npm run fingerprint` (only the tea light's picture moved, `fingerprint:update`).
+
+**Still to check:** a real print of a stepped raised picture and of raised box art at 2 to 3 mm (the 0.6 mm ledges, the slabs'
+seams), in a slicer and on a printer.
+
+The count: improvements 18 to 20: 18. the print check on the joined solids; 19. raised pictures and reliefs on upright faces
+without support; 20. Start pictures for the five newest objects. Bugs 5 and 6 of 10: 5. raised box art over 0.8 mm needed support
+the panel said it didn't; 6. Make it all fit couldn't fix a wall board reaching into the floor.
+
 ## Next
 
 ### The new direction (Session 81, the owner): a mechanical parts library, then the blooming flower lamp
@@ -3653,8 +3722,8 @@ Left from the owner's Session 64-65 lists (each for a release of its own):
   model too big for the bed with pins or dovetails (boxes have join flanges; `cutFlat` cuts imported models); assembly steps,
   What you'll need and names in 3D for the other multi-part objects; the box's style (edges, textures) on signs, plaques and
   phone cases.
-- **Engine:** (each colour is joined into one solid for the files and the weight since Session 68: E1) the print check on the
-  joined solids;
+- **Engine:** (each colour is joined into one solid for the files and the weight since Session 68: E1; the print check runs on
+  the joined solids since Session 86)
   builds cached per feature (a wall, a post, a cradle) so a drag rebuilds only what moved; every build on the helper thread with
   cancelling and a rough preview first; signed-distance modelling for smooth shapes; one layout solver for Arrange, plates and the
   jigsaw; the picking BVH reused for clash and thin-wall checks; 3MF files with slicer settings and pauses inside (Bambu/Orca's

@@ -3,6 +3,19 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.64.1
+
+Less support, and truer print checks.
+
+**New**
+- **The print check looks at what the files hold.** Once each colour has been joined into one solid (a moment after each change), the **Printability** check runs again on those solids. A face buried where two pieces overlap no longer reads as needing support. The page says *Checked: each colour as one solid, as in the files*.
+- **Raised pictures on a side print without support.** A picture standing out more than 0.8 mm from an upright face steps back in underneath, and a photo relief rises no more steeply than about 40° going up. From the front they look the same. The **Tea light** quick start needed about 100 mm² of support; it needs none now.
+- **Pictures on the Start sidebar** for the mechanisms, the mechanical parts, the flower lamp, fix-it parts and signs, which showed only an emoji.
+
+**Fixed**
+- Raised words, icons or pictures on a project box's wall deeper than 0.8 mm needed support (64 mm² for a word raised 2 mm), though the panel said they didn't. They now step back in underneath at 45°.
+- **Make it all fit** couldn't fix a board on a box's wall that reached down into the floor, and said nothing could. It now moves the board up the wall and makes the box taller if it must.
+
 ## 0.64.0
 
 The blooming flower lamp.

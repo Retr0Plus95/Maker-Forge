@@ -3872,6 +3872,57 @@ asked for in Session 81 for bugs; improvements stand at 26 of 30.
 the 18650 holders, the charge board, the 12 mm switch); check yours. The battery figures are estimates. Nest-box sizes differ by
 country: check local guidance.
 
+## Session 90: arrow nocks, and the owner's projects in Maker Forge (v0.67.0)
+
+The owner, after 0.66.0: "Every project done should be a project incorporated into Maker Forge, maybe add the parametric arrow nock
+maker too", and "show me screenshots of the latest work" (sent: the bird house in the app, its side, its pages, the plates, a
+starling's house, the flower lamp on a battery). There was no nock project to start from; the nock maker is new.
+
+**The owner's rule** is now in CLAUDE.md's conventions, and ROADMAP.md 0.68 "From the workshop" lists the projects found in their
+repositories: the RGB lamp controller (`Retr0Plus95/ESP32-LED-RGB-`: its box is a Maker Forge project,
+`enclosure/rgb-lamp-controller-box.forge.json`), the four-channel bench supply (`Retr0Plus95/FOUR-CHANNEL-PSU`: two Maker Forge
+boxes that bolt together, `case/maker-forge/psu-case-left.json` and `-right.json`, `case/make-case.js`, output plates), and the solder
+fume extractor "Sir Sucks-a-Lot" (`Retr0Plus95/Solder-Fume-Extractor`: two 120 mm PWM fans in line, a mesh and carbon filter tray, a
+front panel with a 1602 LCD and a knob; its case was drawn outside Maker Forge, STLs in the repository root). The first two become
+one-click starts; the fume extractor a fan-and-filter box maker. Those repositories were cloned read-only into this session.
+
+**Arrow nocks** (`PRCore.nock` in `src/core.js`):
+- `NOCK_SETTINGS`: `fit` (insert, taper, over), `shaftId` (only for insert), `shaftOd`, `tight` (± on the shank or the socket),
+  `shank` (how far onto the shaft), `string` (the serving), `snap` (how much narrower the throat is), `depth`, `head`, `index` (the
+  cock-feather ridge), `make` (the nocks or a fit test), `count` (only for the nocks). `nockClean` as the others.
+- `nockPlan`: the head flush with a hollow shaft, or a 1 mm wall round a socket; the seat the string plus 0.1; the throat the string
+  less the snap. A shaft's outside smaller than its inside, or a head too short for the groove, are made to fit and said. A socket's
+  end is pointed at 45° (no ceiling as it prints), so the head holds that point, 1.5 mm and the groove (no warning at the default).
+- `nockSolid`: printed standing on the shaft's end (y = 0), the groove at the top. The body is a `revolve`: the shank with a steep
+  lead-in, or the socket (11° taper, or straight) from the bed to its pointed end. Each ear is a `loft` of slices: the arc of the
+  head's circle beyond the slot's half-width at that height, so the seat is round (sampled by angle), the throat straight and the
+  mouth opened 30°. The ears meet as half disks at the seat's bottom, on the body. The ridge is a box on one ear; a fit test's number
+  is bumps on the other.
+- `nockMake`: the nocks (shared solid, laid out in rows 5 mm apart by their axes, `p.at`), or five fit-test nocks stepping 0.05 mm on
+  the shank or the socket. `nockInfo`: the checks (ears at least 1.2 mm beside the string, the snap at most 0.3 mm, a collar of 0.2 mm
+  or a wall of 0.8), notes (print standing, PETG or nylon, line up the ridge, check every nock before shooting: a broken nock can
+  make the bow dry-fire), the size and the weight in grains (PETG, 1.27 g/cm³).
+- **The app:** `nock` in SHAPES, OBJECT_GROUPS (Functional, 🏹), DEFAULTS, NO_DECALS, the build, the panel (`nockFields`, settings
+  shown only for their choice), `sanitizeProject`, the API (`MakerForge.nock`), a post-build signature for the panel, and the export's
+  `how-to-print-and-use.txt` with a README line.
+
+**Tested** (`npm run test:nock`, new):
+- **Core:** 75 sets (every setting at its ends and every choice, for each fit), 486 nocks: closed, outward, finite, on the bed. Seven
+  nocks need no support.
+- **Rays:** the seat open along the string at its middle and near its bottom, solid under it, wider than the throat; the throat open
+  0.06 mm inside its width and solid 0.08 mm outside (the snap); the ears solid across the string; the shank solid; a socket open to
+  the shaft's size and closed at its end.
+- The fit test's five shanks 0.05 mm apart (measured with rays: 6.10 to 6.30 mm); the weight (about 10.7 grains standard, a 4.2 mm
+  nock 5.1); the checks and warnings; 13 laid out with none on another; the ridge; the notes; cleaning.
+- **App:** six nocks with every check passing; the size and grains in the panel; every slider at both ends (none dead); four choices
+  change the nocks; settings hidden by their choice; a saved project and a hostile one.
+- `node tools-audit.js index.html nock`: no findings. `ONLY=nock npm run check:browser`: the export's how-to file and README line.
+
+**The count:** improvement 27: arrow nocks. Bugs: 10 of 10 (complete since Session 89).
+
+**Still to check:** a real print on real shafts and a real string. The defaults are typical (a 6.2 mm inside, 7.6 mm outside carbon
+shaft; a 2.6 mm serving): print the fit test first. Shoot nothing on a nock you haven't checked.
+
 ## Next
 
 ### The new direction (Session 81, the owner): a mechanical parts library, then the blooming flower lamp

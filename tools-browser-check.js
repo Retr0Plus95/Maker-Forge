@@ -513,6 +513,22 @@ function pageCoverage() {
     if (!bh.ok || bh.open || !bh.zip) findings.push({ where: "bird house", what: JSON.stringify(bh) });
     notes.push(`bird house: ${bh.parts} parts, every check passing ${bh.ok}; the export has the camera's sketch, the steps and the plates: ${bh.zip}`);
   }
+  // arrow nocks (Session 90): six nocks, the export's how-to file and the README line (JSZip runs only in a real browser)
+  if (!ONLY || ONLY.includes("nock")) {
+    const nk = await page.evaluate(async () => {
+      const MF = window.MakerForge, C = MF.core, sleep = ms => new Promise(q => setTimeout(q, ms));
+      const settle = async () => { const r0 = MF.rev; for (let i = 0; i < 40 && MF.rev === r0 && !MF.busy; i++) await sleep(30); for (let i = 0; i < 1200; i++){ if (!MF.busy){ await sleep(60); if (!MF.busy) break; } await sleep(25); } };
+      const sel = document.querySelector("#objectSel"); sel.value = "nock"; sel.dispatchEvent(new Event("change")); await settle();
+      const out = { parts:MF.parts.length, open:MF.parts.reduce((a, p) => a + C.checkMesh(p.solid).open, 0), ok:MF.nock.info.ok, grains:MF.nock.info.size.grains };
+      const zip = await MF.paint.buildZip(MF.exportParts(), "arrow nocks"), how = await zip.file("how-to-print-and-use.txt").async("string"), readme = await zip.file("README.txt").async("string");
+      out.zip = /dry-fire/.test(how) && /grains/.test(how) && /how-to-print-and-use\.txt/.test(readme);
+      return out;
+    });
+    await byText(page, "#tabs button", "make");
+    await shot(page, "arrow-nocks", "Arrow nocks: six, laid out to print standing on the shaft's end", {});
+    if (!nk.ok || nk.open || !nk.zip || nk.parts !== 6) findings.push({ where: "arrow nocks", what: JSON.stringify(nk) });
+    notes.push(`arrow nocks: ${nk.parts} nocks of ${nk.grains} grains, every check passing ${nk.ok}; the export has how to print and use them: ${nk.zip}`);
+  }
   if (!ONLY || ONLY.includes("sign")) {
     const sg = await page.evaluate(async () => {
       const MF = window.MakerForge, C = MF.core, sleep = ms => new Promise(q => setTimeout(q, ms));

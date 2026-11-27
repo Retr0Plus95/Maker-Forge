@@ -511,6 +511,30 @@ It is dim inside a nest box: an OV2640 camera without its infrared filter (sold 
 LEDs takes clearer pictures without disturbing the birds. Put the house up before the nesting season, and check the hole size and
 the height to hang it for birds where you live.
 
+### Arrow nocks
+
+New in 0.67: nocks for the end of an arrow, made to your shafts and your bowstring (**Arrow nocks** in the object list, under
+Functional).
+
+![Arrow nocks: one pushed into a carbon shaft, one on a wooden shaft's taper, one over a straight shaft, and a fit test of five, numbered by the bumps on their sides](docs/images/arrow-nocks.jpg)
+
+- **How it fits the arrow:** it **pushes into a hollow shaft** (carbon or aluminium), **slips onto a wooden shaft's 11° taper** (the
+  taper you cut with a taper tool), or **sleeves over the shaft's end**. Glue the last two on.
+- **The shaft's inside diameter** (for one that pushes in: measure it, or take it from the shaft's chart; often 4.2, 5.2 or 6.2 mm)
+  and **outside diameter**. **Tighter or looser** makes the fit on the shaft firmer or easier, 0.05 mm at a time.
+- **How far it goes onto the shaft**, the **bowstring's serving** (measure it with calipers where the nock sits), **Snap on the
+  string** (how much narrower the throat is than the string, so it clicks on and holds), the **groove depth** and the **head's
+  length** past the shaft.
+- **Cock-feather mark:** a ridge square to the string, to line up with the odd-coloured feather.
+- **Print:** the nocks (up to 24, laid out in rows), or a **fit test**: five nocks 0.05 mm apart, numbered by the bumps on their
+  sides (1 the loosest). Push each onto a shaft and onto the string, and set **Tighter or looser** by the one that grips firmly.
+- The panel says each nock's size and **weight in grains**, and checks the ears are thick enough, the snap isn't too tight and the
+  nock stops on the shaft.
+
+They print standing on the shaft's end with the groove up, so the string's seat is smooth and nothing needs support. Use PETG or
+nylon, 0.12 mm layers and 100% infill. A nock is a wear part: check every one before you shoot and replace any that is cracked or
+loose, because a nock that breaks can make the bow dry-fire.
+
 ## 4. Art: pictures and text
 
 The **Art** tab puts pictures and words on the object.

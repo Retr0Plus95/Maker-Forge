@@ -94,6 +94,8 @@ Plus, depending on what changed:
 - the bird house (`BIRDS`, `BIRD_SETTINGS`, `birdClean`, `birdPlan`, `birdBody`, `birdFront`, `birdLoft`, `birdRoof`, `birdMake`, `birdInfo`, `birdSketch` in `src/core.js`;
   `buildBirdhouse`, `birdFields`, `birdSceneMeshes` in `src/app.html`) → `npm run test:bird` (`CORE=1` for the library only: every setting at its ends for each bird,
   support-free parts, the hole, keyholes, side ports, lens window and roof screws checked with rays, nothing behind the back, the sketch) and `ONLY=birdhouse npm run check:browser`
+- arrow nocks (`NOCK_SETTINGS`, `nockClean`, `nockPlan`, `nockSolid`, `nockMake`, `nockInfo` in `src/core.js`; `buildNock`, `nockFields` in `src/app.html`) → `npm run test:nock`
+  (`CORE=1` for the library only: every setting at its ends for each fit, support-free, the groove, throat, seat and socket checked with rays, the fit test, the weight)
 - photo frames and stands (`frameDims`, `buildPhotoFrame`, `slotStand`, `standFor`) → `npm run test:frame`; signs (`buildSign`, `signMounts`, `withHoles`) → `npm run test:sign`; a relief from a photo (`buildRelief`, `depthOf`, `depthField`,
   `AI_FIGURE.depth`, `ortRuntime`) → `npm run test:relief` (it runs the real depth model when `models/depth-anything-v2-small-int8.onnx`
   is there: not in the repository, 27 MB, the URL and SHA-256 are in `AI_FIGURE`) and `npm run test:photo` (the shared runtime);
@@ -156,3 +158,5 @@ tests accept `CORE=1` for the fast geometry-only part.
   Website repository's own session, not from here (the owner, Session 30).
 - Tests run headlessly only; say clearly when something still needs checking in a real browser,
   slicer or on a real print.
+- Every project the owner finishes becomes part of Maker Forge (the owner, Session 90): an object, a quick start or a recipe,
+  credited to its repository (`Retr0Plus95/...`). The list and the plan are in ROADMAP.md under 0.68 "From the workshop".

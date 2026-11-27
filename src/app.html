@@ -739,7 +739,7 @@ const CONSUMES_ART = { cutter:1, pcb:1, lightbox:1, tracer:1, jigsaw:1, lithopha
 // which of the picture's own settings each of those objects reads; the Art tab shows only these
 const ART_USED_BY = { cutter:["width","mirror","colours","smooth"], lightbox:["mirror","colours","smooth"], enclosure:["mirror","colours","smooth"], phonecase:["mirror","colours","smooth"], card:["mirror","colours","smooth"],
   jigsaw:["mirror","colours","smooth"], pcb:["mirror"], tracer:[], lithophane:["mirror"], canvas:["mirror","colours","smooth"] };
-const SHAPES = [["tracer","Photo to 3D tracer"],["lithophane","Lithophane"],["board","Flat shape"],["nameplate","Name plate & keychain"],["card","Business card"],["mech","Mechanisms"],["parts","Mechanical parts"],["flower","Blooming flower lamp"],["fixit","Fix-it parts"],["sign","Sign"],["relief","3D relief from a photo"],["canvas","Plastic canvas / mosaic"],["jigsaw","Jigsaw puzzle"],
+const SHAPES = [["tracer","Photo to 3D tracer"],["lithophane","Lithophane"],["board","Flat shape"],["nameplate","Name plate & keychain"],["card","Business card"],["mech","Mechanisms"],["parts","Mechanical parts"],["flower","Blooming flower lamp"],["birdhouse","Bird house"],["fixit","Fix-it parts"],["sign","Sign"],["relief","3D relief from a photo"],["canvas","Plastic canvas / mosaic"],["jigsaw","Jigsaw puzzle"],
   ["bobble","Bobble head"],["cutter","Cookie cutter from artwork"],["turned","Turned shape (vase, egg, cone)"],
   ["pcb","Circuit board from a schematic"],["lightbox","Lightbox / shadow box"],["frame","Photo frame"],["shell","Tea light / lantern"],["box","Plaque / box"],["cylinder","Cylinder"],
   ["hex","Hex prism"],["sphere","Sphere"],["enclosure","Project box / enclosure"],["phonecase","Phone case"],["stl","Import a model"],["none","No object"]];
@@ -945,7 +945,8 @@ const DEFAULTS = () => ({
     sign:{ style:"channel", text:"BAR", font:Math.max(0, FONTS.findIndex(f => f.n === "Anton")), letterH:100, depth:25, wall:1.6, back:2,
       diffuser:1, diffuserSlot:0, wallSlot:0, strip:6, backing:"none", margin:10, mount:"keyhole", holes:true, stand:false },
     parts:{ kind:"servoMount", clearance:0.2, set:{} },          // the mechanical parts library (Session 82)
-    flower:{ set:C.flower.clean({}), clearance:0.2, show:"lamp", bloom:0, petalSlot:1 },   // the blooming flower lamp (Session 85): every setting, as a project brings it back
+    flower:{ set:C.flower.clean({}), clearance:0.2, show:"lamp", bloom:0, petalSlot:1 },
+    birdhouse:{ set:C.bird.clean({}), show:"house", roofSlot:1 },   // the bird house (Session 89): every setting, cleaned by the library   // the blooming flower lamp (Session 85): every setting, as a project brings it back
     mech:{ kind:"gears",
       gears:{ teeth1:24, teeth2:12, module:1.5, thick:6, bore:5, boreShape:"d", hub:true, hubDia:12, hubH:4, layout:"apart", angle:20 },
       bolt:{ size:"M10", dia:10, pitch:1.5, af:16, length:25, head:"hex", headH:6.5, nut:true, nutH:8.4 },
@@ -1190,6 +1191,12 @@ function getRecent(){ try { return JSON.parse(localStorage.getItem("makerforge.r
 
 /* ---------- 3. helpers ---------- */
 let noticeTimer = 0;
+// copy to the clipboard and say so. A refusal (the page not focused, or copying not allowed) arrives later, as a rejected promise
+// that a try/catch round the call never sees: it says so too, instead of nothing (Session 89)
+function copyText(txt, done){
+  const no = () => notify("Copying isn't allowed here: use the download instead.");
+  try { navigator.clipboard.writeText(txt).then(() => notify(done), no); } catch (e) { no(); }
+}
 function notify(m){
   if (typeof logLine === "function") logLine(m);
   const n = $("#notice"); n.textContent = m; n.classList.add("show"); clearTimeout(noticeTimer);
@@ -9220,7 +9227,66 @@ function flowerFields(p){
   });
   group(p, "The sketch (Arduino or ESP32)", g2 => {
     note(g2, S.control === "touch" ? "Touch the pad: the flower opens and the light fades in. Touch again: it fades out and closes. The servo is switched off at rest." : "Press the button: the flower opens and the light fades in. Again: it fades out and closes. The servo is switched off at rest.");
-    buttonRow(g2, [["Download flower-lamp.ino", ()=>offerDownload("flower-lamp.ino", I.sketch, "text/plain")], ["Copy it", ()=>{ navigator.clipboard && navigator.clipboard.writeText(I.sketch).then(()=>notify("The sketch is on the clipboard.")).catch(()=>notify("Copying isn't allowed here: use Download.")); }]]);
+    buttonRow(g2, [["Download flower-lamp.ino", ()=>offerDownload("flower-lamp.ino", I.sketch, "text/plain")], ["Copy it", ()=>copyText(I.sketch, "The sketch is on the clipboard.")]]);
+  });
+}
+// ---- the bird house (Session 89): PRCore.bird makes every part, the house put together, the checks, the list and the camera's sketch ----
+let birdInfo = null, renderedBirdSig = "", birdView = { key:"", meshes:[], mats:{} };
+function birdCleanSet(H){
+  if (!H.set || typeof H.set !== "object" || Array.isArray(H.set)) H.set = {};
+  const cl = C.bird.clean(H.set);
+  Object.keys(H.set).forEach(k => { if (!(k in cl)) delete H.set[k]; });
+  Object.assign(H.set, cl);
+}
+const birdRoofSlot = () => clamp(Math.round(+state.base.birdhouse.roofSlot || 0), 0, state.slots.length - 1);
+function buildBirdhouse(){
+  const H = state.base.birdhouse; birdCleanSet(H);
+  const r = C.bird.make(H.set);
+  birdInfo = r; birdView.key = "";
+  const body = clamp(state.base.slot || 0, 0, state.slots.length - 1), list = [];
+  r.printed.forEach(q => list.push({ name:q.name, slot:q.key === "roof" || q.key === "frame" ? birdRoofSlot() : body, solid:q.solid, role:"part", key:q.key }));
+  // laid out on plates of the bed (the box maker's packer), so the files print as they are
+  encPackPlates(list, state.printer.bed || [256, 256, 256]);
+  list.forEach(q => { const o = q.layout; q.solid = C.transformSolid(q.solid, 1, o[0], o[1], o[2]); delete q.layout; });
+  return list;
+}
+// the house put together, drawn instead of the plates (never printed: the files are the plates)
+function birdSceneMeshes(){
+  const H = state.base.birdhouse, key = `${birdInfo ? JSON.stringify(birdInfo.settings) : ""}|${state.slots.map(x => x.hex).join()}|${birdRoofSlot()}|${state.base.slot}`;
+  if (birdView.key === key) return birdView.meshes;
+  birdView.meshes.forEach(m => m.geometry.dispose());
+  const A = birdInfo.assembly(), body = clamp(state.base.slot || 0, 0, state.slots.length - 1);
+  const bought = c => birdView.mats[c] || (birdView.mats[c] = new THREE.MeshStandardMaterial({ color:c, roughness:0.5, metalness:0.2, flatShading:true }));
+  birdView.meshes = A.parts.map(q => {
+    const mat = q.role === "roof" ? slotMat(birdRoofSlot()) : q.role === "body" ? slotMat(body) : bought(q.colour || "#9aa0a6");
+    const m = new THREE.Mesh(solidToGeometry(q.solid), mat); m.raycast = () => {}; m.userData.housePart = q.name; return m;
+  });
+  birdView.key = key;
+  return birdView.meshes;
+}
+const BIRD_LABELS = { bird:k => C.bird.birds[k].label, keyholes:k => k === "two" ? "Two keyholes" : "One keyhole", camera:k => k === "none" ? "None" : "ESP32-CAM, looking down at the nest",
+  sensor:k => k === "none" ? "None" : "AM312, beside the camera", power:k => ({ "18650":"One 18650 cell, charged by USB-C", "2x18650":"Two 18650 cells, charged by USB-C", usbc:"A USB-C socket (5 V)", none:"None" })[k],
+  solar:k => k === "none" ? "None" : C.bird.solar[k].label };
+function birdFields(p){
+  const H = state.base.birdhouse, spec = C.bird.settings; birdCleanSet(H);
+  const S = H.set, I = birdInfo && birdInfo.info;
+  segField(p, [["house","The house"],["plates","Parts to print"]], ()=>H.show === "plates" ? "plates" : "house", v=>{ H.show = v; renderTab(); refreshScene(); }, "two");
+  for (const [k, sp] of Object.entries(spec)){
+    if (k === "visits" && !(I && I.life)) continue;                               // only with a camera on a battery
+    if (Array.isArray(sp)) numField(p, { label:sp[4], min:sp[1], max:sp[2], step:sp[3], get:()=>S[k], set:v=>S[k] = v, onChange:baseChanged,
+      sub:k === "visits" ? ()=>birdInfo && birdInfo.info.life ? `About ${birdInfo.info.life.days} days on a charge (${birdInfo.info.life.perDay} mAh a day)${birdInfo.info.life.solar ? `; the panel brings about ${birdInfo.info.life.solar} mAh on a sunny day` : ""}.` : "" : undefined });
+    else selField(p, sp.label, sp.opts.map(o => [o, BIRD_LABELS[k] ? BIRD_LABELS[k](o) : o]), ()=>S[k], v=>{ S[k] = v; renderTab(); baseChanged(); });
+  }
+  if (state.slots.length > 1) selField(p, "Roof's filament", state.slots.map((x, i) => [String(i), `${i + 1}: ${x.name}`]), ()=>String(birdRoofSlot()), v=>{ H.roofSlot = +v; baseChanged(); });
+  if (!I) return;
+  I.warn.forEach(w => note(p, `<b>Note:</b> ${esc(w)}`));
+  note(p, `<b>Inside ${I.size.inside.join(" × ")} mm; outside about ${I.size.outside.join(" × ")} mm.</b>`);
+  group(p, "Checks", g2 => I.checks.forEach(q => note(g2, `${q.ok ? "✓" : "✗"} ${esc(q.name)} (${esc(q.why)}).`)), true);
+  group(p, "What you'll need", g2 => note(g2, I.bom.map(([n, w]) => `${n} × ${esc(w)}`).join("<br>")), true);
+  group(p, "Print and put together", g2 => { I.notes.forEach(n => note(g2, esc(n))); note(g2, I.steps.map((t, k) => `${k + 1}. ${esc(t)}`).join("<br>")); });
+  if (I.sketch) group(p, "The camera's sketch (ESP32-CAM)", g2 => {
+    note(g2, S.sensor !== "none" ? "It sleeps until the motion sensor sees the bird, then takes a few photos onto the microSD card and sleeps again." : "With no motion sensor it wakes every 10 minutes for a photo.");
+    buttonRow(g2, [["Download birdhouse-camera.ino", ()=>offerDownload("birdhouse-camera.ino", I.sketch, "text/plain")], ["Copy it", ()=>copyText(I.sketch, "The sketch is on the clipboard.")]]);
   });
 }
 function mechFields(p){
@@ -9870,7 +9936,7 @@ function heightOf(d, slot){
 // artwork cut into the object (Session 32): "engrave" cuts it in, "inlay" cuts it in and fills the cut with the
 // artwork's colours, flush with the surface. Its solids are then the cutters: from CUT_OUT above the surface (so the
 // whole surface is cut, also between the points it was laid on) to its depth below it
-const CUT_OUT = 0.6, NO_DECALS = { jigsaw:1, lithophane:1, enclosure:1, phonecase:1, card:1, mech:1, parts:1, flower:1, fixit:1, sign:1, relief:1 };
+const CUT_OUT = 0.6, NO_DECALS = { jigsaw:1, lithophane:1, enclosure:1, phonecase:1, card:1, mech:1, parts:1, flower:1, birdhouse:1, fixit:1, sign:1, relief:1 };
 let cutBlocked = "";                                 // why artwork cannot be cut into this model ("open", "load"), or ""
 const cutWanted = d => d.enabled !== false && d.mode !== "relief" && (d.cut === "engrave" || d.cut === "inlay") && !NO_DECALS[state.base.type];
 const cutMode = d => baseSoup && !cutBlocked && cutWanted(d) ? d.cut : null;
@@ -12196,6 +12262,7 @@ async function rebuildAll(resetItems, mode){
     else if (t === "mech") parts = buildMech();
     else if (t === "parts") parts = buildMechParts();
     else if (t === "flower") parts = buildFlower();
+    else if (t === "birdhouse") parts = buildBirdhouse();
     else if (t === "fixit") parts = buildFixit();
     else if (t === "sign") parts = await buildSign();
     else if (t === "relief") parts = buildRelief();
@@ -12237,7 +12304,7 @@ async function rebuildAll(resetItems, mode){
       if (d.enabled === false){ d.solids = null; continue; }
       if (t === "jigsaw"){ d.solids = null; continue; }      // a decal across the pieces would glue them together
       if (t === "lithophane"){ d.solids = null; continue; }  // other artwork would only cast a shadow on it
-      if (t === "mech" || t === "parts" || t === "flower" || t === "fixit" || t === "sign" || t === "relief"){ d.solids = null; continue; }   // parts that fit: a picture on them would spoil the fit
+      if (t === "mech" || t === "parts" || t === "flower" || t === "birdhouse" || t === "fixit" || t === "sign" || t === "relief"){ d.solids = null; continue; }   // parts that fit: a picture on them would spoil the fit
       if (t === "enclosure"){ d.solids = null; continue; }   // not stamped on boxes yet
       if (t === "phonecase"){ d.solids = null; continue; }   // a case takes its picture as an inlay in the back
       if (t === "card"){ d.solids = null; continue; }        // a card takes its picture as its logo
@@ -12288,6 +12355,12 @@ async function rebuildAll(resetItems, mode){
       if (sig !== renderedFlowerSig){ const a = document.activeElement, inPanel = a && a.closest && a.closest("#panel") && a.matches("input,textarea,select");
         if (!inPanel){ renderedFlowerSig = sig; renderTab(); } else a.addEventListener("blur", () => { if (tab === "make" && state.base.type === "flower"){ renderedFlowerSig = sig; renderTab(); } }, { once:true }); }
     }
+    // the bird house (Session 89): its checks, notes, sizes, list and battery's life follow the settings
+    if (t === "birdhouse" && tab === "make" && birdInfo){
+      const I = birdInfo.info, sig = JSON.stringify([I.checks, I.warn, I.size, I.bom, I.life, !!I.sketch]);
+      if (sig !== renderedBirdSig){ const a = document.activeElement, inPanel = a && a.closest && a.closest("#panel") && a.matches("input,textarea,select");
+        if (!inPanel){ renderedBirdSig = sig; renderTab(); } else a.addEventListener("blur", () => { if (tab === "make" && state.base.type === "birdhouse"){ renderedBirdSig = sig; renderTab(); } }, { once:true }); }
+    }
     if (t === "enclosure" && tab === "make" && enclosureInfo){
       const sig = encPanelSig(enclosureInfo);
       if (sig !== renderedEncWarn){
@@ -12326,7 +12399,8 @@ function refreshScene(){
   while (modelGroup.children.length) modelGroup.children.pop();
   const box = new THREE.Box3();
   const lampView = state.base.type === "flower" && flowerInfo && state.base.flower.show !== "plates" && !viewOpts.layout && modelParts.length;
-  if (lampView) flowerSceneMeshes().forEach(m => { m.geometry.computeBoundingBox(); box.union(m.geometry.boundingBox); modelGroup.add(m); });
+  const houseView = state.base.type === "birdhouse" && birdInfo && state.base.birdhouse.show !== "plates" && !viewOpts.layout && modelParts.length;
+  if (lampView || houseView) (lampView ? flowerSceneMeshes() : birdSceneMeshes()).forEach(m => { m.geometry.computeBoundingBox(); box.union(m.geometry.boundingBox); modelGroup.add(m); });
   else modelParts.forEach((p,i)=>{
     const mesh = new THREE.Mesh(p.geom, p.paint ? paintMat() : slotMat(p.slot));
     mesh.userData.part = i; mesh.raycast = boxedRaycast;
@@ -13105,6 +13179,7 @@ document.querySelectorAll(".viewtools button[title]").forEach(b => { if (!b.getA
    active page is shown, so panels stay short, and the active page plus its scroll position are
    remembered per tab and object, so changing a setting never loses your place. */
 const SECTION_ICONS = [
+  [/put together/i,"🔧"], [/sketch/i,"⌨"],      // the flower lamp's and the bird house's steps and their boards' sketches (Session 89)
   [/^plan of the inside/i,"⊞"], [/^heat and air/i,"♨"], [/^battery life/i,"🔋"], [/^outdoors$/i,"☂"], [/^templates and drawings/i,"⌖"], [/^start from a recipe/i,"★"], [/^style$/i,"✎"], [/^wiring$/i,"⌇"],
   [/^art, words and icons/i,"✦"], [/^floor, names and extras/i,"▦"], [/^what you'll need/i,"≡"],
   [/hanging hole/i,"◎"], [/^thickness$/i,"⇕"], [/^feet$/i,"⊥"], [/cut it flat/i,"✂"],
@@ -13294,7 +13369,7 @@ const OBJECT_GROUPS = [
   ["Personalise", [["nameplate","🔑"],["card","💳"],["sign","🔤"],["board","🏷️"],["frame","🖼️"],["box","🪧"]]],
   ["From a picture", [["tracer","📐"],["relief","🗿"],["lithophane","🌅"],["jigsaw","🧩"],["cutter","🍪"],["pcb","🔌"],["lightbox","💡"],["canvas","🧶"]]],
   ["Figures and décor", [["bobble","🙂"],["shell","🕯️"],["turned","🏺"]]],
-  ["Functional", [["enclosure","🧰"],["phonecase","📱"],["mech","⚙️"],["parts","🔩"],["flower","🌷"],["fixit","🔧"]]],
+  ["Functional", [["enclosure","🧰"],["phonecase","📱"],["mech","⚙️"],["parts","🔩"],["flower","🌷"],["birdhouse","🐦"],["fixit","🔧"]]],
   ["Basic shapes", [["cylinder","🥫"],["hex","⬢"],["sphere","⚪"]]],
   ["Bring your own", [["stl","📦"],["none","✦"]]]
 ];
@@ -13359,7 +13434,7 @@ function tabMake(p){
   ({ nameplate:nameplateFields, canvas:canvasFields, bobble:bobbleFields, cutter:cutterFields, turned:turnedFields,
      pcb:pcbFields, lightbox:lightboxFields, tracer:tracerFields, jigsaw:jigsawFields, lithophane:lithophaneFields,
      board:boardFields, frame:frameFields, shell:shellFields, box:boxFields, cylinder:cylFields, hex:hexFields,
-     sphere:sphereFields, enclosure:enclosureFields, phonecase:phonecaseFields, card:cardFields, mech:mechFields, parts:partsFields, flower:flowerFields, fixit:fixitFields, sign:signFields, relief:reliefFields, stl:stlFields, none:noneFields })[b.type](p);
+     sphere:sphereFields, enclosure:enclosureFields, phonecase:phonecaseFields, card:cardFields, mech:mechFields, parts:partsFields, flower:flowerFields, birdhouse:birdFields, fixit:fixitFields, sign:signFields, relief:reliefFields, stl:stlFields, none:noneFields })[b.type](p);
   if (!["none","bobble","lightbox","jigsaw","enclosure"].includes(b.type))
     slotField(p, "Object filament", ()=>String(b.slot), v=>{ b.slot = +v; baseChanged(); });
   buttonRow(p, [["Change the object →", ()=>{ setSide("right", true); const el = $("#objectSel"); if (el) el.focus(); }]]);
@@ -15464,7 +15539,7 @@ function enclosureFields(p){
   // what to have ready (Session 54)
   if (I && I.need && I.need.length) group(p, "What you'll need", g => {
     note(g, I.need.map(([n, w]) => `• ${n} × ${esc(w)}`).join("<br>"));
-    const copy = (txt, what) => { try { navigator.clipboard.writeText(txt).then(() => notify(what)); } catch (e) { notify("Copying isn't allowed here."); } };
+    const copy = copyText;
     buttonRow(g, [["Copy the list", ()=>copy(I.need.map(([n, w]) => `${n} x ${w}`).join("\n"), "The list is copied.")],
       ["Copy for a spreadsheet (CSV)", ()=>copy(["Quantity,Item", ...I.need.map(([n, w]) => `${n},"${String(w).replace(/"/g, '""')}"`)].join("\n"), "The list is copied as CSV: paste it into a spreadsheet.")]]);
     note(g, "The parts for the openings (sockets, switches, screens, glands) are listed too, as typical parts: check yours against the sizes on the Openings page.");
@@ -15472,7 +15547,7 @@ function enclosureFields(p){
   // how to put it together (Session 62), step by step from the box as it is; also in the download
   if (I && !E.test){ const steps = encAssembly(); if (steps.length) group(p, "How to put it together", g => {
     g.insertAdjacentHTML("beforeend", `<ol class="hint" style="padding-left:20px;margin:4px 0">${steps.map(t2 => `<li style="margin:3px 0">${esc(t2)}</li>`).join("")}</ol>`);
-    buttonRow(g, [["Copy the steps", ()=>{ try { navigator.clipboard.writeText(steps.map((t2, k) => `${k + 1}. ${t2}`).join("\n")).then(() => notify("The steps are copied.")); } catch (e) { notify("Copying isn't allowed here."); } }]]);
+    buttonRow(g, [["Copy the steps", ()=>copyText(steps.map((t2, k) => `${k + 1}. ${t2}`).join("\n"), "The steps are copied.")]]);
     note(g, "The download has them too, as how-to-assemble.txt.");
   }); }
   group(p, "Feet", g => {
@@ -15739,12 +15814,12 @@ function enclosureFields(p){
     const ok = info.filter(q => q.ok);
     if (ok.length){ const tot = {}; ok.forEach(q => { tot[q.colour] = (tot[q.colour] || 0) + q.len; });
       note(g, `<b>Wire to cut:</b> ${Object.entries(tot).map(([c, l]) => `${esc(c)} ${l} mm`).join(", ")} (with 10% and 20 mm to spare on each).`);
-      buttonRow(g, [["Copy the wiring list", ()=>{ try { navigator.clipboard.writeText(encWiringText(E, I).join("\n")).then(() => notify("The wiring list is copied.")); } catch (e) { notify("Copying isn't allowed here."); } }]]); }
+      buttonRow(g, [["Copy the wiring list", ()=>copyText(encWiringText(E, I).join("\n"), "The wiring list is copied.")]]); }
     checkField(g, "Show the wires in the plan", ()=>viewOpts.boxWires !== false, v=>{ viewOpts.boxWires = v; renderTab(); });
     // a firmware starter from the wiring (Session 64)
     const fw = wires.length ? encFirmware(E, I, "my box") : null;
     if (fw && fw.n){ note(g, fw.kind === "esphome" ? `<b>Firmware:</b> an ESPHome starter with a component for each part wired to the board (the download has it as esphome.yaml). Check every pin before you flash it.` : `<b>Firmware:</b> the pins as Arduino #defines (pins.h in the download).`);
-      buttonRow(g, [[fw.kind === "esphome" ? "Copy the ESPHome starter" : "Copy the pins", ()=>{ try { navigator.clipboard.writeText(fw.text.join("\n")).then(() => notify("Copied: paste it into a new file.")); } catch (e) { notify("Copying isn't allowed here."); } }]]); }
+      buttonRow(g, [[fw.kind === "esphome" ? "Copy the ESPHome starter" : "Copy the pins", ()=>copyText(fw.text.join("\n"), "Copied: paste it into a new file.")]]); }
   }, Array.isArray(E.wires) && E.wires.length > 0);
   // the inside of the box (Session 46): the parts shown, levels and dividers
   group(p, "Inside: levels and dividers", g => {
@@ -19128,6 +19203,11 @@ function sanitizeProject(data){
     st.base.flower = { set:C.flower.clean(Fp.set), clearance:Math.min(1, Math.max(0, cleanNum(Fp.clearance, 0.2))), show:Fp.show === "plates" ? "plates" : "lamp",
       bloom:Math.min(1, Math.max(0, cleanNum(Fp.bloom, 0))), petalSlot:Math.min(15, Math.max(0, Math.round(cleanNum(Fp.petalSlot, 1)))) };
   }
+  // the bird house (Session 89): its settings cleaned by the library, the view's choice and the roof's filament kept in range
+  if (st.base && "birdhouse" in st.base){
+    const Hp = st.base.birdhouse && typeof st.base.birdhouse === "object" && !Array.isArray(st.base.birdhouse) ? st.base.birdhouse : {};
+    st.base.birdhouse = { set:C.bird.clean(Hp.set), show:Hp.show === "plates" ? "plates" : "house", roofSlot:Math.min(15, Math.max(0, Math.round(cleanNum(Hp.roofSlot, 1)))) };
+  }
   if (st.base && st.base.enclosure && typeof st.base.enclosure === "object"){
     const E = st.base.enclosure, one = (v, list) => list.includes(v) ? v : list[0];
     E.lid = one(E.lid, ["screw","press","magnet","slide","none","twist"]); E.postStyle = one(E.postStyle, ["full","hang"]); E.snap = E.snap === true; E.hinge = E.hinge === true; E.gasket = [1.5, 2, 2.5, 3].includes(+E.gasket) ? +E.gasket : 0; E.fasten = one(E.fasten, ["insert","screw","nut","none"]); E.head = one(E.head, ["sink","bore","plain"]);
@@ -19487,6 +19567,9 @@ async function buildZip(parts, title, unjoined){
   const fl = state.base.type === "flower" && flowerInfo ? flowerInfo.info : null;
   if (fl){ zip.file("flower-lamp.ino", fl.sketch);
     zip.file("how-to-assemble.txt", [`How to put ${title} together`, "", ...fl.notes, "", ...fl.assembly.map((t, k) => `${k + 1}. ${t}`), "", "What you'll need:", ...fl.bom.map(([n, w]) => `  ${n} x ${w}`)].join("\r\n")); }
+  const bh = state.base.type === "birdhouse" && birdInfo ? birdInfo.info : null;
+  if (bh){ if (bh.sketch) zip.file("birdhouse-camera.ino", bh.sketch);
+    zip.file("how-to-assemble.txt", [`How to put ${title} together`, "", ...bh.notes, "", ...bh.steps.map((t, k) => `${k + 1}. ${t}`), "", "What you'll need:", ...bh.bom.map(([n, w]) => `  ${n} x ${w}`)].join("\r\n")); }
   if (asm.length) zip.file("how-to-assemble.txt", [`How to put ${title} together`, "", ...asm.map((t, k) => `${k + 1}. ${t}`), "",
     ...(enclosureInfo.need && enclosureInfo.need.length ? ["What you'll need:", ...enclosureInfo.need.map(([n, w]) => `  ${n} x ${w}`)] : [])].join("\r\n"));
   if (state.base.type === "jigsaw" && jigsawInfo) zip.file("cad/puzzle-cut-lines.svg", C.jigsawSVG(jigsawInfo.cut, title));
@@ -19516,6 +19599,7 @@ async function buildZip(parts, title, unjoined){
     ...(cardNfcText(title) ? ["An NFC tag goes inside: nfc-tag.txt says where to pause and put it in."] : []),
     ...(asm.length ? ["A project box: how-to-assemble.txt has the steps and what you'll need."] : []),
     ...(fl ? ["The flower lamp: how-to-assemble.txt has the steps and what you'll need; flower-lamp.ino is the sketch for the board."] : []),
+    ...(bh ? [`The bird house: how-to-assemble.txt has the steps and what you'll need${bh.sketch ? "; birdhouse-camera.ino is the sketch for the camera" : ""}.`] : []),
     ...(wiring ? ["wiring.txt lists every wire, end to end, with its colour and length."] : []),
     ...(state.base.type === "enclosure" && (state.base.enclosure.cut || []).length && !state.base.enclosure.test ? ["cad/faces-drilling-templates.svg has each face with its openings at true size: print it at 100% and tape it on a bought box to drill. cad/faces.dxf is the same for CAD or a laser cutter."] : []),
     ...(fw ? [fw.kind === "esphome" ? "esphome.yaml is a starting point for the firmware (ESPHome), from the wiring: check every pin." : "pins.h has the pins from the wiring as Arduino #defines: check every pin."] : []),
@@ -19832,6 +19916,7 @@ window.MakerForge = {
   get jigsaw(){ return jigsawInfo; },
   get mechParts(){ return partsInfo; },
   get flower(){ return flowerInfo; }, flowerAnimate,
+  get birdhouse(){ return birdInfo; },
   get lithophane(){ return lithoInfo; },
   get print(){ return printFresh() ? printInfo : null; },
   printNow: runPrintability, optimize: optimizePrint, revertOptimize, exportParts,

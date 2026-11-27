@@ -471,6 +471,46 @@ New in 0.64: a lamp whose petals open and light up when you touch it, and close 
 
 Typical sizes for the servo, the ring and the board: check yours, and tune the printer clearance with the fit test.
 
+### The bird house
+
+New in 0.66: a nest box sized for its bird, with a loft under the roof for a camera that looks down at the nest (**Bird
+house** in the object list, under Functional). It hangs flat on a wall or a tree from a keyhole in the back.
+
+![The bird house: put together, with the solar panel on the roof and the switch and charging port on its right-hand side; the loft from above with the roof off (the battery, the camera, the motion sensor at the front, the charge board and the switch on the right); and cut down the middle, the camera looking down at the nest](docs/images/birdhouse.jpg)
+
+- **The house or Parts to print:** the view shows the house put together, or the parts laid out on your bed. The files you
+  export are always the parts laid out to print.
+- **For:** a blue tit or coal tit (25 mm hole), a great tit or tree sparrow (28 mm), a house sparrow (32 mm), a starling (45 mm),
+  or an open front for robins and wrens. Each has its floor size, and the hole's bottom at least 125 mm over the floor (150 for a
+  starling) so a cat's paw can't reach the chicks. There is no perch: perches help predators, not the birds.
+- **More room inside** and **Taller inside** make the house bigger; **Walls** sets their thickness; **Guard round the hole** adds a
+  tube round the hole so a woodpecker or a cat can't reach in; **Roof over the front** and **Roof slope**. The roof slopes down to
+  the front, so rain runs off over the hole and away from the wall.
+- **Hang it by** one keyhole or two. Each has a pocket behind it for the screw's head, closed on the inside.
+- **Camera** (an ESP32-CAM, face down in a frame in the loft, its lens in a window in the ceiling), **Motion sensor** (an AM312,
+  its dome down through the ceiling towards the entrance), **Power** (one or two 18650 cells with a charge board and a switch, a
+  USB-C socket for a 5 V cable, or none) and **Solar panel** (a small or large 5 V panel in a frame glued on the roof; it needs a
+  battery). The switch and the charging port are on the right-hand side under the roof's edge, so you can reach them with the
+  house hung up, and the back stays flat. With no camera there is nothing to power, so the sensor, the battery and the panel are
+  left out.
+- **Visits a day:** with a camera on a battery, the panel says about how long a charge lasts, and how much a sunny day's sun
+  brings with a panel (typical figures, not measured).
+- **Roof's filament:** the roof and the panel's frame can print in another filament.
+- **How it goes together:** the front slides down grooves in the sides, ridges on its inside help the fledglings climb out, and a
+  notch at its top lets you lift it. The loft sits on the body, screwed to four corner columns, which also holds the front in. The
+  roof's rim fits over the loft and two screws hold it. To clean it out in autumn, take off the roof and the loft and slide the
+  front up. Drain holes in the floor and slots under the roof let it breathe.
+- **Checks:** the floor is big enough for the bird, the hole is high enough, and the camera sees the whole floor.
+  **What you'll need**, **Print and put together** (print it in PETG or ASA in a light colour; every part prints with no support).
+- **The camera's sketch:** **Download birdhouse-camera.ino** for the Arduino IDE (board: AI Thinker ESP32-CAM). It sleeps until the
+  motion sensor sees a bird, takes three photos onto the microSD card and sleeps again (with no sensor, a photo every 10 minutes).
+  After a power cut it carries on numbering after the last photo, and the board's white flash stays off. The export has it too,
+  with **how-to-assemble.txt**.
+
+It is dim inside a nest box: an OV2640 camera without its infrared filter (sold as night vision) with one or two 850 nm infrared
+LEDs takes clearer pictures without disturbing the birds. Put the house up before the nesting season, and check the hole size and
+the height to hang it for birds where you live.
+
 ## 4. Art: pictures and text
 
 The **Art** tab puts pictures and words on the object.

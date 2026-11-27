@@ -30,6 +30,8 @@ const EXPECTED_DEAD = [
   [/^Look at the layer at/, "shows one layer of the model (the section cut), it does not change it"],
   // the flower lamp (Session 85): the bloom turns the picture of the lamp; the files are always the parts laid out to print
   [/^Bloom \(%\)/, "turns the picture of the lamp; the files are always the parts to print", () => win.MakerForge.state.base.type === "flower"],
+  // the bird house (Session 89): the visits a day only change the battery's days on the panel
+  [/^Visits a day/, "changes how long the battery lasts on the panel, not the parts", () => win.MakerForge.state.base.type === "birdhouse"],
   [/^Show problem areas/, "this model has nothing to mark", () => { const p = win.MakerForge.print; return p && !p.marks.support.length && !p.marks.fine.length && !p.thin.length; }],
   [/^Brush size/, "only sets the size of the next brush stroke"],
   [/^(Stop at edges sharper than|Only paint the side facing me|Mirror my strokes|Repeat round the middle|Smart brush|An edge is sharp)/, "sets how the next brush stroke or fill works"],

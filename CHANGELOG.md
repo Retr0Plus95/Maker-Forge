@@ -3,6 +3,29 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.66.0
+
+The bird house.
+
+**New**
+- **A bird house** (Functional, in the object list):
+  - sized for its bird: blue tits to starlings, or an open front for robins and wrens;
+  - the hole high enough that a cat can't reach in, with a guard round it, and no perch;
+  - the front slides out for cleaning, with ridges inside so the fledglings can climb out;
+  - the roof slopes down to the front, and the house hangs flat from one keyhole or two.
+- **A camera in the loft:**
+  - an ESP32-CAM looks down at the nest, and an AM312 motion sensor wakes it;
+  - one or two 18650 cells with a charge board, or a USB-C socket, and a solar panel on the roof;
+  - the switch and the charging port are on the side, so you can reach them with the house hung up;
+  - the panel says how long a charge lasts.
+  - **Download birdhouse-camera.ino:** it takes three photos onto the microSD card for each visit, then sleeps.
+- The checks (the floor, the hole's height, what the camera sees), what you'll need and the steps. Every part prints without
+  support.
+- The flower lamp's and the bird house's **Print and put together** and **sketch** pages have their own icons on the side rail.
+
+**Fixed**
+- In the project box maker, **Copy the list**, **Copy the steps**, **Copy the wiring list** and **Copy the pins** (or the ESPHome starter) said nothing when the browser refused to copy (the page not in front, or copying not allowed). They now say so, and point to the download.
+
 ## 0.65.0
 
 The flower lamp's power and servos.

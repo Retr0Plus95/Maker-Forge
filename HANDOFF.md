@@ -3332,6 +3332,43 @@ The panel and the quick starts always go through `newOpening`, and project files
 - `npm run test:enclosure`, `node tools-boxfuzz.js index.html`, the smoke test, and `npm run fingerprint`: all 55 unchanged (no
   quick start has a cradled board with an opening in front of it).
 
+## Session 80: a cover over plugs (v0.62.8)
+
+The owner's power bank case (Session 79) goes on the bird house and feeds the camera box over a USB cable. Asked how, they chose
+the cable plugged in inside and leaving through a hole under a cover, and charging through the micro-USB under a cover. Their
+board has both ports on one end, so the end with the charging port is at the wall and the USB-A is too: the camera's cable plugs
+into the wall's USB-A opening, and one cover goes over both, like an outdoor socket's. (A panel socket on a lead, with the board
+turned round, would keep the plug inside; said so to the owner.)
+
+**Why a separate part.** A rain hood (Session 65) is part of the wall with its underside at 45°, so it reaches out only as far as
+it rises: about 11 mm above the openings on a 29 mm box, and a plug needs 30. The cover prints on its own, roof-down.
+
+**What it is** (`src/app.html`, after the openings are placed in `buildEnclosure`; `ENC_COVER`): the wall openings marked `cover`
+on one wall share one cover, spanning them 5 mm wider each side, its roof 3 mm over the highest, its sides from the box's bottom
+to the roof, and its front from the roof down to 2 mm over the lowest opening's top (at least 3 mm), so a plug still goes in from
+the front. `E.coverDepth` (15–60, default 30) is the room out from the wall. A 9 mm tab on each side has a 3.4 mm square hole,
+and the wall a 2.5 mm pilot hole there into a rib inside (8 mm wide, 6 deep, from the floor to 5 mm over the hole, a square hole
+through it), built from boxes so nothing needs a boolean. The part goes in front of the box with the battery doors, as
+`Plug cover (<face>)`, in the box's filament. It needs room on the wall's flat part and under the top, and no other opening or a
+mounting part where its tabs go; else it is left out with a warning. A covered opening's label may sit under the cover (its
+`taken` entry names the openings it covers); its sides and tabs still keep labels off. What you'll need lists the two screws.
+The panel: **Cover over it, for plugs (outdoors)** under each wall opening's rain hood box, and **Cover depth** while one is on.
+`sanitizeProject` keeps `cover` only when it is `true`, and `LIMITS_AT` holds `enclosure.coverDepth` to 15–60.
+
+The box must hang floor down for the cover to open downwards: screw ears on the sides put the floor against the wall (and on
+the owner's case they sit on the right side, where the ports are), so the case uses hanging tabs above the back.
+
+**Tested:**
+- `tools-boxplus-test.js`, new section: the owner's case, both ports covered. One closed part with no warnings; roof-down on the bed;
+  as tall as it stands and as deep as asked; a clear line through each tab's hole and through the wall's pilot hole into its rib,
+  with the rib round it; the two screws listed; the plugs still reach the board; no support. Cover depth 45 makes it 47 mm deep;
+  unticked, the cover and its screws go. An opening at the end of a wall gets a warning and no cover. A saved project keeps the
+  cover and its depth; a hostile one drops `cover: "yes"` and clamps a depth of 10⁹ to 60.
+- `npm run test:enclosure`, `npm run test:project`, `node tools-boxfuzz.js index.html`, the smoke test, and `npm run fingerprint`.
+
+Left to do: a cover for a shaped box (its walls go through `G.frame`; for now it is left out with a warning), and one on the floor or the lid. The owner's case is
+in this session's scratchpad, not in the repository.
+
 ## Next
 
 **The plan from here to 2.5 is in `ROADMAP.md`** (Session 66, the owner's request): releases 0.58 to 0.95, 1.0, the parametric

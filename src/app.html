@@ -993,7 +993,7 @@ const DEFAULTS = () => ({
     enclosure:{ w:100, d:64, h:36, wall:2, floor:2, radius:4, lid:"screw", lidThick:2.4, lipH:3, lipW:1.2, fit:storedFit("lid", 0.2),
       fasten:"insert", screw:"M3", head:"sink", postStyle:"full", snap:false, hinge:false, gasket:0, teardrop:"flat", grow:true, lensSlot:0, clear:storedFit("clear", 0.2), magnet:"6x2", feet:"none", footSize:"8", footDepth:1,
       mount:"none", earN:2, tabN:2, earHole:4.5, earT:3, strapW:12, strapT:2.5, strapDir:"across",
-      labelH:4, labelLine:0.6, labelDepth:0.4, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
+      labelH:4, labelLine:0.6, labelDepth:0.4, coverDepth:30, logo:{ on:false, mode:"inlay", width:40, x:0, y:0, depth:0.6 }, test:false,
       split:"bed", splitParts:2, splitScrew:"M3",
       board:"none", boardX:0, boardY:0, boardRot:false, boardHold:"holes", boardLvl:0, boardGrip:"ribs", boardPins:false, more:[], levels:[], walls:[], ducts:[], art:[], pull:false, partNames:false, floorGrid:0, ductCover:false, spacers:0, spacerH:5, spacerScrew:"M3", tieMounts:0, batW:60, batD:35, batT:10, anchors:{ n:0, where:"back" }, showParts:true, standH:5, bw:60, bd:40, bsx:52, bsy:32, bscrew:"M3", boxSlot:1, lidSlot:1,
       // every key newOpening gives, so a saved box opens exactly as it was
@@ -3840,6 +3840,10 @@ function encRim(x, y, w, d, g, f, z0, z1, gapsX, gapsY, bounds){
 // at its standoff height), and the rim round it, rising 1.2 mm above the board, with a finger gap in the middle of each long
 // side. All of it upright, so it prints without support; the board drops in (a dab of hot glue, or the lid, keeps it there)
 const ENC_CRADLE = { seat:2.5, arm:8, gap:0.3, fence:1.6, over:1.2 };
+// a cover over plugs (Session 80): its walls, room either side of the openings, its depth out from the wall (the default, for a
+// plug and its cable's bend), the screw tabs' width, the M3 screws' pilot hole in the wall and rib and clearance hole in the tab,
+// and how deep the ribs behind the wall are
+const ENC_COVER = { wall:2, room:5, depth:30, tab:9, pilot:2.5, clear:3.4, rib:6 };
 // bounds (a level's plate, Session 51): every piece trimmed to it, so nothing hangs over the plate's edge (the wall holds
 // the board there); a piece trimmed to nothing is left out
 const encClip = (pts, bounds) => { if (!bounds) return pts; const q = pts.map(([x, y]) => [Math.min(bounds[2], Math.max(bounds[0], x)), Math.min(bounds[3], Math.max(bounds[1], y))]);
@@ -5883,6 +5887,56 @@ function buildEnclosure(){
     const text = encLabelText(c.label);
     if (text) labelQueue.push({ i, c, face, bb, text, lab, lim });
   });
+  // a cover over plugs (Session 80, for a box outdoors): the wall openings marked "Cover over it" on one wall share a printed
+  // hood that screws on over them, like an outdoor socket's: a roof, two sides down to the bottom of the box, and a front that
+  // comes down to just above the lowest of them (a plug still goes in from the front); open underneath, so the cables leave
+  // downwards and rain runs off. It prints roof-down beside the box, so nothing needs support. Two M3 self-tapping screws go
+  // through its tabs, one each side, into ribs inside the wall (each from the floor up, so they print without support)
+  const coverParts = [], coverInfo = [], coverRibs = [];
+  if (!state.base.enclosure.test) for (const face of ["front","back","left","right"]){
+    const list = placedOpen.filter(po => po.face === face && po.c.cover === true); if (!list.length) continue;
+    if (SG){ if (!warn.some(w => w.t === "No plug covers on a shaped box")) warn.push({ t:"No plug covers on a shaped box", s:"A plug cover sits on a flat wall: it is for rectangular boxes (and sloped or clamshell ones)." }); continue; }
+    const CV = ENC_COVER, ct = CV.wall, dep = clamp(+E.coverDepth || CV.depth, 15, 60), lim = list[0].lim, tw = CV.tab;
+    const u0 = Math.min(...list.map(po => po.bb[0])) - CV.room, u1 = Math.max(...list.map(po => po.bb[2])) + CV.room;
+    const vR = Math.max(...list.map(po => po.bb[3])) + 3, vTop = vR + ct, vA = Math.min(vR - 3, Math.min(...list.map(po => po.bb[3])) + 2);
+    const uS = [u0 - ct - tw/2, u1 + ct + tw/2], vS = clamp(vR/2 + 1, fl + 4, vR - 3), names = list.map(po => po.lab.toLowerCase()).join(" and ");
+    const tabs = uS.map(u => [u - tw/2, 0, u + tw/2, vTop]);
+    if (uS[0] - tw/2 < lim[0] - 0.5 || uS[1] + tw/2 > lim[2] + 0.5 || vTop > H - 0.5){
+      warn.push({ t:`No room for the cover over ${names}`, s:`The cover is ${(u1 - u0 + 2*ct + 2*tw).toFixed(0)} mm wide and ${vTop.toFixed(0)} mm tall with its screw tabs: move ${list.length > 1 ? "the openings" : "the opening"} towards the middle of the wall or lower, or make the box bigger.` });
+      continue;
+    }
+    const clash = taken[face].find(o => o.n > 0 && !list.some(po => po.i === o.n - 1) && tabs.some(r => o.bb[0] < r[2] && r[0] < o.bb[2] && o.bb[1] < r[3] && r[1] < o.bb[3]))
+      || taken[face].find(o => o.n === 0 && o.bb[0] < uS[1] + tw/2 && uS[0] - tw/2 < o.bb[2] && o.bb[1] < vTop && o.bb[3] > 0);
+    if (clash){ warn.push({ t:`No room for the cover over ${names}`, s:`${clash.n ? `Opening ${clash.n}` : clash.what ? clash.what.replace(/^./, m => m.toUpperCase()) : "Something"} is where its screw tabs go: move one of them.` }); continue; }
+    // in the box: a pilot hole through the wall at each tab, and a rib behind it, 2.5 mm square hole through it
+    const pr = CV.pilot/2, ribD = CV.rib, ribTop = vS + 5;
+    uS.forEach(u => {
+      holesOn[face].push(circ(pr, 20).map(([a, b]) => [a + u, b + vS]));
+      const rect = (n0, n1, v0, v1) => [[n0, v0], [n1, v0], [n1, v1], [n0, v1]], n0 = -t - ribD, n1 = -t + 0.3;
+      coverRibs.push(encFaceSolid(face, rect(n0, n1, fl - 0.01, vS - pr), u - 4, u + 4, W, D));
+      coverRibs.push(encFaceSolid(face, rect(n0, n1, vS + pr, ribTop), u - 4, u + 4, W, D));
+      coverRibs.push(encFaceSolid(face, rect(n0, n1, vS - pr - 0.01, vS + pr + 0.01), u - 4, u - pr, W, D));
+      coverRibs.push(encFaceSolid(face, rect(n0, n1, vS - pr - 0.01, vS + pr + 0.01), u + pr, u + 4, W, D));
+    });
+    // the cover, roof-down: x along the wall (from its middle), plan y outwards from the wall, height from the roof's top down
+    const mid = (u0 + u1)/2, A0 = u0 - mid, A1 = u1 - mid, hS = vTop - vS, hr = CV.clear/2;
+    const blk = (x0, x1, y0, y1, h0, h1) => C.extrudePolysAt([{ outer:encOrient([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], true), holes:[] }], h0, h1);
+    const pcs = [blk(A0 - ct, A1 + ct, 0, dep + ct, 0, ct),                                  // the roof
+      blk(A0 - ct, A0, 0, dep + ct, ct - 0.01, vTop), blk(A1, A1 + ct, 0, dep + ct, ct - 0.01, vTop),   // the sides
+      blk(A0 - 0.01, A1 + 0.01, dep, dep + ct, ct - 0.01, vTop - vA)];                     // the front, down to just above the lowest plug
+    for (const sx of [-1, 1]){                                                              // the tabs, a square hole for the screw in each
+      const xa = sx < 0 ? A0 - ct - tw : A1 + ct - 0.01, xb = sx < 0 ? A0 - ct + 0.01 : A1 + ct + tw, xc = sx < 0 ? A0 - ct - tw/2 : A1 + ct + tw/2;   // (0.01 into its side)
+      pcs.push(blk(xa, xb, 0, ct, 0, hS - hr));
+      pcs.push(blk(xa, xb, 0, ct, hS + hr, vTop));
+      pcs.push(blk(xa, xc - hr, 0, ct, hS - hr - 0.01, hS + hr + 0.01));
+      pcs.push(blk(xc + hr, xb, 0, ct, hS - hr - 0.01, hS + hr + 0.01));
+    }
+    coverParts.push({ name:`Plug cover (${ENC_FACE_NAME[face]})`, solid:C.mergeSolids(pcs), dd:dep + ct, w:A1 - A0 + 2*ct + 2*tw });
+    coverInfo.push({ face, opens:list.map(po => po.i), u:[u0, u1], v:[0, vTop], front:vA, depth:dep, screws:uS.map(u => [u, vS]) });
+    // what it takes on the wall: its sides and tabs, and between them the openings' own room (their labels may go there, under it)
+    taken[face].push({ n:0, what:"the plug cover", bb:[uS[0] - tw/2, 0, u0, vTop] }, { n:0, what:"the plug cover", bb:[u1, 0, uS[1] + tw/2, vTop] },
+      { n:0, what:"the plug cover", bb:[u0, 0, u1, vTop], covers:list.map(po => po.i) });
+  }
   // labels go in once every opening is placed, so a label never pushes an opening out
   const lh = clamp(+E.labelH || 4, 2, 15), lhalf = clamp(+E.labelLine || 0.6, 0.3, 2)/2, lgap = 1.2;
   if (lidOn && bossesOn) bosses.forEach(([x, z]) => {             // keep lid labels off the screw heads
@@ -5898,7 +5952,7 @@ function buildEnclosure(){
     if (out[0] < lb[0] || out[1] < lb[1] || out[2] > lb[2] || out[3] > lb[3]){
       warn.push({ t:`Label of opening ${i+1} left out`, s:`“${text}” does not fit ${c.labelPos === "above" ? "above" : "below"} ${lab.toLowerCase()}. Put it on the other side, make it smaller, or move the opening.` }); return;
     }
-    const clash = taken[face].find(o => out[0] < o.bb[2] + 0.6 && o.bb[0] < out[2] + 0.6 && out[1] < o.bb[3] + 0.6 && o.bb[1] < out[3] + 0.6);
+    const clash = taken[face].find(o => !(o.covers && o.covers.includes(i)) && out[0] < o.bb[2] + 0.6 && o.bb[0] < out[2] + 0.6 && out[1] < o.bb[3] + 0.6 && o.bb[1] < out[3] + 0.6);
     if (clash){ warn.push({ t:`Label of opening ${i+1} left out`, s:`“${text}” would run into ${clash.n ? "opening " + clash.n : clash.what || "a screw hole"}. Put it on the other side of ${lab.toLowerCase()} or move one of them.` }); return; }
     taken[face].push({ n:i+1, bb:out });
     let segs = C.strokeText(text, cx, cy, lh).segs;
@@ -6170,6 +6224,7 @@ function buildEnclosure(){
     solids.push(encFaceSolid(po.face, prof, bb[0] - 2, bb[2] + 2, W, D));
     hoodInfo.push({ i:po.i, face:po.face, out:P, bb:[bb[0] - 2, vb, bb[2] + 2, vb + 1.27*P + 1] });
   });
+  solids.push(...coverRibs);                                // the plug covers' ribs inside the wall (Session 80)
   if (postHang) bosses.forEach(([x, z]) => solids.push(encLoft(circ(0.4, 40).map(p => [p[0] + x, p[1] - z]), postFree, circ(bossR, 40).map(p => [p[0] + x, p[1] - z]), postBot + 0.01)));
   let board = null, boardNeed = null;
   const boardsInfo = [], doorParts = [], camInfo = [];
@@ -6579,6 +6634,8 @@ function buildEnclosure(){
   }
   // battery doors (Session 57), printed flat in front of the box
   doorParts.forEach(dp => { insideParts.push(Object.assign(dp, { solid:C.affineSolid(dp.solid, [1,0,0, 0,1,0, 0,0,1], [0, 0, frontZ + dp.dd/2]) })); frontZ += dp.dd + 10; });
+  // plug covers (Session 80), roof-down in front of the box (their solids reach from the wall, at 0, out to -dd)
+  coverParts.forEach(cp => { insideParts.push({ inside:true, name:cp.name, slot:clamp(+E.boxSlot || 0, 0, state.slots.length - 1), solid:C.affineSolid(cp.solid, [1,0,0, 0,1,0, 0,0,1], [0, 0, frontZ + cp.dd]) }); frontZ += cp.dd + 10; });
   // button plungers and light pipes (Session 64): for a tactile button or an LED on a board behind a wall or the lid, a printed
   // part that goes through the hole: a cap standing proud outside (a plunger) or a rod (a light pipe), a flange inside that
   // stops it falling out, on a 45° step, and a stem as long as its reach to the switch or LED. Printed standing on their outer
@@ -6875,6 +6932,7 @@ function buildEnclosure(){
     forHoles.forEach((n, what) => nAdd(n, what + " (in its opening)"));
     encDividers(E).forEach(d => { if (d.fan) nAdd(1, `${d.fan} mm fan for a divider, with 4 screws`); });
     nAdd(extraInfo.mounts, "M3 screws for the zip-tie mounts");
+    nAdd(2*coverInfo.length, `M3 self-tapping screws, ${len(ENC_COVER.wall + t + 4)} mm long, for the plug cover${coverInfo.length > 1 ? "s" : ""}`);
     if (split) nAdd(split.pins ? split.pins.length : 0, `${E.splitScrew || "M3"} screws and heat inserts for the joins`);
     const parts2 = {}; boardList.forEach(bd => { parts2[bd.B.label] = (parts2[bd.B.label] || 0) + 1; }); Object.entries(parts2).forEach(([k, n]) => nAdd(n, k));
   }
@@ -6908,7 +6966,7 @@ function buildEnclosure(){
       W:SG.W, D:SG.D, total:tot, front:shapeS.sl ? shapeS.sl.Hf : null, angle:shapeS.sl ? shapeS.sl.a*180/Math.PI : null, split:shapeS.cl ? shapeS.cl.hs : null,
       thread:shapeS.tw ? { pitch:shapeS.tw.p, len:shapeS.tw.len, neck:shapeS.tw.Hn } : null, faces:SG.faces, built:false };
   }
-  enclosureInfo = { test: !!state.base.enclosure.test, shape:shapeInfo, wallH:{ front:wallH("front"), back:wallH("back"), left:wallH("left"), right:wallH("right") }, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: shapeInfo ? shapeInfo.total : H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, gasket:gasket ? { cord:gasket.cord, length:gasket.length, depth:gasket.gd, width:gasket.gw, printed:gasket.printed || null } : null, snap:!!snap, hinge:hinge ? { length:hinge.Lh, knuckles:hinge.segs.length } : null, lidPosts:shapeS ? { n:shapeS.posts.length, hang:false, free:fl, r:shapeS.bossR, at:shapeS.posts.map(q => q.slice()) } : { n:bosses.length, hang:postHang, free:postFree, r:bossR, at:bosses.map(([x, z]) => [x, -z]) }, ceil:ceilZ, ri, lipH, wall:t, anchors:anchorsMade, faceU, clashes, wallV:Object.fromEntries(["front","back","left","right"].map(f => [f, [0.8, Math.min(wallH(f) - 0.8, lipTop)]])), cams:camInfo, behind, hoods:hoodInfo, solar:solar && solar.fits ? solar : null, tripod:mount.tripod || null, ducts:ductInfo.length, ductRects:ductInfo.map(du => ({ fp:du.fp.slice(), isY:du.isY })),
+  enclosureInfo = { test: !!state.base.enclosure.test, shape:shapeInfo, wallH:{ front:wallH("front"), back:wallH("back"), left:wallH("left"), right:wallH("right") }, air:airHint, need, floorGrid:floorGridN, names:floorNames.length, extras:extraInfo, lenses: lensOpen.length, mount: mount.lines, size:[W, D, H], inner:[iw, id, H - fl], total: shapeInfo ? shapeInfo.total : H + (lidOn && !slide ? lidT : 0), warn, left, misfit, board, boards:boardsInfo, boardNeed, fastenText, ghosts, hints, levels:levels.map((l, i) => Object.assign({ z:l.z, t:l.t, hold:l.hold }, levelInfo[i] || {})), dividers:dividerInfo, art:artInfo, gasket:gasket ? { cord:gasket.cord, length:gasket.length, depth:gasket.gd, width:gasket.gw, printed:gasket.printed || null } : null, snap:!!snap, hinge:hinge ? { length:hinge.Lh, knuckles:hinge.segs.length } : null, lidPosts:shapeS ? { n:shapeS.posts.length, hang:false, free:fl, r:shapeS.bossR, at:shapeS.posts.map(q => q.slice()) } : { n:bosses.length, hang:postHang, free:postFree, r:bossR, at:bosses.map(([x, z]) => [x, -z]) }, ceil:ceilZ, ri, lipH, wall:t, anchors:anchorsMade, faceU, clashes, wallV:Object.fromEntries(["front","back","left","right"].map(f => [f, [0.8, Math.min(wallH(f) - 0.8, lipTop)]])), cams:camInfo, behind, hoods:hoodInfo, covers:coverInfo, solar:solar && solar.fits ? solar : null, tripod:mount.tripod || null, ducts:ductInfo.length, ductRects:ductInfo.map(du => ({ fp:du.fp.slice(), isY:du.isY })),
     takenOn:Object.fromEntries(Object.entries(taken).map(([f, l]) => [f, l.map(o => ({ n:o.n || 0, bb:o.bb.slice() }))])), count:(E.cut || []).length - left.length,
     split: splitInfo };
   return out;
@@ -15479,7 +15537,15 @@ function enclosureFields(p){
       }
       // a rain hood over it, outside (Session 64)
       if (wall && !c.notch){ checkField(box, "Rain hood over it (for boxes outdoors)", ()=>c.hood === true, v=>{ c.hood = v; renderTab(); baseChanged(); });
-        if (c.hood === true) note(box, "A little roof over it outside: rain runs off past the opening. Its underside rises at 45°, so it prints without support."); }
+        if (c.hood === true) note(box, "A little roof over it outside: rain runs off past the opening. Its underside rises at 45°, so it prints without support.");
+        // a cover over plugs (Session 80)
+        checkField(box, "Cover over it, for plugs (outdoors)", ()=>c.cover === true, v=>{ c.cover = v; renderTab(); baseChanged(); });
+        if (c.cover === true){
+          const cv = enclosureInfo && (enclosureInfo.covers || []).find(q => q.opens.includes(i));
+          note(box, `A printed hood that screws on over it, like an outdoor socket's: open underneath, so the cable leaves downwards and rain runs off, and its front stops just above the lowest plug, so you can still plug in. Openings with a cover on the same wall share one. It prints roof-down beside the box; two M3 self-tapping screws hold it${cv ? "" : " (it does not fit yet: see the warnings)"}.`);
+          numField(box, { label:"Cover depth, out from the wall (mm)", min:15, max:60, step:1, get:()=>+E.coverDepth || ENC_COVER.depth, set:v=>E.coverDepth = v, onChange:baseChanged,
+            sub:()=>"Room for the plug and its cable's bend: 30 mm takes a USB plug." });
+        } }
       if (wall && ENC_POINTABLE.has(c.kind)){
         const b = ringsBounds(placedRings({ ...c, top:"flat" }, E)), span = b[2] - b[0], lim = state.printer.bridge ?? 10;
         if (!c.notch){
@@ -18377,7 +18443,7 @@ const LIMITS_AT = { "sym.size":[0.4,3], "pic.size":[0.4,3], "outline.width":[0.2
   "jigsaw.knob":[0.7,1.3], "jigsaw.vary":[0,1], "jigsaw.gap":[0.05,1], "jigsaw.firstGap":[0,0.4], "jigsaw.colourH":[0.2,2], "jigsaw.floor":[0.6,4],
   "lithophane.radius":[0,20],
   "pcb.thr":[5,95], "pcb.thicken":[0,3], "pcb.traceH":[0.2,3], "pcb.textMax":[0.5,60], "pcb.margin":[0,30], "pcb.radius":[0,20], "pcb.holeInset":[2,25], "pcb.hatchPitch":[1,8], "pcb.hatchWidth":[0.4,3],
-  "pcb.hatchAngle":[0,90], "pcb.clearance":[0.2,3], "pcb.fingerCount":[2,40], "pcb.fingerW":[0.8,6], "pcb.fingerLen":[3,25], "pcb.despeckle":[0,8] };
+  "enclosure.coverDepth":[15,60], "pcb.hatchAngle":[0,90], "pcb.clearance":[0.2,3], "pcb.fingerCount":[2,40], "pcb.fingerW":[0.8,6], "pcb.fingerLen":[3,25], "pcb.despeckle":[0,8] };
 // a print orientation must be a real rotation: nine numbers, orthonormal, no mirror
 function cleanRotation(m){
   if (!Array.isArray(m) || m.length !== 9 || !m.every(v => typeof v === "number" && isFinite(v))) return null;
@@ -18736,6 +18802,7 @@ function sanitizeProject(data){
       if (c.auto === "ports"){ o.auto = "ports"; if (encHas(BOARDS, c.board)) o.board = c.board; if (Number.isInteger(c.port) && c.port >= 0 && c.port < 32) o.port = c.port; }
       if (okId(c.id)) o.id = c.id;
       if (c.hood === true) o.hood = true;
+      if (c.cover === true) o.cover = true;
       if (c.window === true) o.window = true; if (c.plunger === true) o.plunger = true; if (c.pipe === true) o.pipe = true; if (c.reach != null && isFinite(+c.reach)) o.reach = Math.min(60, Math.max(0.5, +c.reach));
       if (["ticks","0-10","minmax"].includes(c.dial)) o.dial = c.dial; if (c.knob != null && isFinite(+c.knob)) o.knob = Math.min(60, Math.max(6, +c.knob));
       return o;

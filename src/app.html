@@ -739,7 +739,7 @@ const CONSUMES_ART = { cutter:1, pcb:1, lightbox:1, tracer:1, jigsaw:1, lithopha
 // which of the picture's own settings each of those objects reads; the Art tab shows only these
 const ART_USED_BY = { cutter:["width","mirror","colours","smooth"], lightbox:["mirror","colours","smooth"], enclosure:["mirror","colours","smooth"], phonecase:["mirror","colours","smooth"], card:["mirror","colours","smooth"],
   jigsaw:["mirror","colours","smooth"], pcb:["mirror"], tracer:[], lithophane:["mirror"], canvas:["mirror","colours","smooth"] };
-const SHAPES = [["tracer","Photo to 3D tracer"],["lithophane","Lithophane"],["board","Flat shape"],["nameplate","Name plate & keychain"],["card","Business card"],["mech","Mechanisms"],["parts","Mechanical parts"],["flower","Blooming flower lamp"],["birdhouse","Bird house"],["fixit","Fix-it parts"],["sign","Sign"],["relief","3D relief from a photo"],["canvas","Plastic canvas / mosaic"],["jigsaw","Jigsaw puzzle"],
+const SHAPES = [["tracer","Photo to 3D tracer"],["lithophane","Lithophane"],["board","Flat shape"],["nameplate","Name plate & keychain"],["card","Business card"],["mech","Mechanisms"],["parts","Mechanical parts"],["flower","Blooming flower lamp"],["birdhouse","Bird house"],["nock","Arrow nocks"],["fixit","Fix-it parts"],["sign","Sign"],["relief","3D relief from a photo"],["canvas","Plastic canvas / mosaic"],["jigsaw","Jigsaw puzzle"],
   ["bobble","Bobble head"],["cutter","Cookie cutter from artwork"],["turned","Turned shape (vase, egg, cone)"],
   ["pcb","Circuit board from a schematic"],["lightbox","Lightbox / shadow box"],["frame","Photo frame"],["shell","Tea light / lantern"],["box","Plaque / box"],["cylinder","Cylinder"],
   ["hex","Hex prism"],["sphere","Sphere"],["enclosure","Project box / enclosure"],["phonecase","Phone case"],["stl","Import a model"],["none","No object"]];
@@ -946,7 +946,8 @@ const DEFAULTS = () => ({
       diffuser:1, diffuserSlot:0, wallSlot:0, strip:6, backing:"none", margin:10, mount:"keyhole", holes:true, stand:false },
     parts:{ kind:"servoMount", clearance:0.2, set:{} },          // the mechanical parts library (Session 82)
     flower:{ set:C.flower.clean({}), clearance:0.2, show:"lamp", bloom:0, petalSlot:1 },
-    birdhouse:{ set:C.bird.clean({}), show:"house", roofSlot:1 },   // the bird house (Session 89): every setting, cleaned by the library   // the blooming flower lamp (Session 85): every setting, as a project brings it back
+    birdhouse:{ set:C.bird.clean({}), show:"house", roofSlot:1 },
+    nock:{ set:C.nock.clean({}) },   // arrow nocks (Session 90): every setting, cleaned by the library   // the bird house (Session 89): every setting, cleaned by the library   // the blooming flower lamp (Session 85): every setting, as a project brings it back
     mech:{ kind:"gears",
       gears:{ teeth1:24, teeth2:12, module:1.5, thick:6, bore:5, boreShape:"d", hub:true, hubDia:12, hubH:4, layout:"apart", angle:20 },
       bolt:{ size:"M10", dia:10, pitch:1.5, af:16, length:25, head:"hex", headH:6.5, nut:true, nutH:8.4 },
@@ -9289,6 +9290,37 @@ function birdFields(p){
     buttonRow(g2, [["Download birdhouse-camera.ino", ()=>offerDownload("birdhouse-camera.ino", I.sketch, "text/plain")], ["Copy it", ()=>copyText(I.sketch, "The sketch is on the clipboard.")]]);
   });
 }
+// ---- arrow nocks (Session 90): PRCore.nock makes each nock to the shaft and the string; laid out in rows to print ----
+let nockInfo = null, renderedNockSig = "";
+function nockCleanSet(N){
+  if (!N.set || typeof N.set !== "object" || Array.isArray(N.set)) N.set = {};
+  const cl = C.nock.clean(N.set);
+  Object.keys(N.set).forEach(k => { if (!(k in cl)) delete N.set[k]; });
+  Object.assign(N.set, cl);
+}
+function buildNock(){
+  const N = state.base.nock; nockCleanSet(N);
+  const r = C.nock.make(N.set); nockInfo = r;
+  const slot = clamp(state.base.slot || 0, 0, state.slots.length - 1);
+  return r.printed.map(q => ({ name:q.name, slot, solid:q.solid, role:"part", key:q.key }));
+}
+const NOCK_LABELS = { fit:k => ({ insert:"Pushes into a hollow shaft (carbon, aluminium)", taper:"Slips onto a wooden shaft's 11° taper", over:"Sleeves over the shaft's end" })[k],
+  index:k => k === "ridge" ? "A ridge, square to the string" : "None", make:k => k === "test" ? "A fit test: five sizes, 0.05 mm apart" : "The nocks" };
+function nockFields(p){
+  const N = state.base.nock, spec = C.nock.settings; nockCleanSet(N);
+  const S = N.set, I = nockInfo && nockInfo.info;
+  for (const [k, sp] of Object.entries(spec)){
+    if (Array.isArray(sp) && sp[5] && !Object.entries(sp[5]).every(([k2, v2]) => S[k2] === v2)) continue;   // shown only for a choice
+    if (Array.isArray(sp)) numField(p, { label:sp[4], min:sp[1], max:sp[2], step:sp[3], get:()=>S[k], set:v=>S[k] = v, onChange:baseChanged,
+      sub:k === "string" ? ()=>"Measure the serving where the nock sits, with calipers." : k === "shaftId" ? ()=>"Measure it, or take it from the shaft's chart: often 4.2, 5.2 or 6.2 mm." : undefined });
+    else selField(p, sp.label, sp.opts.map(o => [o, NOCK_LABELS[k] ? NOCK_LABELS[k](o) : o]), ()=>S[k], v=>{ S[k] = v; renderTab(); baseChanged(); });
+  }
+  if (!I) return;
+  I.warn.forEach(w => note(p, `<b>Note:</b> ${esc(w)}`));
+  note(p, `<b>Each ${I.size.across} mm across and ${I.size.long} mm long, about ${I.size.grains} grains (${I.size.grams} g) in PETG.</b>`);
+  group(p, "Checks", g2 => I.checks.forEach(q => note(g2, `${q.ok ? "✓" : "✗"} ${esc(q.name)} (${esc(q.why)}).`)), true);
+  group(p, "Print and use", g2 => I.notes.forEach(n => note(g2, esc(n))), true);
+}
 function mechFields(p){
   const M = state.base.mech;
   selField(p, "What to make", [["gears","Gears (a pair)"],["bolt","Bolt and nut"],["hinge","Print-in-place hinge"],["snap","Snap-fit clip"],["coupon","Fit test"]],
@@ -9936,7 +9968,7 @@ function heightOf(d, slot){
 // artwork cut into the object (Session 32): "engrave" cuts it in, "inlay" cuts it in and fills the cut with the
 // artwork's colours, flush with the surface. Its solids are then the cutters: from CUT_OUT above the surface (so the
 // whole surface is cut, also between the points it was laid on) to its depth below it
-const CUT_OUT = 0.6, NO_DECALS = { jigsaw:1, lithophane:1, enclosure:1, phonecase:1, card:1, mech:1, parts:1, flower:1, birdhouse:1, fixit:1, sign:1, relief:1 };
+const CUT_OUT = 0.6, NO_DECALS = { jigsaw:1, lithophane:1, enclosure:1, phonecase:1, card:1, mech:1, parts:1, flower:1, birdhouse:1, nock:1, fixit:1, sign:1, relief:1 };
 let cutBlocked = "";                                 // why artwork cannot be cut into this model ("open", "load"), or ""
 const cutWanted = d => d.enabled !== false && d.mode !== "relief" && (d.cut === "engrave" || d.cut === "inlay") && !NO_DECALS[state.base.type];
 const cutMode = d => baseSoup && !cutBlocked && cutWanted(d) ? d.cut : null;
@@ -12263,6 +12295,7 @@ async function rebuildAll(resetItems, mode){
     else if (t === "parts") parts = buildMechParts();
     else if (t === "flower") parts = buildFlower();
     else if (t === "birdhouse") parts = buildBirdhouse();
+    else if (t === "nock") parts = buildNock();
     else if (t === "fixit") parts = buildFixit();
     else if (t === "sign") parts = await buildSign();
     else if (t === "relief") parts = buildRelief();
@@ -12304,7 +12337,7 @@ async function rebuildAll(resetItems, mode){
       if (d.enabled === false){ d.solids = null; continue; }
       if (t === "jigsaw"){ d.solids = null; continue; }      // a decal across the pieces would glue them together
       if (t === "lithophane"){ d.solids = null; continue; }  // other artwork would only cast a shadow on it
-      if (t === "mech" || t === "parts" || t === "flower" || t === "birdhouse" || t === "fixit" || t === "sign" || t === "relief"){ d.solids = null; continue; }   // parts that fit: a picture on them would spoil the fit
+      if (t === "mech" || t === "parts" || t === "flower" || t === "birdhouse" || t === "nock" || t === "fixit" || t === "sign" || t === "relief"){ d.solids = null; continue; }   // parts that fit: a picture on them would spoil the fit
       if (t === "enclosure"){ d.solids = null; continue; }   // not stamped on boxes yet
       if (t === "phonecase"){ d.solids = null; continue; }   // a case takes its picture as an inlay in the back
       if (t === "card"){ d.solids = null; continue; }        // a card takes its picture as its logo
@@ -12354,6 +12387,12 @@ async function rebuildAll(resetItems, mode){
       const sig = JSON.stringify([flowerInfo.info.checks.map(q => [q.ok, q.worst]), flowerInfo.info.warn, flowerInfo.info.size, flowerInfo.info.bom]);
       if (sig !== renderedFlowerSig){ const a = document.activeElement, inPanel = a && a.closest && a.closest("#panel") && a.matches("input,textarea,select");
         if (!inPanel){ renderedFlowerSig = sig; renderTab(); } else a.addEventListener("blur", () => { if (tab === "make" && state.base.type === "flower"){ renderedFlowerSig = sig; renderTab(); } }, { once:true }); }
+    }
+    // arrow nocks (Session 90): the checks, warnings and sizes follow the settings
+    if (t === "nock" && tab === "make" && nockInfo){
+      const I = nockInfo.info, sig = JSON.stringify([I.checks, I.warn, I.size]);
+      if (sig !== renderedNockSig){ const a = document.activeElement, inPanel = a && a.closest && a.closest("#panel") && a.matches("input,textarea,select");
+        if (!inPanel){ renderedNockSig = sig; renderTab(); } else a.addEventListener("blur", () => { if (tab === "make" && state.base.type === "nock"){ renderedNockSig = sig; renderTab(); } }, { once:true }); }
     }
     // the bird house (Session 89): its checks, notes, sizes, list and battery's life follow the settings
     if (t === "birdhouse" && tab === "make" && birdInfo){
@@ -13369,7 +13408,7 @@ const OBJECT_GROUPS = [
   ["Personalise", [["nameplate","🔑"],["card","💳"],["sign","🔤"],["board","🏷️"],["frame","🖼️"],["box","🪧"]]],
   ["From a picture", [["tracer","📐"],["relief","🗿"],["lithophane","🌅"],["jigsaw","🧩"],["cutter","🍪"],["pcb","🔌"],["lightbox","💡"],["canvas","🧶"]]],
   ["Figures and décor", [["bobble","🙂"],["shell","🕯️"],["turned","🏺"]]],
-  ["Functional", [["enclosure","🧰"],["phonecase","📱"],["mech","⚙️"],["parts","🔩"],["flower","🌷"],["birdhouse","🐦"],["fixit","🔧"]]],
+  ["Functional", [["enclosure","🧰"],["phonecase","📱"],["mech","⚙️"],["parts","🔩"],["flower","🌷"],["birdhouse","🐦"],["nock","🏹"],["fixit","🔧"]]],
   ["Basic shapes", [["cylinder","🥫"],["hex","⬢"],["sphere","⚪"]]],
   ["Bring your own", [["stl","📦"],["none","✦"]]]
 ];
@@ -13434,7 +13473,7 @@ function tabMake(p){
   ({ nameplate:nameplateFields, canvas:canvasFields, bobble:bobbleFields, cutter:cutterFields, turned:turnedFields,
      pcb:pcbFields, lightbox:lightboxFields, tracer:tracerFields, jigsaw:jigsawFields, lithophane:lithophaneFields,
      board:boardFields, frame:frameFields, shell:shellFields, box:boxFields, cylinder:cylFields, hex:hexFields,
-     sphere:sphereFields, enclosure:enclosureFields, phonecase:phonecaseFields, card:cardFields, mech:mechFields, parts:partsFields, flower:flowerFields, birdhouse:birdFields, fixit:fixitFields, sign:signFields, relief:reliefFields, stl:stlFields, none:noneFields })[b.type](p);
+     sphere:sphereFields, enclosure:enclosureFields, phonecase:phonecaseFields, card:cardFields, mech:mechFields, parts:partsFields, flower:flowerFields, birdhouse:birdFields, nock:nockFields, fixit:fixitFields, sign:signFields, relief:reliefFields, stl:stlFields, none:noneFields })[b.type](p);
   if (!["none","bobble","lightbox","jigsaw","enclosure"].includes(b.type))
     slotField(p, "Object filament", ()=>String(b.slot), v=>{ b.slot = +v; baseChanged(); });
   buttonRow(p, [["Change the object →", ()=>{ setSide("right", true); const el = $("#objectSel"); if (el) el.focus(); }]]);
@@ -19208,6 +19247,11 @@ function sanitizeProject(data){
     const Hp = st.base.birdhouse && typeof st.base.birdhouse === "object" && !Array.isArray(st.base.birdhouse) ? st.base.birdhouse : {};
     st.base.birdhouse = { set:C.bird.clean(Hp.set), show:Hp.show === "plates" ? "plates" : "house", roofSlot:Math.min(15, Math.max(0, Math.round(cleanNum(Hp.roofSlot, 1)))) };
   }
+  // arrow nocks (Session 90): the library cleans the settings
+  if (st.base && "nock" in st.base){
+    const Np = st.base.nock && typeof st.base.nock === "object" && !Array.isArray(st.base.nock) ? st.base.nock : {};
+    st.base.nock = { set:C.nock.clean(Np.set) };
+  }
   if (st.base && st.base.enclosure && typeof st.base.enclosure === "object"){
     const E = st.base.enclosure, one = (v, list) => list.includes(v) ? v : list[0];
     E.lid = one(E.lid, ["screw","press","magnet","slide","none","twist"]); E.postStyle = one(E.postStyle, ["full","hang"]); E.snap = E.snap === true; E.hinge = E.hinge === true; E.gasket = [1.5, 2, 2.5, 3].includes(+E.gasket) ? +E.gasket : 0; E.fasten = one(E.fasten, ["insert","screw","nut","none"]); E.head = one(E.head, ["sink","bore","plain"]);
@@ -19570,6 +19614,8 @@ async function buildZip(parts, title, unjoined){
   const bh = state.base.type === "birdhouse" && birdInfo ? birdInfo.info : null;
   if (bh){ if (bh.sketch) zip.file("birdhouse-camera.ino", bh.sketch);
     zip.file("how-to-assemble.txt", [`How to put ${title} together`, "", ...bh.notes, "", ...bh.steps.map((t, k) => `${k + 1}. ${t}`), "", "What you'll need:", ...bh.bom.map(([n, w]) => `  ${n} x ${w}`)].join("\r\n")); }
+  const nk = state.base.type === "nock" && nockInfo ? nockInfo.info : null;
+  if (nk) zip.file("how-to-print-and-use.txt", [`${title}`, "", `Each ${nk.size.across} mm across and ${nk.size.long} mm long, about ${nk.size.grains} grains in PETG.`, "", ...nk.notes].join("\r\n"));
   if (asm.length) zip.file("how-to-assemble.txt", [`How to put ${title} together`, "", ...asm.map((t, k) => `${k + 1}. ${t}`), "",
     ...(enclosureInfo.need && enclosureInfo.need.length ? ["What you'll need:", ...enclosureInfo.need.map(([n, w]) => `  ${n} x ${w}`)] : [])].join("\r\n"));
   if (state.base.type === "jigsaw" && jigsawInfo) zip.file("cad/puzzle-cut-lines.svg", C.jigsawSVG(jigsawInfo.cut, title));
@@ -19599,6 +19645,7 @@ async function buildZip(parts, title, unjoined){
     ...(cardNfcText(title) ? ["An NFC tag goes inside: nfc-tag.txt says where to pause and put it in."] : []),
     ...(asm.length ? ["A project box: how-to-assemble.txt has the steps and what you'll need."] : []),
     ...(fl ? ["The flower lamp: how-to-assemble.txt has the steps and what you'll need; flower-lamp.ino is the sketch for the board."] : []),
+    ...(nk ? ["Arrow nocks: how-to-print-and-use.txt says how to print them and how to check them before you shoot."] : []),
     ...(bh ? [`The bird house: how-to-assemble.txt has the steps and what you'll need${bh.sketch ? "; birdhouse-camera.ino is the sketch for the camera" : ""}.`] : []),
     ...(wiring ? ["wiring.txt lists every wire, end to end, with its colour and length."] : []),
     ...(state.base.type === "enclosure" && (state.base.enclosure.cut || []).length && !state.base.enclosure.test ? ["cad/faces-drilling-templates.svg has each face with its openings at true size: print it at 100% and tape it on a bought box to drill. cad/faces.dxf is the same for CAD or a laser cutter."] : []),
@@ -19917,6 +19964,7 @@ window.MakerForge = {
   get mechParts(){ return partsInfo; },
   get flower(){ return flowerInfo; }, flowerAnimate,
   get birdhouse(){ return birdInfo; },
+  get nock(){ return nockInfo; },
   get lithophane(){ return lithoInfo; },
   get print(){ return printFresh() ? printInfo : null; },
   printNow: runPrintability, optimize: optimizePrint, revertOptimize, exportParts,

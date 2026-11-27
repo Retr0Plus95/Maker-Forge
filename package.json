@@ -78,6 +78,7 @@
     "test:parts": "node tools-parts-test.js index.html",
     "test:flower": "node tools-flower-test.js index.html",
     "test:bird": "node tools-bird-test.js index.html",
+    "test:nock": "node tools-nock-test.js index.html",
     "test:fit": "node tools-fit-test.js index.html",
     "test:sign": "node tools-sign-test.js index.html",
     "test:relief": "node tools-relief-test.js index.html",

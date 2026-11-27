@@ -8178,11 +8178,122 @@
     ].join("\n");
   }
 
+  // ---------- arrow nocks (Session 90): a nock for the end of an arrow, made to the shaft and the bowstring. It pushes into a hollow
+  // shaft (carbon, aluminium), slips over a wooden shaft's 11° taper, or sleeves over a straight shaft. Printed standing on the shaft's
+  // end, the groove up: the string's seat is a floor as it prints, and nothing needs support ----------
+  const NOCK_SETTINGS = {
+    fit:{ opts:["insert", "taper", "over"], def:"insert", label:"How it fits the arrow" },
+    shaftId:[6.2, 3, 9, 0.05, "Shaft's inside diameter (mm)", { fit:"insert" }],
+    shaftOd:[7.6, 4, 12, 0.05, "Shaft's outside diameter (mm)"],
+    tight:[0, -0.3, 0.3, 0.05, "Tighter (+) or looser (−) on the shaft (mm)"],
+    shank:[9, 5, 20, 0.5, "How far it goes onto the shaft (mm)"],
+    string:[2.6, 1.6, 4, 0.05, "Bowstring's serving (mm across)"],
+    snap:[0.15, 0, 0.4, 0.05, "Snap on the string (mm narrower)"],
+    depth:[5, 3.5, 8, 0.25, "Groove depth (mm)"],
+    head:[8, 5, 14, 0.5, "Head past the shaft (mm)"],
+    index:{ opts:["ridge", "none"], def:"ridge", label:"Cock-feather mark" },
+    make:{ opts:["nocks", "test"], def:"nocks", label:"Print" },
+    count:[6, 1, 24, 1, "How many", { make:"nocks" }]
+  };
+  const NOCK = { taper:5.5, wall:1.0, clear:0.1, flare:0.6, petg:0.00127, grain:15.4324 };   // the 11° taper's half angle; g/mm³; grains a gram
+  function nockClean(raw){
+    const r = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}, out = {};
+    for (const [k, sp] of Object.entries(NOCK_SETTINGS)){
+      if (Array.isArray(sp)){ const v = +r[k], [d, lo, hi, st] = sp; out[k] = Number.isFinite(v) ? +Math.min(hi, Math.max(lo, Math.round(v / st) * st)).toFixed(4) : d; }
+      else out[k] = typeof r[k] === "string" && sp.opts.includes(r[k]) ? r[k] : sp.def;
+    }
+    return out;
+  }
+  // the sizes, made to go together (and said so when they had to be)
+  function nockPlan(s){
+    const warn = [], insert = s.fit === "insert";
+    let id = s.shaftId, od = s.shaftOd;
+    if (insert && od < id + 0.4){ od = +(id + 0.4).toFixed(2); warn.push(`The shaft's outside is made ${od} mm: it must be bigger than its inside.`); }
+    const R = insert ? od / 2 : od / 2 + NOCK.clear + NOCK.wall;                       // the head (flush with a hollow shaft)
+    const sock = insert ? 0 : od / 2 + NOCK.clear - s.tight / 2;                      // the socket's mouth, round the shaft
+    const rs = insert ? (id + s.tight) / 2 : 0;                                       // the shank, in the shaft
+    const ds = s.string + 0.1, r = ds / 2, w = Math.max(0.8, s.string - s.snap);      // the string's seat and the throat
+    // a socket's end is pointed (45°, no ceiling as it prints): the head holds that point, 1.5 mm, then the groove
+    const bot = insert ? 0 : s.fit === "taper" ? sock - s.shank * Math.tan(NOCK.taper * Math.PI / 180) : sock;
+    const least = insert ? s.depth + 2 : Math.ceil((bot + 1.5 + s.depth) * 2) / 2;
+    let head = s.head;
+    if (head < least){ head = least; if (insert || s.head !== NOCK_SETTINGS.head[0]) warn.push(`The head is made ${head} mm long: it needs ${insert ? "2 mm" : "room for the socket's end"} under the groove.`); }
+    const ear = R - r;                                                                 // the ears' thickness beside the seat
+    return { s, insert, id, od, R, sock, bot, rs, ds, r, w, head, ear, warn };
+  }
+  // one nock, standing on the shaft's end (y = 0 on the bed), the groove at the top. `rsAdj`: a fit test's step on the shank or socket;
+  // `marks`: a fit test's number, as bumps on the side away from the mark
+  function nockSolid(P, rsAdj, marks){
+    const s = P.s, out = [], R = P.R, L = s.shank, top = L + P.head, yS = top - s.depth + P.r;   // the seat's centre
+    // the body under the groove: the shank in the shaft, or the socket over it
+    const yb = yS - P.r;                                                               // the groove's bottom
+    if (P.insert){
+      const rs = P.rs + (rsAdj || 0) / 2, ch = Math.min(0.4, rs * 0.2);                // a lead-in at the tip, steeper than 45°
+      out.push(revolve([[0, 0], [rs - ch, 0], [rs, ch * 1.6], [rs, L], [R, L], [R, yb + 0.01], [0, yb + 0.01]], segsFor(R, 48)));
+    } else {
+      const m = P.sock - (rsAdj || 0) / 2, bot = P.bot - (rsAdj || 0) / 2;
+      // from the socket's pointed end (45°, so it prints without a ceiling) down its wall, out along the bed, up the outside, over the top
+      out.push(revolve([[0, L + bot], [bot, L], [m, 0], [R, 0], [R, yb + 0.01], [0, yb + 0.01]], segsFor(R, 48)));
+    }
+    // the ears: each a loft of slices, the arc of the head's circle beyond the slot's half-width at that height
+    const h0 = P.w / 2, hy = y => {                                                    // the slot's half-width at y
+      const c = Math.abs(y - yS) <= P.r ? Math.sqrt(Math.max(0, P.r * P.r - (y - yS) * (y - yS))) : 0;
+      let h = y >= yS ? Math.max(h0, c) : c;
+      if (y > top - NOCK.flare) h += (y - (top - NOCK.flare)) * Math.tan(30 * Math.PI / 180);   // the mouth opened out
+      return Math.min(h, R * 0.92);
+    };
+    const fT = Math.asin(Math.min(1, Math.sqrt(Math.max(0, P.r * P.r - h0 * h0)) / P.r)), ys = [];
+    for (let i = 0; i <= 12; i++) ys.push(yS + P.r * Math.sin(-Math.PI / 2 + (fT + Math.PI / 2) * i / 12));   // round the seat, by angle
+    ys.push(top - NOCK.flare, top);
+    const N = 33;
+    for (const sg of [1, -1]){
+      const loops = ys.map(y => { const h = hy(y), t0 = Math.asin(Math.min(0.999, h / R)), L2 = [];
+        for (let i = 0; i < N; i++){ const t = t0 + (Math.PI - 2 * t0) * i / (N - 1); L2.push([R * Math.cos(t), y, sg * R * Math.sin(t)]); }
+        return L2; });
+      out.push(loft(loops));
+    }
+    // the cock-feather mark: a ridge on one ear's outside, square to the string
+    if (s.index === "ridge") out.push(pBox(-0.6, 0.6, P.insert ? L + 0.4 : 0.6, top - 1.2, R - 0.3, R + 0.5));
+    // a fit test's number: bumps up the other ear
+    for (let k = 0; k < (marks || 0); k++){ const y = (P.insert ? L : 1) + 1 + k * 1.4; out.push(pBox(-0.5, 0.5, y, y + 0.8, -R - 0.5, -R + 0.3)); }
+    return mergeSolids(out.filter(Boolean));
+  }
+  function nockMake(raw){
+    const s = nockClean(raw), P = nockPlan(s);
+    const test = s.make === "test", steps = test ? [-0.1, -0.05, 0, 0.05, 0.1] : null;
+    const one = nockSolid(P, 0, 0), printed = [];
+    if (test) steps.forEach((d, k) => printed.push({ key:"test" + (k + 1), name:`Fit test ${k + 1} (${d > 0 ? "+" : ""}${d.toFixed(2)} mm)`, solid:nockSolid(P, d, k + 1), step:d }));
+    else for (let k = 0; k < s.count; k++) printed.push({ key:"nock" + (k + 1), name:`Nock ${k + 1}`, solid:one });
+    // laid out in rows on the bed, 4 mm apart
+    const pitch = 2 * P.R + 5, per = Math.max(1, Math.ceil(Math.sqrt(printed.length)));
+    printed.forEach((p, k) => { const b = solidBounds(p.solid); p.at = [(k % per) * pitch, Math.floor(k / per) * pitch];   // where its axis is
+      p.solid = affineSolid(p.solid, PART_I, [p.at[0], -b.mn[1], p.at[1]]); });
+    const info = nockInfo(P, one);
+    return { settings:s, printed, info, plan:P };
+  }
+  function nockInfo(P, one){
+    const s = P.s, vol = signedVolume(one), g = vol * NOCK.petg, checks = [];
+    checks.push({ key:"ears", ok:P.ear >= 1.2, name:`Ears ${P.ear.toFixed(1)} mm thick beside the string`, why:"at least 1.2 mm, or they split" });
+    checks.push({ key:"snap", ok:s.snap <= 0.3, name:`The throat ${P.w.toFixed(2)} mm for a ${s.string} mm string`, why:"up to 0.3 mm narrower snaps on; more may not let the string in" });
+    if (P.insert) checks.push({ key:"collar", ok:P.R - P.rs >= 0.2, name:`A ${(P.R - P.rs).toFixed(2)} mm collar on the shaft's end`, why:"at least 0.2 mm, so it stops on the shaft" });
+    else checks.push({ key:"socket", ok:P.R - P.sock >= 0.8, name:`A ${(P.R - P.sock).toFixed(2)} mm wall round the shaft`, why:"at least 0.8 mm" });
+    const kind = { insert:"pushes into the shaft", taper:"slips onto the shaft's 11° taper (glue it)", over:"sleeves over the shaft's end (glue it)" }[s.fit];
+    const notes = [
+      `It ${kind}. Print it standing on the shaft's end, the groove up: no support. PETG or nylon, 0.12 mm layers, 100% infill (or 5 walls).`,
+      "Turn it so the ridge lines up with the cock feather (the odd-coloured one), square to the string.",
+      "A nock is a wear part: check each one before you shoot, and replace any that is cracked or loose. A nock that breaks can make the bow dry-fire."
+    ];
+    if (s.make === "test") notes.push("The fit test: five nocks 0.05 mm apart, numbered by the bumps on the side (1 the loosest). Push each onto a shaft and onto the string; use the step that grips firmly, and set Tighter or looser by it.");
+    const size = { across:+(2 * P.R).toFixed(2), long:+(s.shank + P.head).toFixed(1), grains:+(g * NOCK.grain).toFixed(1), grams:+g.toFixed(2) };
+    return { checks, ok:checks.every(q => q.ok), notes, size, warn:P.warn.slice() };
+  }
+
   global.PRCore = {
     // loft, sweep, thin shells (Session 83) and the mechanical parts library (Session 82)
     loft, sweep, shellSurface,
     flower:{ make:flowerMake, clean:flowerClean, settings:FLOWER_SETTINGS, styles:FLOWER_STYLES, sketch:flowerSketch, power:FLOWER_POWER, wall:FLOWER_WALL },
     bird:{ make:birdMake, clean:birdClean, settings:BIRD_SETTINGS, birds:BIRDS, solar:BIRD_SOLAR, sketch:birdSketch },
+    nock:{ make:nockMake, clean:nockClean, settings:NOCK_SETTINGS },
     parts:{ list:partList, make:part, clean:partClean, snap, travel:partTravel, fourBarAngle, crankSliderX, overCentre, petalAngle, petalArm, servos:PART_SERVOS, bearings:PART_BEARINGS, fasteners:PART_FASTENERS, boards:PART_BOARDS, rings:PART_RINGS, clearance:PART_CLEARANCE },
     hexToRgb, rgbToHex, colorDist, luma, kmeans, buildCellMap, makeProjector, buildDecalSolids, weldSoup, parseSTL,
     prepareParts, make3MF, make3MF_BBL, makeSTL, makeOBJ, traceMask, groupLoops, rectUnion, triangulate, solidFromTris, buildVectorSolid,

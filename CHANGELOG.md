@@ -3,6 +3,20 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.62.9
+
+The bird house set, and a box that hangs on one screw.
+
+**New**
+- **One keyhole in the floor** (Mounting): the box hangs on a single screw, its floor against a wall or a ceiling. The screw's head is held in a closed pocket inside, so the box stays sealed, and it prints without support. Its place can be moved.
+- **Make it all fit** now slides a part in the lid (a motion sensor, a switch) beside a board it would hang down onto, and only makes the box taller when there's no room.
+- The **bird house recipes**, as the owner uses them: **Bird house battery** stands on the bird house's floor (no screw ears); **Bird house camera** has the motion sensor in its lid beside the camera (the sensor's wire then stays in the camera box) and hangs on one keyhole. Both have rounded edges.
+
+**Fixed**
+- A part in the lid (a motion sensor, a switch, a pot) was never checked against the boards under it: a motion sensor's 20 mm body could sit on the board's parts and nothing said so. The lid's parts are now checked and shown in the 3D view, as the walls' parts always were.
+- A recipe with a smallest size moved its board out from under the camera holder it had just lined up over it.
+- The mini motion sensor (AM312 / HC-SR505) was taken as 12 mm deep behind its hole; with its pins it is about 20 mm (12 × 25 mm overall).
+
 ## 0.62.8
 
 A cover over plugs, for boxes outdoors.

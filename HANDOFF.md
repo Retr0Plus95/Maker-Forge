@@ -3369,7 +3369,87 @@ the owner's case they sit on the right side, where the ports are), so the case u
 Left to do: a cover for a shaped box (its walls go through `G.frame`; for now it is left out with a warning), and one on the floor or the lid. The owner's case is
 in this session's scratchpad, not in the repository.
 
+## Session 81: the bird house set, one keyhole, parts in the lid checked (v0.62.9)
+
+The owner, in one message: improve the engine and make the boxes sleeker and easier to mount parts in; the battery box stands on
+the bird house's floor; the camera box hangs from one point, not two; the motion sensor goes in the lid or the side towards the
+entrance (check its size); add what is missing, 30 improvements and 10 bugs; always easy to print, good-looking and professional.
+Then a new direction for the next sessions: a mechanical parts library and a blooming flower lamp built on it (see "The new
+direction" under Next), and Maker Forge Bench 2.0 (read-only from here: see Session 81's Bench notes under Next).
+
+**The count the owner asked for** (kept here across the sessions that follow; each bug has a test that fails on the build before):
+- Bugs (3 of 10): 1. a part in the lid was never checked against the boards under it (the motion sensor's body sat on the
+  ESP32-CAM's parts, no word); 2. a recipe's smallest size, applied after `over`, arranged the board away from under the camera
+  holder just lined up over it (`encStartKit`: `min` now comes first); 3. the AM312's room behind its hole was 12 mm, it is about
+  20 with its pins (12 × 25 mm overall, vendors' figures; the dome is 10 mm, its 12 mm shoulder stops it against the wall).
+- Improvements (3 of 30): 1. one keyhole in the floor (`mount: "keyhole"`); 2. Make it all fit slides a lid part beside the board
+  before growing the box (and grows it taller, not wider, when it must); 3. the bird house recipes as the owner uses them.
+  (Sessions 79 and 80, the cradle's gaps and the plug cover, came before the request and are not counted.)
+
+**One keyhole** (`encMount`, `ENC_KEYHOLE`): the head hole (9.5 mm) and slot (4.5 mm, 9 mm long, towards the back) through the
+floor, and on the floor's inside a block 13.5 × 22.5 mm with the head hole and a slot as wide as it 3.5 mm up (the head's room),
+then a 1.2 mm roof: a 9.5 mm bridge. `E.keyX`, `E.keyY` place it (kept inside the walls; `LIMITS_AT` ±150). A board or a battery
+over it lower than the roof gets a warning. `enclosureInfo.keyhole` is `{ x, y, bb, top }`.
+
+**Parts in the lid** (the "behind the wall" check, Session 64): a `top` opening with `deep` now hangs that far down from `ceilZ`
+(the lid's underside), is shown as a ghost "(under the lid)", and is checked against the boards. `encFixAll` tries the four
+places beside the board it meets, nearest first, keeping one that leaves fewer warnings, before growing the box by the overlap.
+
+**The recipes** (`ENC_KITS`): "Bird house battery and motion sensor" is now "Bird house battery": no motion sensor, `mount:
+"none"`, `radius: 6`, rounded lid edge. "Bird house camera" adds the AM312 to the lid (`faces.pirmini: "top"`), `mount: "keyhole"`,
+`h: 30`, `min.w: 62` (room beside the ESP32-CAM for the sensor's body), rounded. The sensor moved to the camera box because its
+signal goes to the ESP32-CAM's pin: in the battery box it needed a second wire between the boxes. Built: the camera box 62 × 58 ×
+30 mm, the sensor in the lid 13.8 mm right of the camera; the battery box 101 × 120 × 24 mm. New manual picture
+`docs/images/box-birdhouse.jpg` (the camera box and its lid).
+
+The owner's own boxes (their power bank board and the camera box) are in this session's scratchpad, not in the repository: the
+battery box (Session 80's case) stands on the floor now, with rounded edges.
+
+**Tested:**
+- `tools-boxplus-test.js`, new section: the keyhole's hole and slot through the floor, a lip either side, the pocket roofed, no
+  support; a battery over it warns; a saved project keeps it; a motion sensor in the lid over an ESP32 DevKit warns, and Make it all
+  fit slides it beside the board without making the box taller.
+- `tools-boxcal-test.js`: the two recipes as above (no warnings, closed, no support; the sensor's body clear of the board; the box
+  30 mm tall).
+- `npm run test:enclosure`, `npm run test:project`, `node tools-boxfuzz.js` (seed 81), the smoke test, `npm run fingerprint`.
+
 ## Next
+
+### The new direction (Session 81, the owner): a mechanical parts library, then the blooming flower lamp
+
+In the owner's order:
+1. **The parts library**, first; generators compose it. Every part is a function of its settings returning a watertight mesh,
+   named connectors (a point and a direction each, so parts snap together), and metadata (a BOM line, its best print orientation,
+   whether it needs support). One printer clearance on everything (0.2 mm by default) and a fit-test coupon to tune it. In order:
+   servo pockets and mounts (SG90 by default, MG90S, MG996R), horn adapters and a horn-to-rod link; fastener features (M2, M2.5,
+   M3 clearance holes, nut traps, heat-insert holes, countersinks, standoffs); electronics mounts (ESP32 DevKit, ESP32-CAM,
+   Arduino Nano, Pro Mini, a USB-C cut-out, cable strain relief, vents); LED holders (NeoPixel rings 12/16/24, 5 mm LED, LED
+   filament, diffusers); hinges (pin, print-in-place, living hinge in PETG); linkages (push rod, four-bar, crank-slider), each
+   with a travel calculator (servo angle → rod stroke → output angle); gears (involute spur, rack and pinion); snap fits and lid
+   clips, printed bushings, 608/623 bearing seats, D-shaft and 5 mm couplers; the bobble head's spring neck as a flexure part;
+   later fan mounts, threads and nuts, cams, ball joints.
+2. **New core primitives** the lamp needs: revolve, loft between profiles, sweep along a path, and a thin shell from a curved
+   parametric surface (petals) with a wall thickness.
+3. **The blooming flower lamp**: tulip, rose or lotus; 5–14 petals; its diameter, petal wall 0.8–1.2 mm (translucent PETG or PLA
+   glows), stem height; a central push rod with linkages, or a pull line; servo type; LED type; a base with room for the board,
+   USB-C and a touch pad or button. Rules: open and closed hold themselves with no load on the servo (the firmware detaches it);
+   one servo drives every petal; the base opens with screws so the LEDs and servo can be reached. Output: each part oriented and on
+   plates, a BOM, an open/close slider that moves the petals through the servo's travel, a collision check over the whole travel
+   (petal on petal, rod on LED) with the print check, and optionally an Arduino/ESP32 sketch (touch → bloom and fade in; touch
+   again → fade out and close; the servo detached at rest).
+4. **Tests:** the audit and smoke tests on every new part and lamp setting at its ends; watertight, clearance between mating
+   parts, connectors lining up, no collisions over the travel. The library's API written up here, for the box maker, a fume
+   extractor case and camera housings to use.
+
+### Maker Forge Bench (Session 81)
+
+The owner asked to connect to the Bench repository and think about its 2.0. `Retr0Plus95/Maker-Forge-Bench` is public and was
+cloned read-only into the session (`/home/user/retr0plus95/maker-forge-bench`, 1.0.4): Bench is the soldering-drawing viewer
+that shares `forge-project.json` with this app (to be called Maker Forge Shape). Its roadmap's 2.0, "The home, and board to
+box", wants the board in its case as one assembly, clash checks, an exploded view, and standard screws, standoffs and nuts from
+the shared Maker Forge Library; its 1.0 already sends a board to this app's Your parts. As its roadmap says, that work is done in
+Bench's own session. What this side gives it: the parts library's connectors and BOM lines are the "standard hardware" Bench
+2.0 needs, and the plan for that is in `docs/bench-2.md` (written with the parts library).
 
 **The plan from here to 2.5 is in `ROADMAP.md`** (Session 66, the owner's request): releases 0.58 to 0.95, 1.0, the parametric
 app (1.1 to 2.0), the library and marketplace (2.1 to 2.5), ten engine steps, and the decisions that are the owner's. The

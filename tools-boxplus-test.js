@@ -47,7 +47,7 @@ const EASYEDA = JSON.stringify({ head:{ docType:"3", c_para:{ name:"Weather node
 
   console.log("battery life");
   {
-    MF.boxRoom.startKit(MF.boxRoom.kits.find(k => k.name === "Bird house battery and motion sensor")); MF.rebuild(false); await settle(); await make();
+    MF.boxRoom.startKit(MF.boxRoom.kits.find(k => k.name === "Bird house battery")); MF.rebuild(false); await settle(); await make();
     const b = R.battery(E(), I());
     check(b && Math.abs(b.wh - 29.6) < 0.01 && b.days > 20 && b.days < 40 && b.wake, "the bird house battery box: about a month on the 126090 (29.6 Wh), the camera box waking on motion", b && `${b.days.toFixed(1)} days, ${b.perDay.toFixed(2)} Wh a day`);
     check(page("Battery life") && [...document.querySelectorAll("#panel .hint")].some(n => /about \d+ days on LiPo pouch 126090/.test(n.textContent)), "the Battery life page says so");
@@ -233,6 +233,44 @@ const EASYEDA = JSON.stringify({ head:{ docType:"3", c_para:{ name:"Weather node
     // saved and opened again
     await fresh({ w:129, d:70, h:29, coverDepth:40, cut:ports() }); await reload();
     check(E().coverDepth === 40 && E().cut.every(c => c.cover === true) && MF.parts.some(p => p.name === "Plug cover (right side)"), "a saved project keeps the cover and its depth");
+  }
+
+  console.log("\none keyhole in the floor; a part in the lid over a board (Session 81)");
+  {
+    const hitSeg = (s, a, b) => {
+      const P = s.pos, I2 = s.idx, d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+      for (let t = 0; t < I2.length; t += 3) {
+        const i0 = I2[t] * 3, i1 = I2[t + 1] * 3, i2 = I2[t + 2] * 3;
+        const e1 = [P[i1] - P[i0], P[i1 + 1] - P[i0 + 1], P[i1 + 2] - P[i0 + 2]], e2 = [P[i2] - P[i0], P[i2 + 1] - P[i0 + 1], P[i2 + 2] - P[i0 + 2]];
+        const h = [d[1] * e2[2] - d[2] * e2[1], d[2] * e2[0] - d[0] * e2[2], d[0] * e2[1] - d[1] * e2[0]], det = e1[0] * h[0] + e1[1] * h[1] + e1[2] * h[2];
+        if (Math.abs(det) < 1e-12) continue;
+        const f = 1 / det, sv = [a[0] - P[i0], a[1] - P[i0 + 1], a[2] - P[i0 + 2]], u = f * (sv[0] * h[0] + sv[1] * h[1] + sv[2] * h[2]);
+        if (u < 0 || u > 1) continue;
+        const q = [sv[1] * e1[2] - sv[2] * e1[1], sv[2] * e1[0] - sv[0] * e1[2], sv[0] * e1[1] - sv[1] * e1[0]], v = f * (d[0] * q[0] + d[1] * q[1] + d[2] * q[2]);
+        if (v < 0 || u + v > 1) continue;
+        const tt = f * (e2[0] * q[0] + e2[1] * q[1] + e2[2] * q[2]); if (tt > 0 && tt < 1) return true;
+      }
+      return false;
+    };
+    await fresh({ w:80, d:60, h:30, mount:"keyhole" });
+    const k = I().keyhole, box = MF.parts.find(p => p.name === "Box").solid, fl = 2;
+    // plan (x, y) is world (x, z = -y): straight up through the head hole and the slot's end, into the pocket; the roof over it
+    const through = !hitSeg(box, [k.x, -0.5, -k.y], [k.x, fl + 1, -k.y]) && !hitSeg(box, [k.x, -0.5, -(k.y + 8)], [k.x, fl + 1, -(k.y + 8)]);
+    const roofed = hitSeg(box, [k.x, fl + 1, -k.y], [k.x, k.top + 1, -k.y]), lip = hitSeg(box, [k.x + 3.5, -0.5, -(k.y + 6)], [k.x + 3.5, fl + 1, -(k.y + 6)]);
+    check(k && through && roofed && lip && closed() && !I().warn.length && I().mount.some(l => /One keyhole in the floor/.test(l)), "one keyhole: the head hole and slot through the floor, a lip either side of the slot, a closed pocket over it", JSON.stringify({ k, through, roofed, lip }));
+    const sp = await support();
+    check(sp >= 0 && sp < 3, "and the box prints without support (the pocket's roof is a short bridge)", `${sp} mm²`);
+    await fresh({ w:80, d:60, h:30, mount:"keyhole", more:[{ kind:"lipo603450", x:0, y:0, hold:"strap" }] });
+    check(warnT().some(t => /sits on the keyhole's pocket/.test(t)), "a battery lying over the pocket: a warning", warnT().join("; "));
+    await fresh({ w:80, d:60, h:30, mount:"keyhole", keyX:12, keyY:-8 }); await reload();
+    check(E().mount === "keyhole" && E().keyX === 12 && E().keyY === -8 && I().keyhole && I().keyhole.x === 12, "a saved project keeps the keyhole and its place");
+    // a motion sensor in the lid, its body hanging down onto a board: a warning, and Make it all fit slides it beside the board
+    await fresh({ w:90, d:70, h:30, board:"esp32devkit", boardHold:"edges", boardX:0, boardY:0, cut:[Object.assign(MF.newOpening("pirmini", "top"), { u:0, v:0 })] });
+    const before = warnT().filter(t => /reaches/.test(t)), h0 = E().h;
+    await page("Openings"); await make();
+    const r = MF.boxRoom.fixAll ? MF.boxRoom.fixAll(E()) : null; MF.rebuild(false); await settle();
+    const pq = I().behind.find(q => E().cut[q.i] && E().cut[q.i].kind === "pirmini");
+    check(before.length === 1 && pq && !pq.hit && E().h === h0, "a motion sensor in the lid over a board: a warning, then Make it all fit slides it beside the board (the box no taller)", `${before.join("; ")} → ${pq && JSON.stringify(pq.rect.map(v => +v.toFixed(1)))}, h ${h0} → ${E().h}`);
   }
 
   console.log("\nsaved and opened again; a hostile project");

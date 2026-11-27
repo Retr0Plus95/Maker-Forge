@@ -70,6 +70,26 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
     check(closed(qs) && part(qs, /^Lid art/) && !MF.enclosure.warn.length, "a sliding lid takes art too (printed face up: the art at its top)");
     const s1 = await support({ w:120, d:80, h:45, lid:"screw", art:[words("front", "raised"), words("right", "inlay"), words("back", "engrave"), words("top", "inlay"), words("bottom", "engrave")] });
     check(s1 === 0, "raised, inlaid and engraved art on every face needs no support", `${s1} mm²`);
+    // raised more than 0.8 mm (Session 86: the panel said "no support" over flat undersides up to 3 mm wide): stepped underneath
+    fresh({ w:120, d:80, h:45, lid:"screw" });
+    const zr = (() => { let lo = Infinity, hi = -Infinity; MF.buildEnclosure().forEach(p => { const P = p.solid.pos; for (let i = 2; i < P.length; i += 3){ lo = Math.min(lo, P[i]); hi = Math.max(hi, P[i]); } }); return [lo, hi]; })();
+    const out = z => Math.max(zr[0] - z, z - zr[1], 0);
+    // how far out of the walls the widest flat underside reaches (a face looking straight down), and how far out anything stands
+    const reachOut = parts => { let ledge = 0, most = 0; parts.forEach(p => { const P = p.solid.pos, I = p.solid.idx;
+      for (let t = 0; t < I.length; t += 3){ const a = 3*I[t], b = 3*I[t + 1], c = 3*I[t + 2];
+        const o = [a, b, c].map(v => out(P[v + 2])); most = Math.max(most, ...o);
+        const ux = P[b] - P[a], uy = P[b + 1] - P[a + 1], uz = P[b + 2] - P[a + 2], vx = P[c] - P[a], vy = P[c + 1] - P[a + 1], vz = P[c + 2] - P[a + 2];
+        const ny = uz*vx - ux*vz, L = Math.hypot(uy*vz - uz*vy, ny, ux*vy - uy*vx);
+        if (L > 1e-12 && ny/L < -0.985 && Math.max(...o) > 0.01) ledge = Math.max(ledge, Math.max(...o) - Math.min(...o)); } }); return { ledge, most }; };
+    for (const depth of [2, 3]){
+      const s2 = await support({ w:120, d:80, h:45, lid:"screw", art:[words("front", "raised", { depth, size:10 })] }), r = reachOut(MF.parts);
+      check(s2 === 0 && r.ledge < 0.81 && r.most > depth - 0.05 && closed(MF.parts), `words raised ${depth} mm step up underneath: no flat underside more than 0.8 mm out, they still stand ${depth} mm out, no support`,
+        `widest ledge ${r.ledge.toFixed(2)} mm, out ${r.most.toFixed(2)} mm, ${s2} mm²`);
+    }
+    fresh({ w:120, d:80, h:45, lid:"screw", art:[words("front", "raised", { depth:0.8, size:10 })] }); MF.buildEnclosure();
+    const n08 = MF.buildEnclosure().reduce((a, p) => a + p.solid.idx.length, 0);
+    fresh({ w:120, d:80, h:45, lid:"screw", art:[words("front", "raised", { depth:0.7, size:10 })] });
+    check(MF.buildEnclosure().reduce((a, p) => a + p.solid.idx.length, 0) === n08, "raised 0.8 mm or less, they're built as before (one block each)");
   }
 
   console.log("\nthe Art tab picture, labels, a hostile project, the panel");

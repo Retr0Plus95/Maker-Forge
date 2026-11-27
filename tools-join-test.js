@@ -142,6 +142,36 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
     check(MF.checks.list.some(c => c.k === "ok" && c.t === "Overlapping pieces joined"), "the checks say the pieces are joined", (MF.checks.list.find(c => /joined/.test(c.t)) || {}).s);
   }
 
+  console.log("\nthe print check on the joined solids (Session 86, the engine's E1)");
+  {
+    // the check as it stands, waited for: printNow runs it on whatever is fresh
+    const printed = async want => { let r = null; for (let i = 0; i < 300; i++){ r = MF.print; if (r && want(r)) return r; await sleep(25); if (!MF.busy && i % 20 === 0) await MF.printNow(); } return r; };
+    const P = MF.state.printer, mm1 = v => v < 10 ? v.toFixed(1) : v.toFixed(0);
+    await pick("preset", "Tea light");
+    const onPieces = C.analyzePrint(MF.printParts(), { nozzle:P.nozzle || 0.4, layer:P.layer || 0.2, angle:P.overhang || 45, bridge:P.bridge ?? 10 });
+    await joined(); await MF.printNow(); const onJoined = await printed(r => r.joined);
+    check(onJoined && onJoined.joined && onJoined.overhang.area < onPieces.overhang.area - 10,
+      "once joined, the tea light's buried faces (where its pieces overlap) no longer read as needing support",
+      `${onPieces.overhang.area.toFixed(1)} → ${onJoined && onJoined.overhang.area.toFixed(1)} mm²`);
+    if (onJoined){
+      const sum = onJoined.overhang.perPart.reduce((a, v) => a + v, 0);
+      check(onJoined.parts.join() === onPieces.parts.join() && Math.abs(sum - onJoined.overhang.area) < 0.01 && onJoined.overhang.perPart.every(v => v >= 0),
+        "the findings are still told by piece: the same names, the support shared out among them", onJoined.parts.join(", ") + ": " + onJoined.overhang.perPart.map(v => v.toFixed(1)).join(", "));
+      check(MF.checks.list.some(c => c.t === `Needs support under about ${mm1(onJoined.overhang.area)} mm²`), "the checks list says the joined figure", (MF.checks.list.find(c => /support/.test(c.t)) || {}).t);
+    }
+    // a brim is part of the joined solid, so with one the check stays on the pieces
+    MF.state.model.brim = 4; MF.rebuild(false); await settle(); await joined(); await MF.printNow();
+    const withBrim = await printed(() => true);
+    check(withBrim && !withBrim.joined && Math.abs(withBrim.contact.area - onPieces.contact.area) < 1, "with a brim the check stays on the pieces, and the brim isn't counted as bed", withBrim && withBrim.contact.area.toFixed(0) + " mm²");
+    MF.state.model.brim = 0;
+    // after a change, with nothing asked for: the build starts the check, the background pass joins, and the check runs again on that
+    MF.state.base.shell.h += 1; MF.rebuild(false);
+    const seen = []; let last = "";
+    for (let i = 0; i < 600; i++){ const r = MF.print, k = r ? (r.joined ? "joined" : "pieces") : "waiting"; if (k !== last) seen.push(last = k); if (k === "joined") break; await sleep(20); }
+    check(last === "joined", "after a change, the check on the joined solids comes by itself", seen.join(" → "));
+    MF.state.base.shell.h -= 1; MF.rebuild(false); await settle();
+  }
+
   console.log("\na result that arrives after a change is dropped");
   {
     MF.state.model.brim = 0; MF.rebuild(false); await settle();

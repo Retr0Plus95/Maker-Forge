@@ -3175,21 +3175,30 @@ const encGrowText = g => Object.entries(g).filter(([, v]) => v > 0).map(([k, v])
 function encMakeRoom(E){
   const before = [E.w, E.d, E.h]; let last = null, sides = { l:0, r:0, f:0, b:0 };
   // again until it settles: a taller box lets a level that was pressed down by the lid rise, and its parts with it
-  for (let it = 0; it < 4; it++){ const r = encMakeRoom1(E); if (!r.grew){ if (!last) last = r; break; } last = r; for (const k of Object.keys(sides)) sides[k] += r.g[k] || 0; }
+  let raised = false;
+  for (let it = 0; it < 4; it++){ const r = encMakeRoom1(E); raised = raised || r.raised; if (!r.grew && !r.raised){ if (!last) last = r; break; } last = r; for (const k of Object.keys(sides)) sides[k] += r.g[k] || 0; }
   const after = [E.w, E.d, E.h];
-  return Object.assign(last, { before, after, grew:after.some((v, k) => v !== before[k]), sides:encGrowText(sides), taller:after[2] !== before[2] });
+  return Object.assign(last, { before, after, grew:after.some((v, k) => v !== before[k]), sides:encGrowText(sides), taller:after[2] !== before[2], raised });
 }
 function encMakeRoom1(E){
   buildEnclosure();
   const I = enclosureInfo, before = [E.w, E.d, E.h]; if (!I) return { grew:false, before, after:before, g:{} };
-  const [iw, id] = I.inner, g = { l:0, r:0, f:0, b:0 }, nLv = (I.levels || []).length; let hNeed = 0, what = "";
+  const [iw, id] = I.inner, g = { l:0, r:0, f:0, b:0 }, nLv = (I.levels || []).length; let hNeed = 0, what = "", raised = false;
   (I.boards || []).forEach(b => {
     const m = b.m ?? 0.5;
     if (b.face){                                               // on a wall or the lid (Session 63): grow that face
       const o = b.faceOver; if (b.fits !== false || !o) return; what = what || b.label;
       const S = { front:["l","r"], back:["r","l"], left:["b","f"], right:["f","b"], top:["l","r"] }[b.face];
       g[S[0]] = Math.max(g[S[0]], o.a0); g[S[1]] = Math.max(g[S[1]], o.a1);
-      if (b.face === "top"){ g.f = Math.max(g.f, o.b0); g.b = Math.max(g.b, o.b1); } else if (o.b1 > 0) hNeed = Math.max(hNeed, I.size[2] + o.b1 + 0.5);
+      if (b.face === "top"){ g.f = Math.max(g.f, o.b0); g.b = Math.max(g.b, o.b1); }
+      else if (o.b0 > 0){
+        // (Session 86, found by tools-boxfuzz.js) down into the floor: it goes up the wall by that much (its height there is its
+        // y), and the next round makes the box taller if it then reaches the lid; growing the box alone never lifted it
+        const src = b.main ? null : (Array.isArray(E.more) ? E.more : []).find(q => q === b.src), up = Math.ceil((o.b0 + 0.1)*10)/10;
+        if (b.main) E.boardY = +((+E.boardY || 0) + up).toFixed(1); else if (src) src.y = +((+src.y || 0) + up).toFixed(1);
+        raised = raised || b.main || !!src;
+      }
+      else if (o.b1 > 0) hNeed = Math.max(hNeed, I.size[2] + o.b1 + 0.5);
       return;
     }
     if (b.fits === false){
@@ -3207,8 +3216,8 @@ function encMakeRoom1(E){
   encGrowSides(E, g);
   if (hNeed) E.h = Math.min(250, Math.max(+E.h || 30, Math.ceil(hNeed)));
   const after = [E.w, E.d, E.h], grew = after.some((v, k) => v !== before[k]);
-  if (grew) buildEnclosure();
-  return { grew, before, after, sides:encGrowText(g), taller:after[2] !== before[2], what, g };
+  if (grew || raised) buildEnclosure();
+  return { grew, raised, before, after, sides:encGrowText(g), taller:after[2] !== before[2], what, g };
 }
 // a board or module added (or duplicated) (Session 61): where there is room, or the box grows on one side for it. Checked
 // once it is in: a change the growth itself brings (a level's posts that only fit the bigger box) sends it to look again
@@ -4545,6 +4554,50 @@ function encArtShape(a, bgSlot){
 }
 // polys turned by rot (degrees, anticlockwise), moved by (dx, dy), and mirrored top to bottom when flip (the floor reads
 // with the box turned over); outlines anticlockwise, holes clockwise
+/* raised art on a wall standing out more than 0.8 mm (Session 86; it promised "no support" and had flat undersides up to 3 mm
+   wide): as a raised picture on an object (uprightMaskSolid), up to 0.6 mm as it is, then up to four slabs, each keeping only
+   what has the art (in any colour) unbroken under it for its rise, so every flat underside is a ledge of 0.6 mm at most. The
+   art is drawn on a 0.08 mm grid (local v is up the wall, as the box prints) and each slab traced back. Returns a function
+   giving colour ci's solid in the wall's frame, or null where nothing needs stepping. */
+const ENC_STEP_CELL = 0.08;
+function encRaisedSteps(x, t){
+  if (!(x.depth > UPRIGHT_FROM + 1e-6) || !x.union.length) return null;
+  const mn = [Infinity, Infinity], mx = [-Infinity, -Infinity];
+  x.union.forEach(q => q.outer.forEach(([u, v]) => { mn[0] = Math.min(mn[0], u); mn[1] = Math.min(mn[1], v); mx[0] = Math.max(mx[0], u); mx[1] = Math.max(mx[1], v); }));
+  const cell = ENC_STEP_CELL, pad = 3, w = Math.ceil((mx[0] - mn[0])/cell) + 2*pad, h = Math.ceil((mx[1] - mn[1])/cell) + 2*pad;
+  if (!(w*h <= 4e6)) return null;
+  const u0 = mn[0] - pad*cell, vTop = mx[1] + pad*cell, cx = u0 + w*cell/2, cy = vTop - h*cell/2;
+  // column i covers u0 + i·cell onwards, row j vTop - j·cell downwards; a cell is in where the winding round its centre isn't 0
+  const raster = polys => {
+    const m = new Uint8Array(w*h), loops = polys.flatMap(q => [q.outer, ...q.holes]);
+    for (let j = 0; j < h; j++){
+      const vc = vTop - (j + 0.5)*cell, xs = [];
+      for (const L of loops) for (let a = 0; a < L.length; a++){ const p = L[a], q = L[(a + 1) % L.length];
+        if ((p[1] > vc) !== (q[1] > vc)) xs.push([p[0] + (vc - p[1])*(q[0] - p[0])/(q[1] - p[1]), q[1] > p[1] ? 1 : -1]); }
+      xs.sort((a, b) => a[0] - b[0]);
+      let wn = 0;
+      for (let k = 0; k + 1 < xs.length; k++){ wn += xs[k][1]; if (!wn) continue;
+        const i0 = Math.max(0, Math.ceil((xs[k][0] - u0)/cell - 0.5)), i1 = Math.min(w - 1, Math.floor((xs[k + 1][0] - u0)/cell - 0.5));
+        for (let i = i0; i <= i1; i++) m[j*w + i] = 1; }
+    }
+    return m;
+  };
+  const all = raster(x.union), run = new Uint16Array(w*h);
+  for (let j = h - 1; j >= 0; j--) for (let i = 0; i < w; i++){ const k = j*w + i; if (all[k]) run[k] = Math.min(65535, 1 + (j + 1 < h ? run[k + w] : 0)); }
+  const n = Math.max(1, Math.min(4, Math.ceil((x.depth - UPRIGHT_FIRST)/UPRIGHT_SLAB - 1e-6))), s = (x.depth - UPRIGHT_FIRST)/n;
+  const back = L => L.map(([a, b]) => [a + cx, b + cy]);
+  const trace = m => C.maskToPolys(m, w, h, { mmPerPx:cell, keep:true, eps:cell*0.5 }).map(q => ({ outer:encOrient(back(q.outer), true), holes:q.holes.map(L => encOrient(back(L), false)) }));
+  return ci => {
+    const c = x.colours[ci], mine = raster(c.polys), pcs = [C.extrudePolysAt(c.polys, t - 0.01, t + UPRIGHT_FIRST)];
+    for (let k = 0; k < n; k++){
+      const need = 1 + Math.ceil((k + 1)*s/UPRIGHT_RISE/cell - 1e-6), mk = new Uint8Array(w*h);
+      let any = false; for (let q = 0; q < mk.length; q++) if (mine[q] && run[q] >= need){ mk[q] = 1; any = true; }
+      const polys = any ? trace(mk) : [];
+      if (polys.length) pcs.push(C.extrudePolysAt(polys, t + UPRIGHT_FIRST + k*s, t + UPRIGHT_FIRST + (k + 1)*s));
+    }
+    return C.mergeSolids(pcs);
+  };
+}
 function encArtPlace(polys, rot, dx, dy, flip){
   const c = Math.round(Math.cos(rot*Math.PI/180)), sn = Math.round(Math.sin(rot*Math.PI/180));
   const tf = ([x, y]) => { const u = x*c - y*sn + dx, v = x*sn + y*c + dy; return [u, flip ? -v : v]; };
@@ -6182,11 +6235,12 @@ function buildEnclosure(){
         pcs.push(C.extrudePolysAt([{ outer: outer.slice(), holes: [...open, ...inner, ...on.flatMap(c => c.holes)] }, ...on.flatMap(c => c.islands)], zs[k], zs[k+1])); }
       solids.push(C.affineSolid(C.mergeSolids(pcs), F.M, F.T));
     } else solids.push(C.affineSolid(C.extrudePolysAt([{ outer, holes: open }], 0, t), F.M, F.T));
-    // inlaid art fills its pocket flush; raised art stands on the outside (in the box's filament, or a part of its own)
-    artOn[face].forEach(x => x.colours.forEach(c => {
-      const sol = C.affineSolid(x.finish === "raised" ? C.extrudePolysAt(c.polys, t - 0.01, t + x.depth) : C.extrudePolysAt(c.polys, t - x.depth, t), F.M, F.T);
+    // inlaid art fills its pocket flush; raised art stands on the outside (in the box's filament, or a part of its own),
+    // stepped underneath when it stands out more than 0.8 mm (encRaisedSteps)
+    artOn[face].forEach(x => { const steps = x.finish === "raised" ? encRaisedSteps(x, t) : null; x.colours.forEach((c, ci) => {
+      const sol = C.affineSolid(x.finish === "raised" ? (steps ? steps(ci) : C.extrudePolysAt(c.polys, t - 0.01, t + x.depth)) : C.extrudePolysAt(c.polys, t - x.depth, t), F.M, F.T);
       if (x.finish === "raised" && c.slot === boxSlot0) solids.push(sol); else artParts.push({ name:artName(face, c.slot), slot:c.slot, solid:sol });
-    }));
+    }); });
   }
   if (slide){
     // rails on the side walls, from the front face to the back wall: a groove cut into the wall at
@@ -9806,6 +9860,56 @@ function wrapsRound(d){
   if (d.wrap === "wrap" || d.wrap === "flat") return d.wrap === "wrap";
   return !!(WRAP_AUTO[state.base.type] || (state.base.type === "shell" && state.base.shell.shape === "round"));
 }
+/* a relief on an upright face (Session 86): going up, it rises no faster than about 40°, and its bottom edge stands at most
+   0.6 mm out, so its undersides print without support, as an upright lithophane does. The tea light's picture stood up to
+   2 mm out over nothing at its foot (80 mm² of support). Each cell is held to the one below it (lowest first); returns how
+   many cells were lowered. */
+const UPRIGHT_FIRST = 0.6, UPRIGHT_FROM = 0.8, UPRIGHT_RISE = 0.85, UPRIGHT_SLAB = 0.6, UPRIGHT_TRIS = 600000;
+// on an upright face, the cell below each cell (di, dj) and how far up one cell is (dy, mm); null on top or underneath
+function uprightDir(d, gx, gy, W, H){
+  const F = frameFor(d); if (Math.abs(F.n[1]) > 0.7) return null;
+  const cu = W/gx, cv = H/gy, rows = Math.abs(F.b[1])*cv >= Math.abs(F.t[1])*cu, dy = rows ? Math.abs(F.b[1])*cv : Math.abs(F.t[1])*cu;
+  if (!(dy > 1e-6)) return null;
+  // a cell's (i, j) moves the picture by u = i·cu, v = -j·cv: the neighbour below is the one that lowers it most
+  return { rows, dy, di: rows ? 0 : (F.t[1] > 0 ? -1 : 1), dj: rows ? (F.b[1] > 0 ? 1 : -1) : 0 };
+}
+// every cell, lowest first
+function uprightOrder(U, gx, gy, visit){
+  if (U.rows) for (let s = 0; s < gy; s++){ const j = U.dj > 0 ? gy - 1 - s : s; for (let i = 0; i < gx; i++) visit(i, j); }
+  else for (let s = 0; s < gx; s++){ const i = U.di > 0 ? gx - 1 - s : s; for (let j = 0; j < gy; j++) visit(i, j); }
+}
+function uprightRelief(d, cm, cellH, W, H){
+  const { gx, gy, idx } = cm, U = uprightDir(d, gx, gy, W, H); if (!U) return 0;
+  const rise = UPRIGHT_RISE*U.dy;
+  let lowered = 0;
+  uprightOrder(U, gx, gy, (i, j) => { const k = j*gx + i; if (idx[k] < 0) return;
+    const I = i + U.di, J = j + U.dj, cap = I >= 0 && J >= 0 && I < gx && J < gy && idx[J*gx + I] >= 0 ? cellH[J*gx + I] + rise : UPRIGHT_FIRST;
+    if (cellH[k] > cap + 1e-9){ cellH[k] = cap; lowered++; } });
+  return lowered;
+}
+/* the same for a raised picture standing more than 0.8 mm out (Session 86; 0.8 mm, the default, prints as a ledge): up to
+   0.6 mm as it is, then slabs 0.3 mm thick,
+   each one's underside higher than the last's by more than the slab is thick (steeper than 45°). A slab keeps a cell only where
+   the picture runs unbroken below it for that rise, so a gap under a shape doesn't hold the slab up. */
+function uprightMaskSolid(d, m, support, gx, gy, W, H, proj, height, embed, opts){
+  const U = height > UPRIGHT_FROM + 1e-6 ? uprightDir(d, gx, gy, W, H) : null;
+  if (!U) return C.buildMaskSolid(m, gx, gy, W, H, proj, height, embed, opts);
+  // how many cells of the picture (any of its colours: they all hold up what's above) run unbroken from each cell downwards
+  const run = new Uint16Array(gx*gy);
+  uprightOrder(U, gx, gy, (i, j) => { const k = j*gx + i; if (!support[k]) return;
+    const I = i + U.di, J = j + U.dj; run[k] = Math.min(65535, 1 + (I >= 0 && J >= 0 && I < gx && J < gy ? run[J*gx + I] : 0)); });
+  const pieces = [C.buildMaskSolid(m, gx, gy, W, H, proj, UPRIGHT_FIRST, embed, opts)];
+  const tris = pieces[0] ? pieces[0].idx.length/3 : 0;
+  const n = Math.max(1, Math.min(4, Math.ceil((height - UPRIGHT_FIRST)/UPRIGHT_SLAB - 1e-6), Math.floor(UPRIGHT_TRIS/Math.max(1, tris)) - 1)), s = (height - UPRIGHT_FIRST)/n;
+  for (let k = 0; k < n; k++){
+    const need = 1 + Math.ceil((k + 1)*s/UPRIGHT_RISE/U.dy - 1e-6), mk = new Uint8Array(gx*gy);
+    let any = false; for (let q = 0; q < mk.length; q++) if (m[q] && run[q] >= need){ mk[q] = 1; any = true; }
+    if (any) pieces.push(C.buildMaskSolid(mk, gx, gy, W, H, proj, UPRIGHT_FIRST + (k + 1)*s, -(UPRIGHT_FIRST + k*s), opts));
+  }
+  const list = pieces.filter(Boolean);
+  d._upright = (d._upright || 0) + 1;
+  return list.length ? C.mergeSolids(list) : null;
+}
 function buildItem(d){
   const cm = cellMapFor(d); d._cm = cm; d._inlay = false;
   const cut = cutMode(d); d._cut = cut;
@@ -9815,27 +9919,33 @@ function buildItem(d){
   if (d.mode === "relief"){
     const N = cm.gx*cm.gy, cellH = new Float32Array(N), lo = d.minH, hi = Math.max(d.minH,d.maxH);
     for (let k=0;k<N;k++) if (cm.idx[k] >= 0) cellH[k] = lo + (hi-lo)*(d.invert ? 1-cm.lum[k] : cm.lum[k]);
+    d._upright = baseSoup ? uprightRelief(d, cm, cellH, W, H) : 0;
     C.buildDecalSolids(cm, W, H, proj, cellH, embed, state.slots.length).forEach((s,i)=>solids[i] = s);
   } else {
     const maxLen = baseSoup ? (CURVED[state.base.type] ? 1.5 : 2.5) : 0;
     // a colour reaching the picture's edge prints up to it (its background is already left out: cellMapFor)
     // the outline is simplified by at most a quarter of a cell (half a cell thinned a line two cells wide by 15%)
     const opts = { maxLen, smoothEdges:2, eps:Math.max(0.03,(W/cm.gx)*0.25), closeEdges:true };
+    d._upright = 0;
+    const steps = !cut && baseSoup && d.mode === "flat", all = new Uint8Array(cm.gx*cm.gy);
+    if (steps) for (let i=0;i<all.length;i++) all[i] = cm.idx[i] >= 0 ? 1 : 0;
     state.slots.forEach((_,s)=>{
       const m = C.maskOfSlot(cm, s);
-      if (m) solids[s] = C.buildMaskSolid(m, cm.gx, cm.gy, W, H, proj, cut ? CUT_OUT : heightOf(d,s), embed, opts);
+      if (m) solids[s] = steps ? uprightMaskSolid(d, m, all, cm.gx, cm.gy, W, H, proj, heightOf(d,s), embed, opts)
+        : C.buildMaskSolid(m, cm.gx, cm.gy, W, H, proj, cut ? CUT_OUT : heightOf(d,s), embed, opts);
     });
     if (d.outline && d.outline.on && d.outline.width > 0){
       const all = new Uint8Array(cm.gx*cm.gy);
       for (let i=0;i<all.length;i++) all[i] = cm.idx[i] >= 0 ? 1 : 0;
       const cell = W/cm.gx, pad = Math.ceil(d.outline.width/cell) + 2;
       const P = padMask(all, cm.gx, cm.gy, pad);                 // room for the halo past the picture's edge
-      const grown = C.dilateMask(P.mask, P.w, P.h, d.outline.width/cell);
+      const grown = C.dilateMask(P.mask, P.w, P.h, d.outline.width/cell), held = steps ? grown.slice() : null;   // the halo and the picture
       for (let i=0;i<grown.length;i++) grown[i] = grown[i] && !P.mask[i] ? 1 : 0;
       const W2 = cell*P.w, H2 = (H/cm.gy)*P.h;
       const proj2 = C.makeProjector(baseSoup, frameFor(d), W2/2, H2/2);
       const slot = clamp(d.outline.slot,0,state.slots.length-1);
-      const halo = C.buildMaskSolid(grown, P.w, P.h, W2, H2, proj2, cut ? CUT_OUT : heightOf(d,slot), embed, opts);
+      const halo = !steps ? C.buildMaskSolid(grown, P.w, P.h, W2, H2, proj2, cut ? CUT_OUT : heightOf(d,slot), embed, opts)
+        : uprightMaskSolid(d, grown, held, P.w, P.h, W2, H2, proj2, heightOf(d,slot), embed, opts);
       solids[slot] = solids[slot] ? C.mergeSolids([solids[slot], halo]) : halo;
     }
   }
@@ -10057,6 +10167,8 @@ async function runJoin(){
     list:list.map((p, i) => Object.assign({}, p, { pos:res[i].pos, idx:res[i].idx, paint:res[i].paint })),
     joined:res.reduce((a, r) => a + r.joined, 0), open:res.reduce((a, r) => a + r.open, 0) };
   runChecks();
+  // the print check again, on the joined solids (Session 86): what it found on the pieces stays up until then
+  if (printOnJoined() && !(printFresh() && printInfo.joined)) schedulePrintability();
 }
 // the export's solids, joined: the background pass's when it is up to date, else joined now
 async function exportPartsJoined(){
@@ -12334,10 +12446,38 @@ function printKey(){
 }
 const printFresh = () => printInfo && printInfo.key === printKey();
 function schedulePrintability(){ clearTimeout(printTimer); printTimer = setTimeout(runPrintability, 450); }
+/* the check on what the files hold (Session 86, the engine's E1): once the background pass has joined each colour into one solid
+   for this build, the check runs again on those. Pieces that overlap (a post in a wall, a wick holder in a floor) leave faces
+   buried in the plastic, and one facing down there read as needing support. Not with a brim: it is part of the joined solid and
+   would count as bed. The findings are then told by piece (printByPiece), so the check still names a part. */
+const printOnJoined = () => !state.model.brim && joinFresh() && joinInfo.joined > 0;
+function printByPiece(info, pieces){
+  const box = pieces.map(p => { const b = C.solidBounds(p); return { mn:b.mn, mx:b.mx, v:(b.mx[0]-b.mn[0])*(b.mx[1]-b.mn[1])*(b.mx[2]-b.mn[2]) }; });
+  const sunk = info.sunk || 0;
+  // the piece whose box holds a point (within 0.05 mm), the smallest where boxes overlap; else the nearest
+  const owner = (x, y, z) => { y -= sunk; let best = 0, bd = Infinity, bv = Infinity;
+    box.forEach((b, i) => { let d = Math.max(b.mn[0]-x, x-b.mx[0], b.mn[1]-y, y-b.mx[1], b.mn[2]-z, z-b.mx[2], 0); if (d <= 0.05) d = 0;
+      if (d < bd || (d === bd && b.v < bv)){ best = i; bd = d; bv = b.v; } });
+    return best; };
+  const a = info.marks && info.marks.support, share = pieces.map(() => 0);
+  let total = 0;
+  if (a) for (let i = 0; i + 8 < a.length; i += 9){
+    const ux = a[i+3]-a[i], uy = a[i+4]-a[i+1], uz = a[i+5]-a[i+2], vx = a[i+6]-a[i], vy = a[i+7]-a[i+1], vz = a[i+8]-a[i+2];
+    const ar = Math.hypot(uy*vz - uz*vy, uz*vx - ux*vz, ux*vy - uy*vx)/2;
+    share[owner((a[i]+a[i+3]+a[i+6])/3, (a[i+1]+a[i+4]+a[i+7])/3, (a[i+2]+a[i+5]+a[i+8])/3)] += ar; total += ar;
+  }
+  const oh = info.overhang;
+  oh.perPart = share.map(s => total > 0 ? oh.area*s/total : 0);
+  (info.thin || []).forEach(t => { t.name = pieces[owner(t.x, t.y, t.z)].name; });
+  info.parts = pieces.map(p => p.name); info.slots = pieces.map(p => p.slot); info.joined = true;
+  return info;
+}
 async function runPrintability(){
   if (busy || queued || modelRough || rebuildPending){ schedulePrintability(); return; }   // not a rough preview (Session 70)
   const key = printKey(), job = ++printJob, P = state.printer;
-  const parts = printedParts();
+  const pieces = printedParts(), joined = printOnJoined();
+  const parts = joined ? joinInfo.list.map(p => ({ name:p.name, slot:p.slot, pos:p.pos, idx:p.idx })) : pieces;
+  const done = r => joined ? printByPiece(r, pieces) : Object.assign(r, { slots:parts.map(p=>p.slot) });
   const tris = parts.reduce((a,p)=>a+p.idx.length/3, 0);
   if (!parts.length || tris > 800000){ printInfo = { key, skipped:parts.length ? tris : 0 }; runChecks(); return; }
   const opts = { nozzle:P.nozzle||0.4, layer:P.layer||0.2, angle:P.overhang||45, bridge:P.bridge ?? 10,
@@ -12348,7 +12488,7 @@ async function runPrintability(){
     let res = null;
     try { res = await off; } catch (err){ if (!helper.failed && !/replaced/.test(err.message)){ console.error(err); printInfo = { key, failed:err.message }; runChecks(); return; } }
     if (job !== printJob || busy || printKey() !== key) return;           // a newer build or setting took over
-    if (res){ printInfo = Object.assign(res, { key, slots:parts.map(p=>p.slot) }); runChecks(); refreshOverlay(); return; }
+    if (res){ printInfo = Object.assign(done(res), { key }); runChecks(); refreshOverlay(); return; }
   }
   const it = C.analyzePrintSteps(parts, opts);
   let r, t0 = performance.now();
@@ -12361,7 +12501,7 @@ async function runPrintability(){
       }
     }
   } catch (err){ console.error(err); printInfo = { key, failed:err.message }; runChecks(); return; }
-  printInfo = Object.assign(r.value, { key, slots:parts.map(p=>p.slot) });
+  printInfo = Object.assign(done(r.value), { key });
   runChecks(); refreshOverlay();
 }
 const mm1 = v => v < 10 ? v.toFixed(1) : v.toFixed(0);
@@ -15243,7 +15383,7 @@ function enclosureFields(p){
       segField(box, wall ? [["engrave","Engraved"],["inlay","Inlaid"],["raised","Raised"]] : [["engrave","Engraved"],["inlay","Inlaid"]], ()=>!wall && a.finish === "raised" ? "inlay" : a.finish, v=>{ a.finish = v; renderTab(); baseChanged(); });
       if (a.finish !== "engrave" && a.kind !== "picture") slotField(box, "Filament", ()=>a.slot, v=>{ a.slot = +v; baseChanged(); });
       numField(box,{ label:a.finish === "raised" ? "Stands out (mm)" : "Depth (mm)", min:0.2,max:a.finish === "raised" ? 3 : 1.6,step:0.1, get:()=>a.depth, set:v=>a.depth=v, onChange:baseChanged, noReset:true });
-      note(box, a.finish === "engrave" ? "Cut into the face: one filament is enough. Paint it in for contrast." : a.finish === "raised" ? "Stands out of the wall; the wall prints upright, so it needs no support." : "Fills a pocket flush with the face in its own filament: smooth to the touch, with a sharp edge.");
+      note(box, a.finish === "engrave" ? "Cut into the face: one filament is enough. Paint it in for contrast." : a.finish === "raised" ? (a.depth > 0.8 ? "Stands out of the wall, which prints upright. Its underside steps up at 45° past the first 0.6 mm, so it needs no support." : "Stands out of the wall, which prints upright: a ledge this small needs no support.") : "Fills a pocket flush with the face in its own filament: smooth to the touch, with a sharp edge.");
       buttonRow(box, [["Copy", ()=>{ if (list.length < ENC_ART.max){ list.splice(k + 1, 0, encArtClean(Object.assign({}, a, { y:a.y - a.size - 3 }))); renderTab(); baseChanged(); pushHistory(); } }],
         ["Remove", ()=>{ list.splice(k, 1); renderTab(); baseChanged(); pushHistory(); }]]);
     });
@@ -18196,7 +18336,8 @@ function tabPrintability(p){
       row("Thin walls", info.thin.length ? `${info.thin.length}, thinnest ${info.thin[0].width.toFixed(2)} mm` : "none") +
       row("On the bed", `${mm1(info.contact.area)} mm²${info.contact.islands > 1 ? ` in ${info.contact.islands} pieces` : ""}`) +
       row("Height", `${info.height.toFixed(1)} mm`) +
-      row("Orientation", state.model.orient ? "turned for printing" : "as designed");
+      row("Orientation", state.model.orient ? "turned for printing" : "as designed") +
+      (info.joined ? row("Checked", "each colour as one solid, as in the files") : "");
     p.appendChild(tb);
   }
   const btns = [["Optimize for printing", optimizePrint, "primary"], ["Fix what it can", fixWhatItCan]];

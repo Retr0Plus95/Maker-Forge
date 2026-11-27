@@ -7865,10 +7865,302 @@
     ].filter(l => l !== null).join("\n");
   }
 
+  // ---------- the bird house (Session 89): a nest box sized for its bird, the front sliding out for cleaning, and a loft under
+  // the roof for a camera looking down at the nest, a motion sensor and a battery (the owner's own bird house, as one design) ----------
+  // Typical figures from nest-box guidance (check your own country's): the hole by species, at least 125 mm from its bottom to
+  // the floor so a cat's paw can't reach the chicks, and the inside floor
+  const BIRDS = {
+    bluetit:  { label:"Blue tit, coal tit (25 mm hole)", hole:25, floor:110, up:125 },
+    greattit: { label:"Great tit, tree sparrow (28 mm hole)", hole:28, floor:120, up:125 },
+    sparrow:  { label:"House sparrow (32 mm hole)", hole:32, floor:125, up:125 },
+    starling: { label:"Starling (45 mm hole)", hole:45, floor:150, up:150 },
+    robin:    { label:"Robin, wren (open front)", hole:0, floor:120, up:0, open:100 }
+  };
+  const BIRD_SETTINGS = {
+    bird:{ opts:Object.keys(BIRDS), def:"greattit", label:"For" },
+    room:[0, 0, 60, 5, "More room inside (mm)"],
+    tall:[0, 0, 80, 5, "Taller inside (mm)"],
+    wall:[3, 2.4, 6, 0.2, "Walls (mm)"],
+    guard:[15, 0, 30, 1, "Guard round the hole (mm deep, 0: none)"],
+    overhang:[40, 15, 80, 1, "Roof over the front (mm)"],
+    slope:[15, 8, 30, 1, "Roof slope (°)"],
+    keyholes:{ opts:["one", "two"], def:"one", label:"Hang it by" },
+    camera:{ opts:["esp32cam", "none"], def:"esp32cam", label:"Camera" },
+    sensor:{ opts:["am312", "none"], def:"am312", label:"Motion sensor" },
+    power:{ opts:["18650", "2x18650", "usbc", "none"], def:"18650", label:"Power" },
+    solar:{ opts:["none", "small", "large"], def:"small", label:"Solar panel" },
+    visits:[30, 1, 200, 1, "Visits a day (for the battery)"]
+  };
+  const BIRD_SOLAR = { small:{ label:"5 V 1 W panel (110 × 60 mm)", w:110, d:60, wh:2 }, large:{ label:"5 V 2 W panel (136 × 110 mm)", w:136, d:110, wh:4 } };
+  const BH = { c:0.3, ct:2.4, lt:2.4, rt:3, rimD:12, rimT:2, col:8, lip:3 };
+  function birdClean(raw){
+    const r = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}, out = {};
+    for (const [k, sp] of Object.entries(BIRD_SETTINGS)){
+      if (Array.isArray(sp)){ const v = +r[k], [d, lo, hi, st] = sp; out[k] = Number.isFinite(v) ? +Math.min(hi, Math.max(lo, Math.round(v / st) * st)).toFixed(4) : d; }
+      else out[k] = typeof r[k] === "string" && sp.opts.includes(r[k]) ? r[k] : sp.def;
+    }
+    return out;
+  }
+  function birdPlan(s){
+    const B = BIRDS[s.bird], t = s.wall, c = BH.c, W = B.floor + s.room, D = B.floor + s.room, k = Math.min(2, t - 1.2), tp = Math.max(3, t);
+    const open = !!B.open, hole = B.hole, up = B.up, warn = [];
+    const Hn = Math.ceil((open ? 160 : up + hole + 45) + s.tall);                 // inside, the floor's top to the ceiling
+    const zB = -D / 2 - t, zF = D / 2 + tp + c + BH.lip, Wout = W + 2 * t, Dout = zF - zB, yTop = t + Hn;
+    const PW = { "18650":FLOWER_POWER["18650"], "2x18650":FLOWER_POWER["2x18650"], usbc:{ label:"A USB-C socket (5 V)", port:"usbc" }, none:{ label:"None" } }[s.power];
+    const solar = PW.cell ? BIRD_SOLAR[s.solar] || null : null;
+    if (s.solar !== "none" && !PW.cell) warn.push("A solar panel needs a battery to charge: choose one under Power.");
+    if (s.sensor !== "none" && s.camera === "none") warn.push("The motion sensor wakes the camera: with no camera it has nothing to do, so it is left out.");
+    // the loft: tall enough at the back for the battery, the camera board and the switch; higher at the front (the roof slopes back)
+    const tanS = Math.tan(s.slope * Math.PI / 180), elec = s.camera !== "none" || PW.cell || PW.port;
+    const hB = Math.ceil(BH.ct + (elec ? Math.max(30, PW.cell ? PW.cell.w + 6 : 0) : 18)), hF = Math.ceil(hB + Dout * tanS);
+    return { s, B, t, c, W, D, k, tp, open, hole, up, Hn, zB, zF, Wout, Dout, yTop, PW, solar, tanS, hB, hF, elec, warn,
+      cam:s.camera !== "none", pir:s.camera !== "none" && s.sensor !== "none" };
+  }
+  // the body: floor, back and sides, grooves for the front, vents, drain holes, the corner columns the loft screws to, keyholes
+  function birdBody(P){
+    const { t, c, W, D, k, tp, zB, zF, Wout, Hn, yTop } = P, out = [];
+    const drains = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => pCirc(3, a * (W / 2 - 14), b * (D / 2 - 14), 16));
+    out.push(prismXZ([[-Wout / 2, zB], [Wout / 2, zB], [Wout / 2, zF], [-Wout / 2, zF]], drains, 0, t));
+    // vents: slots near the top of each side, pointed at the top (the body prints upright)
+    const vents = [-1, 0, 1].map(i => { const z = i * D / 4, y0 = yTop - 32, y1 = yTop - 12; return [[z - 1.5, y0], [z + 1.5, y0], [z + 1.5, y1 - 1.5], [z, y1], [z - 1.5, y1 - 1.5]]; });
+    for (const sg of [-1, 1]){
+      const x0 = sg * (W / 2 + k), x1 = sg * (W / 2 + t), xi = sg * W / 2;
+      out.push(prismZY([[-D / 2 - 0.01, t - 0.01], [zF, t - 0.01], [zF, yTop], [-D / 2 - 0.01, yTop]], vents, Math.min(x0, x1), Math.max(x0, x1)));          // the outer layer
+      out.push(prismZY([[-D / 2 - 0.01, t - 0.01], [D / 2 - c, t - 0.01], [D / 2 - c, yTop], [-D / 2 - 0.01, yTop]], vents, Math.min(xi, x0), Math.max(xi, x0)));   // the inner, behind the groove
+      out.push(prismZY([[D / 2 + tp + c, t - 0.01], [zF, t - 0.01], [zF, yTop], [D / 2 + tp + c, yTop]], [], Math.min(xi, x0), Math.max(xi, x0)));                // in front of it: the lip
+    }
+    // the back, with one keyhole (or two): a head hole and a slot up from it, their tops pointed; behind, a pocket for the head
+    const kys = P.s.keyholes === "two" ? [-W / 4, W / 4] : [0], yk = t + Hn * 0.62;
+    const key = x => { const r = 4.75, L = [], a0 = 40 * Math.PI / 180; for (let i = 0; i <= 20; i++){ const a = Math.PI - a0 + (Math.PI + 2 * a0) * i / 20; L.push([x + r * Math.cos(a), yk + r * Math.sin(a)]); }
+      const sh = r * Math.sin(a0) + (r * Math.cos(a0) - 2.25) * Math.tan(50 * Math.PI / 180);
+      L.push([x + 2.25, yk + sh], [x + 2.25, yk + 9], [x, yk + 9 + 2.25 * Math.tan(50 * Math.PI / 180)], [x - 2.25, yk + 9], [x - 2.25, yk + sh]); return L; };
+    out.push(affineSolid(prismXY([[-Wout / 2, t - 0.01], [Wout / 2, t - 0.01], [Wout / 2, yTop], [-Wout / 2, yTop]], kys.map(key), zB, -D / 2 + 0.01), PART_I, [0, 0, 0]));
+    kys.forEach(x => {
+      const pocket = [[x - 5.2, yk - 6.5], [x + 5.2, yk - 6.5], [x + 5.2, yk + 14], [x, yk + 14 + 5.2 * Math.tan(50 * Math.PI / 180)], [x - 5.2, yk + 14]];
+      out.push(prismXY([[x - 8, yk - 9], [x + 8, yk - 9], [x + 8, yk + 22], [x - 8, yk + 22]], [pocket], -D / 2 - 0.01, -D / 2 + 3.5));
+      out.push(prismXY([[x - 8, yk - 9], [x + 8, yk - 9], [x + 8, yk + 22], [x - 8, yk + 22]], [], -D / 2 + 3.49, -D / 2 + 5.1));
+      out.push(prismZY([[-D / 2 - 0.01, yk - 9 - 6.2], [-D / 2 + 5.1, yk - 9 + 0.01], [-D / 2 - 0.01, yk - 9 + 0.01]], [], x - 8, x + 8));   // a 50° wedge under it
+    });
+    // the corner columns, each with a pilot hole from the top for the loft's screws
+    const cols4 = birdColumns(P);
+    cols4.forEach(([x, z]) => { const h = BH.col / 2;
+      out.push(prismXZ([[x - h, z - h], [x + h, z - h], [x + h, z + h], [x - h, z + h]], [], t - 0.01, yTop - 14));
+      out.push(prismXZ([[x - h, z - h], [x + h, z - h], [x + h, z + h], [x - h, z + h]], [pCirc(PART_FASTENERS.M3.pilot / 2, x, z, 16)], yTop - 14.01, yTop)); });
+    return mergeSolids(out);
+  }
+  const birdColumns = P => { const h = BH.col / 2; return [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => [a * (P.W / 2 - h + 0.01), b > 0 ? P.D / 2 - h - 0.5 : -P.D / 2 + h - 0.01]); };
+  // the front: printed flat, its inside down (the fledglings' ladder cut into it); the hole and its guard ring; a finger notch
+  function birdFront(P){
+    const { W, k, c, tp, Hn, hole, up, open } = P, hw = W / 2 + k - c, top = open ? P.B.open : Hn - c, out = [];
+    const notch = []; for (let i = 0; i <= 12; i++){ const a = Math.PI + Math.PI * i / 12; notch.push([10 * Math.cos(a), top + 10 * Math.sin(a)]); }
+    const outline = open ? [[-hw, 0], [hw, 0], [hw, top], [-hw, top]] : [[-hw, 0], [hw, 0], [hw, top], ...notch.reverse(), [-hw, top]];
+    const holeC = up + hole / 2, holes = open ? [] : [pCirc(hole / 2, 0, holeC, 64)];
+    const rungs = []; if (!open) for (let h = 20; h + 2 < up - 6; h += 8) rungs.push([[-hw + 12, h], [hw - 12, h], [hw - 12, h + 2], [-hw + 12, h + 2]]);
+    out.push(prismXZ(outline, [...holes, ...rungs], 0, 1));
+    out.push(prismXZ(outline, holes, 0.99, tp));
+    if (!open && P.s.guard > 0) out.push(prismXZ(pCirc(hole / 2 + 7, 0, holeC, 64), [pCirc(hole / 2, 0, holeC, 64)], tp - 0.01, tp + P.s.guard));
+    return { solid:mergeSolids(out), top, holeC };
+  }
+  // the loft: its plate is the nest's ceiling (on the bed as it prints), with the camera's window and the sensor's hole; its walls
+  // rise to the roof's slope; the battery, the charge board and the switch inside, their ports in the back wall
+  function birdLoft(P, screw){
+    const { c, zB, zF, Wout, Dout, hB, hF, tanS, PW } = P, ct = BH.ct, lt = BH.lt, out = [], hw = Wout / 2;
+    const yT = z => hB + (z - zB) * tanS;                                           // the roof's underside over z
+    const inner = [-hw + lt, zB + lt, hw - lt, zF - lt], bought = [], ports = [];
+    // what goes where, in plan: the camera's frame in the middle, the sensor towards the entrance, the battery to the left,
+    // the charge board (or the USB-C socket) and the switch at the back wall
+    const camAt = [0, (zB + zF) / 2 - 4], cam = { w:27 + 2 * c, d:40.5 + 2 * c }, lens = [camAt[0], camAt[1] + cam.d / 2 - 10];
+    const pirAt = [0, Math.min(zF - lt - 12, camAt[1] + cam.d / 2 + 14)];
+    const holes = birdColumns(P).map(([x, z]) => pCirc(PART_FASTENERS.M3.clear / 2, x, z, 16));
+    if (P.cam) holes.push(pCirc(7, lens[0], lens[1], 32));
+    if (P.pir) holes.push(pCirc(5.2 + c, pirAt[0], pirAt[1], 32));
+    out.push(prismXZ([[-hw, zB], [hw, zB], [hw, zF], [-hw, zF]], holes, 0, ct));
+    // walls: the sides and the front follow the slope; the back is level at its lowest, with the ports and the switch
+    // (the roof's two screws go through each side wall into a boss standing on the plate; placed by the roof's frame: birdMake)
+    const pilot = () => tearAB(PART_FASTENERS.M3.pilot / 2, screw.z, screw.y, 16);
+    for (const sg of [-1, 1]){ const x0 = sg * hw, x1 = sg * (hw - lt), x2 = sg * (hw - lt - 6);
+      out.push(prismZY([[zB, ct - 0.01], [zF, ct - 0.01], [zF, yT(zF)], [zB, yT(zB)]], [pilot()], Math.min(x0, x1), Math.max(x0, x1)));
+      out.push(prismZY([[screw.z - 5, ct - 0.01], [screw.z + 5, ct - 0.01], [screw.z + 5, screw.y + 4.5], [screw.z - 5, screw.y + 4.5]], [pilot()], Math.min(x1, x2) - 0.01, Math.max(x1, x2) + 0.01)); }
+    out.push(prismZY([[zF - lt, ct - 0.01], [zF, ct - 0.01], [zF, yT(zF)], [zF - lt, yT(zF - lt)]], [], -hw + 0.01, hw - 0.01));
+    const backHoles = [], w2 = (inner[2] - inner[0]) / 4;
+    if (PW.cell){                                                                  // the switch, left of the middle; a teardrop, its point up
+      backHoles.push(tearAB(FLOWER_WALL.switch.hole / 2 + c, -w2, ct + 14, 24)); ports.push({ key:"switch", x:-w2, y:ct + 14 }); }
+    const portKey = PW.cell && PW.charge ? "charge" : PW.port === "usbc" ? "usbc" : null;
+    if (portKey){ const y0 = ct + 1.2, y1 = ct + 1.2 + 3.2 + 4.6 / 2 + 2.5, x = w2, nw = 12.5 / 2 + c;   // a plug's room, pointed at the top
+      backHoles.push([[x - nw, y0], [x + nw, y0], [x + nw, y1], [x, y1 + nw * Math.tan(50 * Math.PI / 180)], [x - nw, y1]]); ports.push({ key:portKey, x, y:ct + 1.2 + 3.2 }); }
+    out.push(prismXY([[-hw + 0.01, ct - 0.01], [hw - 0.01, ct - 0.01], [hw - 0.01, hB], [-hw + 0.01, hB]], backHoles, zB, zB + lt));
+    // inside: the camera's frame (the board face down on its ledge, the lens through the window), the battery's cradle, the boards'
+    const rect = (x0, z0, x1, z1) => [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
+    if (P.cam){ const r = [camAt[0] - cam.w / 2, camAt[1] - cam.d / 2, camAt[0] + cam.w / 2, camAt[1] + cam.d / 2];
+      out.push(prismXZ(rect(r[0] - 1.6, r[1] - 1.6, r[2] + 1.6, r[3] + 1.6), [rect(...r)], ct - 0.01, ct + 7));              // the rim round it
+      out.push(prismXZ(rect(...r), [rect(r[0] + 2, r[1] + 2, r[2] - 2, r[3] - 2)], ct - 0.01, ct + 4));                      // the ledge it lies on
+      bought.push({ name:"ESP32-CAM (AI-Thinker) with its OV2640 camera, face down", solid:pBox(r[0] + c, r[2] - c, ct + 4, ct + 4 + 1.6, r[1] + c, r[3] - c), colour:"#1f7a4d" });
+      bought.push({ name:"the camera's lens", solid:prismXZ(pCirc(4, lens[0], lens[1], 24), [], ct - 2, ct + 4), colour:"#2b2b2b" }); }
+    if (P.pir){ out.push(prismXZ(pCirc(8.5, pirAt[0], pirAt[1], 32), [pCirc(6 + c, pirAt[0], pirAt[1], 32)], ct - 0.01, ct + 3));
+      bought.push({ name:"AM312 motion sensor (its dome down through the ceiling)", solid:prismXZ(pCirc(6, pirAt[0], pirAt[1], 24), [], ct - 4, ct + 18), colour:"#eaeaea" }); }
+    let cellBox = null;
+    if (PW.cell){ const C1 = PW.cell, k2 = 2 * (1.6 + 0.5), x1 = (P.cam ? camAt[0] - cam.w / 2 - 3.2 : 0) - 1, x0 = inner[0] + 1;
+      // along the depth, clear of the switch at the back; flat if there is room beside the camera, else on its long edge
+      const flat = x1 - x0 >= C1.w + k2, w = flat ? C1.w + k2 : C1.h + k2, h = flat ? C1.h : C1.w, zb = inner[1] + FLOWER_WALL.switch.d + 2, l = C1.l + k2;
+      const r = [x1 - w, Math.max(zb, Math.min(inner[3] - 1 - l, camAt[1] - l / 2)), x1, 0]; r[3] = r[1] + l;
+      if (r[0] < x0 || r[3] > inner[3] - 1 || h + ct + 2 > hB){ P.warn.push(`The ${C1.name.split(",")[0]} doesn't fit the loft beside the camera: give the house more room inside.`); }
+      out.push(prismXZ(rect(...r), [rect(r[0] + 1.6, r[1] + 1.6, r[2] - 1.6, r[3] - 1.6)], ct - 0.01, ct + Math.min(flat ? 6 : 10, h * 0.5)));
+      cellBox = { r, h, flat }; bought.push({ name:C1.name, solid:pBox(r[0] + 2.1, r[2] - 2.1, ct, ct + h, r[1] + 2.1, r[3] - 2.1), colour:"#3a3d42" }); }
+    ports.forEach(p => { const it = FLOWER_WALL[p.key];
+      if (it.board){ const [bl, bw] = it.board, z0 = zB + lt + 0.2, L = bl + c, Wd = bw / 2 + c;
+        for (const q of [rect(p.x - Wd - 1.2, z0, p.x - Wd, z0 + L), rect(p.x + Wd, z0, p.x + Wd + 1.2, z0 + L), rect(p.x - Wd - 1.2, z0 + L, p.x + Wd + 1.2, z0 + L + 1.2)])
+          out.push(prismXZ(q, [], ct - 0.01, ct + 3));
+        bought.push({ name:it.name, solid:pBox(p.x - bw / 2, p.x + bw / 2, ct, ct + 1.6 + 3.2, z0 + 0.2, z0 + 0.2 + bl), colour:"#1f7a4d" }); }
+      else bought.push({ name:it.name, solid:affineSolid(prismXZ(pCirc(it.hole / 2 - 0.3, 0, 0, 24), [], -3, it.d - 3), [-1,0,0, 0,0,1, 0,1,0], [p.x, p.y, zB + lt]), colour:"#2b2b2b" });
+    });
+    // the bosses the roof's two screws go into, on the side walls, standing on the plate; placed by the roof's own frame below
+    return { solid:out, bought, yT, ports, camAt, lens, pirAt, cellBox, inner };
+  }
+  // the roof: a flat plate (its top down as it prints) with a rim that fits over the loft's walls, the solar panel's recess
+  function birdRoof(P){
+    const { c, Wout, Dout, tanS, solar } = P, rt = BH.rt, rimD = BH.rimD, rimT = BH.rimT, cosS = 1 / Math.sqrt(1 + tanS * tanS), Ls = Dout / cosS;
+    const iw = Wout / 2 + c, il = Ls / 2 + c, ow = iw + rimT, ol = il + rimT, px = ow + 12, zBk = -(ol + 8), zFr = il + P.s.overhang;
+    const out = [], rect = (x0, z0, x1, z1) => [[x0, z0], [x1, z0], [x1, z1], [x0, z1]], screwY = rt + rimD - 4;
+    if (solar && (solar.w + 12 > 2 * px || solar.d + 12 > zFr - zBk)) P.warn.push(`The ${solar.label} is bigger than the roof: choose the small one, or give the house more room.`);
+    out.push(prismXZ(rect(-px, zBk, px, zFr), solar ? [pCirc(3.5, 0, 0, 24)] : [], 0, rt));          // the plate, with the panel's cable hole
+    for (const sg of [-1, 1]) out.push(prismZY(rect(-ol, rt - 0.01, ol, rt + rimD), [tearAB(PART_FASTENERS.M3.clear / 2 + 0.1, 0, screwY, 20)], Math.min(sg * iw, sg * ow), Math.max(sg * iw, sg * ow)));
+    for (const sg of [-1, 1]) out.push(prismXY(rect(-ow, rt - 0.01, ow, rt + rimD), [], Math.min(sg * il, sg * ol), Math.max(sg * il, sg * ol)));
+    return { solid:mergeSolids(out), Ls, iw, screwY, solarAt:[0, 0], px, zBk, zFr };
+  }
+  function birdMake(raw){
+    const s = birdClean(raw), P = birdPlan(s), body = birdBody(P), front = birdFront(P), roof = birdRoof(P);
+    const { zB, zF, yTop, hB, hF, tanS, tp, t, c, Wout, D } = P, cosS = 1 / Math.sqrt(1 + tanS * tanS), sinS = tanS * cosS;
+    // the roof's frame on the house: its underside on the plane through the loft's walls' tops; local x mirrored (a turn, not a flip)
+    const O = [0, yTop + (hB + hF) / 2, (zB + zF) / 2], ez = [0, sinS, cosS], nd = [0, -cosS, sinS];
+    const roofM = cols([-1, 0, 0], nd, ez), roofT = [O[0] - nd[0] * BH.rt, O[1] - nd[1] * BH.rt, O[2] - nd[2] * BH.rt];
+    const toWorld = p => [roofM[0] * p[0] + roofM[1] * p[1] + roofM[2] * p[2] + roofT[0], roofM[3] * p[0] + roofM[4] * p[1] + roofM[5] * p[2] + roofT[1], roofM[6] * p[0] + roofM[7] * p[1] + roofM[8] * p[2] + roofT[2]];
+    // the roof's two screws: through the rim's sides at its middle, into bosses on the loft's side walls (standing on its plate)
+    const sw = toWorld([roof.iw + BH.rimT / 2, roof.screwY, 0]), sy = sw[1] - yTop, sz = sw[2];
+    if (sy + 4.5 > hB + (sz - zB) * tanS - 0.5 || sy - 4 < BH.ct + 1) P.warn.push("The roof's screws don't fit the loft's sides: make the roof slope gentler.");
+    const loft = birdLoft(P, { y:sy, z:sz });
+    const loftSolid = mergeSolids(loft.solid);
+    let frame = null;
+    if (P.solar){ const fw = P.solar.w / 2 + 0.6, fd = P.solar.d / 2 + 0.6, rect = (x0, z0, x1, z1) => [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
+      frame = mergeSolids([prismXZ(rect(-fw - 3, -fd - 3, fw + 3, fd + 3), [rect(-fw + 6, -fd + 6, fw - 6, fd - 6)], 0, 1.6),
+        prismXZ(rect(-fw - 3, -fd - 3, fw + 3, fd + 3), [rect(-fw, -fd, fw, fd)], 1.59, 1.6 + 3.2)]); }
+    const printed = [
+      { key:"body", name:"Body", count:1, solid:body },
+      { key:"front", name:"Front", count:1, solid:front.solid },
+      { key:"loft", name:"Loft", count:1, solid:loftSolid },
+      { key:"roof", name:"Roof", count:1, solid:roof.solid },
+      ...(frame ? [{ key:"frame", name:"Solar panel frame", count:1, solid:frame }] : [])
+    ];
+    printed.forEach(p => { const b = solidBounds(p.solid); p.solid = affineSolid(p.solid, PART_I, [-(b.mn[0] + b.mx[0]) / 2, -b.mn[1], -(b.mn[2] + b.mx[2]) / 2]); });
+    // the house put together: the front in its grooves (mirrored in x: a turn), the loft on the body, the roof on the loft
+    const assembly = () => {
+      const out = [{ name:"Body", solid:body, role:"body" },
+        { name:"Front", solid:affineSolid(front.solid, [-1, 0, 0, 0, 0, 1, 0, 1, 0], [0, t, D / 2]), role:"body" },
+        { name:"Loft", solid:affineSolid(loftSolid, PART_I, [0, yTop, 0]), role:"body" },
+        { name:"Roof", solid:affineSolid(roof.solid, roofM, roofT), role:"roof" }];
+      loft.bought.forEach(q => out.push({ name:q.name, solid:affineSolid(q.solid, PART_I, [0, yTop, 0]), role:"bought", colour:q.colour }));
+      if (P.solar){ const sp = [-P.solar.w / 2, P.solar.w / 2, -1.6 - 2.6, -1.6, -P.solar.d / 2, P.solar.d / 2];
+        // the frame on the roof's top (local y below 0), upside down to it; the panel in it
+        out.push({ name:"Solar panel frame", solid:affineSolid(affineSolid(frame, [1, 0, 0, 0, -1, 0, 0, 0, -1], [0, 0, 0]), roofM, roofT), role:"roof" });
+        out.push({ name:P.solar.label, solid:affineSolid(pBox(sp[0], sp[1], sp[2], sp[3], sp[4], sp[5]), roofM, roofT), role:"bought", colour:"#24304d" }); }
+      return { parts:out };
+    };
+    const info = birdInfo(P, { loft, roof, front });
+    return { settings:s, printed, assembly, info, plan:P };
+  }
+  // what it needs, the checks, the steps, the battery's life and the camera's sketch
+  function birdInfo(P, X){
+    const s = P.s, B = P.B, PW = P.PW, checks = [];
+    const floorOK = P.W >= B.floor && P.D >= B.floor;
+    checks.push({ key:"floor", ok:floorOK, name:`Inside floor ${P.W} × ${P.D} mm`, why:`at least ${B.floor} × ${B.floor} mm for a ${B.label.split(" (")[0].toLowerCase()}` });
+    if (!P.open) checks.push({ key:"height", ok:P.up >= 125, name:`The hole's bottom ${P.up} mm over the floor`, why:"a cat's paw reaches about 125 mm in" });
+    if (P.cam){ const fov = 2 * Math.tan(26 * Math.PI / 180) * (P.Hn + 2);                       // an OV2640's usual lens: about 52° across
+      checks.push({ key:"view", ok:fov >= Math.max(P.W, P.D), name:`The camera sees ${Math.round(fov)} mm across the floor`, why:`the floor is ${Math.max(P.W, P.D)} mm (an OV2640's usual lens, about 52°)` }); }
+    let life = null;
+    if (P.cam && PW.cell){ const usable = PW.mAh * PW.V * 0.85 / 5, perDay = 24 * 6 + s.visits * 200 * 10 / 3600;   // asleep about 6 mA (the board's regulator), awake 200 mA for 10 s a visit
+      life = { days:+(usable / perDay).toFixed(1), perDay:Math.round(perDay), solar:P.solar ? Math.round(P.solar.wh * 1000 * 0.7 / 5) : 0 }; }
+    const bom = [];
+    if (P.cam) bom.push([1, "ESP32-CAM (AI-Thinker) with its OV2640 camera, and a microSD card"], [1, "USB-to-serial adapter (FTDI, 5 V) to load the sketch"]);
+    if (P.pir) bom.push([1, "AM312 motion sensor"]);
+    if (PW.cell){ bom.push([1, PW.cell.name], [s.power === "2x18650" ? 2 : 1, "18650 cells, protected, flat top"], [1, FLOWER_WALL.charge.name], [1, FLOWER_WALL.switch.name]); }
+    if (PW.port === "usbc") bom.push([1, FLOWER_WALL.usbc.name], [1, "USB-C cable to a 5 V supply, outdoor-rated"]);
+    if (P.solar) bom.push([1, `${P.solar.label}, with its lead`], [1, "outdoor silicone or sealant (round the panel's lead)"]);
+    if (P.elec) bom.push([1, "thin silicone wires"]);
+    bom.push([4, "M3 × 12 screws (the loft on the body)"], [2, "M3 × 10 screws (the roof on the loft)"], [s.keyholes === "two" ? 2 : 1, "4 mm screw with a round or pan head (to hang it by)"]);
+    const notes = [
+      "Print in PETG or ASA (PLA softens in the sun), in a light colour so it stays cool. Body: upright. Front: flat, its inside down. Loft: on its ceiling. Roof: its top down. No support anywhere.",
+      `${P.open ? "An open front for robins and wrens, " + P.B.open + " mm tall." : `A ${P.hole} mm hole, its bottom ${P.up} mm over the floor${s.guard ? `, with a ${s.guard} mm guard so a woodpecker or a cat can't reach in` : ""}.`} No perch: perches help predators, not the birds.`,
+      "Hang it 2 to 4 m up, out of the hottest sun and the worst rain (in Europe, facing between north and east), with a clear flight path in. Clean it out in autumn: lift the roof and the loft, and slide the front up.",
+      "Ridges inside the front help the fledglings climb out. Drain holes in the floor and slots under the roof let it breathe."
+    ];
+    if (P.cam) notes.push("The camera looks down through the ceiling at the nest; set it in its frame so the lens sits in the window. Point the motion sensor's dome down at the nest too.");
+    const steps = [
+      `Slide the front down its grooves${P.open ? "" : ", the hole to the outside"}.`,
+      ...(P.cam ? ["Set the ESP32-CAM face down in its frame in the loft, the lens in the window; push the motion sensor's dome down through its hole."] : []),
+      ...(PW.cell ? [`Seat the battery holder in its cradle; push the charge board into its cradle at the back, its USB-C port in the wall's opening, and screw the switch into its hole (the nut inside).`,
+        `Wire: battery to the charge board; its 5 V out through the switch to the ESP32-CAM's 5V and GND pins${P.pir ? "; the motion sensor's + and − to 3.3 V and GND, its OUT to GPIO 13" : ""}.`] : []),
+      ...(PW.port === "usbc" ? ["Push the USB-C socket board into its cradle at the back, its socket in the wall's opening; wire its 5 V and GND to the ESP32-CAM."] : []),
+      ...(P.solar ? ["Glue the panel's frame onto the roof (outdoor silicone) round the cable's hole; lay the panel in it, its lead down through the hole to the charge board's input, and seal round its edge."] : []),
+      "Set the loft on the body and screw it down to the corner columns (four M3 × 12); this also holds the front in.",
+      "Put the roof on and fit its two screws through the rim into the loft's sides.",
+      `Hang it on ${s.keyholes === "two" ? "two screws" : "a screw"} through the keyhole${s.keyholes === "two" ? "s" : ""} in the back.`
+    ];
+    const size = { inside:[P.W, P.D, P.Hn], outside:[Math.round(X.roof.px * 2), Math.round(P.Dout + P.s.overhang), Math.round(P.yTop + P.hF + BH.rt + 2)] };
+    return { checks, ok:checks.every(q => q.ok), bom, notes, steps, size, life, warn:P.warn.slice(), sketch:P.cam ? birdSketch(P) : "" };
+  }
+  function birdSketch(P){
+    return [
+      "// Maker Forge: the bird house camera (ESP32-CAM, AI-Thinker). It sleeps until the motion sensor sees the bird, then takes",
+      "// a few photos onto the microSD card and goes back to sleep. Board: \"AI Thinker ESP32-CAM\". Load it with a 5 V USB-to-serial",
+      "// adapter, GPIO 0 to GND while it starts; then take that wire off.",
+      "#include \"esp_camera.h\"",
+      "#include \"FS.h\"",
+      "#include \"SD_MMC.h\"",
+      "#include \"driver/rtc_io.h\"",
+      "",
+      `const int PHOTOS = 3;           // photos for each visit`,
+      `const int PHOTO_GAP_MS = 1500;  // between them`,
+      P.pir ? "const gpio_num_t PIR = GPIO_NUM_13;   // the AM312's OUT (SD in 1-bit mode leaves GPIO 13 free)" : "const int WAKE_EVERY_S = 600;  // no motion sensor: a photo every 10 minutes",
+      "RTC_DATA_ATTR int counter = 0;",
+      "",
+      "void setupCamera() {",
+      "  camera_config_t c = {};",
+      "  c.ledc_channel = LEDC_CHANNEL_0; c.ledc_timer = LEDC_TIMER_0;",
+      "  c.pin_d0 = 5; c.pin_d1 = 18; c.pin_d2 = 19; c.pin_d3 = 21; c.pin_d4 = 36; c.pin_d5 = 39; c.pin_d6 = 34; c.pin_d7 = 35;",
+      "  c.pin_xclk = 0; c.pin_pclk = 22; c.pin_vsync = 25; c.pin_href = 23; c.pin_sccb_sda = 26; c.pin_sccb_scl = 27;",
+      "  c.pin_pwdn = 32; c.pin_reset = -1; c.xclk_freq_hz = 20000000; c.pixel_format = PIXFORMAT_JPEG;",
+      "  c.frame_size = FRAMESIZE_UXGA; c.jpeg_quality = 12; c.fb_count = 1;",
+      "  esp_camera_init(&c);",
+      "}",
+      "",
+      "void setup() {",
+      "  setupCamera();",
+      "  if (SD_MMC.begin(\"/sdcard\", true)) {           // 1-bit mode",
+      "    for (int i = 0; i < PHOTOS; i++) {",
+      "      camera_fb_t *fb = esp_camera_fb_get();",
+      "      if (fb) {",
+      "        String path = \"/visit\" + String(counter) + \"_\" + String(i) + \".jpg\";",
+      "        File f = SD_MMC.open(path.c_str(), FILE_WRITE);",
+      "        if (f) { f.write(fb->buf, fb->len); f.close(); }",
+      "        esp_camera_fb_return(fb);",
+      "      }",
+      "      delay(PHOTO_GAP_MS);",
+      "    }",
+      "    counter++;",
+      "  }",
+      P.pir ? "  esp_sleep_enable_ext0_wakeup(PIR, 1);           // wake when the sensor goes high" : "  esp_sleep_enable_timer_wakeup((uint64_t)WAKE_EVERY_S * 1000000ULL);",
+      "  esp_deep_sleep_start();",
+      "}",
+      "",
+      "void loop() {}",
+      ""
+    ].join("\n");
+  }
+
   global.PRCore = {
     // loft, sweep, thin shells (Session 83) and the mechanical parts library (Session 82)
     loft, sweep, shellSurface,
     flower:{ make:flowerMake, clean:flowerClean, settings:FLOWER_SETTINGS, styles:FLOWER_STYLES, sketch:flowerSketch, power:FLOWER_POWER, wall:FLOWER_WALL },
+    bird:{ make:birdMake, clean:birdClean, settings:BIRD_SETTINGS, birds:BIRDS, solar:BIRD_SOLAR, sketch:birdSketch },
     parts:{ list:partList, make:part, clean:partClean, snap, travel:partTravel, fourBarAngle, crankSliderX, overCentre, petalAngle, petalArm, servos:PART_SERVOS, bearings:PART_BEARINGS, fasteners:PART_FASTENERS, boards:PART_BOARDS, rings:PART_RINGS, clearance:PART_CLEARANCE },
     hexToRgb, rgbToHex, colorDist, luma, kmeans, buildCellMap, makeProjector, buildDecalSolids, weldSoup, parseSTL,
     prepareParts, make3MF, make3MF_BBL, makeSTL, makeOBJ, traceMask, groupLoops, rectUnion, triangulate, solidFromTris, buildVectorSolid,

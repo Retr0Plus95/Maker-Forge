@@ -28,6 +28,8 @@ const EXPECTED_DEAD = [
   // (Session 15: each was checked to change a check or the time; the nozzle feeds the thin-wall check)
   [/^(Bed width|Bed depth|Build height|Colours it can load|Nozzle|Layer height|Waste per colour change|Time per colour change)/, "a printer setting: it changes the bed, the checks and the print time, not the model"],
   [/^Look at the layer at/, "shows one layer of the model (the section cut), it does not change it"],
+  // the flower lamp (Session 85): the bloom turns the picture of the lamp; the files are always the parts laid out to print
+  [/^Bloom \(%\)/, "turns the picture of the lamp; the files are always the parts to print", () => win.MakerForge.state.base.type === "flower"],
   [/^Show problem areas/, "this model has nothing to mark", () => { const p = win.MakerForge.print; return p && !p.marks.support.length && !p.marks.fine.length && !p.thin.length; }],
   [/^Brush size/, "only sets the size of the next brush stroke"],
   [/^(Stop at edges sharper than|Only paint the side facing me|Mirror my strokes|Repeat round the middle|Smart brush|An edge is sharp)/, "sets how the next brush stroke or fill works"],

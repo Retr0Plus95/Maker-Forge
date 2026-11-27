@@ -85,6 +85,9 @@ Plus, depending on what changed:
   dependency, from the printed card's geometry) and `ONLY=card npm run check:browser` (the same with real fonts)
 - the mechanical parts library (`PARTS`, `part`, `partClean`, `snap`, `partTravel` in `src/core.js`; `buildMechParts`, `partsFields` in `src/app.html`) → `npm run test:parts` (`CORE=1` for the library only:
   every part at each setting's ends, connectors, clearance, travel calculators, cleaning) and `node tools-audit.js index.html parts`
+- the flower lamp (`flowerMake`, `flowerPlan`, `petalSolid`, `flowerHead`, `flowerBase`, `flowerInfo`, `flowerSketch`, `overCentre`, `petalAngle` in `src/core.js`;
+  `buildFlower`, `flowerFields`, `flowerSceneMeshes` in `src/app.html`) → `npm run test:flower` (`CORE=1` for the library only: every setting at its ends, the
+  checks over the travel, support-free parts, the sketch) and `ONLY=flower npm run check:browser` (the export's sketch and steps, and the lamp's pictures)
 - mechanisms or fix-it parts (`buildMech`, `buildFixit`, the `fit*` helpers, `state.base.fit`), `gearOutline` / `threadSolid` in
   `src/core.js`, the keychain's second line or credit, or the print check's `surfaceBelow` → `npm run test:fit` (`CORE=1` for the
   gears and threads only) and `npm run test:print`

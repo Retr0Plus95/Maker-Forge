@@ -427,6 +427,37 @@ New in 0.63: a library of parts to build things from, each made from its setting
 
 Typical sizes vary between makers (servos by up to a millimetre): check yours, and tune the printer clearance with the fit test.
 
+### The blooming flower lamp
+
+New in 0.64: a lamp whose petals open and light up when you touch it, and close again when you touch it a second time
+(**Blooming flower lamp** in the object list, under Functional). One small servo in the base does the moving, and the flower
+**stays open or closed with the servo switched off**.
+
+![The flower lamp: a tulip closed, the tulip open, a rose and a lotus open](docs/images/flower-lamp.jpg)
+
+- **The lamp or Parts to print:** the view shows the lamp put together, or the parts laid out on your bed. The files you
+  export are always the parts laid out to print. **Bloom** opens the picture of the lamp, and **Open and close** plays it.
+- **Flower:** a tulip, a rose or a lotus, with 5 to 14 **petals**, its **diameter** closed, the **petal wall** (0.8–1.2 mm:
+  in translucent PETG or PLA the petals glow) and the **stem's height**. **Opens by** sets how far the petals open; 0 keeps
+  the flower's own (a tulip opens 32°, a rose 45°, a lotus 55°). A tulip opens 45° at most and a rose 60°: further, their
+  petals would come down on their links.
+- **Servo** (SG90, MG90S or MG996R), the **NeoPixel ring** (12, 16 or 24 LEDs), the **board** (ESP32 DevKit, Arduino Nano or
+  Pro Mini) and **Switch it with** (a touch pad of copper tape, or a push button). The base grows to hold them.
+- **Petals' filament:** put the petals in a second, translucent filament; the rest prints in the first.
+- **How it works:** the petals hinge on the head with pins cut from filament. A small runner high inside the bud has a link to
+  each petal; a 4 mm rod through the stem pulls it down and the petals open. In the base the servo turns a crank that goes
+  4° past its dead centre at each end, so the petals' weight pushes it further into its end, never back: that's what holds
+  the flower open or closed with no power.
+- **Checks over the whole travel:** the petals clear each other, the head, the runner and their links all the way, the runner
+  stays above the LEDs, and the rod and the LED's wires pass through the ring. It also says how well it holds itself.
+- **What you'll need**, **Print and put together** (every part prints with no support), and **The crank and the travel**
+  (servo angle by angle: how far the rod moves and the petals open).
+- **The sketch:** **Download flower-lamp.ino** for the Arduino IDE (it uses the Adafruit NeoPixel library, and ESP32Servo or
+  Servo). Touch: the flower opens as the light fades in; again: the light fades out and it closes. The servo is switched off at
+  rest. The export has it too, with **how-to-assemble.txt**.
+
+Typical sizes for the servo, the ring and the board: check yours, and tune the printer clearance with the fit test.
+
 ## 4. Art: pictures and text
 
 The **Art** tab puts pictures and words on the object.

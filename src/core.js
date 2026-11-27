@@ -7003,6 +7003,50 @@
     return Math.atan2(By, Bx - g) * 180 / Math.PI;
   }
   const crankSliderX = (a, b, e, deg) => { const t = deg * Math.PI / 180, q = b * b - (a * Math.sin(t) - e) ** 2; return q < 0 ? null : a * Math.cos(t) + Math.sqrt(q); };
+  // An over-centre crank-slider (Session 85, the flower lamp): crank a, rod b, the slider's line offset e from the crank pivot,
+  // chosen so the two dead centres (crank and rod in a line, stretched out and folded) are 180 − 2·over degrees apart. A servo
+  // sweeping 180° then turns `over` degrees past each dead centre onto a stop, and the slider holds itself there with the
+  // servo off: any push or pull on it only turns the crank further into its stop, or back to the dead centre where the rod is
+  // straight. Gives { e, top, bottom } (the crank angles of the dead centres, degrees, with crankSliderX's convention: the
+  // slider at its farthest at `top`), { start, end } (the servo's ends, `over` past them), the stroke, and the slider's
+  // position at the ends (a hair short of the dead centres: the over-centre's loss, under 0.1 mm here).
+  function overCentre(a, b, over){
+    over = Math.max(0, Math.min(15, +over || 0));
+    if (!(a > 0) || !(b > a)) return null;
+    const gap = e => Math.PI + Math.asin(e / (b - a)) - Math.asin(e / (b + a)), want = Math.PI - 2 * over * Math.PI / 180;
+    let lo = -(b - a) * 0.999, hi = 0;
+    if (gap(lo) > want) return null;                                                   // (not reachable with these lengths)
+    for (let i = 0; i < 80; i++){ const m = (lo + hi) / 2; if (gap(m) > want) hi = m; else lo = m; }
+    const e = (lo + hi) / 2, top = Math.asin(e / (b + a)) * 180 / Math.PI, bottom = 180 + Math.asin(e / (b - a)) * 180 / Math.PI;
+    const xTop = crankSliderX(a, b, e, top), xBottom = crankSliderX(a, b, e, bottom);
+    return { e, top, bottom, start:top - over, end:bottom + over, stroke:xTop - xBottom, xTop, xBottom,
+      xStart:crankSliderX(a, b, e, top - over), xEnd:crankSliderX(a, b, e, bottom + over), over };
+  }
+  // A petal's lever (Session 85): the petal pivots at the origin of its own radial plane (r out from the flower's axis, y up), at
+  // angle `deg` from upright (+ outwards). An arm of length `arm` leaves the pivot inwards, `down` degrees below level when the
+  // petal is at `closed`; a link of length `link` hangs from the arm's end to the hub, straight down when closed. Raising the
+  // hub by `rise` pushes the arm's end up and opens the petal: gives the petal's angle (degrees), or null past where it can reach.
+  // petalArm(…) finds the arm length that opens to `open` degrees at a rise of `stroke`.
+  function petalAngle(rise, o){
+    const D = Math.PI / 180, ac = o.closed * D, wc = [-Math.cos(o.down * D), -Math.sin(o.down * D)], Q = [o.arm * wc[0], o.arm * wc[1]];
+    const H = [Q[0], rise + Q[1] - o.link];
+    const f = t => { const c = Math.cos(t - ac), s = Math.sin(t - ac), w = [wc[0] * c + wc[1] * s, -wc[0] * s + wc[1] * c];
+      return (o.arm * w[0] - H[0]) ** 2 + (o.arm * w[1] - H[1]) ** 2 - o.link * o.link; };
+    if (Math.abs(rise) < 1e-12) return o.closed;
+    let prev = ac, fp = f(ac);
+    for (let t = ac + 0.25 * D; t < ac + 150 * D; t += 0.25 * D){
+      const fv = f(t);
+      if (fv === 0) return t / D;
+      if (Math.sign(fv) !== Math.sign(fp)){ let lo = prev, hi = t; for (let i = 0; i < 50; i++){ const m = (lo + hi) / 2; if (Math.sign(f(m)) === Math.sign(fp)) lo = m; else hi = m; } return (lo + hi) / 2 / D; }
+      prev = t; fp = fv;
+    }
+    return null;
+  }
+  function petalArm(stroke, o){
+    let lo = 1, hi = 80;
+    for (let i = 0; i < 60; i++){ const m = (lo + hi) / 2, a = petalAngle(stroke, Object.assign({}, o, { arm:m })); if (a === null || a > o.open) lo = m; else hi = m; }
+    return (lo + hi) / 2;
+  }
   // a servo sweeping `sweep` degrees from `start`: the output at each 15° (and the ends), its range, and whether it ever jams
   function partTravel(kind, d){
     const rows = [], n = Math.max(2, Math.ceil(d.sweep / 15));
@@ -7238,10 +7282,421 @@
     return { m, t, connectors:moved };
   }
 
+  // ---------- the blooming flower lamp (Session 85), built on the parts library ----------
+  // An inverted umbrella. Each petal hinges on the head at radius Rp (a 1.75 mm filament pin through the head's cheeks and the
+  // petal's knuckle). A runner high inside the bud carries a link to a lug on each petal's inner face; pulling the runner down
+  // (a 4 mm rod through the stem) pushes the lugs out and the petals open. In the base one servo turns an over-centre crank
+  // (overCentre): it ends 4° past each dead centre, so the flower stays open or closed with the servo switched off.
+  // The lamp's frame: Y up, its axis on x = z = 0, the base's bottom on y = 0. Each part is made in its own frame (as it prints,
+  // its base on y = 0), and placed in the lamp for a bloom t from 0 (closed) to 1 (open).
+  const FLOWER_STYLES = {
+    tulip:{ label:"Tulip", height:1.1, belly:0.45, top:0.38, tip:"round", tipFrom:0.6, open:32, most:45 },
+    rose: { label:"Rose", height:0.75, belly:0.7, top:0.82, tip:"round", tipFrom:0.45, open:45, most:60 },
+    lotus:{ label:"Lotus", height:0.7, belly:0.98, top:1, tip:"point", tipFrom:0.3, open:55, most:70 }
+  };
+  const FLOWER_SETTINGS = {
+    style:{ opts:["tulip", "rose", "lotus"], def:"tulip", label:"Flower" },
+    petals:[6, 5, 14, 1, "Petals"],
+    dia:[90, 70, 160, 1, "Diameter, closed (mm)"],
+    wall:[1, 0.8, 1.2, 0.05, "Petal wall (mm)"],
+    stem:[140, 60, 200, 1, "Stem height (mm)"],
+    open:[0, 0, 70, 1, "Opens by (°, 0: the flower's own)"],
+    servo:{ opts:["SG90", "MG90S", "MG996R"], def:"SG90", label:"Servo" },
+    led:{ opts:["12", "16", "24"], def:"12", label:"NeoPixel ring (LEDs)" },
+    board:{ opts:["esp32devkit", "nano", "promini"], def:"esp32devkit", label:"Board" },
+    control:{ opts:["touch", "button"], def:"touch", label:"Switch it with" }
+  };
+  function flowerClean(raw){
+    const r = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}, out = {};
+    for (const [k, sp] of Object.entries(FLOWER_SETTINGS)){
+      if (Array.isArray(sp)){ const v = +r[k], [d, lo, hi, st] = sp; out[k] = Number.isFinite(v) ? +Math.min(hi, Math.max(lo, Math.round(v / st) * st)).toFixed(4) : d; }
+      else out[k] = typeof r[k] === "string" && sp.opts.includes(r[k]) ? r[k] : sp.def;
+    }
+    return out;
+  }
+  const FL = { pin:1.75, rk:3.2, wk:6, cheek:2.4, linkT:2.4, linkW:5, rod:4, stemOD:16, sockB:12, sockH:10, ledH:3.2, over:4, wall:2.4, hole:3.5, top:3, lift:1, runnerAt:0.6 };
+  const rotY = a => { const c = Math.cos(a), s = Math.sin(a); return [c, 0, s, 0, 1, 0, -s, 0, c]; };
+  const rotZ = a => { const c = Math.cos(a), s = Math.sin(a); return [c, -s, 0, s, c, 0, 0, 0, 1]; };
+  const rotXpi = [1, 0, 0, 0, -1, 0, 0, 0, -1];
+  const mmul = (A, B) => [0, 1, 2].flatMap(r => [0, 1, 2].map(k => A[r * 3] * B[k] + A[r * 3 + 1] * B[3 + k] + A[r * 3 + 2] * B[6 + k]));
+  const mvec = (M, p) => [M[0] * p[0] + M[1] * p[1] + M[2] * p[2], M[3] * p[0] + M[4] * p[1] + M[5] * p[2], M[6] * p[0] + M[7] * p[1] + M[8] * p[2]];
+  const v3 = { add:(a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sub:(a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], mul:(a, k) => [a[0] * k, a[1] * k, a[2] * k],
+    dot:(a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], cross:(a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]] };
+  // a frame matrix whose columns are the images of x, y, z
+  const cols = (a, b, c) => [a[0], b[0], c[0], a[1], b[1], c[1], a[2], b[2], c[2]];
+  // a teardrop hole in a profile's (a, b) plane, its point towards +b (up when the profile stands): radius r about (ca, cb). Its roof
+  // is 50° from level, not 45°: exactly 45° reads as overhang to the print check by a rounding
+  const tearAB = (r, ca, cb, n, roof) => { n = n || 20; const rho = (roof || 50) * Math.PI / 180, a0 = Math.PI / 2 + rho, a1 = Math.PI / 2 - rho + Math.PI * 2, L = [];
+    for (let i = 0; i <= n; i++){ const t = a0 + (a1 - a0) * i / n; L.push([ca + r * Math.cos(t), cb + r * Math.sin(t)]); }
+    L.push([ca, cb + r / Math.cos(rho)]); return L; };
+  // the over-centre crank, the petals' linkage and every height, from the settings
+  function flowerPlan(s, c){
+    const st = FLOWER_STYLES[s.style], N = s.petals, S = PART_SERVOS[s.servo], ring = PART_RINGS[+s.led], warn = [];
+    const slotW = FL.wk + 2 * c, Rh = Math.max(9, 3.5 + 1.16 * N);
+    let Rf = s.dia / 2;
+    const Rp = Math.max(ring.od / 2 + 7, N * (slotW + 2 * FL.cheek + 1.2) / (2 * Math.PI), Rh + 8, 0.55 * Rf);
+    if (Rp > Rf - 8){ Rf = Rp + 8; warn.push(`The ${s.led}-LED ring and ${N} petals need a flower ${Math.ceil(2 * Rf)} mm across, so it is that size.`); }
+    const Hf = st.height * 2 * Rf, open = Math.min(st.most, s.open > 0 ? s.open : st.open), vb = st.belly, Rt = st.top * Rf, D = Math.PI / 180;
+    if (s.open > st.most) warn.push(`A ${st.label.toLowerCase()} opens by ${st.most}° at most: wider, its petals would come down on their links.`);
+    const R = v => v <= vb ? Rp + (Rf - Rp) * Math.sin(Math.PI / 2 * v / vb) : Rt + (Rf - Rt) * Math.cos(Math.PI / 2 * (v - vb) / (1 - vb));
+    const y0 = 1.5, vAt = y => Math.max(0, Math.min(1, (y - y0) / Hf));
+    // the lug's pin: hL up the petal from its own pin, 3.5 mm in from the inner face
+    const hL = Math.max(16, Math.min(34, 0.3 * Hf)), lug = [R(vAt(hL)) - s.wall / 2 - 3.5 - Rp, hL];
+    const lugAt = a => [lug[0] * Math.cos(a) + lug[1] * Math.sin(a), -lug[0] * Math.sin(a) + lug[1] * Math.cos(a)];
+    // the runner's pin (radius Rh), a link l above the lug: its height over the petals' pins for a petal opened by a
+    const hubY = (a, l) => { const L = lugAt(a), dx = Rp + L[0] - Rh; return l >= Math.abs(dx) ? L[1] + Math.sqrt(l * l - dx * dx) : null; };
+    // the runner first: its pin FL.runnerAt of the way from the lug to the petal's tip when closed; then the stroke that opens the
+    // petals by `open`; then the crank's arm (8 to 20 mm) that gives it, and the link set again for that arm's exact stroke
+    const dx0 = Rp + lug[0] - Rh, dxo = Rp + lugAt(open * D)[0] - Rh, lMin = Math.max(Math.abs(dx0), Math.abs(dxo)) * 1.06;
+    let l = Math.max(lMin, Math.hypot(hL + FL.runnerAt * (Hf - hL) - lug[1], dx0));
+    const need = hubY(0, l) - hubY(open * D, l), crank = rr => { const b = Math.max(22, 1.8 * rr + 4), o = overCentre(rr, b, FL.over); o.b = b; return o; };
+    let lo = 4, hi = 24;
+    for (let i = 0; i < 50; i++){ const m = (lo + hi) / 2, o = crank(m); if (o.xStart - o.xEnd < need) lo = m; else hi = m; }
+    const r = Math.max(8, Math.min(20, Math.round((lo + hi) / 2 * 10) / 10)), oc = crank(r), strokeR = oc.xStart - oc.xEnd;
+    { const sAt = ll => hubY(0, ll) - hubY(open * D, ll);
+      if (sAt(lMin) >= strokeR){ let a = lMin, b = 600; for (let i = 0; i < 60; i++){ const m = (a + b) / 2; if (sAt(m) > strokeR) a = m; else b = m; } l = (a + b) / 2; }
+      else l = lMin; }
+    const yHub0 = hubY(0, l), stroke = oc.xStart - oc.xEnd;
+    const angleFor = drop => { if (drop <= 0) return 0; const want = yHub0 - drop; let a0 = 0, a1 = Math.min(150 * D, open * D * 2);
+      for (let i = 0; i < 50; i++){ const m = (a0 + a1) / 2, y = hubY(m, l); if (y === null || y < want) a1 = m; else a0 = m; } return (a0 + a1) / 2; };
+    const openReached = angleFor(stroke) / D;
+    if (openReached < open - 1.5) warn.push(`The crank's shortest arm still moves the runner further than these petals follow: they open by ${openReached.toFixed(0)}°, not ${open}°.`);
+    // heights in the lamp
+    const yC = FL.top + Math.max(S.W / 2 + 2, r + 6), blockH = 12, blockPin = 4;
+    const ledge = FL.stemOD / 2 + c - FL.hole, Hb = Math.ceil(yC + oc.xTop - blockPin + blockH + 1.5 + ledge + FL.sockB);
+    const so = FL.stemOD / 2 + c, sockR = so + 2.4, Rd = Rp + 4.5, coneH = Rd - sockR;
+    const stemBottom = Hb - FL.sockB, stemLen = s.stem + FL.sockB + FL.sockH, stemTop = stemBottom + stemLen;
+    const yDisc = stemTop + 2 + coneH - 1.5, yPiv = yDisc + FL.rk + FL.lift, yLedTop = yDisc + FL.ledH;
+    return { st, N, S, ring, Rf, Rp, Rh, Hf, open, R, y0, vAt, hL, lug, lugAt, hubY, l, yHub0, stroke, r, oc, yC, blockH, blockPin, Hb, so, sockR, Rd, coneH,
+      stemBottom, stemLen, stemTop, yDisc, yPiv, yLedTop, angleFor, warn, slotW, openReached, D, wall:s.wall };
+  }
+  function petalHalf(P, v){
+    const r = P.R(v), full = Math.PI / P.N - (0.4 + P.wall / 2) / r, y = P.y0 + P.Hf * v, kn = (FL.wk / 2 - 0.25) / r;
+    const t = Math.max(0, Math.min(1, (y - (FL.rk + 4.2)) / 18)), ease = t * t * (3 - 2 * t);   // (widening gently: its edges stay under 45° when printed)
+    let g = 1;
+    if (v > P.st.tipFrom){ const q = Math.min(1, (v - P.st.tipFrom) / (1 - P.st.tipFrom)); g = P.st.tip === "point" ? 1 - q : Math.sqrt(Math.max(0, 1 - q * q)); }
+    return v >= 1 ? 0 : Math.max(0, Math.min(kn + (full - kn) * ease, full * g));
+  }
+  // a petal's mid-surface point (u across 0..1, v up 0..1) in its own frame: its pin on the z axis, x out, y up the petal
+  // (its bottom edge is a shallow V inside the knuckle, so no face of it looks straight down when the petal stands to print)
+  const petalPoint = (P, u, v) => { const h = petalHalf(P, v), ph = (2 * u - 1) * h, r = P.R(v);
+    return [r * Math.cos(ph) - P.Rp, P.y0 + P.Hf * v + 1.6 * Math.abs(2 * u - 1) * Math.max(0, 1 - P.Hf * v / 4), r * Math.sin(ph)]; };
+  function petalSolid(P, s, c){
+    const shell = shellSurface((u, v) => petalPoint(P, u, v), 14, 48, s.wall);
+    // the turn that stands it up to print with the least overhang, its knuckle the lowest point (a tulip's top curls in, so
+    // the petal leans back a little to keep the curl under 45°)
+    const SP = shell.pos, SI = shell.idx, tri = [];
+    for (let t = 0; t < SI.length; t += 3){
+      const A = [SP[SI[t] * 3], SP[SI[t] * 3 + 1]], Bv = [SP[SI[t + 1] * 3] - A[0], SP[SI[t + 1] * 3 + 1] - A[1], SP[SI[t + 1] * 3 + 2] - SP[SI[t] * 3 + 2]],
+        Cv = [SP[SI[t + 2] * 3] - A[0], SP[SI[t + 2] * 3 + 1] - A[1], SP[SI[t + 2] * 3 + 2] - SP[SI[t] * 3 + 2]], n = v3.cross(Bv, Cv), len = Math.hypot(...n);
+      if (len > 1e-12) tri.push([n[0] / len, n[1] / len, len / 2, A[0] + (Bv[0] + Cv[0]) / 3, A[1] + (Bv[1] + Cv[1]) / 3]);
+    }
+    const mid = petalPoint(P, 0.5, 0.6), psi0 = Math.atan2(mid[0], mid[1]);
+    let psi = psi0, best = Infinity;
+    for (let deg = -50; deg <= 50; deg += 1){
+      const a = deg * P.D, cs = Math.cos(a), sn = Math.sin(a);
+      let low = Infinity; for (let k = 0; k < SP.length; k += 3) low = Math.min(low, SP[k] * sn + SP[k + 1] * cs);
+      let score = low < -FL.rk ? (-FL.rk - low) * 400 : 0;
+      for (const [nx, ny, ar, cx, cy] of tri) if (nx * sn + ny * cs < -0.7071 && cx * sn + cy * cs > -FL.rk + 0.4) score += ar;
+      score += Math.abs(a - psi0) * 0.5;
+      if (score < best){ best = score; psi = a; }
+    }
+    const toPrint = rotZ(psi), fromPrint = rotZ(-psi);
+    // the knuckle: round, with a short flat foot to stand on when printed (its corners still turn clear of the head's disc)
+    const knuckle = convexHull([...pCirc(FL.rk, 0, 0, 32), [-0.45 * FL.rk, -FL.rk], [0.45 * FL.rk, -FL.rk]]);
+    const kn = affineSolid(prismXY(knuckle, [tearAB((FL.pin + 2 * c) / 2, 0, 0)], -FL.wk / 2, FL.wk / 2), fromPrint, [0, 0, 0]);
+    // the lug: two cheeks round the link's end on the inner face, its underside at 45° when printed
+    const inner = y => [P.R(P.vAt(y)) - s.wall / 2 - P.Rp + 0.5, y], pr = p => { const q = mvec(toPrint, [p[0], p[1], 0]); return [q[0], q[1]]; };
+    const pp = pr(P.lug), wTop = pr(inner(P.lug[1] + 3.2)), dx = Math.max(2, pr(inner(P.lug[1]))[0] - pp[0] + 3), wBot = pr(inner(P.lug[1] - 3.2 - dx));
+    const hull = convexHull([...pCirc(3, pp[0], pp[1], 24), wTop, wBot]), hole = tearAB((FL.pin + c) / 2, pp[0], pp[1]), gap = FL.linkT / 2 + c;
+    const cheeks = [prismXY(hull, [hole], -4, -gap), prismXY(hull, [hole], gap, 4)].map(q => affineSolid(q, fromPrint, [0, 0, 0]));
+    return { solid:mergeSolids([shell, kn, ...cheeks]), psi };      // (the shell's foot is inside the knuckle: they join when the file is made)
+  }
+  function flowerHead(P, s, c){
+    // a socket for the stem, a solid 45° cone out to the disc (one revolved profile round the rod's and wires' hole), the disc's
+    // top with the wires' groove out under the ring's pads, the ring's lip, and a pair of cheeks for each petal's pin.
+    // Its own frame: the disc's top on y = 0
+    const so = P.so, sockR = P.sockR, Rd = P.Rd, hr = FL.hole, top = 0, c1 = top - 2, c0 = c1 - P.coneH, s0 = c0 - FL.sockH, ceil = c0 + 1.5;
+    const prof = [[so, s0], [sockR, s0], [sockR, c0], [Rd, c1], [hr, c1], [hr, ceil + (so - hr)], [so, ceil]];
+    const pieces = [revolveLoop(prof, Math.max(64, segsFor(Rd, 64)))];
+    const gR = (P.ring.od + P.ring.id) / 4 + 2, key = convexHull([...pCirc(hr, 0, 0, 24), [gR, -1.5], [gR, 1.5]]);
+    pieces.push(prismXZ(pCirc(Rd, 0, 0, Math.max(64, segsFor(Rd, 64))), [key], c1 - 0.01, top));
+    pieces.push(prismXZ(pCirc(P.ring.od / 2 + 0.3 + c + 1.2, 0, 0, 64), [pCirc(P.ring.od / 2 + 0.3 + c, 0, 0, 64)], top - 0.01, top + 2));
+    const ph = FL.rk + FL.lift, cheekH = ph + 3.4, half = P.slotW / 2;
+    for (let i = 0; i < P.N; i++){
+      const M = rotY(i / P.N * Math.PI * 2);
+      for (const side of [-1, 1]){
+        const z0 = side < 0 ? -half - FL.cheek : half, z1 = side < 0 ? -half : half + FL.cheek;
+        const pf = [[P.Rp - 4, top - 0.01], [P.Rp + 4, top - 0.01], [P.Rp + 4, top + cheekH - 2], [P.Rp + 2, top + cheekH], [P.Rp - 2, top + cheekH], [P.Rp - 4, top + cheekH - 2]];
+        pieces.push(affineSolid(prismXY(pf, [tearAB((FL.pin + c / 2) / 2, P.Rp, top + ph)], z0, z1), M, [0, 0, 0]));
+      }
+    }
+    return { solid:mergeSolids(pieces), bottom:s0 };
+  }
+  function flowerRunner(P, s, c){
+    // printed disc-down with its cheeks up; in the lamp it hangs the other way up. Its pins at y = 6 here
+    const Rr = P.Rh + 4, gap = FL.linkT / 2 + c, pieces = [prismXZ(pCirc(Rr, 0, 0, 64), [pCirc(FL.rod / 2 + c / 2, 0, 0, 24)], 0, 3)];
+    for (let i = 0; i < P.N; i++){
+      const M = rotY(i / P.N * Math.PI * 2);
+      for (const side of [-1, 1]){
+        const z0 = side < 0 ? -gap - 2 : gap, z1 = side < 0 ? -gap : gap + 2;
+        const pf = [[P.Rh - 3.2, 2.99], [P.Rh + 3.2, 2.99], [P.Rh + 3.2, 7], [P.Rh + 1.5, 9], [P.Rh - 1.5, 9], [P.Rh - 3.2, 7]];
+        pieces.push(affineSolid(prismXY(pf, [tearAB((FL.pin + c / 2) / 2, P.Rh, 6)], z0, z1), M, [0, 0, 0]));
+      }
+    }
+    pieces.push(prismXZ(pCirc(FL.rod / 2 + 2.4, 0, 0, 32), [pCirc(FL.rod / 2 + c / 2, 0, 0, 24)], 2.99, 9));
+    return { solid:mergeSolids(pieces), pinY:6, Rr };
+  }
+  // the stem's bore: the rod's circle with a lobe for the LED's wires beside it (narrower than the rod, so the rod stays put)
+  const stemBore = c => convexHull([...pCirc(FL.rod / 2 + 0.3, 0, 0, 24), ...pCirc(1.5, 4.2, 0, 16)]);
+  function flowerSlider(P, s, c){
+    const h = P.blockH;
+    return { solid:mergeSolids([prismXY([[-5, 0], [5, 0], [5, h - 7.99], [-5, h - 7.99]], [tearAB((2 + c) / 2, 0, P.blockPin)], -5, 5),
+      prismXZ(pRect(0, 0, 10, 10, 0), [pCirc(FL.rod / 2 + c / 2, 0, 0, 24)], h - 8, h)]) };
+  }
+  function flowerBase(P, s, c){
+    const S = P.S, e = P.oc.e, T = 3, W = FL.wall, zs = -13.3, tabZ = zs - S.shaftY + S.tabY;
+    const tray = part("boardMount", { board:s.board, openEnd:"right" }, { clearance:c });
+    const tb = solidBounds(tray.solid), tw = tb.mx[0] - tb.mn[0], td = tb.mx[2] - tb.mn[2], zt = 8 + td / 2;
+    const bodyX = -e - S.shaftX, xs = [bodyX - S.span / 2 - 3, bodyX + S.span / 2 + 3];
+    const keep = [[xs[0], tabZ - T], [xs[1], tabZ - T], [xs[0], zs - S.shaftY - 1], [xs[1], zs - S.shaftY - 1], [-e - P.r - 6, 0], [-e + P.r + 6, 0]];
+    const fits = R => { const Ri = R - W - 1.5; if (keep.some(([x, z]) => Math.hypot(x, z) > Ri)) return null;
+      const xEnd = Math.sqrt(Math.max(0, Ri * Ri - (zt + td / 2) ** 2)), xc = xEnd - tw / 2 + tb.mn[0] + tw / 2;
+      return Math.hypot(xc + tb.mn[0], zt + td / 2) <= Ri ? xc - (tb.mx[0] + tb.mn[0]) / 2 : null; };
+    let Rb = 46; while (fits(Rb) === null && Rb < 130) Rb++;
+    const xc = fits(Rb) ?? 0, Hb = P.Hb, Ri = Rb - W, n = Math.max(96, segsFor(Rb, 96));
+    // screw columns where nothing else is: four (or three) round the wall
+    const busy = [[xc + tb.mn[0] - 7, zt - td / 2 - 7, xc + tb.mx[0] + 7, zt + td / 2 + 7], [xs[0] - 6, zs - S.shaftY - 7, xs[1] + 6, tabZ + 6], [-e - P.r - 9, -16, 12, 12]];
+    const usbAng = Math.atan2(zt, Math.sqrt(Math.max(0, Rb * Rb - zt * zt))), front = [0, Rb * 0.58], frontAng = Math.PI / 2;
+    const free = a => { const x = Math.cos(a) * (Ri - 4), z = Math.sin(a) * (Ri - 4);
+      if (busy.some(([x0, z0, x1, z1]) => x > x0 && x < x1 && z > z0 && z < z1)) return false;
+      const d = b => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))); return d(usbAng) > 0.35 && d(frontAng) > 0.3; };
+    const screws = [];
+    for (const want of [45, 135, 225, 315]){ let best = null;
+      for (let k = 0; k <= 40 && best === null; k++) for (const sg of [1, -1]){ const a = (want + sg * k) * Math.PI / 180; if (free(a) && screws.every(b => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))) > 1)){ best = a; break; } }
+      if (best !== null) screws.push(best); }
+    const scr = screws.map(a => [Math.cos(a) * (Ri - 4), Math.sin(a) * (Ri - 4)]);
+    // the shell: its wall (a notch up from the rim for the USB plug), the top with the stem's socket and the switch, the
+    // socket's sleeve and its 45° ledge, the screw columns. Printed upside down
+    const notchH = 3 + 12, nh = 6.5 / Rb, wallLo = [], arc = (r, a0, a1, k) => { const L = []; for (let i = 0; i <= k; i++){ const a = a0 + (a1 - a0) * i / k; L.push([r * Math.cos(a), r * Math.sin(a)]); } return L; };
+    wallLo.push(...arc(Rb, usbAng + nh, usbAng + Math.PI * 2 - nh, n), ...arc(Ri, usbAng + Math.PI * 2 - nh, usbAng + nh, n));
+    const shell = [prismXZ(wallLo, [], 0, notchH), prismXZ(pCirc(Rb, 0, 0, n), [pCirc(Ri, 0, 0, n)], notchH - 0.01, Hb - T + 0.01)];
+    const so = P.so, sockR = P.sockR, topHoles = [pCirc(so, 0, 0, 48)];
+    if (s.control === "touch") topHoles.push(pCirc(1.6, front[0], front[1], 16)); else topHoles.push(pCirc(6.1 + c, front[0], front[1], 32));
+    if (s.control === "touch"){
+      // where the copper pad goes: a thin ring groove (a recess would be a ceiling, the base printing upside down)
+      const ringHole = [...pCirc(12.6, front[0], front[1], 64)], inner = pCirc(11.6, front[0], front[1], 64);
+      shell.push(prismXZ(pCirc(Rb, 0, 0, n), topHoles, Hb - T, Hb - 0.6));
+      shell.push(prismXZ(pCirc(Rb, 0, 0, n), [pCirc(so, 0, 0, 48), ringHole], Hb - 0.61, Hb));
+      shell.push(prismXZ(inner, [pCirc(1.6, front[0], front[1], 16)], Hb - 0.61, Hb));
+    } else shell.push(prismXZ(pCirc(Rb, 0, 0, n), topHoles, Hb - T, Hb));
+    const y1 = Hb - FL.sockB, ledge = so - FL.hole;
+    shell.push(prismXZ(pCirc(sockR, 0, 0, 48), [pCirc(so, 0, 0, 48)], y1, Hb - T + 0.01));
+    shell.push(revolveLoop([[FL.hole, y1 - ledge], [sockR, y1 - ledge - (sockR - so)], [sockR, y1 + 0.01], [so, y1 + 0.01]], 48));
+    scr.forEach(([x, z]) => shell.push(prismXZ(pCirc(4.5, x, z, 24), [pCirc(PART_FASTENERS.M3.pilot / 2, x, z, 16)], T, Hb - T + 0.01)));
+    // the floor: screwed up into the columns; the servo's bracket stands on it (a U slot: the servo drops in) and the board's tray
+    const floorP = [prismXZ(pCirc(Ri - c, 0, 0, n), scr.map(([x, z]) => pCirc(PART_FASTENERS.M3.clear / 2, x, z, 16)), 0, T)];
+    const slot = [bodyX - S.L / 2 - c, bodyX + S.L / 2 + c], plateTop = P.yC + S.W / 2 + 4;
+    const plate = [[xs[0], T - 0.01], [xs[1], T - 0.01], [xs[1], plateTop], [slot[1], plateTop], [slot[1], P.yC - S.W / 2 - c], [slot[0], P.yC - S.W / 2 - c], [slot[0], plateTop], [xs[0], plateTop]];
+    const tabHoles = [bodyX - S.holes / 2, bodyX + S.holes / 2].map(x => tearAB(S.pilot / 2, x, P.yC, 12));
+    floorP.push(prismXY(plate, tabHoles, tabZ - T, tabZ));
+    floorP.push(affineSolid(tray.solid, PART_I, [xc, T - 0.01, zt]));
+    return { shell:mergeSolids(shell), floor:mergeSolids(floorP), Rb, Ri, Hb, front, screws:scr, usbAng, notchH, tray:{ xc, zt, w:tw, d:td, b:tb }, zs, tabZ, bodyX, xs };
+  }
+  // the bought parts, as plain shapes for the picture of the lamp (never printed)
+  function flowerBought(P, s, B){
+    const S = P.S, out = [];
+    out.push({ name:`NeoPixel ring (${s.led})`, solid:prismXZ(pCirc(P.ring.od / 2, 0, 0, 64), [pCirc(P.ring.id / 2, 0, 0, 48)], P.yDisc, P.yDisc + FL.ledH), colour:"#e8e8e8" });
+    out.push({ name:S.label, solid:pBox(B.bodyX - S.L / 2, B.bodyX + S.L / 2, P.yC - S.W / 2, P.yC + S.W / 2, B.zs - S.shaftY, B.zs - S.shaftY + S.H), colour:"#2e6fd8" });
+    const bd = PART_BOARDS[s.board], tb = B.tray;
+    out.push({ name:bd.label, solid:pBox(tb.xc - bd.w / 2, tb.xc + bd.w / 2, 3 + 6, 3 + 7.6, tb.zt - bd.d / 2, tb.zt + bd.d / 2), colour:"#1f7a4d" });
+    return out;
+  }
+  function flowerMake(raw, opts){
+    const s = flowerClean(raw), c = Math.max(0, Math.min(1, opts && Number.isFinite(+opts.clearance) ? +opts.clearance : PART_CLEARANCE));
+    const P = flowerPlan(s, c);
+    const petal = petalSolid(P, s, c), head = flowerHead(P, s, c), runner = flowerRunner(P, s, c), slider = flowerSlider(P, s, c), base = flowerBase(P, s, c);
+    const stem = prismXZ(pCirc(FL.stemOD / 2, 0, 0, 48), [stemBore(c)], 0, P.stemLen);
+    const crank = part("servoHorn", { servo:s.servo, arm:P.r, holes:1, pin:2 }, { clearance:c });
+    const link = part("hornLink", { length:+P.l.toFixed(2), pinA:FL.pin, pinB:FL.pin, width:FL.linkW, thick:FL.linkT }, { clearance:c });
+    const conrod = part("hornLink", { length:+P.oc.b.toFixed(2), pinA:2, pinB:2, width:6, thick:3 }, { clearance:c });
+    // where the rod's top is at closed: the runner's disc top; its bottom: in the slider block
+    const yHubC = P.yPiv + P.yHub0, yRunTop = yHubC + runner.pinY, ySlider0 = P.yC + P.oc.xStart - P.blockPin;
+    const rod = Math.ceil(yRunTop - (ySlider0 + P.blockH - 8) + 0.5);
+    // the printed parts, in their own frames (each prints as it is), with a count
+    const printed = [
+      { key:"petal", name:"Petal", count:P.N, solid:affineSolid(petal.solid, rotZ(petal.psi), [0, 0, 0]), role:"petal" },
+      { key:"head", name:"Head", count:1, solid:affineSolid(head.solid, PART_I, [0, -head.bottom, 0]), role:"body" },
+      { key:"runner", name:"Runner", count:1, solid:runner.solid, role:"body" },
+      { key:"link", name:"Petal link", count:P.N, solid:link.solid, role:"body" },
+      { key:"stem", name:"Stem", count:1, solid:stem, role:"body" },
+      { key:"base", name:"Base", count:1, solid:affineSolid(base.shell, rotXpi, [0, base.Hb, 0]), role:"body" },
+      { key:"floor", name:"Base floor", count:1, solid:base.floor, role:"body" },
+      { key:"crank", name:"Crank", count:1, solid:crank.solid, role:"body" },
+      { key:"conrod", name:"Crank rod", count:1, solid:conrod.solid, role:"body" },
+      { key:"slider", name:"Rod block", count:1, solid:slider.solid, role:"body" }
+    ];
+    printed.forEach(p => { const b = solidBounds(p.solid); p.solid = affineSolid(p.solid, PART_I, [-(b.mn[0] + b.mx[0]) / 2, -b.mn[1], -(b.mn[2] + b.mx[2]) / 2]); });
+    // the lamp at a bloom t (0 closed, 1 open): every printed part where it goes, and the bought ones
+    const assembly = t => {
+      t = Math.max(0, Math.min(1, +t || 0));
+      const th = (P.oc.start + (P.oc.end - P.oc.start) * t) * P.D, x = crankSliderX(P.r, P.oc.b, P.oc.e, th / P.D), drop = P.oc.xStart - x;
+      const a = P.angleFor(drop), yH = P.yPiv + P.hubY(a, P.l), out = [];
+      const put = (name, solid, M, tr, role) => out.push({ name, solid:affineSolid(solid, M, tr), role });
+      for (let i = 0; i < P.N; i++){
+        const Ry = rotY(i / P.N * Math.PI * 2), L = P.lugAt(a), lugP = [P.Rp + L[0], P.yPiv + L[1], 0], hubP = [P.Rh, yH, 0];
+        put(`Petal ${i + 1}`, petal.solid, mmul(Ry, rotZ(-a)), mvec(Ry, [P.Rp, P.yPiv, 0]), "petal");
+        const d = v3.sub(lugP, hubP), len = Math.hypot(d[0], d[1]), u = [d[0] / len, d[1] / len, 0], zz = [0, 0, 1], nn = v3.cross(u, zz);
+        const M = mmul(Ry, cols(u, zz, nn)), o = v3.add(hubP, v3.mul(zz, -FL.linkT / 2));
+        put(`Petal link ${i + 1}`, link.solid, M, mvec(Ry, o), "body");
+      }
+      put("Head", head.solid, PART_I, [0, P.yDisc, 0], "body");
+      put("Runner", runner.solid, rotXpi, [0, yH + runner.pinY, 0], "body");
+      put("Stem", stem, PART_I, [0, P.stemBottom, 0], "body");
+      put("Base", base.shell, PART_I, [0, 0, 0], "body");
+      put("Base floor", base.floor, PART_I, [0, 0, 0], "body");
+      const piv = [-P.oc.e, P.yC, base.zs], arm = [Math.sin(th), Math.cos(th), 0], zz = [0, 0, 1];
+      put("Crank", crank.solid, cols(arm, zz, v3.cross(arm, zz)), piv, "body");
+      const cp = v3.add(piv, v3.mul(arm, P.r)), sp = [0, P.yC + x, 0], dd = v3.sub(sp, cp), dl = Math.hypot(dd[0], dd[1]), du = [dd[0] / dl, dd[1] / dl, 0];
+      put("Crank rod", conrod.solid, cols(du, zz, v3.cross(du, zz)), [cp[0], cp[1], -8.4], "body");
+      put("Rod block", slider.solid, PART_I, [0, P.yC + x - P.blockPin, 0], "body");
+      const y0r = P.yC + x - P.blockPin + P.blockH - 8;
+      out.push({ name:`${FL.rod} mm rod`, solid:prismXZ(pCirc(FL.rod / 2, 0, 0, 16), [], y0r, y0r + rod), role:"bought", colour:"#b0b4ba" });
+      flowerBought(P, s, base).forEach(q => out.push(Object.assign({ role:"bought" }, q)));
+      return { parts:out, t, angle:a / P.D, drop, crank:th / P.D, hub:yH };
+    };
+    const info = flowerInfo(P, s, c, { rod, base, runner, petal, assembly });
+    return { settings:s, clearance:c, printed, assembly, info, plan:P };
+  }
+  // the checks over the whole travel, what it needs, the notes, the travel table and the sketch
+  function flowerInfo(P, s, c, X){
+    const D = P.D, pts = [];
+    for (let j = 1; j <= 24; j++) for (let i = 0; i <= 6; i++) pts.push(petalPoint(P, i / 6, 0.03 + 0.95 * j / 24));
+    const at = (p, i, a) => mvec(rotY(i / P.N * Math.PI * 2), v3.add(mvec(rotZ(-a), p), [P.Rp, P.yPiv, 0]));
+    const ts = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1], checks = [];
+    const add = (key, name, worst, need, tWorst, why) => checks.push({ key, name, ok:worst >= need, worst:+worst.toFixed(2), need, t:tWorst, why });
+    const segDist = (p, a, b) => { const ab = v3.sub(b, a), t = Math.max(0, Math.min(1, v3.dot(v3.sub(p, a), ab) / v3.dot(ab, ab))); return Math.hypot(...v3.sub(p, v3.add(a, v3.mul(ab, t)))); };
+    let wPP = Infinity, tPP = 0, wPD = Infinity, tPD = 0, wRP = Infinity, tRP = 0, wLP = Infinity, tLP = 0;
+    const Rr = X.runner.Rr, rows = [];
+    for (const t of ts){
+      const th = P.oc.start + (P.oc.end - P.oc.start) * t, x = crankSliderX(P.r, P.oc.b, P.oc.e, th), drop = P.oc.xStart - x, a = P.angleFor(drop), yH = P.yPiv + P.hubY(a, P.l);
+      rows.push([Math.round(t * 180), +drop.toFixed(1), +(a / D).toFixed(1)]);
+      const A = pts.map(p => at(p, 0, a)), B = pts.map(p => at(p, 1, a));
+      for (const p of A) for (const q of B){ const d = Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) - s.wall; if (d < wPP){ wPP = d; tPP = t; } }
+      pts.forEach((p, k) => { if (Math.hypot(p[0], p[1]) < 5.5) return; const w = A[k], r = Math.hypot(w[0], w[2]);
+        if (r < P.Rd + 1){ const d = w[1] - P.yDisc - s.wall / 2; if (d < wPD){ wPD = d; tPD = t; } }
+        if (w[1] > yH - 3.4 && w[1] < yH + 6.2){ const d = r - s.wall / 2 - Rr; if (d < wRP){ wRP = d; tRP = t; } } });
+      const L = P.lugAt(a), lugP = [P.Rp + L[0], P.yPiv + L[1], 0], hubP = [P.Rh, yH, 0];
+      pts.forEach((p, k) => { if (Math.hypot(p[0] - P.lug[0], p[1] - P.lug[1]) < 6) return; const d = segDist(A[k], hubP, lugP) - s.wall / 2 - FL.linkW / 2; if (d < wLP){ wLP = d; tLP = t; } });
+    }
+    add("petals", "Petals clear each other all the way", wPP, 0.3, tPP, "the gap between neighbouring petals");
+    add("head", "Petals clear the head as they open", wPD, 0.5, tPD, "the lowest part of a petal over the head's disc");
+    add("runner", "The runner clears the petals", wRP, 1, tRP, "the room round the runner inside the bud");
+    add("links", "The links clear the petals' insides", wLP, 0.8, tLP, "a link's edge to the petal it pushes");
+    const yOpen = P.yPiv + P.hubY(P.angleFor(P.stroke), P.l);
+    add("led", "The runner stays above the LEDs when open", yOpen - 3.2 - (P.yLedTop + 2), 1, 1, "the runner's lowest point over the ring and its lip");
+    add("rod", "The rod and the LED wires pass through the ring", P.ring.id / 2 - FL.hole, 1, 0, "the ring's hole round the head's");
+    // holding itself: the petals' weight on the rod, turned into a torque on the crank 4° past its dead centre
+    const vol = Math.abs(signedVolume(X.petal.solid)), mass = vol / 1000 * 1.27, cog = (a, i) => { let y = 0; for (const p of pts) y += at(p, i, a)[1]; return y / pts.length; };
+    const force = drop => { const e = 0.05, a0 = P.angleFor(Math.max(0, drop - e)), a1 = P.angleFor(drop + e); return P.N * mass / 1000 * 9.81 * (cog(a0, 0) - cog(a1, 0)) / (Math.min(drop, e) + e); };
+    const dxdth = th => Math.abs(crankSliderX(P.r, P.oc.b, P.oc.e, th + 0.01) - crankSliderX(P.r, P.oc.b, P.oc.e, th - 0.01)) / (0.02 * D);
+    const tqClosed = Math.abs(force(0.06)) * dxdth(P.oc.start), tqOpen = Math.abs(force(P.stroke - 0.06)) * dxdth(P.oc.end);
+    const friction = s.servo === "MG996R" ? 80 : 20;                                   // N·mm: an unpowered servo's gears, typical (not measured)
+    const hold = { closed:+tqClosed.toFixed(3), open:+tqOpen.toFixed(3), friction, ok:Math.max(tqClosed, tqOpen) < friction / 3 };
+    const bd = PART_BOARDS[s.board], screws = X.base.screws.length;
+    const bom = [[1, P.S.label], [1, `NeoPixel ring, ${s.led} LEDs (${P.ring.od} mm)`], [1, bd.label], [1, `${FL.rod} mm rod (steel, brass or carbon), ${X.rod} mm long`],
+      [3 * P.N, "pins cut from 1.75 mm filament, 12 mm long (petals, lugs, runner)"], [2, "M2 × 12 screws and nuts (the crank's pins)"], [screws, "M3 × 8 screws (the base's floor)"],
+      [s.control === "touch" ? 1 : 1, s.control === "touch" ? "24 mm disc of copper tape (the touch pad) and a wire" : "12 mm round push button (panel mount)"],
+      [1, `3 thin silicone wires, about ${Math.round(s.stem + 180)} mm (the ring to the board)`], [1, "USB cable for the board"], [4, "stick-on rubber feet"]];
+    const notes = [
+      `Petals: print standing on their pin, in translucent PETG or PLA (they glow), ${s.wall} mm walls. No support.`,
+      "Head: upright, cone down. Base: upside down (its top on the bed). Floor, runner, links and the crank: flat, as they are. No support anywhere.",
+      `Open to closed is 180° of the servo: the crank goes ${FL.over}° past each dead centre, so the lamp holds open or closed with the servo off (the sketch switches it off).`,
+      `It opens by ${P.openReached.toFixed(0)}°, the rod moving ${P.stroke.toFixed(1)} mm. Typical sizes for the servo, ring and board: check yours.`
+    ];
+    const assembly = [
+      "Push the filament pins through the head's cheeks and each petal's knuckle; trim them flush.",
+      "Pin a link to each petal's lug, then all the links to the runner's cheeks.",
+      `Feed the ${FL.rod} mm rod down through the runner, the head and the stem; glue the runner at the rod's top.`,
+      "Thread the ring's three wires down the stem beside the rod and solder them to the ring; seat the ring in the head's lip.",
+      `Screw the servo into its bracket; run the sketch once so it moves to closed, then fit the crank pointing ${(P.oc.start).toFixed(0)}° from straight up, towards the rod.`,
+      "Pin the crank rod between the crank and the rod block; push the block onto the rod's lower end and glue it.",
+      "Fit the board in its tray, the USB plug through the notch; wire the servo, the ring and the touch pad or button.",
+      "Screw the floor on. Touch the pad: the flower opens and lights up; touch again to close."
+    ];
+    return { checks, ok:checks.every(q => q.ok), hold, bom, notes, assembly, travel:{ input:"servo angle (°)", rows, output:"rod drop (mm), petal angle (°)" },
+      size:{ base:[2 * X.base.Rb, X.base.Hb], height:+(P.yPiv + P.Hf + 2).toFixed(1), flower:2 * P.Rf, open:+P.openReached.toFixed(1), stroke:+P.stroke.toFixed(2) },
+      crank:{ arm:P.r, rod:+P.oc.b.toFixed(1), offset:+P.oc.e.toFixed(2), start:+P.oc.start.toFixed(1), end:+P.oc.end.toFixed(1) },
+      link:+P.l.toFixed(2), rod:X.rod, warn:P.warn.slice(), sketch:flowerSketch(s, P) };
+  }
+  function flowerSketch(s, P){
+    const esp = s.board === "esp32devkit", touch = s.control === "touch";
+    return [
+      "// Maker Forge: the blooming flower lamp. " + (touch ? "Touch the pad" : "Press the button") + ": the flower opens and the light fades in.",
+      "// Again: the light fades out and it closes. The servo is switched off at rest: the crank holds the flower by itself.",
+      `// ${FLOWER_STYLES[s.style].label}, ${s.petals} petals, ${P.S.label}, NeoPixel ring of ${s.led}. Libraries: Adafruit NeoPixel` + (esp ? ", ESP32Servo." : ", Servo."),
+      esp ? "#include <ESP32Servo.h>" : "#include <Servo.h>",
+      "#include <Adafruit_NeoPixel.h>",
+      "",
+      `const int SERVO_PIN = ${esp ? 18 : 9};`,
+      `const int LED_PIN = ${esp ? 5 : 6};`,
+      `const int LED_COUNT = ${s.led};`,
+      touch ? (esp ? "const int TOUCH_PIN = T0;        // GPIO 4: the copper pad" : "const int TOUCH_PIN = 2;         // a TTP223 touch module's output") : "const int BUTTON_PIN = 2;        // to GND when pressed",
+      "const int CLOSED_US = 500, OPEN_US = 2500;   // the servo's ends: 0° is closed, 180° open (adjust if yours stops short)",
+      "const int STEP_MS = 12;                        // a slower bloom: make it bigger",
+      "",
+      "Servo servo;",
+      "Adafruit_NeoPixel ring(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);",
+      "bool isOpen = false;",
+      "",
+      "bool pressed() {",
+      touch ? (esp ? "  return touchRead(TOUCH_PIN) < 30;   // lower when touched: print touchRead() to tune" : "  return digitalRead(TOUCH_PIN) == HIGH;") : "  return digitalRead(BUTTON_PIN) == LOW;",
+      "}",
+      "",
+      "void light(int level) {           // 0..255, a warm white",
+      "  for (int i = 0; i < LED_COUNT; i++) ring.setPixelColor(i, ring.Color(level, level * 3 / 4, level / 3));",
+      "  ring.show();",
+      "}",
+      "",
+      "void bloom(bool open) {",
+      "  servo.attach(SERVO_PIN, CLOSED_US, OPEN_US);",
+      "  for (int k = 0; k <= 180; k++) {",
+      "    int a = open ? k : 180 - k;",
+      "    servo.write(a);",
+      "    light(open ? k * 255 / 180 : 255 - k * 255 / 180);",
+      "    delay(STEP_MS);",
+      "  }",
+      "  delay(300);",
+      "  servo.detach();                 // off: the over-centre crank holds it",
+      "}",
+      "",
+      "void setup() {",
+      touch ? (esp ? "" : "  pinMode(TOUCH_PIN, INPUT);") : "  pinMode(BUTTON_PIN, INPUT_PULLUP);",
+      "  ring.begin();",
+      "  light(0);",
+      "  servo.attach(SERVO_PIN, CLOSED_US, OPEN_US);",
+      "  servo.write(0);                 // closed: fit the crank now (see the steps)",
+      "  delay(800);",
+      "  servo.detach();",
+      "}",
+      "",
+      "void loop() {",
+      "  if (pressed()) {",
+      "    isOpen = !isOpen;",
+      "    bloom(isOpen);",
+      "    while (pressed()) delay(20);",
+      "  }",
+      "  delay(20);",
+      "}",
+      ""
+    ].filter(l => l !== null).join("\n");
+  }
+
   global.PRCore = {
     // loft, sweep, thin shells (Session 83) and the mechanical parts library (Session 82)
     loft, sweep, shellSurface,
-    parts:{ list:partList, make:part, clean:partClean, snap, travel:partTravel, fourBarAngle, crankSliderX, servos:PART_SERVOS, bearings:PART_BEARINGS, fasteners:PART_FASTENERS, boards:PART_BOARDS, rings:PART_RINGS, clearance:PART_CLEARANCE },
+    flower:{ make:flowerMake, clean:flowerClean, settings:FLOWER_SETTINGS, styles:FLOWER_STYLES, sketch:flowerSketch },
+    parts:{ list:partList, make:part, clean:partClean, snap, travel:partTravel, fourBarAngle, crankSliderX, overCentre, petalAngle, petalArm, servos:PART_SERVOS, bearings:PART_BEARINGS, fasteners:PART_FASTENERS, boards:PART_BOARDS, rings:PART_RINGS, clearance:PART_CLEARANCE },
     hexToRgb, rgbToHex, colorDist, luma, kmeans, buildCellMap, makeProjector, buildDecalSolids, weldSoup, parseSTL,
     prepareParts, make3MF, make3MF_BBL, makeSTL, makeOBJ, traceMask, groupLoops, rectUnion, triangulate, solidFromTris, buildVectorSolid,
     makeWrapProjector, extrudePolys, extrudePolysAt, closeMask, smoothMask, revolve, revolveLoop, sweepTube, traceField, fieldToPolys, strokePolys, signedDistanceField, coverageField, blurMask, homography, applyH, warpQuad, quadCorners, refineQuad, fitDimensions, convexHull, outlineSVG, outlineDXF, transformSolid, mirrorSolid, solidBounds, mirrorMaskX, perforate, insideRing, snapToGrid, signedVolume, buildMaskSolid, maskOfSlot, dropCellBackground, dropSlivers, checkMesh, edt, dilateMask, erodeMask, labelMask, maskToPolys, ringCircle, ringRect, ringStar, ringPoly, ringHeart, mergeSolids, splitSolid, splitSolidAt, planeClear, area2, segsFor,

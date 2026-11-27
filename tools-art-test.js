@@ -319,6 +319,54 @@ async function addPicture(MF) {                      // the smoke test's two-col
   check(!!tl, "the tea light has its example picture");
   MF.state.model.scale = 100;
 
+  // ---- Session 86: a picture standing out of an upright face, flat underneath, needed support (the tea light's 80 mm²) ----
+  console.log("\na raised picture or a relief on an upright face prints without support");
+  {
+    const opts = { nozzle:0.4, layer:0.2, angle:45, bridge:10 };
+    const support = list => C.analyzePrint(list, opts).overhang.area;
+    const pics = () => MF.printParts().filter(p => !/^(Shell|Body|Cylinder|Object)$/.test(p.name));
+    const reach = (list, a) => Math.max(...list.map(p => C.solidBounds(p).mx[a]));
+    [...document.querySelectorAll("#presetGallery button")].find(b => b.dataset.k === "Tea light").click(); await settle();
+    const tea = MF.state.items.find(q => q.enabled);
+    check(tea && tea._upright > 0 && support(MF.printParts()) < 3, "the Tea light quick start needs no support: its picture's underside steps up", `${support(MF.printParts()).toFixed(1)} mm²`);
+    check(tea && reach(pics(), 2) > 35 + 1.1, "and the picture still stands its full 1.2 mm out at the top", reach(pics(), 2).toFixed(2));
+    // on a plain cylinder: the badge raised 2 mm on its side, stepped; the same on its top, as it was (nothing hangs there)
+    await choose("cylinder");
+    MF.state.items.forEach(q => { q.enabled = false; });
+    const b = await addPicture(MF);
+    // how far its flat undersides (facing straight down) reach out of the cylinder's wall, at most: a ledge wider than about
+    // 1 mm sags. (The print check is the test for the tea light above; on a round badge it also marks the arcs' faces just
+    // past 45° that any raised circle has, stepped or not.)
+    const ledge = list => { let w = 0; list.forEach(p => { const P = p.pos, I = p.idx;
+      for (let t = 0; t < I.length; t += 3){ const a = 3*I[t], b2 = 3*I[t + 1], c = 3*I[t + 2];
+        const ux = P[b2] - P[a], uy = P[b2 + 1] - P[a + 1], uz = P[b2 + 2] - P[a + 2], vx = P[c] - P[a], vy = P[c + 1] - P[a + 1], vz = P[c + 2] - P[a + 2];
+        const nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx, L = Math.hypot(nx, ny, nz); if (!(L > 1e-12) || ny/L > -0.985) continue;
+        const r = [a, b2, c].map(v => Math.hypot(P[v], P[v + 2])); w = Math.max(w, Math.max(...r) - Math.min(...r)); } }); return w; };
+    if (b){
+      for (const h of [2, 3]){
+        b.place = { c:[0, 20, 20], n:[0, 0, 1] }; b.mode = "flat"; b.height = h; b.width = 30; b.solids = null; MF.rebuild(false); await settle();
+        const side = pics();
+        check(b._upright > 0 && ledge(side) < 1.01 && reach(side, 2) > 35 + h - 0.05 && side.every(p => C.checkMesh(p).open === 0),
+          `a picture raised ${h} mm on a cylinder's side steps up underneath: no flat underside reaches out more than 1 mm, it still stands ${h} mm out, every part closed`,
+          `widest ledge ${ledge(side).toFixed(2)} mm, out to z = ${reach(side, 2).toFixed(2)}, the print check ${support(MF.printParts()).toFixed(1)} mm²`);
+      }
+      b.height = 0.8; b.solids = null; MF.rebuild(false); await settle();
+      check(!b._upright, "raised 0.8 mm (the default), it's built as before: a ledge that small prints");
+      b.height = 2; b.mode = "stepped"; b.solids = null; MF.rebuild(false); await settle();
+      check(!b._upright, "stepped (each colour at its own height), it's built as before");
+      b.mode = "flat";
+      const topY = Math.max(...MF.printParts().map(p => C.solidBounds(p).mx[1]));
+      b.place = { c:[0, topY, 0], n:[0, 1, 0] }; b.height = 2; b.solids = null; MF.rebuild(false); await settle();
+      check(!b._upright && pics().length > 0, "on the top it stands straight up, as before");
+      // a relief on the side, in one colour (several are meshed apart, with walls buried in each other): held to about 40°
+      // going up, its foot 0.6 mm out
+      b.place = { c:[0, 20, 20], n:[0, 0, 1] }; b.mode = "relief"; b.minH = 0.3; b.maxH = 2.2; b.forceSlot = 1; b.solids = null; MF.rebuild(false); await settle();
+      const rel = pics();
+      check(b._upright > 0 && support(MF.printParts()) < 3 && ledge(rel) < 1.01 && rel.every(p => C.checkMesh(p).open === 0), "a relief on the side prints without support", `${b._upright} cells lowered, ${support(MF.printParts()).toFixed(1)} mm², widest ledge ${ledge(rel).toFixed(2)} mm`);
+      MF.state.items.splice(MF.state.items.indexOf(b), 1); MF.rebuild(false); await settle();
+    } else check(false, "the badge picture was added");
+  }
+
   const errs = env.errors.filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
   check(!errs.length, "no page errors", errs.slice(0, 2).join(" / "));
   console.log(fails ? `\n${fails} FAILED` : "\nall passed");

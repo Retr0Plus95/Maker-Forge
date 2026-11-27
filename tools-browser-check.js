@@ -394,6 +394,20 @@ function pageCoverage() {
     if (!jn.fresh || !jn.thread || !(jn.joined >= 1) || jn.open || !jn.closed || !jn.row || !(jn.cm3 * 1000 < jn.raw * 0.97))
       findings.push({ where: "one solid per colour", what: `the cookie cutter's pieces joined on the helper thread: ${JSON.stringify(jn)}` });
     notes.push(`one solid per colour: the cookie cutter joined on the second helper thread in ${jn.ms} ms (${jn.joined} piece joined, closed: ${jn.closed}); weight ${(jn.raw / 1000).toFixed(2)} → ${jn.cm3.toFixed(2)} cm³; the page's longest frame meanwhile ${jn.worst} ms`);
+    // the print check on the joined solids (Session 86, the engine's E1), its result from the helper thread
+    await page.evaluate(() => [...document.querySelectorAll("#presetGallery button")].find(b => b.dataset.k === "Tea light").click());
+    await settle(page);
+    const pj = await page.evaluate(async () => {
+      const MF = window.MakerForge, C = MF.core, P = MF.state.printer;
+      for (let i = 0; i < 600 && !(MF.print && MF.print.joined); i++) await new Promise(r => setTimeout(r, 100));
+      const pieces = C.analyzePrint(MF.printParts(), { nozzle:P.nozzle || 0.4, layer:P.layer || 0.2, angle:P.overhang || 45, bridge:P.bridge ?? 10 }), r = MF.print;
+      return { joined: !!(r && r.joined), pieces: +pieces.overhang.area.toFixed(1), area: r ? +r.overhang.area.toFixed(1) : null, parts: r ? r.parts : null, per: r ? r.overhang.perPart.map(v => +v.toFixed(1)) : null,
+        marks: !!(r && r.marks && r.marks.support.length), helper: !!MF.helper && !MF.helper.failed };
+    });
+    // (since the tea light's picture steps up underneath, both read 0 mm²: here it is that the result comes from the joined solids)
+    if (!pj.joined || !(pj.area <= pj.pieces + 0.5) || !pj.parts || pj.parts.length !== 2 || !pj.helper)
+      findings.push({ where: "print check on the joined solids", what: `the tea light: ${JSON.stringify(pj)}` });
+    notes.push(`print check on the joined solids: the tea light's support ${pj.pieces} mm² on the pieces → ${pj.area} mm² joined (${pj.parts && pj.parts.map((n, i) => n + " " + pj.per[i]).join(", ")}); helper thread ${pj.helper}`);
   }
   // ---------- box shapes (Session 66): each picked on the page, made by the cutting tool in the browser ----------
   if (!ONLY || ONLY.includes("shapes") || ONLY.includes("enclosure")) {

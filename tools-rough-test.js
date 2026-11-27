@@ -106,6 +106,29 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
     check(MF.parts.length > 1 && !env.errors.length, "and again after dragging the curve (rough builds on the coarser grid too)", env.errors[0] || `${MF.parts.length} parts`);
     Object.assign(np, keep); env.errors.length = 0; await MF.rebuild(false); await settle();
   }
+  // Session 86: a name curved the other way (a negative curve) began right of the middle and curled up and over instead of
+  // bending into a smile; and the room left for a curve (0.3 of the name's width per 90° on every side) kept a long curved
+  // name off the canvas (found by tools-fuzz.js)
+  console.log("\na name curved either way bends evenly, and a long curved name builds");
+  {
+    const np = MF.state.base.nameplate, keep = { text: np.text, arc: np.arc, side: np.sym.side };
+    // where the name's letters are across the plate, front to back, at its left end, middle and right end
+    const shape = () => { const L = MF.parts.filter(p => /^Name/.test(p.name)), pts = [];
+      L.forEach(p => { const P = p.solid.pos; for (let i = 0; i < P.length; i += 3) pts.push([P[i], P[i + 2]]); });
+      if (!pts.length) return null;
+      const x0 = Math.min(...pts.map(q => q[0])), x1 = Math.max(...pts.map(q => q[0]));
+      return [0.04, 0.5, 0.96].map(f => { const bx = x0 + f*(x1 - x0), near = pts.filter(q => Math.abs(q[0] - bx) < (x1 - x0)*0.05); return near.reduce((a, q) => a + q[1], 0)/near.length; }); };
+    Object.assign(np, { text: "Alexandra", arc: 90 }); np.sym.side = "none"; await MF.rebuild(false); await settle();
+    const up = shape();
+    np.arc = -90; await MF.rebuild(false); await settle();
+    const down = shape();
+    check(up && down && up[1] < up[0] - 3 && up[1] < up[2] - 3 && down[1] > down[0] + 3 && down[1] > down[2] + 3 && Math.abs(down[0] - down[2]) < 0.35*Math.abs(down[1] - down[0]),
+      "“Alexandra” curved 90° arches with its middle highest; curved -90° it bends the other way, its ends level with each other",
+      up && down ? `+90: ${up.map(v => v.toFixed(1)).join(", ")}; -90: ${down.map(v => v.toFixed(1)).join(", ")} mm` : "no name");
+    Object.assign(np, { text: "x".repeat(40), arc: 120 }); env.errors.length = 0; await MF.rebuild(false); await settle();
+    check(MF.parts.some(p => /^Name/.test(p.name)) && !env.errors.length, "a 40-letter name curved 120° builds", env.errors[0] || `${MF.parts.length} parts`);
+    Object.assign(np, { text: keep.text, arc: keep.arc }); np.sym.side = keep.side; env.errors.length = 0; await MF.rebuild(false); await settle();
+  }
   check(env.errors.length === 0, "no page errors", env.errors.join(" | "));
   console.log(fails ? `\n${fails} FAILED` : "\nall passed");
   process.exit(fails ? 1 : 0);

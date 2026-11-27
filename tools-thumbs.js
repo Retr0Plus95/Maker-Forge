@@ -42,7 +42,9 @@ const W = 160, H = 120;
   const idle = async page => { await page.waitForTimeout(300); await page.waitForFunction(() => !MakerForge.busy, null, { timeout: 300000 }); await page.waitForTimeout(700); };
   const first = await open();
   const presets = await first.page.evaluate(() => [...document.querySelectorAll("#presetGallery button")].map(b => b.dataset.k));
-  const objects = await first.page.evaluate(() => [...document.querySelectorAll("#objectSel option")].map(o => o.value).filter(v => MakerForge.examples.forType[v]));
+  // every object but the two that start empty (an imported model, nothing): one with an example shows it, the others (the
+  // mechanisms, the parts library, the flower lamp, fix-it parts, signs) their default build (Session 86: they had no picture)
+  const objects = await first.page.evaluate(() => [...document.querySelectorAll("#objectSel option")].map(o => o.value).filter(v => v !== "stl" && v !== "none"));
   await first.ctx.close();
   const jobs = [...presets.map(k => ["preset", k]), ...objects.map(k => ["object", k])].filter(([, k]) => !ONLY || ONLY.includes(k));
   const out = fs.existsSync(OUT) ? JSON.parse(fs.readFileSync(OUT, "utf8")) : {};

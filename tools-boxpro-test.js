@@ -60,6 +60,12 @@ const KICAD = `(kicad_pcb (version 20221018) (generator pcbnew)
     await fresh({ w:140, d:110, h:110, lid:"screw", board:"pi", boardFace:"back", boardX:0, boardY:60, standH:6 });
     { const f = [...document.querySelectorAll("#panel .field")].find(w => /^Along the wall/.test((w.querySelector("label") || {}).textContent || "")), inp = f.querySelector("input[type=number]"); inp.value = "60"; inp.dispatchEvent(new win.Event("change")); await settle(); }
     check(E().w > 140 && !warnT().length, "a board run off the end of its wall: the box grows that way", size().join(" × "));
+    // found by tools-boxfuzz.js (seed 13): a Pi on the left wall of a box too low for it, set low on the wall, reached into the
+    // floor, and Make it all fit said nothing could fix it (the box only ever grew at the top)
+    await fresh({ w:101, d:153, h:48, lid:"screw", board:"pi", boardFace:"left", boardX:0, boardY:15, standH:6 });
+    check(I().boards[0].fits === false && I().boards[0].faceOver.b0 > 0, "a Pi low on the left wall of a 48 mm box runs into the floor", JSON.stringify(I().boards[0].faceOver));
+    await press(/^Make it all fit$/);
+    check(I().boards[0].fits !== false && E().boardY > 15 && E().h > 48 && !warnT().some(t => /does not fit/.test(t)), "Make it all fit raises it up the wall and makes the box taller for it", `up the wall to ${E().boardY} mm, the box ${size().join(" × ")}`);
     // the panel: Mounted on, and the plan shows it
     await fresh({ w:140, d:110, h:110, lid:"screw", board:"pi" });
     const ms = [...document.querySelectorAll("#panel .field")].find(w => /^Mounted on$/.test((w.querySelector("label") || {}).textContent || "")).querySelector("select");

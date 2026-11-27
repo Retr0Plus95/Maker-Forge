@@ -680,7 +680,7 @@ On a Mac, use Cmd instead of Ctrl.
 - **Tea lights and lamps**: LED tea lights only, never a real flame.
 - **Jigsaws** print assembled: snap the pieces apart afterwards. A gap of 0.2 to 0.3 mm suits a 0.4 mm nozzle.
 - **Phone cases** print in TPU so they snap on. Print the fit test rim first.
-- **Bobble heads**: print the spring in TPU.
+- **Bobble heads**: print the spring in TPU. The head prints standing on the flat under its chin: since 0.64.2 it's **shaped to print** underneath (a cone under the chin, a skirt under a cap's brim), so it needs no support; choose **Round** under **Head extras** for a perfectly round head, with support. The weight pocket in the base has a pointed roof, so the body needs none either.
 - **Mains boxes**: use a certified, enclosed power supply module, earth the inlet and print in PETG or ASA.
 - **Cookie cutters**: PETG, two walls, no infill. Wash by hand.
 - **Colour changes cost filament.** A picture with many small colour areas across many layers flushes a lot of filament on an AMS. The Paint tab's Layers page shows how much before you print.

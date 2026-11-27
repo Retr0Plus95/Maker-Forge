@@ -962,7 +962,7 @@ const DEFAULTS = () => ({
       fuse:{ size:"5x20", dia:5.2, len:20, wire:2.6, coil:1, grip:"fluted", od:18 } },
     canvas:{ cells:34, pitch:4.5, gap:0.7, thick:1.6, tileH:1, margin:4, radius:3, holes:true, holeSize:1.4,
       open:false, hang:true, hangDia:4 },
-    bobble:{ headDia:44, headShape:"round", flatBottom:2, hat:false, hatH:9, hatBrim:3,
+    bobble:{ headDia:44, headShape:"round", flatBottom:2, underside:"shaped", hat:false, hatH:9, hatBrim:3,
       bore:6, boreDepth:14, bodyH:58, bodyStyle:"classic", shoulder:24, waist:17, baseR:25, neck:8,
       neckKind:"spring", postH:26, gap:4, fit:0.15,
       springTurns:5, springWire:0.9, springCoil:4,
@@ -1970,6 +1970,13 @@ function buildBobble(){
     for (let y=yStart+0.4; y<2*R; y+=0.4) headProf.push([Math.max(0.01, shape(y)), y]);
     headProf.push([0, 2*R]);
   }
+  // shaped underneath (Session 86): from the top down, the outline never narrows faster than 50° from level, so a round head
+  // gets a cone below about 40° under its middle and a cap's brim a skirt, and the head prints standing on its flat without
+  // support (it needed 580 mm² on the example). "round" keeps the plain shape, as older projects have it.
+  if (b.underside === "shaped"){
+    const k = 1/Math.tan(50*Math.PI/180);
+    for (let i = headProf.length - 2; i >= 0; i--){ const dy = headProf[i + 1][1] - headProf[i][1]; if (dy >= 0) headProf[i][0] = Math.max(headProf[i][0], headProf[i + 1][0] - k*dy); }
+  }
   headProf.push([0, yStart+d], [rb, yStart+d]);
   const headY = b.bodyH + b.gap;
   parts.push({ name:"Head", slot:b.headSlot, solid:C.transformSolid(C.revolveLoop(headProf, 112), 1, 0, headY, 0),
@@ -1989,7 +1996,10 @@ function buildBobble(){
   if (b.weight || b.magnet){                       // pocket in the base for coins, shot or a magnet
     const pr2 = b.weight ? clamp(b.weightDia/2, 1, b.baseR-3) : clamp(b.magnetDia/2, 1, b.baseR-3);
     const pd = b.weight ? clamp(b.weightDepth, 1, b.bodyH*0.6) : clamp(b.magnetDepth, 0.5, b.bodyH*0.5);
-    bodyProf.push([0, pd], [pr2, pd], [pr2, 0]);
+    // its roof pointed at 50° (Session 86): a flat one 18 mm across needed support inside the body; the room above holds more
+    // shot, and stays clear of the neck's socket from the top
+    const roof = Math.max(0, Math.min(pr2*Math.tan(50*Math.PI/180), b.bodyH - d - 2 - pd));
+    bodyProf.push([0, pd + roof], [pr2, pd], [pr2, 0]);
   } else bodyProf.push([0, 0]);
   bodyProf.push([b.baseR, 0]);
   if (plinth) bodyProf.push([b.baseR, plinth]);
@@ -2015,8 +2025,10 @@ function buildBobble(){
   } else {
     neck = C.revolveLoop([[0,0],[pr,0],[pr,b.postH],[0,b.postH]], 64);
   }
+  // on the bed (Session 86: the spring's plug started a wire's thickness up, so it printed 0.9 mm in the air, and a plain post,
+  // lifted as if it had the plug, 11 mm)
   if (neck) parts.push({ name: b.neckKind === "spring" ? "Spring neck" : "Post", slot:b.postSlot,
-    solid:C.transformSolid(neck, 1, b.baseR + R + 14, d*0.8, 0), layout:[0,0,0] });
+    solid:C.transformSolid(neck, 1, b.baseR + R + 14, -C.solidBounds(neck).mn[1], 0), layout:[0,0,0] });
   return parts.filter(p=>p.solid);
 }
 
@@ -9917,6 +9929,30 @@ function uprightMaskSolid(d, m, support, gx, gy, W, H, proj, height, embed, opts
   d._upright = (d._upright || 0) + 1;
   return list.length ? C.mergeSolids(list) : null;
 }
+// parts that touch one another (their boxes within 0.05 mm) as groups; those whose lowest point is above the bed (Session 86):
+// [{ names, y }]. Boxes, not the solids: a group that only looks connected passes, never one that is apart.
+function floatingGroups(list){
+  const B = list.map(p => C.solidBounds(p)), n = B.length, up = Array.from({ length:n }, (_, i) => i);
+  const find = i => { while (up[i] !== i) i = up[i] = up[up[i]]; return i; }, near = 0.05;
+  if (n > 400) return [];
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++)
+    if ([0, 1, 2].every(k => B[i].mn[k] <= B[j].mx[k] + near && B[j].mn[k] <= B[i].mx[k] + near)) up[find(i)] = find(j);
+  const groups = new Map();
+  list.forEach((p, i) => { const r = find(i); if (!groups.has(r)) groups.set(r, { names:[], y:Infinity }); const g = groups.get(r); g.names.push(p.name); g.y = Math.min(g.y, B[i].mn[1]); });
+  const lowest = Math.min(...B.map(b => b.mn[1]));
+  return [...groups.values()].filter(g => g.y - lowest > Math.max(0.1, (state.printer.layer || 0.2)/2)).map(g => ({ names:[...new Set(g.names)], y:g.y - lowest }));
+}
+// the layout of the part a picture sits on: the one whose box, as built, holds its placed point (the smallest where boxes overlap),
+// else the nearest; null when no part is moved to print (Session 86)
+function decalLayout(parts, d){
+  if (!d.place || !parts.some(p => p.layout && p.layout.some(v => v))) return null;
+  const c = d.side === "back" ? [d.place.c[0], 0, d.place.c[2]] : d.place.c;
+  let best = null, bd = Infinity, bv = Infinity;
+  parts.forEach(p => { if (!p.solid) return; const b = C.solidBounds(p.solid), v = b.size[0]*b.size[1]*b.size[2];
+    let dist = Math.hypot(...[0, 1, 2].map(k => Math.max(b.mn[k] - c[k], c[k] - b.mx[k], 0))); if (dist < 0.05) dist = 0;
+    if (dist < bd || (dist === bd && v < bv)){ best = p; bd = dist; bv = v; } });
+  return best && best.layout && best.layout.some(v => v) ? best.layout.slice() : null;
+}
 function buildItem(d){
   const cm = cellMapFor(d); d._cm = cm; d._inlay = false;
   const cut = cutMode(d); d._cut = cut;
@@ -12216,8 +12252,11 @@ async function rebuildAll(resetItems, mode){
     if (t === "jigsaw" && tab === "make"){ drawJigsawPreview(); updateJigsawSummary(); }
     if (t === "lithophane" && tab === "make"){ drawLithoPreview(); updateLithoSummary(); }
     if (t === "tracer" && tab === "make"){ const cv = document.getElementById("tracerPreview"); if (cv) drawTracerPreview(cv); }
-    state.items.forEach(d => { if (!d._cut) (d.solids||[]).forEach((s,i)=>{ if (s) modelParts.push({ name:state.slots[i].name, slot:i, solid:s, geom:solidToGeometry(s), decal:true }); }); });
-    inlays.forEach(q => modelParts.push({ name:state.slots[q.slot].name, slot:q.slot, solid:q.solid, geom:solidToGeometry(q.solid), decal:true, inlay:true }));
+    // a picture goes where the part it sits on goes to print (Session 86: on a bobble head's head, laid out beside the body, the
+    // face printed in mid-air where the head is when put together); an inlay is in the first part, which it is cut into
+    state.items.forEach(d => { if (!d._cut){ const lay = decalLayout(parts, d); (d.solids||[]).forEach((s,i)=>{ if (s) modelParts.push(Object.assign({ name:state.slots[i].name, slot:i, solid:s, geom:solidToGeometry(s), decal:true }, lay ? { layout:lay } : {})); }); } });
+    const lay0 = parts[0] && parts[0].layout ? parts[0].layout.slice() : null;
+    inlays.forEach(q => modelParts.push(Object.assign({ name:state.slots[q.slot].name, slot:q.slot, solid:q.solid, geom:solidToGeometry(q.solid), decal:true, inlay:true }, lay0 ? { layout:lay0 } : {})));
     applyPaint(false);
     modelRough = buildRough;
     refreshScene();
@@ -12676,6 +12715,11 @@ function runChecks(){
       (state.base.type === "jigsaw" && state.base.jigsaw.holder === "tray" ? " The tray prints beside the puzzle: make the puzzle smaller, or switch the tray off and export it separately." : "") +
       (state.base.type === "enclosure" && state.base.enclosure.split === "off" ? " The box can be made in parts that screw together: Make tab, Split into parts." : "") });
   else list.push({ k:"ok", t:"Fits the bed", s:`${P.model}, ${bed[0]} × ${bed[1]} mm` });
+  // every group of parts that touch must stand on the bed (Session 86: the printability check only asked whether the whole print
+  // floats, and a bobble head's post printed 11 mm in the air beside a head and body on the bed)
+  const fl = floatingGroups(printedParts());
+  if (fl.length) list.push({ k:"bad", t:`${fl.length === 1 ? "A part floats" : "Parts float"} above the bed`,
+    s:fl.map(g => `${g.names.join(", ")}: ${g.y.toFixed(1)} mm up`).join("; ") + ". It would print in mid-air: move it down onto the bed." });
   // the paint switched off on the Paint tab is left out of the files too
   if (state.paint && state.paint.on === false && Array.isArray(state.paint.ops) && state.paint.ops.length)
     list.push({ k:"warn", t:"The paint is switched off", s:`${state.paint.ops.length} paint step${state.paint.ops.length === 1 ? " is" : "s are"} left out, so the model prints in its own colours. Tick “Use the paint” on the Paint tab to print them.` });
@@ -16448,7 +16492,10 @@ function bobbleFields(p){
   }, true);
   group(p,"Head extras", g2 => {
     numField(g2,{ label:"Flatten the bottom (mm)", min:0,max:12,step:0.5, get:()=>b.flatBottom, set:v=>b.flatBottom=v, onChange:baseChanged,
-      sub:()=>"A flat under-chin prints without supports." });
+      sub:()=>"The head stands on this flat to print." });
+    segField(g2, [["shaped","Shaped to print"],["round","Round"]], ()=>b.underside === "shaped" ? "shaped" : "round", v=>{ b.underside = v; renderTab(); baseChanged(); });
+    note(g2, b.underside === "shaped" ? "Underneath, the head tapers in a cone (and a cap's brim in a skirt), so it prints without support."
+      : "Perfectly round underneath: the head needs support under its lower half (and under a cap's brim).");
     checkField(g2,"Add a cap",()=>b.hat, v=>{ b.hat = v; renderTab(); baseChanged(); });
     if (b.hat){
       numField(g2,{ label:"Cap height (mm)", min:3,max:30,step:0.5, get:()=>b.hatH, set:v=>b.hatH=v, onChange:baseChanged });
@@ -19066,6 +19113,9 @@ function sanitizeProject(data){
     if (Pp.set && typeof Pp.set === "object" && !Array.isArray(Pp.set)) for (const k of keys) if (Pp.set[k] && typeof Pp.set[k] === "object") set[k] = C.parts.clean(k, Pp.set[k]);
     st.base.parts = { kind:keys.includes(Pp.kind) ? Pp.kind : "servoMount", clearance:Math.min(1, Math.max(0, cleanNum(Pp.clearance, 0.2))), set };
   }
+  // the bobble head's underside (Session 86): shaped to print for new heads; a project saved before it keeps its round head
+  if (st.base && st.base.bobble && typeof st.base.bobble === "object" && !Array.isArray(st.base.bobble))
+    st.base.bobble.underside = st.base.bobble.underside === "shaped" ? "shaped" : "round";
   // the blooming flower lamp (Session 85): its settings cleaned by the library; the view's choices kept in range
   if (st.base && "flower" in st.base){
     const Fp = st.base.flower && typeof st.base.flower === "object" && !Array.isArray(st.base.flower) ? st.base.flower : {};
@@ -19760,6 +19810,7 @@ window.MakerForge = {
   get state(){ return state; },
   get parts(){ return modelParts; },
   get checks(){ return lastChecks; },
+  floatingGroups,
   get rev(){ return buildRev; },
   get busy(){ return busy || queued || rebuildPending || exampleBusy > 0 || photoJobsOut > 0 || photoFitting > 0 || photoBusy > 0; },
   thumb: modelThumb,

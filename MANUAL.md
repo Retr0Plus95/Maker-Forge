@@ -409,6 +409,24 @@ Parts that move or fit something you already have. Both are under **Functional**
 
 **How many** makes up to 24 copies, laid out on the bed.
 
+### Mechanical parts
+
+New in 0.63: a library of parts to build things from, each made from its settings (**Mechanical parts** in the object list, under Functional). Pick a **Part**, set it, and print it: every part prints as it lies, with no support. Under its settings, **About this part** says what it is, what you'll need with it (the servo, the screws, the bearing), its **connectors** (the places other parts attach, which future generators use to put parts together) and, for a linkage, its **travel**.
+
+![Six parts from the library: an SG90 servo mount, a printed servo horn, an ESP32 board tray open at one end, a NeoPixel ring holder, a pin hinge and a spur gear](docs/images/parts-library.jpg)
+
+- **Printer clearance** (Fit, 0.2 mm to start): added to every fit, so pockets, holes and seats come out the right size on your printer. **Print the fit test** opens the fit test from Mechanisms: print it, find the gap that turns freely, and use that.
+- **Servos:** a **servo mount** for an SG90, MG90S or MG996R (the servo drops through the pocket and rests on its tabs, with pilot holes for its own screws); a printed **servo horn** that presses onto the servo's spline, with holes along its arm; a **horn-to-rod link**.
+- **Fasteners:** **standoffs** (M2, M2.5 or M3; round or hex; for a heat insert, a self-tapping screw or a screw through) and **fastener samples**: a clearance hole, a pilot hole, a heat-insert hole, a nut trap and a countersink side by side, to try your screws in.
+- **Electronics:** a **board tray** for an ESP32 DevKit, ESP32-CAM, Arduino Nano or Pro Mini (the board drops onto corner seats inside a low rim, open at the end its plug goes in), a **USB-C panel**, a **cable strain relief** boot (print it in TPU), a **vent panel**.
+- **Lights:** a **NeoPixel ring holder** (12, 16 or 24 LEDs, with a gap for the wires), a **5 mm LED bezel**, an **LED filament holder**, and a **diffuser**: a dome never shallower than 50°, so it prints without support, its wall 0.8–1.2 mm so it glows in white PETG or PLA, or a flat disc.
+- **Hinges:** a **pin hinge** (a piece of filament as the pin, or printed in place, in one piece) and a **living hinge** for PETG.
+- **Linkages,** each with its travel worked out over the servo's turn, angle by angle: a **push rod** (servo horn → rod → output lever), a **four-bar** linkage (it says whether a link can turn all the way round, and when the links can't reach and would jam), and a **crank and slider** (its stroke in mm).
+- **Gears:** a **spur gear** (module, teeth, a round or D bore, a hub; it gives the distance to the gear it meshes with) and a **rack**.
+- **Fits:** a **snap fit** with its catch (it works out the strain at the arm's root and says when it's too stiff for the plastic), a **bushing**, a **bearing seat** for a 608, 623, 625 or 688 bearing, a **shaft coupler** (round or D bores, with channels for grub screws), a **flexure spring** (a flat zigzag that prints lying down, or the bobble head's coil, which needs support) and a **fan mount** for a 40, 60 or 80 mm fan.
+
+Typical sizes vary between makers (servos by up to a millimetre): check yours, and tune the printer clearance with the fit test.
+
 ## 4. Art: pictures and text
 
 The **Art** tab puts pictures and words on the object.

@@ -83,6 +83,8 @@ Plus, depending on what changed:
 - business cards (`buildCard`, `cardFace`, `cardOne` and the other `card*` functions in `src/app.html`) or the QR code encoder (`qrEncode`,
   `qrPayload` in `src/core.js`) → `npm run test:card` (it runs `tools-qrart-test.js` too: a QR code as an Art item on any object, read back from its geometry; `CORE=1` for the encoder only; every code is read back with the `jsqr` dev
   dependency, from the printed card's geometry) and `ONLY=card npm run check:browser` (the same with real fonts)
+- the mechanical parts library (`PARTS`, `part`, `partClean`, `snap`, `partTravel` in `src/core.js`; `buildMechParts`, `partsFields` in `src/app.html`) → `npm run test:parts` (`CORE=1` for the library only:
+  every part at each setting's ends, connectors, clearance, travel calculators, cleaning) and `node tools-audit.js index.html parts`
 - mechanisms or fix-it parts (`buildMech`, `buildFixit`, the `fit*` helpers, `state.base.fit`), `gearOutline` / `threadSolid` in
   `src/core.js`, the keychain's second line or credit, or the print check's `surfaceBelow` → `npm run test:fit` (`CORE=1` for the
   gears and threads only) and `npm run test:print`

@@ -3,6 +3,20 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.63.0
+
+The mechanical parts library.
+
+**New**
+- **Mechanical parts** (Functional): 26 parts to build things from, each made from its settings and printing with no support. It covers servo mounts (SG90, MG90S, MG996R), a printed servo horn and a horn-to-rod link; standoffs and fastener samples; board trays (ESP32 DevKit, ESP32-CAM, Nano, Pro Mini), a USB-C panel, a cable strain relief and a vent panel; NeoPixel ring holders, a 5 mm LED bezel, an LED filament holder and a diffuser; pin, print-in-place and living hinges; a push rod, a four-bar and a crank and slider; a spur gear and a rack; a snap fit, a bushing, a bearing seat, a shaft coupler, a flexure spring and a fan mount.
+- **Printer clearance** on every fit (0.2 mm to start), with a button to the fit test that finds yours.
+- **About this part** under its settings: what you'll need with it, its connectors (where other parts attach), and for a linkage its travel, servo angle by angle. The four-bar says when its links would jam; the snap fit works out its strain; the gear gives the distance to the gear it meshes with.
+- New shapes for the generators to build with: loft between outlines, sweep an outline along a path, and a thin shell from a curved surface (a petal), each closed and ready to print.
+- A plan for Maker Forge Bench 2.0 to use the parts: `docs/bench-2.md`.
+
+**Fixed**
+- Nothing this time.
+
 ## 0.62.9
 
 The bird house set, and a box that hangs on one screw.

@@ -6660,7 +6660,588 @@
   }
   function memoClear() { MEMO.store.clear(); MEMO.bytes = 0; MEMO.hits = MEMO.misses = 0; }
 
+  // ---------- loft, sweep and thin shells (Session 83: the core primitives the flower lamp needs) ----------
+  const v3sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], v3cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const v3dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], v3len = a => Math.hypot(a[0], a[1], a[2]), v3norm = a => { const l = v3len(a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+  // a loop's normal (Newell), and its centre
+  function loopNormal(L){ let x = 0, y = 0, z = 0; for (let i = 0; i < L.length; i++){ const p = L[i], q = L[(i + 1) % L.length]; x += (p[1] - q[1]) * (p[2] + q[2]); y += (p[2] - q[2]) * (p[0] + q[0]); z += (p[0] - q[0]) * (p[1] + q[1]); } return [x, y, z]; }
+  const loopCentre = L => { const c = [0, 0, 0]; L.forEach(p => { c[0] += p[0]; c[1] += p[1]; c[2] += p[2]; }); return c.map(v => v / L.length); };
+  // loft: loops of 3D points (each the same count, in order along the loft); the sides between them, and each end closed: a flat
+  // cap, or a single point when the end loop has shrunk to one (a petal's tip). Returns a closed, outward solid, or null.
+  function loft(loops){
+    const n = loops.length; if (n < 2) return null;
+    const m = loops[0].length; if (m < 3 || loops.some(L => L.length !== m)) return null;
+    const pole = L => L.every(p => v3len(v3sub(p, L[0])) < 1e-9);
+    const pos = [], idx = [], start = [];
+    loops.forEach((L, i) => { start.push(pos.length / 3); if (pole(L) && (i === 0 || i === n - 1)) pos.push(L[0][0], L[0][1], L[0][2]); else L.forEach(p => pos.push(p[0], p[1], p[2])); });
+    const at = (i, j) => (pole(loops[i]) && (i === 0 || i === n - 1)) ? start[i] : start[i] + (j % m);
+    const sides = [];
+    for (let i = 0; i < n - 1; i++) for (let j = 0; j < m; j++){
+      const a = at(i, j), b = at(i, j + 1), c = at(i + 1, j + 1), d = at(i + 1, j);
+      if (a !== b && b !== c && a !== c) sides.push(a, b, c);
+      if (a !== c && c !== d && a !== d) sides.push(a, c, d);
+    }
+    // the ends: earcut on the loop seen along its own normal, each turned away from the loft
+    const caps = [];
+    const cap = (i, out) => {
+      const L = loops[i]; if (pole(L)) return;
+      const nn = loopNormal(L), ax = nn.map(Math.abs), k = ax[0] >= ax[1] && ax[0] >= ax[2] ? 0 : ax[1] >= ax[2] ? 1 : 2, a1 = (k + 1) % 3, a2 = (k + 2) % 3;
+      const flat = []; L.forEach(p => flat.push(p[a1], p[a2]));
+      const t = global.earcut(flat, [], 2);
+      for (let q = 0; q < t.length; q += 3){
+        let A = t[q], B = t[q + 1], C = t[q + 2];
+        const nrm = v3cross(v3sub(L[B], L[A]), v3sub(L[C], L[A]));
+        if (v3dot(nrm, out) < 0){ const tmp = B; B = C; C = tmp; }
+        caps.push(start[i] + A, start[i] + B, start[i] + C);
+      }
+    };
+    const c0 = loopCentre(loops[0]), c1 = loopCentre(loops[1]), cn = loopCentre(loops[n - 1]), cm = loopCentre(loops[n - 2]);
+    cap(0, v3sub(c0, c1)); cap(n - 1, v3sub(cn, cm));
+    idx.push(...sides, ...caps);
+    let solid = { pos:new Float32Array(pos), idx:new Uint32Array(idx) };
+    // the sides wound one way from the loops' direction: when the whole is inside out, it is turned (caps and sides alike: the caps
+    // were turned to face out, so a mismatch shows as a negative volume only when both agree; check the sides against the caps)
+    if (caps.length){
+      const sv = { pos:solid.pos, idx:new Uint32Array([...caps]) };
+      // a side triangle's normal against the outward direction from the loft's axis at that point
+      const i0 = sides[0] !== undefined ? 0 : -1;
+      if (i0 === 0){
+        const P = j => [pos[sides[j] * 3], pos[sides[j] * 3 + 1], pos[sides[j] * 3 + 2]], A = P(0), B = P(1), C = P(2);
+        const nrm = v3cross(v3sub(B, A), v3sub(C, A)), cen = loopCentre(loops[0]), mid = [(A[0] + B[0] + C[0]) / 3, (A[1] + B[1] + C[1]) / 3, (A[2] + B[2] + C[2]) / 3];
+        const axis = v3norm(v3sub(loopCentre(loops[1]), cen)), rel = v3sub(mid, cen), radial = v3sub(rel, axis.map(v => v * v3dot(rel, axis)));
+        if (v3dot(nrm, radial) < 0) for (let q = 0; q < sides.length; q += 3){ const t = solid.idx[q + 1]; solid.idx[q + 1] = solid.idx[q + 2]; solid.idx[q + 2] = t; }
+      }
+    }
+    if (signedVolume(solid) < 0) for (let q = 0; q < solid.idx.length; q += 3){ const t = solid.idx[q + 1]; solid.idx[q + 1] = solid.idx[q + 2]; solid.idx[q + 2] = t; }
+    return solid;
+  }
+  // sweep: a closed 2D profile [[x, y]] carried along a 3D path, square to it (parallel-transport frames, as sweepTube), each end
+  // capped. opts.scale(t) and opts.twist(t) (radians), for t from 0 to 1 along the path, shape it as it goes.
+  function sweep(profile, path, opts){
+    opts = opts || {}; const n = path.length; if (n < 2 || profile.length < 3) return null;
+    let tan = v3norm(v3sub(path[1], path[0])), up = opts.up || (Math.abs(tan[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0]);
+    let u = v3norm(v3cross(up, tan)), v = v3cross(tan, u);
+    let len = 0; const acc = [0]; for (let i = 1; i < n; i++){ len += v3len(v3sub(path[i], path[i - 1])); acc.push(len); }
+    const loops = [];
+    for (let i = 0; i < n; i++){
+      if (i > 0){ const t2 = v3norm(v3sub(path[Math.min(i + 1, n - 1)], path[i - 1])), d = v3dot(u, t2); u = v3norm([u[0] - t2[0] * d, u[1] - t2[1] * d, u[2] - t2[2] * d]); v = v3cross(t2, u); }
+      const t = len > 0 ? acc[i] / len : i / (n - 1), sc = opts.scale ? opts.scale(t) : 1, tw = opts.twist ? opts.twist(t) : 0, ct = Math.cos(tw), st = Math.sin(tw), P = path[i];
+      loops.push(profile.map(([x0, y0]) => { const x = (x0 * ct - y0 * st) * sc, y = (x0 * st + y0 * ct) * sc; return [P[0] + u[0] * x + v[0] * y, P[1] + u[1] * x + v[1] * y, P[2] + u[2] * x + v[2] * y]; }));
+    }
+    return loft(loops);
+  }
+  // a thin shell from a curved surface f(u, v) → [x, y, z], u and v from 0 to 1 (an open sheet: a petal), thickened along its normal to
+  // `thick` in all: centred on the surface (opts.side 0), or all to one side (1 or -1). nu × nv cells. The edges are closed with strips;
+  // a row that shrinks to one point (a tip) stays closed. Returns a closed, outward solid.
+  function shellSurface(fn, nu, nv, thick, opts){
+    opts = opts || {}; nu = Math.max(1, Math.round(nu)); nv = Math.max(1, Math.round(nv));
+    const side = Math.max(-1, Math.min(1, +opts.side || 0)), up = thick * (1 + side) / 2, dn = thick * (1 - side) / 2;
+    const P = [], N = [];
+    for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) P.push(fn(i / nu, j / nv));
+    const g = (i, j) => P[Math.max(0, Math.min(nv, j)) * (nu + 1) + Math.max(0, Math.min(nu, i))];
+    for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++){
+      let n = v3cross(v3sub(g(i + 1, j), g(i - 1, j)), v3sub(g(i, j + 1), g(i, j - 1)));
+      // where the surface pinches to a point the partials vanish: take the normal a little way in
+      for (let k = 1; v3len(n) < 1e-12 && k <= 3; k++){ const jj = j + (j === nv ? -k : k), ii = i + (i === nu ? -k : (i === 0 ? k : 0));
+        n = v3cross(v3sub(g(ii + 1, jj), g(ii - 1, jj)), v3sub(g(ii, jj + 1), g(ii, jj - 1))); }
+      N.push(v3len(n) < 1e-12 ? [0, 1, 0] : v3norm(n));
+    }
+    const cnt = (nu + 1) * (nv + 1), pos = new Float32Array(cnt * 6), idx = [];
+    for (let k = 0; k < cnt; k++){ const p = P[k], n = N[k];
+      pos[k * 3] = p[0] + n[0] * up; pos[k * 3 + 1] = p[1] + n[1] * up; pos[k * 3 + 2] = p[2] + n[2] * up;
+      pos[(cnt + k) * 3] = p[0] - n[0] * dn; pos[(cnt + k) * 3 + 1] = p[1] - n[1] * dn; pos[(cnt + k) * 3 + 2] = p[2] - n[2] * dn; }
+    const T = (i, j) => j * (nu + 1) + i, B = (i, j) => cnt + T(i, j);
+    for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++){
+      idx.push(T(i, j), T(i + 1, j), T(i + 1, j + 1), T(i, j), T(i + 1, j + 1), T(i, j + 1));
+      idx.push(B(i, j), B(i + 1, j + 1), B(i + 1, j), B(i, j), B(i, j + 1), B(i + 1, j + 1));
+    }
+    // the edge: round the sheet's border in the top's own direction, a strip down to the bottom
+    const ring = [];
+    for (let i = 0; i < nu; i++) ring.push([i, 0]);
+    for (let j = 0; j < nv; j++) ring.push([nu, j]);
+    for (let i = nu; i > 0; i--) ring.push([i, nv]);
+    for (let j = nv; j > 0; j--) ring.push([0, j]);
+    for (let k = 0; k < ring.length; k++){
+      const [pi, pj] = ring[k], [qi, qj] = ring[(k + 1) % ring.length];
+      idx.push(T(qi, qj), T(pi, pj), B(pi, pj), T(qi, qj), B(pi, pj), B(qi, qj));
+    }
+    const solid = { pos, idx:new Uint32Array(idx) };
+    if (signedVolume(solid) < 0) for (let q = 0; q < solid.idx.length; q += 3){ const t = solid.idx[q + 1]; solid.idx[q + 1] = solid.idx[q + 2]; solid.idx[q + 2] = t; }
+    return solid;
+  }
+
+  // ---------- the mechanical parts library (Session 82) ----------
+  // Every part is a function of its settings. part(key, settings, { clearance }) returns
+  //   { key, label, group, settings, solid, connectors, meta }:
+  //   solid: closed, outward-facing, in mm, Y up, in the part's own frame, which is also how it prints (its base on y = 0);
+  //   connectors: { name: { at:[x, y, z], dir:[unit], up:[unit], kind } }: where another part attaches. dir points out of the
+  //     part, the way a mating part comes in; up fixes the turn about dir. snap(A, a, B, b) moves B so its connector b meets A's a;
+  //   meta: { bom:[[count, "what"]], orient:[3 × 3, row-major] (the turn for the bed; the identity here: each part is built lying
+  //     as it prints), support:false or why, notes:[...] }.
+  // clearance (0.2 mm by default, 0 to 1) is added to every fit: pockets, holes, seats. Typical part sizes vary between makers by
+  // up to a millimetre: the notes say "check yours", and the fit coupon (Mechanisms) tunes the clearance.
+  const PART_CLEARANCE = 0.2;
+  // typical sizes, mm: the body's length along its tabs, its width, its height to the case's top; the tabs' span, thickness and the
+  // height of their underside; the screw holes' spacing (and the rows' spacing on a big servo), their size and the pilot for the
+  // servo's own screws; the shaft's offset from the body's middle, its top's height, the spline's diameter and teeth; the horn
+  // screw's clearance
+  const PART_SERVOS = {
+    SG90:   { label:"SG90 micro servo", L:22.5, W:12.2, H:22.7, span:32.2, tabT:2.5, tabY:15.9, holes:27.6, rows:0, holeD:2.0, pilot:1.6, shaftX:5.35, shaftY:26.5, spline:4.8, teeth:21, hornScrew:2.2 },
+    MG90S:  { label:"MG90S metal-gear micro servo", L:22.8, W:12.2, H:22.7, span:32.5, tabT:2.5, tabY:15.9, holes:27.8, rows:0, holeD:2.0, pilot:1.6, shaftX:5.5, shaftY:28.4, spline:4.8, teeth:21, hornScrew:2.2 },
+    MG996R: { label:"MG996R standard servo", L:40.7, W:19.7, H:37.0, span:54.5, tabT:2.6, tabY:26.6, holes:49.5, rows:10, holeD:4.6, pilot:3.3, shaftX:10.15, shaftY:42.9, spline:5.8, teeth:25, hornScrew:3.2 }
+  };
+  const PART_FASTENERS = {
+    M2:    { clear:2.4, pilot:1.7, insert:3.2, insertDepth:4, nutAF:4, nutT:1.6, head:3.8, headH:2, csk:4.4 },
+    "M2.5":{ clear:2.9, pilot:2.1, insert:3.6, insertDepth:5, nutAF:5, nutT:2, head:4.5, headH:2.5, csk:5.5 },
+    M3:    { clear:3.4, pilot:2.5, insert:4.0, insertDepth:5.7, nutAF:5.5, nutT:2.4, head:5.5, headH:3, csk:6.3 }
+  };
+  const PART_BOARDS = { esp32devkit:{ label:"ESP32 DevKit (38-pin)", w:55, d:28 }, esp32cam:{ label:"ESP32-CAM", w:27, d:40.5 },
+    nano:{ label:"Arduino Nano", w:45, d:18 }, promini:{ label:"Arduino Pro Mini", w:33, d:18 } };
+  const PART_RINGS = { 12:{ od:37, id:23 }, 16:{ od:44.5, id:31.7 }, 24:{ od:66, id:52.6 } };      // NeoPixel rings, 3.2 mm with their LEDs
+  // geometry in the world frame (Y up, Z towards the viewer)
+  const pCCW = L => area2(L) > 0 ? L : L.slice().reverse(), pCW = L => area2(L) < 0 ? L : L.slice().reverse();
+  // a prism: outline and holes in plan (x, z), from height y0 to y1 (extrudePolysAt takes plan (x, -z))
+  const prismXZ = (outer, holes, y0, y1) => extrudePolysAt([{ outer:pCCW(outer.map(([x, z]) => [x, -z])), holes:(holes || []).map(h => pCW(h.map(([x, z]) => [x, -z]))) }], y0, y1);
+  // a prism with its profile in the (x, y) plane, from z0 to z1 (towards the viewer)
+  const prismXY = (outer, holes, z0, z1) => affineSolid(extrudePolysAt([{ outer:pCCW(outer), holes:(holes || []).map(pCW) }], z0, z1), [1,0,0, 0,0,-1, 0,1,0], [0, 0, 0]);
+  // the same with the profile in the (z, y) plane, from x0 to x1 (a profile's first coordinate is z)
+  const prismZY = (outer, holes, x0, x1) => affineSolid(prismXY(outer, holes, x0, x1), [0,0,1, 0,1,0, 1,0,0], [0, 0, 0]);
+  const pCirc = (r, cx, cz, n) => { n = n || Math.max(16, segsFor(r, 16)); const L = []; for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; L.push([cx + r * Math.cos(a), cz + r * Math.sin(a)]); } return L; };
+  const pRect = (cx, cz, w, d, r) => ringRect(w, d, r || 0, 6).map(([x, z]) => [x + cx, z + cz]);
+  const pBox = (x0, x1, y0, y1, z0, z1) => prismXZ([[x0, z0], [x1, z0], [x1, z1], [x0, z1]], [], y0, y1);
+  const pHex = (af, cx, cz) => { const R = af / Math.sqrt(3), L = []; for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; L.push([cx + R * Math.cos(a), cz + R * Math.sin(a)]); } return L; };
+  const pStadium = (x0, x1, r) => { const L = []; for (let i = 0; i <= 12; i++) { const a = -Math.PI / 2 + i / 12 * Math.PI; L.push([x1 + r * Math.cos(a), r * Math.sin(a)]); }
+    for (let i = 0; i <= 12; i++) { const a = Math.PI / 2 + i / 12 * Math.PI; L.push([x0 + r * Math.cos(a), r * Math.sin(a)]); } return L; };
+  const pUnit = v => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
+  const pConn = (at, dir, up, kind) => ({ at:at.map(v => +v.toFixed(4)), dir:pUnit(dir), up:pUnit(up), kind });
+  const pMerge = list => { const l = list.filter(Boolean); return l.length === 1 ? l[0] : mergeSolids(l); };
+  const PART_I = [1,0,0, 0,1,0, 0,0,1];
+  // the parts: label, group, settings (a number: [default, min, max, step, label]; a choice: { opts, def, label }), build(s, c)
+  const PARTS = {
+    servoMount: { label:"Servo mount", group:"Servos", settings:{
+        servo:{ opts:Object.keys(PART_SERVOS), def:"SG90", label:"Servo" }, thick:[3, 2, 8, 0.5, "Plate thickness (mm)"], margin:[4, 2, 15, 0.5, "Plate margin (mm)"] },
+      build(s, c){
+        const S = PART_SERVOS[s.servo], T = s.thick, pw = S.span + 2 * s.margin, pd = S.W + 2 * s.margin;
+        const holes = [pRect(0, 0, S.L + 2 * c, S.W + 2 * c, 0.6)], xs = [-S.holes / 2, S.holes / 2], zs = S.rows ? [-S.rows / 2, S.rows / 2] : [0];
+        xs.forEach(x => zs.forEach(z => holes.push(pCirc(S.pilot / 2, x, z))));
+        const solid = prismXZ(pRect(0, 0, pw, pd, 2), holes, 0, T), shaftY = T + (S.shaftY - S.tabY);
+        const connectors = { shaft:pConn([S.shaftX, shaftY, 0], [0, 1, 0], [1, 0, 0], "servo shaft"), base:pConn([0, 0, 0], [0, -1, 0], [1, 0, 0], "plate underside") };
+        xs.forEach((x, i) => zs.forEach((z, j) => { connectors[`screw${i * zs.length + j + 1}`] = pConn([x, T, z], [0, 1, 0], [1, 0, 0], `servo screw (${S.pilot} mm pilot)`); }));
+        return { solid, connectors, meta:{ bom:[[1, S.label], [xs.length * zs.length, "screws for its tabs (in the servo's bag)"]], orient:PART_I, support:false,
+          notes:[`The servo drops through the pocket and rests on its tabs; its body hangs ${(S.tabY - T).toFixed(1)} mm below the plate.`, "Typical sizes: check yours; the pocket has the clearance on every side."] } };
+      } },
+    servoHorn: { label:"Servo horn", group:"Servos", settings:{
+        servo:{ opts:Object.keys(PART_SERVOS), def:"SG90", label:"Servo" }, arm:[16, 8, 40, 0.5, "Arm length (mm)"], holes:[4, 1, 8, 1, "Holes along the arm"],
+        pin:[1.6, 1, 3.4, 0.1, "Hole size (mm)"], thick:[3, 2, 5, 0.5, "Arm thickness (mm)"] },
+      build(s, c){
+        const S = PART_SERVOS[s.servo], R0 = S.spline / 2 + 2.2, r1 = s.pin / 2 + 2, T = s.thick, hubH = Math.max(T + 1.5, 4.5), depth = Math.min(3.2, hubH - 1);
+        // the spline: a toothed hole, a press fit (no clearance: the teeth must bite); the horn screw's clearance above it
+        const tip = S.spline / 2 - 0.05, root = tip - 0.35, spline = [];
+        for (let i = 0; i < S.teeth * 2; i++){ const a = i / (S.teeth * 2) * Math.PI * 2, r = i % 2 ? root : tip; spline.push([r * Math.cos(a), r * Math.sin(a)]); }
+        const armPts = [...pCirc(R0, 0, 0, 40), ...pCirc(r1, s.arm, 0, 24)], arm = convexHull(armPts);
+        const pitch = s.holes > 1 ? Math.min(3, (s.arm - R0 - r1) / (s.holes - 1)) : 0, hx = [];
+        for (let k = 0; k < s.holes; k++) hx.push(s.arm - k * pitch);
+        const armHoles = hx.map(x => pCirc(s.pin / 2 + c / 2, x, 0, 20)), pieces = [];
+        pieces.push(prismXZ(arm, [spline, ...armHoles], 0, Math.min(T, depth)));
+        if (depth < T) pieces.push(prismXZ(arm, [pCirc(S.hornScrew / 2, 0, 0), ...armHoles], depth - 0.01, T));
+        if (depth > T) pieces.push(prismXZ(pCirc(R0, 0, 0, 40), [spline], T - 0.01, depth));
+        pieces.push(prismXZ(pCirc(R0, 0, 0, 40), [pCirc(S.hornScrew / 2, 0, 0)], Math.max(T, depth) - 0.01, hubH));
+        const connectors = { hub:pConn([0, 0, 0], [0, -1, 0], [1, 0, 0], "servo spline") };
+        hx.forEach((x, i) => { connectors[`hole${i + 1}`] = pConn([x, T, 0], [0, 1, 0], [1, 0, 0], `rod hole ${s.pin} mm`); });
+        return { solid:pMerge(pieces), connectors, meta:{ bom:[[1, "horn screw (in the servo's bag)"]], orient:PART_I, support:false,
+          notes:[`${S.teeth} printed teeth for the ${s.servo}'s spline, a press fit: push it on, then the horn screw. If it slips, use the servo's own horn.`] } };
+      } },
+    hornLink: { label:"Horn-to-rod link", group:"Servos", settings:{
+        length:[30, 10, 120, 0.5, "Hole to hole (mm)"], pinA:[1.6, 1, 4, 0.1, "Hole at the horn (mm)"], pinB:[2.0, 1, 4, 0.1, "Hole at the rod (mm)"],
+        width:[6, 4, 12, 0.5, "Width (mm)"], thick:[3, 2, 6, 0.5, "Thickness (mm)"] },
+      build(s, c){
+        const r = Math.max(s.width / 2, Math.max(s.pinA, s.pinB) / 2 + 1.2);
+        const solid = prismXZ(pStadium(0, s.length, r), [pCirc(s.pinA / 2 + c / 2, 0, 0, 20), pCirc(s.pinB / 2 + c / 2, s.length, 0, 20)], 0, s.thick);
+        return { solid, connectors:{ a:pConn([0, s.thick, 0], [0, 1, 0], [1, 0, 0], `pin ${s.pinA} mm`), b:pConn([s.length, s.thick, 0], [0, 1, 0], [1, 0, 0], `pin ${s.pinB} mm`) },
+          meta:{ bom:[[2, "pins or Z-bent wire for the holes"]], orient:PART_I, support:false, notes:["The holes have the clearance, so the pins turn freely."] } };
+      } },
+    standoff: { label:"Standoff", group:"Fasteners", settings:{
+        size:{ opts:Object.keys(PART_FASTENERS), def:"M3", label:"Screw" }, height:[8, 3, 40, 0.5, "Height (mm)"], shape:{ opts:["round","hex"], def:"round", label:"Shape" },
+        hole:{ opts:["insert","pilot","clear"], def:"pilot", label:"Hole" } },
+      build(s, c){
+        const F = PART_FASTENERS[s.size], d = s.hole === "insert" ? F.insert : s.hole === "pilot" ? F.pilot : F.clear + c, od = Math.max(d + 3.2, F.head + 1);
+        const out = s.shape === "hex" ? pHex(od, 0, 0) : pCirc(od / 2, 0, 0, 36);
+        const solid = prismXZ(out, [pCirc(d / 2, 0, 0, 24)], 0, s.height);
+        return { solid, connectors:{ top:pConn([0, s.height, 0], [0, 1, 0], [1, 0, 0], `${s.size} hole`), bottom:pConn([0, 0, 0], [0, -1, 0], [1, 0, 0], `${s.size} hole`) },
+          meta:{ bom:s.hole === "insert" ? [[1, `${s.size} heat insert`], [1, `${s.size} screw`]] : [[2, `${s.size} screws`]], orient:PART_I, support:false, notes:[] } };
+      } },
+    fastenerBlock: { label:"Fastener samples", group:"Fasteners", settings:{ size:{ opts:Object.keys(PART_FASTENERS), def:"M3", label:"Screw" }, height:[8, 6, 14, 0.5, "Block height (mm)"] },
+      build(s, c){
+        // five cells side by side: a clearance hole, a pilot hole, a heat-insert hole (blind, from the top), a hex nut trap (from below)
+        // with the clearance hole on through, and a 90° countersink (in 0.2 mm steps: each a 45° overhang)
+        const F = PART_FASTENERS[s.size], H = s.height, w = Math.max(10, F.head + 4, F.nutAF * 1.25 + 3), d = w, cells = [];
+        const cell = (k, slabs) => { const cx = (k - 2) * w; slabs.forEach(([y0, y1, hole]) => cells.push(prismXZ(pRect(cx, 0, w + 0.02, d), hole ? [hole(cx)] : [], y0, y1))); };
+        cell(0, [[0, H, x => pCirc((F.clear + c) / 2, x, 0)]]);
+        cell(1, [[0, H, x => pCirc(F.pilot / 2, x, 0)]]);
+        cell(2, [[0, H - F.insertDepth, null], [H - F.insertDepth - 0.01, H, x => pCirc(F.insert / 2, x, 0)]]);
+        const nt = F.nutT + 0.2; cell(3, [[0, H - nt, x => pCirc((F.clear + c) / 2, x, 0)], [H - nt - 0.01, H, x => pHex(F.nutAF + c, x, 0)]]);   // (from the top: no bridge)
+        const sinkD = Math.min(H - 1, (F.csk - F.clear) / 2), n = Math.ceil(sinkD / 0.2), sl = [[0, H - sinkD, x => pCirc((F.clear + c) / 2, x, 0)]];
+        for (let i = 0; i < n; i++){ const y0 = H - sinkD + i * 0.2, y1 = Math.min(H, y0 + 0.2), r = (F.clear + c) / 2 + (y0 + y1) / 2 - (H - sinkD); sl.push([y0 - 0.01, y1, x => pCirc(r, x, 0)]); }
+        cell(4, sl);
+        return { solid:pMerge(cells), connectors:{}, meta:{ bom:[[1, `${s.size} screw, nut and heat insert to try`]], orient:PART_I, support:false,
+          notes:["Left to right: clearance hole, pilot hole (self-tapping), heat-insert hole from the top, nut trap from the top (the nut drops in), countersink."] } };
+      } },
+    boardMount: { label:"Board tray", group:"Electronics", settings:{
+        board:{ opts:Object.keys(PART_BOARDS), def:"esp32devkit", label:"Board" }, base:[2, 1.2, 4, 0.2, "Base thickness (mm)"], seat:[4, 1, 12, 0.5, "Board height above the base (mm)"],
+        openEnd:{ opts:["none","left","right","both"], def:"right", label:"Open end (for a plug)" }, tabs:{ opts:["none","2","4"], def:"4", label:"Screw tabs (M3)" } },
+      build(s, c){
+        const B = PART_BOARDS[s.board], g = c + 0.1, rw = 1.6, top = s.base + s.seat + 1.6 + 1.2, iw = B.w + 2 * g, id = B.d + 2 * g, ow = iw + 2 * rw, od = id + 2 * rw, pieces = [];
+        const tabX = ow / 2 + 4.5, tabsAt = s.tabs === "4" ? [[-tabX, -od / 2 + 4.5], [tabX, -od / 2 + 4.5], [-tabX, od / 2 - 4.5], [tabX, od / 2 - 4.5]] : s.tabs === "2" ? [[-tabX, 0], [tabX, 0]] : [];
+        pieces.push(prismXZ(pRect(0, 0, ow, od, 1.5), [], 0, s.base));
+        tabsAt.forEach(([x, z]) => pieces.push(prismXZ(pRect(x - Math.sign(x) * 2.5, z, 14, 9, 2), [pCirc((3.4 + c) / 2, x, z, 24)], 0, s.base)));
+        // seats under each corner, then the rim: open on the long sides at a finger gap and at the chosen end (a plug goes in there)
+        for (const sx of [-1, 1]) for (const sz of [-1, 1]){ const x = sx * (B.w / 2 - 2.5), z = sz * (B.d / 2 - 2.5); pieces.push(pBox(x - 2.6, x + 2.6, s.base - 0.01, s.base + s.seat, z - 2.6, z + 2.6)); }
+        const gapX = Math.min(16, B.w * 0.3), longBar = (z0, z1) => [[-ow / 2, -gapX / 2], [gapX / 2, ow / 2]].forEach(([a, b]) => pieces.push(pBox(a, b, s.base - 0.01, top, z0, z1)));
+        longBar(-od / 2, -id / 2 + 0.01); longBar(id / 2 - 0.01, od / 2);
+        if (s.openEnd !== "left" && s.openEnd !== "both") pieces.push(pBox(-ow / 2, -iw / 2 + 0.01, s.base - 0.01, top, -od / 2, od / 2));
+        if (s.openEnd !== "right" && s.openEnd !== "both") pieces.push(pBox(iw / 2 - 0.01, ow / 2, s.base - 0.01, top, -od / 2, od / 2));
+        const connectors = { board:pConn([0, s.base + s.seat, 0], [0, 1, 0], [1, 0, 0], B.label), base:pConn([0, 0, 0], [0, -1, 0], [1, 0, 0], "tray underside") };
+        if (s.openEnd === "right" || s.openEnd === "both") connectors.portRight = pConn([ow / 2, s.base + s.seat + 1.6, 0], [1, 0, 0], [0, 1, 0], "plug end");
+        if (s.openEnd === "left" || s.openEnd === "both") connectors.portLeft = pConn([-ow / 2, s.base + s.seat + 1.6, 0], [-1, 0, 0], [0, 1, 0], "plug end");
+        tabsAt.forEach(([x, z], i) => { connectors[`screw${i + 1}`] = pConn([x, 0, z], [0, -1, 0], [1, 0, 0], "M3 clearance"); });
+        return { solid:pMerge(pieces), connectors, meta:{ bom:[[1, B.label], ...(tabsAt.length ? [[tabsAt.length, "M3 screws for the tray"]] : [])], orient:PART_I, support:false,
+          notes:["The board drops in onto its corner seats; the rim stands 1.2 mm above it. A plug reaches the open end (nothing in its way)."] } };
+      } },
+    usbcPanel: { label:"USB-C panel", group:"Electronics", settings:{ wall:[2, 1.2, 4, 0.1, "Panel thickness (mm)"], margin:[4, 3, 12, 0.5, "Margin (mm)"], screws:{ opts:["none","2"], def:"2", label:"Screw holes (M2)" } },
+      build(s, c){
+        const cw = 9.2 + 2 * c, ch = 3.4 + 2 * c, sx = cw / 2 + s.margin + (s.screws === "2" ? 3 : 0), pw = 2 * sx + (s.screws === "2" ? 7 : 0), pd = ch + 2 * s.margin;
+        const holes = [pRect(0, 0, cw, ch, 1.6 + c)]; if (s.screws === "2") holes.push(pCirc(1.2 + c / 2, -sx, 0, 20), pCirc(1.2 + c / 2, sx, 0, 20));
+        return { solid:prismXZ(pRect(0, 0, pw, pd, 1.5), holes, 0, s.wall), connectors:{ port:pConn([0, s.wall, 0], [0, 1, 0], [1, 0, 0], "USB-C socket"), back:pConn([0, 0, 0], [0, -1, 0], [1, 0, 0], "panel back") },
+          meta:{ bom:s.screws === "2" ? [[2, "M2 screws"]] : [], orient:PART_I, support:false, notes:["The cut-out takes a USB-C plug's 8.3 × 2.5 mm shell with room round it."] } };
+      } },
+    strainRelief: { label:"Cable strain relief", group:"Electronics", settings:{ cable:[5, 2, 12, 0.1, "Cable (mm)"], panel:[2, 1, 5, 0.1, "Wall it goes through (mm)"], boot:[12, 6, 30, 0.5, "Boot length (mm)"] },
+      build(s, c){
+        // a boot turned on its axis: a flange outside the wall, a neck through it (the wall's hole: neck + clearance), a lip that stops
+        // it pulling back, and a tapering boot that grips the cable (its bore 0.3 mm under the cable)
+        const bore = Math.max(0.6, s.cable / 2 - 0.15), neck = s.cable / 2 + 1.6, fl = neck + 2.5, ft = 1.6, L = s.boot;
+        const prof = [[bore, 0], [fl, 0], [fl, ft], [neck, ft], [neck, ft + s.panel + c], [neck + 0.5, ft + s.panel + c + 0.5], [neck, ft + s.panel + c + 1.0], [Math.max(bore + 0.8, neck - 0.6), ft + s.panel + 1 + L], [bore, ft + s.panel + 1 + L]];
+        return { solid:revolveLoop(prof, 48), connectors:{ wall:pConn([0, ft, 0], [0, 1, 0], [1, 0, 0], `wall hole ${(2 * neck + c).toFixed(1)} mm`), cable:pConn([0, ft + s.panel + 1 + L, 0], [0, 1, 0], [1, 0, 0], `cable ${s.cable} mm`) },
+          meta:{ bom:[], orient:PART_I, support:false, notes:[`Drill or cut the wall's hole ${(2 * neck + c).toFixed(1)} mm. Thread it on the cable before soldering; print in TPU for a soft boot.`] } };
+      } },
+    ventPanel: { label:"Vent panel", group:"Electronics", settings:{ w:[40, 15, 150, 1, "Width (mm)"], h:[30, 10, 150, 1, "Height (mm)"], thick:[2, 1.2, 4, 0.1, "Thickness (mm)"],
+        slot:[2, 1, 5, 0.1, "Slot width (mm)"], pitch:[4, 2.5, 10, 0.1, "Slot pitch (mm)"], border:[3, 2, 10, 0.5, "Border (mm)"] },
+      build(s){
+        const n = Math.max(1, Math.floor((s.h - 2 * s.border - s.slot) / Math.max(s.pitch, s.slot + 1.2)) + 1), holes = [], len = s.w - 2 * s.border;
+        for (let i = 0; i < n; i++){ const z = -((n - 1) * Math.max(s.pitch, s.slot + 1.2)) / 2 + i * Math.max(s.pitch, s.slot + 1.2); if (len > s.slot) holes.push(pStadium(-len / 2 + s.slot / 2, len / 2 - s.slot / 2, s.slot / 2).map(([x, zz]) => [x, zz + z])); }
+        return { solid:prismXZ(pRect(0, 0, s.w, s.h, 2), holes, 0, s.thick), connectors:{ face:pConn([0, s.thick, 0], [0, 1, 0], [1, 0, 0], "vent face") },
+          meta:{ bom:[], orient:PART_I, support:false, notes:[`${n} slots, ${(n * len * s.slot).toFixed(0)} mm² open.`] } };
+      } },
+    ledRing: { label:"NeoPixel ring holder", group:"Lights", settings:{ ring:{ opts:["12","16","24"], def:"12", label:"LEDs in the ring" }, base:[1.6, 1, 4, 0.1, "Base (mm)"],
+        wall:[1.6, 1.2, 3, 0.1, "Wall (mm)"], window:{ opts:["open","closed"], def:"open", label:"Middle" } },
+      build(s, c){
+        const R = PART_RINGS[s.ring], ro = R.od / 2 + c, wo = ro + s.wall, ri = R.id / 2 - c, depth = 3.2 + c, pieces = [];
+        pieces.push(prismXZ(pCirc(wo, 0, 0, 72), s.window === "open" ? [pCirc(Math.max(2, ri - 3), 0, 0, 64)] : [], 0, s.base));
+        // the outer wall, a C with a 5 mm gap for the wires; a short ring inside that centres it
+        const gap = 2.5 / wo, Cs = [], n = 64;
+        for (let i = 0; i <= n; i++){ const a = gap + i / n * (Math.PI * 2 - 2 * gap); Cs.push([wo * Math.cos(a), wo * Math.sin(a)]); }
+        for (let i = n; i >= 0; i--){ const a = gap + i / n * (Math.PI * 2 - 2 * gap); Cs.push([(ro - 0.01) * Math.cos(a), (ro - 0.01) * Math.sin(a)]); }
+        pieces.push(prismXZ(Cs, [], s.base - 0.01, s.base + depth));
+        pieces.push(prismXZ(pCirc(ri, 0, 0, 64), [pCirc(Math.max(1.5, ri - 1.2), 0, 0, 64)], s.base - 0.01, s.base + 1.6));
+        return { solid:pMerge(pieces), connectors:{ ring:pConn([0, s.base, 0], [0, 1, 0], [1, 0, 0], `${s.ring}-LED ring`), back:pConn([0, 0, 0], [0, -1, 0], [1, 0, 0], "holder back"),
+            wires:pConn([wo, s.base + 1.6, 0], [1, 0, 0], [0, 1, 0], "wire gap") },
+          meta:{ bom:[[1, `NeoPixel ring, ${s.ring} LEDs (${R.od} mm)`]], orient:PART_I, support:false, notes:["Typical ring sizes: check yours. The gap in the wall is for its three wires."] } };
+      } },
+    led5Holder: { label:"5 mm LED bezel", group:"Lights", settings:{ led:{ opts:["3","5"], def:"5", label:"LED (mm)" }, panel:[2, 1, 6, 0.1, "Panel thickness (mm)"] },
+      build(s, c){
+        // turned: a flange on the bed, a neck through the panel, the LED pushed in from behind until its rim meets the shoulder
+        const d = +s.led, rim = d + 0.8, bore = d / 2 + c / 2, cb = rim / 2 + c / 2, neck = cb + 1.0, fl = neck + 2, ft = 1.2, L = ft + s.panel + 1.5;
+        const prof = [[bore, 0], [fl, 0], [fl, ft], [neck, ft], [neck, L], [cb, L], [cb, L - 1.2], [bore, L - 1.2]];
+        return { solid:revolveLoop(prof, 40), connectors:{ front:pConn([0, 0, 0], [0, -1, 0], [1, 0, 0], `${d} mm LED`), panel:pConn([0, ft, 0], [0, 1, 0], [1, 0, 0], `panel hole ${(2 * neck + c).toFixed(1)} mm`) },
+          meta:{ bom:[[1, `${d} mm LED`]], orient:PART_I, support:false, notes:[`The panel's hole: ${(2 * neck + c).toFixed(1)} mm. A drop of glue holds it.`] } };
+      } },
+    ledFilament: { label:"LED filament holder", group:"Lights", settings:{ length:[38, 20, 300, 1, "Filament length (mm)"], dia:[2, 1, 4, 0.1, "Filament size (mm)"], height:[10, 4, 40, 0.5, "Height (mm)"] },
+      build(s, c){
+        // a strip with a post at each end; each post has a hole the filament's end goes into, and a slot below it for its wire
+        const L = s.length, w = 8, hb = 1.6, ph = s.height + s.dia / 2 + c + 2, pieces = [pBox(-L / 2 - 4, L / 2 + 4, 0, hb, -w / 2, w / 2)];
+        for (const sx of [-1, 1]){
+          const x0 = sx < 0 ? -L / 2 - 4 : L / 2 - 1, x1 = x0 + 5;
+          pieces.push(prismZY([[-w / 2, hb - 0.01], [w / 2, hb - 0.01], [w / 2, ph], [-w / 2, ph]], [pCirc(s.dia / 2 + c, 0, s.height, 20).map(([z, y]) => [z, y])], x0, x1));
+        }
+        return { solid:pMerge(pieces), connectors:{ endA:pConn([-L / 2, s.height, 0], [1, 0, 0], [0, 1, 0], "filament end"), endB:pConn([L / 2, s.height, 0], [-1, 0, 0], [0, 1, 0], "filament end") },
+          meta:{ bom:[[1, `LED filament, ${L} mm`]], orient:PART_I, support:false, notes:["The holes are small bridges at their tops: they print without support."] } };
+      } },
+    diffuser: { label:"Diffuser", group:"Lights", settings:{ shape:{ opts:["dome","flat"], def:"dome", label:"Shape" }, dia:[60, 20, 160, 1, "Diameter (mm)"], skirt:[10, 0, 80, 0.5, "Straight part (mm)"],
+        wall:[1, 0.6, 3, 0.1, "Wall (mm)"], lip:[2, 0, 6, 0.5, "Press-fit lip (mm)"] },
+      build(s, c){
+        // the dome: a straight skirt, a quarter of a sphere up to 45°, then a 45° cone to the top: never shallower than 45°, so it
+        // prints without support; the wall the same thickness all over (0.8 to 1.2 mm glows in white PETG or PLA)
+        // one turned outline, the lip and all (so the print check sees no hidden faces): the lip a ring under the rim 0.8 mm in from its
+        // outside (it presses into a tube that size), stepping out to the rim steeper than 45°
+        const R = s.dia / 2, w = s.wall, step = 0.8 + c, L = s.lip, li = Math.max(1, R - 2 * w - 0.6), prof = [];
+        let base = [0, 0, 0];
+        if (s.shape === "flat"){
+          // printed disc-down, the lip standing up on it (nothing hangs)
+          if (L > 0){ prof.push([0, 0], [R, 0], [R, w], [R - step, w], [R - step, w + L], [li, w + L], [li, w], [0, w]); base = [0, w + L, 0]; }
+          else prof.push([0, 0], [R, 0], [R, w], [0, w]);
+        } else {
+          const lt = L > 0 ? 1.25 * step : 0, y0 = L, Hs = Math.max(s.skirt, lt + 0.2), out = [], inn = [];
+          const t1 = 40 * Math.PI / 180, k = Math.sin(t1) + Math.cos(t1) * Math.tan(50 * Math.PI / 180);
+          for (let i = 0; i <= 12; i++){ const t = i / 12 * t1; out.push([R * Math.cos(t), y0 + Hs + R * Math.sin(t)]); inn.push([(R - w) * Math.cos(t), y0 + Hs + (R - w) * Math.sin(t)]); }
+          if (L > 0) prof.push([li, 0], [R - step, 0], [R - step, L], [R, L + lt]); else prof.push([R, 0]);
+          prof.push(...out, [0, y0 + Hs + R * k], [0, y0 + Hs + (R - w) * k], ...inn.reverse());
+          if (L > 0) prof.push([R - w, L + lt], [li, L + lt]); else prof.push([R - w, 0]);
+        }
+        const solid = revolveLoop(prof, Math.max(64, segsFor(R, 64)));
+        return { solid, connectors:{ base:pConn(base, s.shape === "flat" && L > 0 ? [0, 1, 0] : [0, -1, 0], [1, 0, 0], `rim ${s.dia} mm`) },
+          meta:{ bom:[], orient:PART_I, support:false, notes:[s.shape === "dome" ? "Never shallower than 50°: no support. Print in white or clear PETG or PLA." : "A flat disc, printed disc-down; its lip presses into a tube of its size."] } };
+      } }
+  };
+  // ---------- the parts library, second part (Session 82): hinges, linkages, gears, fits, couplers, a spring, fan mounts ----------
+  // travel calculators (degrees and mm). A four-bar: ground g (input pivot at 0, output pivot at (g, 0)), crank a, coupler b,
+  // rocker c; the crank turned to `deg` from the ground line, the rocker's angle from the ground line on the open branch, or
+  // null where the links cannot close. A crank-slider: crank a, rod b, slider offset e: the slider's distance from the crank pivot.
+  function fourBarAngle(g, a, b, c, deg){
+    const t = deg * Math.PI / 180, Ax = a * Math.cos(t), Ay = a * Math.sin(t), dx = g - Ax, dy = -Ay, d = Math.hypot(dx, dy);
+    if (d > b + c + 1e-9 || d < Math.abs(b - c) - 1e-9 || d < 1e-12) return null;      // (touching counts: the links in a line)
+    const k = (b * b - c * c + d * d) / (2 * d), h = Math.sqrt(Math.max(0, b * b - k * k)), mx = Ax + dx * k / d, my = Ay + dy * k / d;
+    const Bx = mx - dy * h / d, By = my + dx * h / d;                                  // the open branch: B above the line from A to the output pivot
+    return Math.atan2(By, Bx - g) * 180 / Math.PI;
+  }
+  const crankSliderX = (a, b, e, deg) => { const t = deg * Math.PI / 180, q = b * b - (a * Math.sin(t) - e) ** 2; return q < 0 ? null : a * Math.cos(t) + Math.sqrt(q); };
+  // a servo sweeping `sweep` degrees from `start`: the output at each 15° (and the ends), its range, and whether it ever jams
+  function partTravel(kind, d){
+    const rows = [], n = Math.max(2, Math.ceil(d.sweep / 15));
+    for (let i = 0; i <= n; i++){
+      const s = i / n * d.sweep, a = d.start + s;
+      const out = kind === "slider" ? crankSliderX(d.a, d.b, d.e || 0, a) : fourBarAngle(d.g, d.a, d.b, d.c, a);
+      rows.push([+s.toFixed(1), out === null ? null : +out.toFixed(2)]);
+    }
+    const ok = rows.every(r => r[1] !== null), vals = rows.map(r => r[1]).filter(v => v !== null);
+    return { input:"servo angle (°)", output:kind === "slider" ? "slider position (mm)" : "output angle (°)", rows, ok,
+      min:vals.length ? Math.min(...vals) : null, max:vals.length ? Math.max(...vals) : null, stroke:vals.length ? +(Math.max(...vals) - Math.min(...vals)).toFixed(2) : 0 };
+  }
+  // a flat link with a hole at each end (hole to hole `len`), lying from (x0, z0) along x, as prism pieces from y0 to y1
+  const pLink = (x0, z0, len, w, pin, c, y1) => prismXZ(pStadium(0, len, w / 2).map(([x, z]) => [x + x0, z + z0]), [pCirc(pin / 2 + c / 2, x0, z0, 20), pCirc(pin / 2 + c / 2, x0 + len, z0, 20)], 0, y1);
+  // a teardrop hole for a horizontal axis printed lying down, in the (z, y) plane: a circle with a 45° point upwards
+  const pTear = (r, cz, cy) => { const L = []; for (let i = 0; i <= 18; i++){ const a = -Math.PI / 4 + i / 18 * (Math.PI * 1.5) + Math.PI; L.push([cz + r * Math.cos(a + Math.PI), cy + r * Math.sin(a + Math.PI)]); }
+    L.push([cz, cy + r * Math.SQRT2]); return L; };
+  const PART_BEARINGS = { "608":{ id:8, od:22, w:7 }, "623":{ id:3, od:10, w:4 }, "625":{ id:5, od:16, w:5 }, "688":{ id:8, od:16, w:5 } };
+  const PART_FANS = { 40:{ hole:32, screw:3.4 }, 60:{ hole:50, screw:3.4 }, 80:{ hole:71.5, screw:4.4 } };
+  // a shaft's bore in the (x, z) plan: round, or a D (flat 0.5 mm in) facing +x
+  const pBore = (kind, c) => { const D = /^D/.test(kind), r = (+String(kind).replace(/^D/, "") + c) / 2, L = [];
+    for (let i = 0; i < 48; i++){ const a = i / 48 * Math.PI * 2; let x = r * Math.cos(a), z = r * Math.sin(a); if (D && x > r - 0.5) x = r - 0.5; L.push([x, z]); } return L; };
+  Object.assign(PARTS, {
+    pinHinge: { label:"Pin hinge", group:"Hinges", settings:{ length:[40, 15, 150, 1, "Length (mm)"], leaf:[15, 6, 50, 0.5, "Leaf width (mm)"], thick:[2.4, 1.6, 5, 0.2, "Leaf thickness (mm)"],
+        knuckles:[5, 3, 11, 2, "Knuckles"], pin:[1.75, 1, 4, 0.05, "Pin (mm)"], style:{ opts:["filament pin","print in place"], def:"filament pin", label:"Pin" } },
+      build(s, c){
+        // both leaves flat and open, printed as they will be used (180° open): the knuckles along x on the axis (z = 0, y = kd / 2),
+        // each knuckle 0.4 mm from the next. A filament pin: every knuckle has a teardrop hole (pin + clearance). Printed in
+        // place: leaf A's knuckles carry a solid pin through leaf B's, whose holes have the clearance round it
+        const n = Math.max(3, Math.round(s.knuckles) | 1), kd = Math.max(s.thick * 2, s.pin + 2.4), ag = 0.4, seg = (s.length - (n - 1) * ag) / n, pieces = [];
+        const inPlace = s.style === "print in place", rp = s.pin / 2, rh = rp + (inPlace ? c : c / 2), y0 = kd / 2;
+        for (let k = 0; k < n; k++){
+          const x0 = -s.length / 2 + k * (seg + ag), x1 = x0 + seg, A = k % 2 === 0;
+          const knuckle = pCirc(kd / 2, 0, y0, 32), hole = A && inPlace ? null : pTear(rh, 0, y0);
+          pieces.push(prismZY(knuckle, hole ? [hole] : [], x0, x1));
+          // its leaf, from the knuckle's side out to the leaf's edge (A towards -z, B towards +z), on the bed
+          const zs = A ? [-s.leaf, -kd / 2 + 0.2] : [kd / 2 - 0.2, s.leaf];
+          pieces.push(prismZY([[zs[0], 0], [zs[1], 0], [zs[1], s.thick], [zs[0], s.thick]], [], x0, x1));
+        }
+        // the leaves run the hinge's whole length outside the knuckles
+        pieces.push(pBox(-s.length / 2, s.length / 2, 0, s.thick, -s.leaf, -kd / 2 - 0.4));
+        pieces.push(pBox(-s.length / 2, s.length / 2, 0, s.thick, kd / 2 + 0.4, s.leaf));
+        if (inPlace) pieces.push(prismZY(pCirc(rp, 0, y0, 24), [], -s.length / 2 + 0.01, s.length / 2 - 0.01));
+        return { solid:pMerge(pieces), connectors:{ axis:pConn([0, y0, 0], [1, 0, 0], [0, 1, 0], "hinge axis"), leafA:pConn([0, 0, -s.leaf / 2 - kd / 4], [0, -1, 0], [1, 0, 0], "leaf A"), leafB:pConn([0, 0, s.leaf / 2 + kd / 4], [0, -1, 0], [1, 0, 0], "leaf B") },
+          meta:{ bom:inPlace ? [] : [[1, `${s.pin} mm pin (a piece of filament), ${s.length} mm`]], orient:PART_I, support:false,
+            notes:[inPlace ? `Printed in one piece: break it free by turning it once. ${c} mm round the pin.` : "Push the filament through all the knuckles and trim it flush; a drop of glue at one end holds it.", "The holes are teardrops pointing up: no support."] } };
+      } },
+    livingHinge: { label:"Living hinge (PETG)", group:"Hinges", settings:{ width:[30, 8, 150, 1, "Width (mm)"], leaf:[20, 5, 80, 0.5, "Each side (mm)"], thick:[3, 1.5, 8, 0.1, "Thickness (mm)"],
+        web:[0.5, 0.3, 1, 0.05, "Hinge web (mm)"], span:[2, 1, 5, 0.1, "Hinge length (mm)"] },
+      build(s){
+        // two plates joined by a thin web on the bed: in PETG or PP it bends many times; the plates' ends step back at 45° over it
+        const h = s.span / 2, prof = [[-s.leaf - h, 0], [s.leaf + h, 0], [s.leaf + h, s.thick], [h + s.thick - s.web, s.thick], [h, s.web], [-h, s.web], [-h - s.thick + s.web, s.thick], [-s.leaf - h, s.thick]];
+        return { solid:prismXY(prof, [], -s.width / 2, s.width / 2), connectors:{ axis:pConn([0, s.web / 2, 0], [0, 0, 1], [0, 1, 0], "bend line"), a:pConn([-s.leaf / 2 - h, 0, 0], [0, -1, 0], [1, 0, 0], "side A"), b:pConn([s.leaf / 2 + h, 0, 0], [0, -1, 0], [1, 0, 0], "side B") },
+          meta:{ bom:[], orient:PART_I, support:false, notes:[`A ${s.web} mm web: print in PETG or PP, two layers; flex it a few times when it comes off the bed.`] } };
+      } },
+    pushRod: { label:"Push rod (with its travel)", group:"Linkages", settings:{ horn:[10, 5, 30, 0.5, "Horn hole radius (mm)"], length:[40, 10, 200, 0.5, "Rod, hole to hole (mm)"],
+        lever:[15, 5, 60, 0.5, "Output lever radius (mm)"], ground:[40, 10, 200, 0.5, "Servo shaft to output pivot (mm)"], start:[30, 0, 180, 1, "Servo start (°)"], sweep:[90, 10, 180, 1, "Servo travel (°)"],
+        pin:[1.6, 1, 4, 0.1, "Pins (mm)"], thick:[3, 2, 6, 0.5, "Thickness (mm)"] },
+      build(s, c){
+        const tr = partTravel("fourbar", { g:s.ground, a:s.horn, b:s.length, c:s.lever, start:s.start, sweep:s.sweep }), w = Math.max(5, s.pin + 3);
+        return { solid:pLink(0, 0, s.length, w, s.pin, c, s.thick), connectors:{ horn:pConn([0, s.thick, 0], [0, 1, 0], [1, 0, 0], `pin ${s.pin} mm`), lever:pConn([s.length, s.thick, 0], [0, 1, 0], [1, 0, 0], `pin ${s.pin} mm`) },
+          meta:{ bom:[[2, `pins ${s.pin} mm`]], orient:PART_I, support:false, travel:tr,
+            notes:[tr.ok ? `The output turns ${tr.min}° to ${tr.max}° (${tr.stroke}° in all) over the servo's ${s.sweep}°.` : "Somewhere in the servo's travel the links can't reach: it would jam. Lengthen the rod or shorten the travel."] } };
+      } },
+    fourBar: { label:"Four-bar linkage", group:"Linkages", settings:{ ground:[50, 10, 200, 0.5, "Ground, pivot to pivot (mm)"], crank:[15, 5, 80, 0.5, "Crank (mm)"], coupler:[50, 10, 200, 0.5, "Coupler (mm)"],
+        rocker:[35, 5, 150, 0.5, "Rocker (mm)"], start:[30, 0, 180, 1, "Servo start (°)"], sweep:[120, 10, 180, 1, "Servo travel (°)"], pin:[3, 1, 5, 0.1, "Pins (mm)"], thick:[3, 2, 6, 0.5, "Thickness (mm)"] },
+      build(s, c){
+        const tr = partTravel("fourbar", { g:s.ground, a:s.crank, b:s.coupler, c:s.rocker, start:s.start, sweep:s.sweep }), w = Math.max(6, s.pin + 3.2), dz = w + 4;
+        const pieces = [pLink(0, -dz, s.crank, w, s.pin, c, s.thick), pLink(0, 0, s.coupler, w, s.pin, c, s.thick), pLink(0, dz, s.rocker, w, s.pin, c, s.thick)];
+        const L = [s.ground, s.crank, s.coupler, s.rocker].sort((p, q) => p - q), grashof = L[0] + L[3] <= L[1] + L[2];
+        return { solid:pMerge(pieces), connectors:{ crankPivot:pConn([0, s.thick, -dz], [0, 1, 0], [1, 0, 0], "crank pivot (the servo)"), rockerPivot:pConn([s.rocker, s.thick, dz], [0, 1, 0], [1, 0, 0], "rocker pivot") },
+          meta:{ bom:[[4, `pins ${s.pin} mm`]], orient:PART_I, support:false, travel:tr, grashof,
+            notes:[`Crank, coupler and rocker, laid side by side. ${grashof ? "Grashof: the shortest link can turn all the way round." : "Not Grashof: no link turns all the way round."}`,
+              tr.ok ? `The rocker swings ${tr.min}° to ${tr.max}° (${tr.stroke}°) over the servo's ${s.sweep}°.` : "Somewhere in the travel it can't close: it would jam."] } };
+      } },
+    crankSlider: { label:"Crank and slider", group:"Linkages", settings:{ crank:[12, 4, 60, 0.5, "Crank (mm)"], rod:[40, 10, 200, 0.5, "Rod (mm)"], offset:[0, -30, 30, 0.5, "Slider offset (mm)"],
+        start:[0, 0, 180, 1, "Servo start (°)"], sweep:[180, 10, 180, 1, "Servo travel (°)"], pin:[3, 1, 5, 0.1, "Pins (mm)"], thick:[3, 2, 6, 0.5, "Thickness (mm)"] },
+      build(s, c){
+        const tr = partTravel("slider", { a:s.crank, b:s.rod, e:s.offset, start:s.start, sweep:s.sweep }), w = Math.max(6, s.pin + 3.2), dz = w + 4;
+        // the crank, the rod, and a slider block with its pin, in a channel with the clearance each side
+        const sw = w + 4, sl = 14, pieces = [pLink(0, -dz, s.crank, w, s.pin, c, s.thick), pLink(0, 0, s.rod, w, s.pin, c, s.thick)];
+        pieces.push(prismXZ(pRect(sl / 2, 2 * dz, sl, sw, 1), [pCirc(s.pin / 2 + c / 2, sl / 2, 2 * dz, 20)], 0, s.thick * 2));
+        const rl = Math.max(20, tr.stroke + sl + 6), rz = 3 * dz + sw / 2 + 3;
+        pieces.push(pBox(0, rl, 0, 1.6, rz - sw / 2 - c - 2, rz + sw / 2 + c + 2), pBox(0, rl, 1.59, s.thick * 2 + 1, rz - sw / 2 - c - 2, rz - sw / 2 - c), pBox(0, rl, 1.59, s.thick * 2 + 1, rz + sw / 2 + c, rz + sw / 2 + c + 2));
+        return { solid:pMerge(pieces), connectors:{ crankPivot:pConn([0, s.thick, -dz], [0, 1, 0], [1, 0, 0], "crank pivot (the servo)"), slider:pConn([sl / 2, s.thick * 2, 2 * dz], [0, 1, 0], [1, 0, 0], "slider pin") },
+          meta:{ bom:[[3, `pins ${s.pin} mm`]], orient:PART_I, support:false, travel:tr,
+            notes:[tr.ok ? `The slider moves ${tr.stroke} mm (from ${tr.min} to ${tr.max} mm from the crank's pivot) over the servo's ${s.sweep}°.` : "The rod is too short for the crank: it would jam. Make the rod longer than the crank plus the offset."] } };
+      } },
+    spurGear: { label:"Spur gear", group:"Gears", settings:{ module:[1, 0.5, 4, 0.1, "Module (mm)"], teeth:[20, 8, 120, 1, "Teeth"], thick:[6, 2, 30, 0.5, "Thickness (mm)"],
+        bore:{ opts:["3","4","5","D5","6","8"], def:"5", label:"Bore" }, hub:[0, 0, 15, 0.5, "Hub height (mm)"], mate:[20, 8, 120, 1, "Teeth on the gear it meshes with"] },
+      build(s, c){
+        const z = Math.round(s.teeth), outline = gearOutline(z, s.module, 20, c * 0.5, 8).outline, pd = s.module * z, bore = pBore(s.bore, c), pieces = [prismXZ(outline, [bore], 0, s.thick)];
+        const hubR = Math.min(pd / 2 - 1.25 * s.module - 0.5, (+String(s.bore).replace(/^D/, "")) / 2 + 4);
+        if (s.hub > 0 && hubR > (+String(s.bore).replace(/^D/, "")) / 2 + 1) pieces.push(prismXZ(pCirc(hubR, 0, 0, 40), [bore], s.thick - 0.01, s.thick + s.hub));
+        const cd = s.module * (z + Math.round(s.mate)) / 2;
+        return { solid:pMerge(pieces), connectors:{ axis:pConn([0, 0, 0], [0, -1, 0], [1, 0, 0], `bore ${s.bore} mm`), top:pConn([0, s.thick + (s.hub > 0 ? s.hub : 0), 0], [0, 1, 0], [1, 0, 0], "axis, top") },
+          meta:{ bom:[], orient:PART_I, support:false, pitch:pd, centre:cd,
+            notes:[`Pitch diameter ${pd.toFixed(2)} mm. With a ${Math.round(s.mate)}-tooth gear of the same module: ${cd.toFixed(2)} mm between the axles. The teeth are thinned by half the clearance for backlash.`] } };
+      } },
+    rack: { label:"Rack", group:"Gears", settings:{ module:[1, 0.5, 4, 0.1, "Module (mm)"], teeth:[20, 4, 80, 1, "Teeth"], height:[8, 3, 30, 0.5, "Back height (mm)"], thick:[6, 2, 30, 0.5, "Thickness (mm)"] },
+      build(s, c){
+        // straight flanks at 20°, the pitch line at the back's height; each tooth thinned by half the clearance
+        const m = s.module, p = Math.PI * m, n = Math.round(s.teeth), t = Math.tan(20 * Math.PI / 180), hb = s.height, prof = [[0, 0], [n * p, 0], [n * p, hb - 1.25 * m]];
+        for (let k = n - 1; k >= 0; k--){
+          const xc = (k + 0.5) * p, half = p / 4 - c * 0.25;
+          prof.push([xc + half + 1.25 * m * t, hb - 1.25 * m], [xc + half - m * t, hb + m], [xc - half + m * t, hb + m], [xc - half - 1.25 * m * t, hb - 1.25 * m]);
+        }
+        prof.push([0, hb - 1.25 * m]);
+        return { solid:prismXY(prof, [], 0, s.thick), connectors:{ pitch:pConn([0, hb, s.thick / 2], [1, 0, 0], [0, 1, 0], "pitch line") },
+          meta:{ bom:[], orient:PART_I, support:false, travel:{ perTurn:(z => +(p * z).toFixed(2)) },
+            notes:[`${(n * p).toFixed(1)} mm of teeth. A pinion of z teeth moves it π × ${m} × z mm a turn (20 teeth: ${(p * 20).toFixed(1)} mm).`, "It prints on its side, its teeth standing up: no support."] } };
+      } },
+    snapFit: { label:"Snap fit", group:"Fits", settings:{ length:[12, 5, 40, 0.5, "Arm length (mm)"], thick:[1.6, 0.8, 4, 0.1, "Arm thickness (mm)"], width:[6, 3, 30, 0.5, "Width (mm)"],
+        hook:[1, 0.4, 3, 0.1, "Hook depth (mm)"], catch:{ opts:["hook","hook and catch"], def:"hook and catch", label:"Print" } },
+      build(s, c){
+        // a cantilever standing on a block: its hook flat underneath (the catch) and 45° on top (the lead-in); strain 1.5 t y / L²
+        const L = s.length, t = s.thick, y = s.hook, base = 3, prof = [[-4, 0], [t, 0], [t, base + L - y - 1], [t + y, base + L - 1], [t + y, base + L - 1 + 0.01], [0, base + L - 1 + y + t], [0, base], [-4, base]];
+        const pieces = [prismXY(prof, [], -s.width / 2, s.width / 2)];
+        const strain = 1.5 * t * y / (L * L) * 100;
+        if (s.catch === "hook and catch"){ const wx = 14, wz = s.width + 2 * c + 6; pieces.push(prismXZ(pRect(wx + 12, 0, 16, wz, 1), [pRect(wx + 12, 0, t + y + 2 * c, s.width + 2 * c)], 0, 2)); }
+        return { solid:pMerge(pieces), connectors:{ hook:pConn([t + y, base + L - 1, 0], [1, 0, 0], [0, 1, 0], "hook catch"), base:pConn([0, 0, 0], [0, -1, 0], [1, 0, 0], "foot") },
+          meta:{ bom:[], orient:PART_I, support:false, strain:+strain.toFixed(2),
+            notes:[`Strain at the root: ${strain.toFixed(1)}% when it snaps (PLA up to about 2%, PETG 3%, nylon 4%).${strain > 3 ? " Too stiff for most plastics: make the arm longer or thinner, or the hook shallower." : ""}`, s.catch === "hook and catch" ? "The catch is a plate with a window the hook clicks through (2 mm thick)." : ""].filter(Boolean) } };
+      } },
+    bushing: { label:"Bushing", group:"Fits", settings:{ shaft:[5, 2, 25, 0.1, "Shaft (mm)"], wall:[2, 1, 6, 0.1, "Wall (mm)"], length:[8, 3, 40, 0.5, "Length (mm)"], flange:[1.5, 0, 6, 0.5, "Flange (mm)"] },
+      build(s, c){
+        const ri = (s.shaft + c) / 2, ro = ri + s.wall, prof = s.flange > 0 ? [[ri, 0], [ro + s.flange, 0], [ro + s.flange, 1.2], [ro, 1.2], [ro, s.length], [ri, s.length]] : [[ri, 0], [ro, 0], [ro, s.length], [ri, s.length]];
+        return { solid:revolveLoop(prof, 48), connectors:{ shaft:pConn([0, s.length, 0], [0, 1, 0], [1, 0, 0], `shaft ${s.shaft} mm`), seat:pConn([0, 0, 0], [0, -1, 0], [1, 0, 0], `hole ${(2 * ro + c).toFixed(1)} mm`) },
+          meta:{ bom:[], orient:PART_I, support:false, notes:[`Bore ${(2 * ri).toFixed(2)} mm: the shaft turns in it. Its hole: ${(2 * ro).toFixed(1)} mm, a press fit.`] } };
+      } },
+    bearingSeat: { label:"Bearing seat", group:"Fits", settings:{ bearing:{ opts:Object.keys(PART_BEARINGS), def:"608", label:"Bearing" }, base:[2, 1.2, 6, 0.2, "Floor (mm)"], margin:[4, 2, 12, 0.5, "Wall round it (mm)"],
+        screws:{ opts:["none","2","4"], def:"2", label:"M3 screw holes" } },
+      build(s, c){
+        // a pocket the bearing presses into (its bore a quarter of the clearance over the bearing), on a floor with a lip that stops
+        // it and a hole for the shaft
+        const B = PART_BEARINGS[s.bearing], rb = B.od / 2 + c / 4, wo = rb + s.margin, H = s.base + B.w, n = s.screws === "4" ? 4 : s.screws === "2" ? 2 : 0, pieces = [];
+        const ear = n ? wo + 5 : 0, outline = n === 4 ? pRect(0, 0, 2 * ear, 2 * ear, 4) : n === 2 ? convexHull([...pCirc(wo, 0, 0, 48), ...pCirc(4, -ear, 0, 20), ...pCirc(4, ear, 0, 20)]) : pCirc(wo, 0, 0, 48);
+        const sh = n === 4 ? [[-ear + 4, -ear + 4], [ear - 4, -ear + 4], [-ear + 4, ear - 4], [ear - 4, ear - 4]] : n === 2 ? [[-ear, 0], [ear, 0]] : [];
+        pieces.push(prismXZ(outline, [pCirc(B.id / 2 + 1.5, 0, 0, 40), ...sh.map(([x, z]) => pCirc((3.4 + c) / 2, x, z, 20))], 0, s.base));
+        pieces.push(prismXZ(pCirc(wo, 0, 0, 64), [pCirc(rb, 0, 0, 64)], s.base - 0.01, H));
+        return { solid:pMerge(pieces), connectors:{ bearing:pConn([0, s.base, 0], [0, 1, 0], [1, 0, 0], `${s.bearing} bearing`), base:pConn([0, 0, 0], [0, -1, 0], [1, 0, 0], "seat underside") },
+          meta:{ bom:[[1, `${s.bearing} bearing (${B.id} × ${B.od} × ${B.w} mm)`], ...(n ? [[n, "M3 screws"]] : [])], orient:PART_I, support:false, notes:["A press fit: push the bearing in with a vice or a clamp, square on."] } };
+      } },
+    coupler: { label:"Shaft coupler", group:"Fits", settings:{ boreA:{ opts:["3","4","5","D5","6","8"], def:"D5", label:"Bore at the bottom" }, boreB:{ opts:["3","4","5","D5","6","8"], def:"5", label:"Bore at the top" },
+        length:[20, 10, 50, 0.5, "Length (mm)"], od:[14, 8, 30, 0.5, "Outside (mm)"] },
+      build(s, c){
+        // two bores end to end; a 2.5 mm square channel to each from the side at its middle, for an M3 grub screw (on the D's flat)
+        const ra = (+String(s.boreA).replace(/^D/, "")), rb = (+String(s.boreB).replace(/^D/, "")), od = Math.max(s.od, Math.max(ra, rb) + 6), h = s.length / 2, pieces = [];
+        const half = (bore, y0, y1) => {
+          const yc = (y0 + y1) / 2, g = 1.25, ro = od / 2;
+          pieces.push(prismXZ(pCirc(ro, 0, 0, 56), [pBore(bore, c)], y0, yc - g));
+          pieces.push(prismXZ(pCirc(ro, 0, 0, 56), [pBore(bore, c)], yc + g, y1));
+          // the channel's layers: the ring with a slot from the bore out along +x
+          const ang = Math.asin(Math.min(0.99, g / ro)), Cs = [];
+          for (let i = 0; i <= 48; i++){ const a = ang + i / 48 * (Math.PI * 2 - 2 * ang); Cs.push([ro * Math.cos(a), ro * Math.sin(a)]); }
+          const ri = (+String(bore).replace(/^D/, "") + c) / 2 + 0.01;
+          for (let i = 48; i >= 0; i--){ const a = Math.asin(Math.min(0.99, g / ri)) + i / 48 * (Math.PI * 2 - 2 * Math.asin(Math.min(0.99, g / ri))); Cs.push([ri * Math.cos(a), ri * Math.sin(a)]); }
+          pieces.push(prismXZ(Cs, [], yc - g - 0.01, yc + g + 0.01));
+        };
+        half(s.boreA, 0, h); half(s.boreB, h - 0.01, s.length);
+        return { solid:pMerge(pieces), connectors:{ a:pConn([0, 0, 0], [0, -1, 0], [1, 0, 0], `shaft ${s.boreA}`), b:pConn([0, s.length, 0], [0, 1, 0], [1, 0, 0], `shaft ${s.boreB}`) },
+          meta:{ bom:[[2, "M3 grub screws, 4–6 mm"]], orient:PART_I, support:false, notes:["Each grub screw cuts its own thread in the square channel. On a D shaft, turn the flat to the screw."] } };
+      } },
+    flexureSpring: { label:"Flexure spring", group:"Fits", settings:{ style:{ opts:["flat zigzag","coil (the bobble head's)"], def:"flat zigzag", label:"Style" },
+        coil:[4, 2, 20, 0.1, "Coil radius or zigzag half-width (mm)"], wire:[0.9, 0.5, 3, 0.05, "Wire (mm)"], turns:[5, 2, 12, 0.5, "Turns"],
+        height:[20, 5, 80, 0.5, "Height (mm)"], plug:[3, 1, 10, 0.1, "End plug radius (mm)"] },
+      build(s){
+        if (s.style === "flat zigzag"){
+          // lying flat (it prints with no support): pads at each end of a zigzag of beams `wire` thick, `2 coil` long, 1.5 wire apart;
+          // it springs along z. Its depth (y) is the plug's diameter
+          // (its overall length is the height: the beams spread out to fill it, at least 0.8 mm apart)
+          const n = Math.max(2, Math.round(s.turns * 2)), t = s.wire, L = 2 * s.coil, pd = 2 * s.plug, depth = Math.max(2, pd), pieces = [], pad = Math.max(3, s.plug + 1.5);
+          const gap = Math.max(0.8, (s.height - 2 * pad - n * t) / (n - 1)), pitch = t + gap, zTop = (n - 1) * pitch;
+          pieces.push(pBox(-Math.max(L / 2, pd / 2 + 1), Math.max(L / 2, pd / 2 + 1), 0, depth, -pad, 0.01));
+          for (let k = 0; k < n; k++){ const z = k * pitch; pieces.push(pBox(-L / 2, L / 2, 0, depth, z, z + t));
+            if (k < n - 1){ const x = k % 2 ? -L / 2 : L / 2 - t; pieces.push(pBox(x, x + t, 0, depth, z + t - 0.01, z + pitch + 0.01)); } }
+          pieces.push(pBox(-Math.max(L / 2, pd / 2 + 1), Math.max(L / 2, pd / 2 + 1), 0, depth, zTop + t - 0.01, zTop + t + pad));
+          return { solid:pMerge(pieces), connectors:{ bottom:pConn([0, depth / 2, -pad], [0, 0, -1], [0, 1, 0], "pad"), top:pConn([0, depth / 2, zTop + t + pad], [0, 0, 1], [0, 1, 0], "pad") },
+            meta:{ bom:[], orient:PART_I, support:false, notes:[`${n} beams, ${(gap * (n - 1)).toFixed(1)} mm of travel before the beams touch. It lies flat: no support. Springier in PETG or TPU.`] } };
+        }
+        // the bobble head's spring neck as a part: a coil swept round, a plug at each end to glue or press into a hole
+        const coil = Math.max(s.coil, s.wire + 0.6), turns = s.turns, ph = Math.max(2, s.plug * 1.2), H = Math.max(s.height, 2 * ph + 2 * s.wire + turns * (2 * s.wire + 0.4)), path = [], steps = Math.round(turns * 40);   // (at least room for the plugs and each turn with 0.4 mm between)
+        for (let i = 0; i <= steps; i++){ const t = i / steps, a = t * turns * Math.PI * 2; path.push([Math.cos(a) * coil, ph + s.wire + t * (H - 2 * ph - 2 * s.wire), Math.sin(a) * coil]); }
+        const ea = turns * Math.PI * 2, pieces = [sweepTube(path, s.wire, 12)];
+        pieces.push(revolveLoop([[0, 0], [s.plug, 0], [s.plug, ph + s.wire + 0.6], [0, ph + s.wire + 0.6]], 32).pos ? affineSolid(revolveLoop([[0, 0], [s.plug, 0], [s.plug, ph + s.wire + 0.6], [0, ph + s.wire + 0.6]], 32), PART_I, [coil, 0, 0]) : null);
+        pieces.push(affineSolid(revolveLoop([[0, H - ph - s.wire - 0.6], [s.plug, H - ph - s.wire - 0.6], [s.plug, H], [0, H]], 32), PART_I, [Math.cos(ea) * coil, 0, Math.sin(ea) * coil]));
+        return { solid:pMerge(pieces), connectors:{ bottom:pConn([coil, 0, 0], [0, -1, 0], [1, 0, 0], `plug ${2 * s.plug} mm`), top:pConn([Math.cos(ea) * coil, H, Math.sin(ea) * coil], [0, 1, 0], [1, 0, 0], `plug ${2 * s.plug} mm`) },
+          meta:{ bom:[], orient:PART_I, support:"the coil's underside: use tree supports, or the flat zigzag", notes:["The bobble head's spring neck: soft in PLA, springier in PETG or TPU. Standing up, each turn's underside needs support."] } };
+      } },
+    fanMount: { label:"Fan mount", group:"Fits", settings:{ fan:{ opts:Object.keys(PART_FANS), def:"40", label:"Fan (mm)" }, thick:[2.4, 1.6, 5, 0.2, "Thickness (mm)"], grille:{ opts:["open","bars"], def:"bars", label:"Guard" } },
+      build(s, c){
+        const F = PART_FANS[s.fan], size = +s.fan, r = size / 2 - 1.5, pieces = [], holes = [];
+        const sh = [[-F.hole / 2, -F.hole / 2], [F.hole / 2, -F.hole / 2], [-F.hole / 2, F.hole / 2], [F.hole / 2, F.hole / 2]].map(([x, z]) => pCirc((F.screw + c) / 2, x, z, 20));
+        pieces.push(prismXZ(pRect(0, 0, size + 4, size + 4, 3), [pCirc(r, 0, 0, 72), ...sh], 0, s.thick));
+        if (s.grille === "bars") for (const a of [0, Math.PI / 2, Math.PI / 4, -Math.PI / 4]){
+          const ca = Math.cos(a), sa = Math.sin(a), w = 1.2, L = r + 0.5;
+          pieces.push(prismXZ([[-L * ca - w * sa, -L * sa + w * ca], [L * ca - w * sa, L * sa + w * ca], [L * ca + w * sa, L * sa - w * ca], [-L * ca + w * sa, -L * sa - w * ca]], [], 0, s.thick));
+        }
+        return { solid:pMerge(pieces), connectors:{ fan:pConn([0, s.thick, 0], [0, 1, 0], [1, 0, 0], `${size} mm fan`) },
+          meta:{ bom:[[1, `${size} mm fan`], [4, `screws for the fan (${F.screw < 4 ? "M3" : "M4"})`]], orient:PART_I, support:false, notes:[`Holes on a ${F.hole} mm square.`] } };
+      } }
+  });
+
+  // a part's settings, each in its range (a number) or one of its choices; anything else dropped
+  function partClean(key, raw){
+    const P = PARTS[key]; if (!P) return null;
+    const r = raw && typeof raw === "object" ? raw : {}, out = {};
+    for (const [k, spec] of Object.entries(P.settings)){
+      const v = r[k];
+      if (Array.isArray(spec)){ const n = typeof v === "number" && isFinite(v) ? v : +v; out[k] = typeof v !== "boolean" && v !== "" && v !== null && isFinite(n) ? Math.min(spec[2], Math.max(spec[1], n)) : spec[0]; }
+      else out[k] = spec.opts.includes(String(v)) ? String(v) : spec.def;
+    }
+    return out;
+  }
+  function part(key, raw, opts){
+    const P = PARTS[key]; if (!P) throw new Error("No part " + key);
+    const s = partClean(key, raw), cl = opts && typeof opts.clearance === "number" && isFinite(opts.clearance) ? Math.min(1, Math.max(0, opts.clearance)) : PART_CLEARANCE;
+    const r = P.build(s, cl);
+    return { key, label:P.label, group:P.group, settings:s, clearance:cl, solid:r.solid, connectors:r.connectors, meta:r.meta };
+  }
+  const partList = () => Object.entries(PARTS).map(([key, P]) => ({ key, label:P.label, group:P.group, settings:JSON.parse(JSON.stringify(P.settings)) }));
+  // move part B so its connector b meets part A's connector a: b's point on a's, b's direction against a's, their ups together.
+  // Returns { m, t } for affineSolid (and the moved connectors of B)
+  function snap(A, a, B, b){
+    const ca = A.connectors[a], cb = B.connectors[b]; if (!ca || !cb) throw new Error("No connector");
+    const cross = (u, v) => [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    const frame = (d, u) => { const z = pUnit(d), x = pUnit(cross(u, z)), y = cross(z, x); return [x, y, z]; };
+    const [bx, by, bz] = frame(cb.dir, cb.up), [ax, ay, az] = frame(ca.dir.map(v => -v), ca.up);
+    const m = [0, 1, 2].flatMap(r => [0, 1, 2].map(k => ax[r] * bx[k] + ay[r] * by[k] + az[r] * bz[k]));
+    const mv = p => [m[0] * p[0] + m[1] * p[1] + m[2] * p[2], m[3] * p[0] + m[4] * p[1] + m[5] * p[2], m[6] * p[0] + m[7] * p[1] + m[8] * p[2]];
+    const pb = mv(cb.at), t = [ca.at[0] - pb[0], ca.at[1] - pb[1], ca.at[2] - pb[2]];
+    const moved = Object.fromEntries(Object.entries(B.connectors).map(([k, q]) => { const p = mv(q.at); return [k, { at:[p[0] + t[0], p[1] + t[1], p[2] + t[2]], dir:mv(q.dir), up:mv(q.up), kind:q.kind }]; }));
+    return { m, t, connectors:moved };
+  }
+
   global.PRCore = {
+    // loft, sweep, thin shells (Session 83) and the mechanical parts library (Session 82)
+    loft, sweep, shellSurface,
+    parts:{ list:partList, make:part, clean:partClean, snap, travel:partTravel, fourBarAngle, crankSliderX, servos:PART_SERVOS, bearings:PART_BEARINGS, fasteners:PART_FASTENERS, boards:PART_BOARDS, rings:PART_RINGS, clearance:PART_CLEARANCE },
     hexToRgb, rgbToHex, colorDist, luma, kmeans, buildCellMap, makeProjector, buildDecalSolids, weldSoup, parseSTL,
     prepareParts, make3MF, make3MF_BBL, makeSTL, makeOBJ, traceMask, groupLoops, rectUnion, triangulate, solidFromTris, buildVectorSolid,
     makeWrapProjector, extrudePolys, extrudePolysAt, closeMask, smoothMask, revolve, revolveLoop, sweepTube, traceField, fieldToPolys, strokePolys, signedDistanceField, coverageField, blurMask, homography, applyH, warpQuad, quadCorners, refineQuad, fitDimensions, convexHull, outlineSVG, outlineDXF, transformSolid, mirrorSolid, solidBounds, mirrorMaskX, perforate, insideRing, snapToGrid, signedVolume, buildMaskSolid, maskOfSlot, dropCellBackground, dropSlivers, checkMesh, edt, dilateMask, erodeMask, labelMask, maskToPolys, ringCircle, ringRect, ringStar, ringPoly, ringHeart, mergeSolids, splitSolid, splitSolidAt, planeClear, area2, segsFor,

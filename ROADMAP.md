@@ -68,8 +68,8 @@ Each gets: a plan view, a catalogue with pictures, recipes, a fit test, Fix what
 - **0.63 The mechanical parts library** (the owner's new direction, Session 81): every part a function returning a mesh, named
   connectors and a BOM line, one printer clearance and a fit coupon; servo mounts, fasteners, electronics mounts, LED holders,
   hinges, linkages with travel calculators, gears and racks, snap fits, bearing seats, couplers, the flexure spring.
-- **0.64 Core primitives:** revolve, loft, sweep, and thin shells from parametric surfaces.
-- **0.65 The blooming flower lamp:** one servo opening every petal, self-holding at both ends, LEDs, a base that opens, the
+- **Core primitives** (done in 0.63 with the library): revolve, loft, sweep, and thin shells from parametric surfaces.
+- **0.64 The blooming flower lamp:** one servo opening every petal, self-holding at both ends, LEDs, a base that opens, the
   travel animated and checked for collisions, plates, BOM and a starter sketch.
 - **0.66 Lithophanes and lamps:** lamp bases with the electronics box built in, colour lithophanes (CMYW), night lights.
 - **0.67 Mechanisms:** what the parts library leaves: gear trains worked out from a ratio, latches, a parts kit maker.

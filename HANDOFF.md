@@ -3733,6 +3733,68 @@ The example now needs support only under the spring's coils (188 mm²: a printed
 The count: improvements 22 and 23: 22. floating parts caught; 23. the bobble head's head and body without support. Bugs 8 and
 9 of 10: 8. a picture on a laid-out part printed in mid-air; 9. the bobble head's post and spring neck floated.
 
+## Session 88: the flower lamp's power and servos (v0.65.0)
+
+The owner: "work on the flower lamp generator with place for different batteries and charging ports and dc jacks and servo
+motors of different sizes". On `claude/relaxed-dirac-cuhvec` after 0.64.2.
+
+**Settings** (`FLOWER_SETTINGS` in `src/core.js`):
+- `servo` gains `DS3218` (also in the parts library's `PART_SERVOS`, so its servo mount and horn take it) and `custom`.
+- Eight sizes for your own servo (`servoL` … `servoShaftY`), each with a sixth entry `{ servo:"custom" }`: the panel shows a
+  setting only when its condition holds, and the tests set it first.
+- `flowerServo(s)` gives the sizes, from the library or yours. Sizes that can't go together are made to, with a warning:
+  tabs narrower than the body plus 6, holes outside the tabs, the shaft past the middle, the tabs over the top. A servo 17 mm
+  wide or more takes the MG996R horn and the stronger hold (80 N·mm).
+- `power`: `usb` (as before), `usbc`, `dc`, `18650`, `2x18650`, `3xAA`, `lipo` (`FLOWER_POWER`). The parts that go in the wall
+  are in `FLOWER_WALL`: the USB-C socket board and the charge-and-boost board have cradles and notches; the DC jack (8 mm
+  thread) and the 12 mm latching switch have round holes.
+
+**The base** (`flowerBase`):
+- **Layout:** the board's tray goes as before. Then, for each base radius from 46 mm up until everything fits:
+  - each part for the wall gets an angle, from the back round both ways, its room inside (sampled) clear of the tray, the
+    servo and its bracket, the crank and the stem's socket;
+  - a battery's cradle goes on the floor where there is room, as far out as it goes. It lies flat when it can, else stands on
+    its long edge where the base is tall enough (two 18650s: 168 → 140 mm across; 3 × AA: 172 → 132).
+- **Height:** the plan makes the base tall enough for a battery and the switch.
+- **The wall:** sectors between gaps (`sectors`). Each part in the wall sits in a flat panel filling its gap: `prismXY` across
+  the gap and up the wall, as thick as the wall, its face the gap's chord, turned with `cols(-t, up, n)` so it isn't mirrored.
+  - A port's notch runs up from the rim, so there is no bridge.
+  - A jack's or switch's hole is a teardrop pointing at the rim, which is up as the base prints.
+  - With no parts in the wall, the wall is exactly as before (one gap: the same segment count).
+- **Floor and screws:** the floor gets the battery's rim, and three-sided rims open to the wall for the two boards. Screw
+  columns keep clear of all of it.
+- **Base sizes (mm across):** USB, USB-C or DC 120 with an SG90 (146 with an MG996R); one 18650 142, two 140, 3 × AA 132,
+  LiPo 126; a DS3218 152.
+
+**Info:**
+- `flowerPowerBom`, `flowerPowerSteps`, `flowerPowerNote` and `flowerPowerLife`. The battery life uses typical draws: about
+  12 mA per LED lit, 0.6 mA per LED dark, the board 70 or 25 mA lit and 45 or 15 mA waiting, and 15% lost in the boost.
+- `info.power` also lists where the wall parts went and how the cell stands.
+- The picture of the lamp has the holder, the boards, the jack and the switch.
+
+**The app:** `FLOWER_LABELS` for the new choices (the custom servo has no library entry, so its label was needed); the panel
+shows your servo's sizes only when chosen, with a note, and the battery's life under Power.
+
+**Tested** (`npm run test:flower`):
+- **Core:** 162 lamps (every setting at its ends, a conditional one with its condition), each closed and passing the checks.
+- **Every power with an SG90 and an MG996R:**
+  - what you'll need has the right parts, and the battery's life is given;
+  - a ray from outside through each wall part's opening meets no wall, while one beside it does;
+  - the right parts are in the wall;
+  - no two bought parts' boxes overlap;
+  - base and floor need no support.
+- The holder standing on edge; the DS3218; your own servo, a sensible one and one whose sizes clash (corrected, said, the
+  standard horn).
+- **App:**
+  - your servo's sizes hidden until chosen;
+  - the DS3218, a DC jack, two 18650s and three AAs each change the parts;
+  - the battery's life in the panel, the holder in the list and the holder and the switch in the lamp's picture.
+  - The test's signature now hashes the corners too: your servo's tab height and shaft position only move the bracket, so
+    the triangle count and volume stayed the same.
+
+**Still to check:** a real build with a battery. The sizes are typical: the charge board (an IP5306 type, 25 × 18 mm), the jack
+(DC-099, 8 mm thread), the switch (12 mm), the holders. Check yours against the base; the cradles have 0.5 mm of play.
+
 ## Next
 
 ### The new direction (Session 81, the owner): a mechanical parts library, then the blooming flower lamp

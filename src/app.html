@@ -9176,8 +9176,8 @@ function flowerAnimate(){
     if (k < 2){ flowerAnim = requestAnimationFrame(step); } else { F.bloom = 0; flowerAnim = 0; refreshScene(); if (tab === "make") renderTab(); } };
   flowerAnim = requestAnimationFrame(step);
 }
-const FLOWER_LABELS = { style:k => C.flower.styles[k].label, servo:k => C.parts.servos[k].label, led:k => `${k} LEDs (${C.parts.rings[k].od} mm)`,
-  board:k => C.parts.boards[k].label, control:k => k === "touch" ? "A touch pad (copper tape)" : "A push button" };
+const FLOWER_LABELS = { style:k => C.flower.styles[k].label, servo:k => k === "custom" ? "My own: type its sizes" : C.parts.servos[k].label, led:k => `${k} LEDs (${C.parts.rings[k].od} mm)`,
+  board:k => C.parts.boards[k].label, control:k => k === "touch" ? "A touch pad (copper tape)" : "A push button", power:k => C.flower.power[k].label };
 function flowerFields(p){
   const F = state.base.flower, spec = C.flower.settings; flowerCleanSet(F);
   const S = F.set, I = flowerInfo && flowerInfo.info;
@@ -9188,8 +9188,14 @@ function flowerFields(p){
     buttonRow(p, [[flowerAnim ? "Stop" : "Open and close", ()=>{ flowerAnimate(); renderTab(); }]]);
   }
   for (const [k, sp] of Object.entries(spec)){
+    // a setting shown only for a choice (Session 88: your own servo's sizes)
+    if (Array.isArray(sp) && sp[5] && !Object.entries(sp[5]).every(([k2, v2]) => S[k2] === v2)) continue;
     if (Array.isArray(sp)) numField(p, { label:sp[4], min:sp[1], max:sp[2], step:sp[3], get:()=>S[k], set:v=>S[k] = v, onChange:baseChanged });
     else selField(p, sp.label, sp.opts.map(o => [o, FLOWER_LABELS[k] ? FLOWER_LABELS[k](o) : o]), ()=>S[k], v=>{ S[k] = v; renderTab(); baseChanged(); });
+    if (k === "servo" && S.servo === "custom") note(p, "Measure your servo with calipers, or take the sizes from its data sheet: the body, the tabs it screws on by and the shaft. The bracket, the base and the crank follow.");
+    if (k === "power" && I && I.power){ const W0 = I.power;
+      note(p, W0.battery ? `About ${W0.litHours} hours lit, or ${W0.darkDays} days waiting in the dark (${W0.litmA} mA lit, ${W0.darkmA} mA waiting: typical, the board never sleeping). Switch it off with the push switch when you leave it.`
+        : S.power === "usb" ? "The board's own USB, through the notch in the wall." : `5 V through the ${S.power === "dc" ? "DC jack" : "USB-C socket"} in the base's wall; the board's USB stays reachable for the sketch.`); }
   }
   if (state.slots.length > 1) selField(p, "Petals' filament", state.slots.map((x, i) => [String(i), `${i + 1}: ${x.name}`]), ()=>String(flowerPetalSlot()), v=>{ F.petalSlot = +v; baseChanged(); });
   else note(p, "Add a second filament (translucent) for the petals: they glow when the light is on.");

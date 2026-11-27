@@ -6,7 +6,7 @@ module.exports = async function flowerApp({ win, document, MF, C, settle, sleep,
   const sel = document.querySelector("#objectSel"); sel.value = "flower"; sel.dispatchEvent(new win.Event("change")); await settle();
   [...document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "make").click(); await sleep(30);
   const closed = () => MF.parts.length > 10 && MF.parts.every(p => { const r = C.checkMesh(p.solid); return r.open === 0 && !r.nan && C.signedVolume(p.solid) > 0; });
-  const sig = () => MF.parts.map(p => p.solid.idx.length + ":" + C.signedVolume(p.solid).toFixed(2)).join("|");
+  const sig = () => MF.parts.map(p => p.solid.idx.length + ":" + C.signedVolume(p.solid).toFixed(2) + ":" + C.memo.hash(p.solid.pos)).join("|");   // (the corners too: a slider may only move a part)
   const slider = label => $$("#panel input[type=range]").find(x => x.getAttribute("aria-label") === label);
 
   console.log("\nthe Flower lamp object");
@@ -21,8 +21,11 @@ module.exports = async function flowerApp({ win, document, MF, C, settle, sleep,
   console.log("\neach slider at its ends");
   {
     const spec = C.flower.settings, bad = [], dead = [];
+    const pick = async (label, value) => { const s = $$("#panel select").find(x => x.closest(".field") && x.closest(".field").textContent.includes(label)); s.value = value; s.dispatchEvent(new win.Event("change")); await settle(); await sleep(20); };
     for (const sp of Object.values(spec).filter(Array.isArray)){
       const label = sp[4], keys = [];
+      // a slider shown only for a choice (your own servo's sizes): that choice first
+      for (const [k2, v2] of Object.entries(sp[5] || {})) if (MF.state.base.flower.set[k2] !== v2) await pick(spec[k2].label, v2);
       for (const t of ["min", "max"]){
         const r = slider(label); if (!r){ bad.push(`no slider "${label}"`); break; }
         r.value = r.getAttribute(t); r.dispatchEvent(new win.Event("input")); await settle();
@@ -34,11 +37,18 @@ module.exports = async function flowerApp({ win, document, MF, C, settle, sleep,
     }
     check(!bad.length, "every slider at both ends builds closed", bad.join(" | "));
     check(!dead.length, "no slider leaves the parts unchanged at both ends", dead.join(", "));
-    const pick = async (label, value) => { const s = $$("#panel select").find(x => x.closest(".field") && x.closest(".field").textContent.includes(label)); s.value = value; s.dispatchEvent(new win.Event("change")); await settle(); await sleep(20); };
-    for (const [label, value, what] of [["Flower", "lotus", "a lotus"], ["Servo", "MG996R", "the MG996R"], ["NeoPixel ring", "16", "a 16-LED ring"], ["Board", "nano", "a Nano"], ["Switch it with", "button", "a button"]]){
+    await pick("Servo", "SG90");
+    check(!slider("Servo body length (mm)"), "your own servo's sizes are shown only when it is chosen");
+    for (const [label, value, what] of [["Flower", "lotus", "a lotus"], ["Servo", "MG996R", "the MG996R"], ["Servo", "DS3218", "the DS3218"], ["NeoPixel ring", "16", "a 16-LED ring"], ["Board", "nano", "a Nano"], ["Switch it with", "button", "a button"],
+      ["Power", "dc", "a DC jack"], ["Power", "2x18650", "two 18650 cells"], ["Power", "3xAA", "three AA cells"]]){
       const before = sig(); await pick(label, value);
       check(sig() !== before && closed(), `${what}: the parts change and stay closed`);
     }
+    const hints2 = $$("#panel .hint").map(h => h.textContent).join(" ");
+    check(/hours lit/.test(hints2) && /days waiting/.test(hints2) && MF.flower.info.bom.some(([, w]) => /3 × AA holder/.test(w)), "on batteries the panel says how long it lasts, and the list has the holder", (hints2.match(/About [^.]*[.]/) || [""])[0]);
+    const lampNames = MF.flower.assembly(0).parts.map(p => p.name).join(" | ");
+    check(/3 × AA holder/.test(lampNames) && /latching push switch/.test(lampNames), "the picture of the lamp has the battery holder and the switch in it");
+    await pick("Power", "usb");
   }
 
   console.log("\nthe lamp and the plates");

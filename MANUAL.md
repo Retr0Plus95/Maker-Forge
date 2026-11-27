@@ -491,7 +491,8 @@ house** in the object list, under Functional). It hangs flat on a wall or a tree
   its dome down through the ceiling towards the entrance), **Power** (one or two 18650 cells with a charge board and a switch, a
   USB-C socket for a 5 V cable, or none) and **Solar panel** (a small or large 5 V panel in a frame glued on the roof; it needs a
   battery). The switch and the charging port are on the right-hand side under the roof's edge, so you can reach them with the
-  house hung up, and the back stays flat.
+  house hung up, and the back stays flat. With no camera there is nothing to power, so the sensor, the battery and the panel are
+  left out.
 - **Visits a day:** with a camera on a battery, the panel says about how long a charge lasts, and how much a sunny day's sun
   brings with a panel (typical figures, not measured).
 - **Roof's filament:** the roof and the panel's frame can print in another filament.

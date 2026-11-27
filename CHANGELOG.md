@@ -24,7 +24,7 @@ The bird house.
 - The flower lamp's and the bird house's **Print and put together** and **sketch** pages have their own icons on the side rail.
 
 **Fixed**
-- Nothing this time.
+- In the project box maker, **Copy the list**, **Copy the steps**, **Copy the wiring list** and **Copy the pins** (or the ESPHome starter) said nothing when the browser refused to copy (the page not in front, or copying not allowed). They now say so, and point to the download.
 
 ## 0.65.0
 

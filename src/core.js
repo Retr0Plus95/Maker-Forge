@@ -7906,9 +7906,13 @@
     const open = !!B.open, hole = B.hole, up = B.up, warn = [];
     const Hn = Math.ceil((open ? 160 : up + hole + 45) + s.tall);                 // inside, the floor's top to the ceiling
     const zB = -D / 2 - t, zF = D / 2 + tp + c + BH.lip, Wout = W + 2 * t, Dout = zF - zB, yTop = t + Hn;
-    const PW = { "18650":FLOWER_POWER["18650"], "2x18650":FLOWER_POWER["2x18650"], usbc:{ label:"A USB-C socket (5 V)", port:"usbc" }, none:{ label:"None" } }[s.power];
+    // with no camera there is nothing to power: the battery, the socket and the panel are left out, and it says so
+    const noCam = s.camera === "none";
+    const PW = noCam ? { label:"None" } : { "18650":FLOWER_POWER["18650"], "2x18650":FLOWER_POWER["2x18650"], usbc:{ label:"A USB-C socket (5 V)", port:"usbc" }, none:{ label:"None" } }[s.power];
     const solar = PW.cell ? BIRD_SOLAR[s.solar] || null : null;
-    if (s.solar !== "none" && !PW.cell) warn.push("A solar panel needs a battery to charge: choose one under Power.");
+    const unused = noCam ? [s.power === "none" ? "" : s.power === "usbc" ? "the USB-C socket" : "the battery", s.solar === "none" ? "" : "the solar panel"].filter(Boolean) : [];
+    if (unused.length) warn.push(`With no camera there is nothing to power, so ${unused.join(" and ")} ${unused.length > 1 ? "are" : "is"} left out.`);
+    else if (s.solar !== "none" && !PW.cell) warn.push("A solar panel needs a battery to charge: choose one under Power.");
     if (s.sensor !== "none" && s.camera === "none") warn.push("The motion sensor wakes the camera: with no camera it has nothing to do, so it is left out.");
     // the loft: tall enough at its low front for the battery and the camera board; higher at the back (the roof slopes down to the
     // front, so rain runs off over the hole's overhang and away from the wall or tree it hangs on), where the switch and the port go
@@ -8104,7 +8108,7 @@
       "Ridges inside the front help the fledglings climb out. Drain holes in the floor and slots under the roof let it breathe."
     ];
     if (PW.cell || PW.port) notes.push(`The ${PW.cell ? "switch and the charging port are" : "USB-C socket is"} on the right-hand side under the roof's edge, so you can reach ${PW.cell ? "them" : "it"} with the house hung up; the back stays flat against the wall.`);
-    if (P.cam) notes.push("The camera looks down through the ceiling at the nest; set it in its frame so the lens sits in the window. Point the motion sensor's dome down at the nest too.",
+    if (P.cam) notes.push(`The camera looks down through the ceiling at the nest; set it in its frame so the lens sits in the window. Its lens comes focused further away: the floor is ${Math.round(P.Hn / 10)} cm below it, so turn the lens a little (the glue gives) until a test photo of something on the floor is sharp.${P.pir ? " The motion sensor's dome points down at the nest too." : ""}`,
       "It is dim inside a nest box: an OV2640 without its infrared filter (sold as night vision) with one or two 850 nm infrared LEDs gives clearer pictures without disturbing the birds. Never use the board's white flash; the sketch leaves it off.");
     const steps = [
       `Slide the front down its grooves${P.open ? "" : ", the hole to the outside"}.`,

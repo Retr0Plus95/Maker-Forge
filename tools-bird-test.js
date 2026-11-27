@@ -129,6 +129,9 @@ function coreTests(C){
       "a USB-C socket on its own; no electronics with none; two screws to hang it by with two keyholes");
     check(!one.warn.length && B.make({ power:"usbc" }).info.warn.some(w => /solar panel needs a battery/.test(w)) && B.make({ camera:"none" }).info.warn.some(w => /motion sensor wakes the camera/.test(w)),
       "no warnings by default; a panel without a battery and a sensor without a camera are each pointed out", one.warn.join(" "));
+    const noCam = B.make({ camera:"none" });
+    check(!noCam.info.bom.some(([, w]) => /18650|charge|panel|switch/.test(w)) && !noCam.layout.ports.length && noCam.printed.length === 4 && noCam.info.warn.some(w => /nothing to power, so the battery and the solar panel are left out/.test(w)),
+      "with no camera the battery, the charge board, the switch and the panel are left out, and it says so", noCam.info.warn.join(" "));
     check(one.steps.length >= 6 && one.notes.some(n => /No support/.test(n)) && one.notes.some(n => /infrared/.test(n)), "the steps, how each part prints, and the advice on light inside the box");
   }
 
@@ -191,7 +194,7 @@ async function appTests({ win, document, MF, C, settle, sleep }){
       const before = sig(), ok = await pick(label, value);
       check(ok && sig() !== before && closed(), `${what}: the parts change and stay closed`);
     }
-    check(!slider("Visits a day (for the battery)") && /solar panel needs a battery/.test(hints()), "no camera on a battery: no visits slider; the panel without a battery is pointed out");
+    check(!slider("Visits a day (for the battery)") && /nothing to power, so the USB-C socket and the solar panel are left out/.test(hints()), "no camera: no visits slider, and it says the socket and the panel are left out");
     MF.state.base.birdhouse.set = C.bird.clean({}); MF.rebuild(false); await settle(); MF.renderTab && MF.renderTab();
   }
 
@@ -209,6 +212,27 @@ async function appTests({ win, document, MF, C, settle, sleep }){
     const bed = MF.checks.list.find(l => /bed/i.test(l.t));
     check(bed && bed.k !== "ok", "a house too tall for the bed is flagged by the bed check", bed && `${bed.k}: ${bed.t}`);
     H().set.tall = 0; H().roofSlot = 1; MF.rebuild(false); await settle();
+  }
+
+  console.log("\na refused copy says so (Session 89: the box maker's Copy buttons said nothing)");
+  {
+    // the browser refuses later, as a rejected promise (the page not focused, or not allowed), which a try/catch round the call never saw
+    const said = [], clip = { writeText:() => Promise.reject(new Error("NotAllowedError")) };
+    Object.defineProperty(win.navigator, "clipboard", { value:clip, configurable:true });
+    const press = async (text) => { const notice = document.querySelector("#notice"); notice.textContent = "";
+      for (let i = 0; i < 30; i++){ if ($$("#panel button").some(x => x.textContent === text)) break; const bs = $$("#secrail button"); if (i >= bs.length) break; bs[i].click(); await sleep(20); }
+      const b = $$("#panel button").find(x => x.textContent === text); if (!b) return `no "${text}" button`;
+      b.click(); await sleep(60); return notice.textContent; };
+    said.push(await press("Copy it"));
+    const sel2 = document.querySelector("#objectSel"); sel2.value = "enclosure"; sel2.dispatchEvent(new win.Event("change")); await settle();
+    [...document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "make").click(); await sleep(30);
+    said.push(await press("Copy the list"), await press("Copy the steps"));
+    check(said.every(t => /Copying isn't allowed here/.test(t)), "the bird house's sketch, the box's list and its steps: a refused copy says so", said.join(" | "));
+    let got = ""; clip.writeText = t => { got = t; return Promise.resolve(); };
+    const ok = await press("Copy the steps");
+    check(/The steps are copied/.test(ok) && /^1\. /.test(got), "and a copy that works says so, with the steps numbered", ok);
+    sel2.value = "birdhouse"; sel2.dispatchEvent(new win.Event("change")); await settle();
+    [...document.querySelectorAll("#tabs button")].find(b => b.dataset.k === "make").click(); await sleep(30);
   }
 
   console.log("\nsaved and opened again; a hostile project");

@@ -1191,6 +1191,12 @@ function getRecent(){ try { return JSON.parse(localStorage.getItem("makerforge.r
 
 /* ---------- 3. helpers ---------- */
 let noticeTimer = 0;
+// copy to the clipboard and say so. A refusal (the page not focused, or copying not allowed) arrives later, as a rejected promise
+// that a try/catch round the call never sees: it says so too, instead of nothing (Session 89)
+function copyText(txt, done){
+  const no = () => notify("Copying isn't allowed here: use the download instead.");
+  try { navigator.clipboard.writeText(txt).then(() => notify(done), no); } catch (e) { no(); }
+}
 function notify(m){
   if (typeof logLine === "function") logLine(m);
   const n = $("#notice"); n.textContent = m; n.classList.add("show"); clearTimeout(noticeTimer);
@@ -9221,7 +9227,7 @@ function flowerFields(p){
   });
   group(p, "The sketch (Arduino or ESP32)", g2 => {
     note(g2, S.control === "touch" ? "Touch the pad: the flower opens and the light fades in. Touch again: it fades out and closes. The servo is switched off at rest." : "Press the button: the flower opens and the light fades in. Again: it fades out and closes. The servo is switched off at rest.");
-    buttonRow(g2, [["Download flower-lamp.ino", ()=>offerDownload("flower-lamp.ino", I.sketch, "text/plain")], ["Copy it", ()=>{ navigator.clipboard && navigator.clipboard.writeText(I.sketch).then(()=>notify("The sketch is on the clipboard.")).catch(()=>notify("Copying isn't allowed here: use Download.")); }]]);
+    buttonRow(g2, [["Download flower-lamp.ino", ()=>offerDownload("flower-lamp.ino", I.sketch, "text/plain")], ["Copy it", ()=>copyText(I.sketch, "The sketch is on the clipboard.")]]);
   });
 }
 // ---- the bird house (Session 89): PRCore.bird makes every part, the house put together, the checks, the list and the camera's sketch ----
@@ -9280,7 +9286,7 @@ function birdFields(p){
   group(p, "Print and put together", g2 => { I.notes.forEach(n => note(g2, esc(n))); note(g2, I.steps.map((t, k) => `${k + 1}. ${esc(t)}`).join("<br>")); });
   if (I.sketch) group(p, "The camera's sketch (ESP32-CAM)", g2 => {
     note(g2, S.sensor !== "none" ? "It sleeps until the motion sensor sees the bird, then takes a few photos onto the microSD card and sleeps again." : "With no motion sensor it wakes every 10 minutes for a photo.");
-    buttonRow(g2, [["Download birdhouse-camera.ino", ()=>offerDownload("birdhouse-camera.ino", I.sketch, "text/plain")], ["Copy it", ()=>{ navigator.clipboard && navigator.clipboard.writeText(I.sketch).then(()=>notify("The sketch is on the clipboard.")).catch(()=>notify("Copying isn't allowed here: use Download.")); }]]);
+    buttonRow(g2, [["Download birdhouse-camera.ino", ()=>offerDownload("birdhouse-camera.ino", I.sketch, "text/plain")], ["Copy it", ()=>copyText(I.sketch, "The sketch is on the clipboard.")]]);
   });
 }
 function mechFields(p){
@@ -15533,7 +15539,7 @@ function enclosureFields(p){
   // what to have ready (Session 54)
   if (I && I.need && I.need.length) group(p, "What you'll need", g => {
     note(g, I.need.map(([n, w]) => `• ${n} × ${esc(w)}`).join("<br>"));
-    const copy = (txt, what) => { try { navigator.clipboard.writeText(txt).then(() => notify(what)); } catch (e) { notify("Copying isn't allowed here."); } };
+    const copy = copyText;
     buttonRow(g, [["Copy the list", ()=>copy(I.need.map(([n, w]) => `${n} x ${w}`).join("\n"), "The list is copied.")],
       ["Copy for a spreadsheet (CSV)", ()=>copy(["Quantity,Item", ...I.need.map(([n, w]) => `${n},"${String(w).replace(/"/g, '""')}"`)].join("\n"), "The list is copied as CSV: paste it into a spreadsheet.")]]);
     note(g, "The parts for the openings (sockets, switches, screens, glands) are listed too, as typical parts: check yours against the sizes on the Openings page.");
@@ -15541,7 +15547,7 @@ function enclosureFields(p){
   // how to put it together (Session 62), step by step from the box as it is; also in the download
   if (I && !E.test){ const steps = encAssembly(); if (steps.length) group(p, "How to put it together", g => {
     g.insertAdjacentHTML("beforeend", `<ol class="hint" style="padding-left:20px;margin:4px 0">${steps.map(t2 => `<li style="margin:3px 0">${esc(t2)}</li>`).join("")}</ol>`);
-    buttonRow(g, [["Copy the steps", ()=>{ try { navigator.clipboard.writeText(steps.map((t2, k) => `${k + 1}. ${t2}`).join("\n")).then(() => notify("The steps are copied.")); } catch (e) { notify("Copying isn't allowed here."); } }]]);
+    buttonRow(g, [["Copy the steps", ()=>copyText(steps.map((t2, k) => `${k + 1}. ${t2}`).join("\n"), "The steps are copied.")]]);
     note(g, "The download has them too, as how-to-assemble.txt.");
   }); }
   group(p, "Feet", g => {
@@ -15808,12 +15814,12 @@ function enclosureFields(p){
     const ok = info.filter(q => q.ok);
     if (ok.length){ const tot = {}; ok.forEach(q => { tot[q.colour] = (tot[q.colour] || 0) + q.len; });
       note(g, `<b>Wire to cut:</b> ${Object.entries(tot).map(([c, l]) => `${esc(c)} ${l} mm`).join(", ")} (with 10% and 20 mm to spare on each).`);
-      buttonRow(g, [["Copy the wiring list", ()=>{ try { navigator.clipboard.writeText(encWiringText(E, I).join("\n")).then(() => notify("The wiring list is copied.")); } catch (e) { notify("Copying isn't allowed here."); } }]]); }
+      buttonRow(g, [["Copy the wiring list", ()=>copyText(encWiringText(E, I).join("\n"), "The wiring list is copied.")]]); }
     checkField(g, "Show the wires in the plan", ()=>viewOpts.boxWires !== false, v=>{ viewOpts.boxWires = v; renderTab(); });
     // a firmware starter from the wiring (Session 64)
     const fw = wires.length ? encFirmware(E, I, "my box") : null;
     if (fw && fw.n){ note(g, fw.kind === "esphome" ? `<b>Firmware:</b> an ESPHome starter with a component for each part wired to the board (the download has it as esphome.yaml). Check every pin before you flash it.` : `<b>Firmware:</b> the pins as Arduino #defines (pins.h in the download).`);
-      buttonRow(g, [[fw.kind === "esphome" ? "Copy the ESPHome starter" : "Copy the pins", ()=>{ try { navigator.clipboard.writeText(fw.text.join("\n")).then(() => notify("Copied: paste it into a new file.")); } catch (e) { notify("Copying isn't allowed here."); } }]]); }
+      buttonRow(g, [[fw.kind === "esphome" ? "Copy the ESPHome starter" : "Copy the pins", ()=>copyText(fw.text.join("\n"), "Copied: paste it into a new file.")]]); }
   }, Array.isArray(E.wires) && E.wires.length > 0);
   // the inside of the box (Session 46): the parts shown, levels and dividers
   group(p, "Inside: levels and dividers", g => {

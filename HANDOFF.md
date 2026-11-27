@@ -3855,7 +3855,18 @@ the switch and port were in the back wall, against the wall the house hangs on. 
   bed check; a saved project, a hostile one and a list in its place.
 - `ONLY=birdhouse npm run check:browser`: the export's sketch, steps and plates in Chromium, and the house's picture.
 
-**The count:** improvements 24 and 25: 24. the bird house; 25. the page icons for the steps and the sketches. Bugs: still 9 of 10.
+**Bug found (in a shipped feature):** the box maker's four Copy buttons (the list, the steps, the wiring list, the pins) wrapped
+`navigator.clipboard.writeText(...)` in a try/catch. A refusal comes later, as a rejected promise, which the try/catch never saw:
+nothing was copied, nothing was said, and the rejection went unhandled. Now `copyText(txt, done)` (next to `notify`) handles both,
+and every Copy button uses it (the flower lamp's and the bird house's too, which said nothing with no clipboard at all). Tested in
+`tools-bird-test.js` ("a refused copy says so") with a stand-in clipboard that refuses, then one that works; it fails on 0.65.0.
+
+**Also:** with no camera, the battery, the socket and the panel are left out (it says so), like the motion sensor; the notes say to
+turn the camera's lens to focus on the floor, about 20 cm away.
+
+**The count:** improvements 24 to 26: 24. the bird house; 25. the page icons for the steps and the sketches; 26. no power parts
+without a camera. Bug 10 of 10: the Copy buttons that said nothing when the browser refused. That completes the count the owner
+asked for in Session 81 for bugs; improvements stand at 26 of 30.
 
 **Still to check:** a real print and a season outdoors. The sizes are typical (the ESP32-CAM 27 × 40.5 mm, the AM312's 12 mm dome,
 the 18650 holders, the charge board, the 12 mm switch); check yours. The battery figures are estimates. Nest-box sizes differ by

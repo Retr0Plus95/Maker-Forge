@@ -7896,9 +7896,11 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
     dot:(a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], cross:(a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]] };
   // a frame matrix whose columns are the images of x, y, z
   const cols = (a, b, c) => [a[0], b[0], c[0], a[1], b[1], c[1], a[2], b[2], c[2]];
-  // a teardrop hole in a profile's (a, b) plane, its point towards +b (up when the profile stands): radius r about (ca, cb)
-  const tearAB = (r, ca, cb, n) => { n = n || 20; const L = []; for (let i = 0; i <= n; i++){ const t = -Math.PI / 4 + i / n * Math.PI * 1.5; L.push([ca + r * Math.cos(t + Math.PI), cb + r * Math.sin(t + Math.PI)]); }
-    L.push([ca, cb + r * Math.SQRT2]); return L; };
+  // a teardrop hole in a profile's (a, b) plane, its point towards +b (up when the profile stands): radius r about (ca, cb). Its roof
+  // is 50° from level, not 45°: exactly 45° reads as overhang to the print check by a rounding
+  const tearAB = (r, ca, cb, n, roof) => { n = n || 20; const rho = (roof || 50) * Math.PI / 180, a0 = Math.PI / 2 + rho, a1 = Math.PI / 2 - rho + Math.PI * 2, L = [];
+    for (let i = 0; i <= n; i++){ const t = a0 + (a1 - a0) * i / n; L.push([ca + r * Math.cos(t), cb + r * Math.sin(t)]); }
+    L.push([ca, cb + r / Math.cos(rho)]); return L; };
   // the over-centre crank, the petals' linkage and every height, from the settings
   function flowerPlan(s, c){
     const st = FLOWER_STYLES[s.style], N = s.petals, S = PART_SERVOS[s.servo], ring = PART_RINGS[+s.led], warn = [];
@@ -7942,7 +7944,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
   }
   function petalHalf(P, v){
     const r = P.R(v), full = Math.PI / P.N - (0.4 + P.wall / 2) / r, y = P.y0 + P.Hf * v, kn = (FL.wk / 2 - 0.25) / r;
-    const t = Math.max(0, Math.min(1, (y - (FL.rk + 4.2)) / 8)), ease = t * t * (3 - 2 * t);
+    const t = Math.max(0, Math.min(1, (y - (FL.rk + 4.2)) / 18)), ease = t * t * (3 - 2 * t);   // (widening gently: its edges stay under 45° when printed)
     let g = 1;
     if (v > P.st.tipFrom){ const q = Math.min(1, (v - P.st.tipFrom) / (1 - P.st.tipFrom)); g = P.st.tip === "point" ? 1 - q : Math.sqrt(Math.max(0, 1 - q * q)); }
     return v >= 1 ? 0 : Math.max(0, Math.min(kn + (full - kn) * ease, full * g));

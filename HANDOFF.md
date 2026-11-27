@@ -3544,6 +3544,8 @@ The owner's new direction, step 3 (see "The new direction" under Next). On `clau
   - Its print turn is searched (−50° to 50°) for the least steep area with the knuckle lowest; a tulip's curl needs it.
   - The knuckle has a flat foot, and the shell's bottom edge is a shallow V inside it, so no buried face looks straight down.
     The print check runs on pieces; this is the E1 note again.
+  - The petal widens out of its knuckle over 18 mm, and every teardrop hole (`tearAB`) has a 50° roof. At 8 mm and 45°, the
+    app's print check put 48 mm² of support on the default lamp's petals, all on faces at 45° to the rounding; it's 0 now.
 - **Head:** one revolved profile (socket, 45° cone, the rod's and wires' axial hole), the top with the wires' groove, the ring's
   lip, and the cheeks.
 - **Runner:** printed disc-down, hung upside down in the lamp.

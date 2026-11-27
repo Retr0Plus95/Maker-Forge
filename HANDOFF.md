@@ -3615,6 +3615,11 @@ nearest), so `perPart` still sums to the area and "Most of it is under …" stil
 *Checked: each colour as one solid, as in the files*. Compared over every quick start and object (a scratch script, Manifold in
 Node): only the tea light changed (102 → 84 mm²) and the phone case's back picture gained one thin spot (its known 0.35 mm wall);
 the check itself is faster on joined solids where pieces overlap a lot (the flower lamp 2.3 s → 0.4 s, the photo frame 3 s → 0.7 s).
+The core check was already sturdy about overlaps: a point inside any piece counts as held up (a cube left inside another, a shelf
+half buried in a wall, even one whose buried underside is inside a third piece, read the same on pieces and joined). The tea
+light's 18 mm² came from small flats in its picture whose width, embedded part and all, passed the 1 mm ledge limit on the pieces
+and not joined. Since its picture steps up (below), no quick start reads differently; what the joined check gives is a check of
+exactly what the files hold, faster.
 
 **Raised art on an upright face.** The tea light's remaining 84 mm² was real: its picture (flat, 1.2 mm) has a flat underside
 1.5 mm deep. On objects (`uprightDir`, `uprightOrder`, `uprightRelief`, `uprightMaskSolid` before `buildItem`):
@@ -3647,11 +3652,12 @@ its meshes were tagged `userData.ghost`, which `modelThumb` hides (the box's see
 The README badge's text said 0.63.0.
 
 **Tested:**
-- `tools-join-test.js` (new section): the tea light's support drops once joined, the findings still told by piece (the same names,
-  `perPart` summing to the area), the checks list giving the joined figure, a brim keeping it on the pieces, and after a change the
-  check on the joined solids coming by itself (waiting → pieces → joined).
-- `tools-browser-check.js` (the join section): the same in Chromium, the result from the helper thread (66.4 → 60.1 mm² there,
-  with real fonts and canvas).
+- `tools-join-test.js` (new section): an imported cube left inside another, checked on the joined solid (24 → 12 triangles: the
+  inner cube gone, no more support than on the pieces), the findings still told by piece (the same names, `perPart` summing to the
+  area), the checks list going by the joined result, a brim keeping it on the pieces, and after a change the check on the joined
+  solids coming by itself (waiting → pieces → joined).
+- `tools-browser-check.js` (the join section): the tea light in Chromium, the joined result from the helper thread, told by piece
+  (66.4 → 60.1 mm² before its picture stepped up; 0 → 0 now).
 - `tools-art-test.js` (new section): the Tea light quick start at 0 mm² with its picture still 1.2 mm out; a picture raised 2 and
   3 mm on a cylinder's side with no flat underside over 0.8 mm (2.2 and 3.2 mm before), still at full height, closed; 0.8 mm and
   stepped pictures built as before; on the top as before; a relief on the side at 0 mm². Against a build with the stepping off, four

@@ -147,17 +147,24 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
     // the check as it stands, waited for: printNow runs it on whatever is fresh
     const printed = async want => { let r = null; for (let i = 0; i < 300; i++){ r = MF.print; if (r && want(r)) return r; await sleep(25); if (!MF.busy && i % 20 === 0) await MF.printNow(); } return r; };
     const P = MF.state.printer, mm1 = v => v < 10 ? v.toFixed(1) : v.toFixed(0);
-    await pick("preset", "Tea light");
+    // an imported model of a 10 mm cube left inside a 30 mm one (two shells, one part): joined, the inner one goes. (The check
+    // already counts a point inside any piece as held up, so both read 0 mm²: what shows it ran on the joined solid is its count
+    // of triangles.)
+    const toSTL = sol => { const I = sol.idx, Pp = sol.pos, n = I.length/3, buf = Buffer.alloc(84 + n*50); buf.writeUInt32LE(n, 80);
+      for (let t = 0; t < n; t++) for (let j = 0; j < 3; j++){ const v = I[t*3 + j], o = 84 + t*50 + 12 + j*12; buf.writeFloatLE(Pp[v*3], o); buf.writeFloatLE(-Pp[v*3 + 2], o + 4); buf.writeFloatLE(Pp[v*3 + 1], o + 8); }
+      return buf; };
+    await MF.paint.importModel(new win.File([toSTL(C.mergeSolids([cube(0, 0, 0, 30), cube(10, 8, 10, 10)]))], "cube-in-a-cube.stl", { type:"model/stl" })); await settle();
     const onPieces = C.analyzePrint(MF.printParts(), { nozzle:P.nozzle || 0.4, layer:P.layer || 0.2, angle:P.overhang || 45, bridge:P.bridge ?? 10 });
     await joined(); await MF.printNow(); const onJoined = await printed(r => r.joined);
-    check(onJoined && onJoined.joined && onJoined.overhang.area < onPieces.overhang.area - 10,
-      "once joined, the tea light's buried faces (where its pieces overlap) no longer read as needing support",
-      `${onPieces.overhang.area.toFixed(1)} → ${onJoined && onJoined.overhang.area.toFixed(1)} mm²`);
+    const joinedTris = MF.join.info && MF.join.info.list ? MF.join.info.list.reduce((t, q) => t + q.idx.length/3, 0) : -1;
+    check(onJoined && onJoined.joined && onJoined.tris === joinedTris && onPieces.tris === 24 && joinedTris === 12 && onJoined.overhang.area <= onPieces.overhang.area + 0.01,
+      "once joined, the check runs on the joined solid (the cube inside is gone), no worse than on the pieces",
+      `${onPieces.tris} → ${onJoined && onJoined.tris} triangles, ${onPieces.overhang.area.toFixed(1)} → ${onJoined && onJoined.overhang.area.toFixed(1)} mm²`);
     if (onJoined){
       const sum = onJoined.overhang.perPart.reduce((a, v) => a + v, 0);
       check(onJoined.parts.join() === onPieces.parts.join() && Math.abs(sum - onJoined.overhang.area) < 0.01 && onJoined.overhang.perPart.every(v => v >= 0),
         "the findings are still told by piece: the same names, the support shared out among them", onJoined.parts.join(", ") + ": " + onJoined.overhang.perPart.map(v => v.toFixed(1)).join(", "));
-      check(MF.checks.list.some(c => c.t === `Needs support under about ${mm1(onJoined.overhang.area)} mm²`), "the checks list says the joined figure", (MF.checks.list.find(c => /support/.test(c.t)) || {}).t);
+      check(MF.checks.list.some(c => c.t === "No overhangs need support"), "the checks list goes by the joined result", (MF.checks.list.find(c => /support|overhang/i.test(c.t)) || {}).t);
     }
     // a brim is part of the joined solid, so with one the check stays on the pieces
     MF.state.model.brim = 4; MF.rebuild(false); await settle(); await joined(); await MF.printNow();
@@ -165,11 +172,11 @@ const check = (ok, what, got) => { console.log(`${ok ? "  ok  " : "  FAIL"} ${wh
     check(withBrim && !withBrim.joined && Math.abs(withBrim.contact.area - onPieces.contact.area) < 1, "with a brim the check stays on the pieces, and the brim isn't counted as bed", withBrim && withBrim.contact.area.toFixed(0) + " mm²");
     MF.state.model.brim = 0;
     // after a change, with nothing asked for: the build starts the check, the background pass joins, and the check runs again on that
-    MF.state.base.shell.h += 1; MF.rebuild(false);
+    MF.state.model.scale = 110; MF.rebuild(false);
     const seen = []; let last = "";
     for (let i = 0; i < 600; i++){ const r = MF.print, k = r ? (r.joined ? "joined" : "pieces") : "waiting"; if (k !== last) seen.push(last = k); if (k === "joined") break; await sleep(20); }
     check(last === "joined", "after a change, the check on the joined solids comes by itself", seen.join(" → "));
-    MF.state.base.shell.h -= 1; MF.rebuild(false); await settle();
+    MF.state.model.scale = 100; MF.rebuild(false); await settle();
   }
 
   console.log("\na result that arrives after a change is dropped");

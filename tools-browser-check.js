@@ -404,7 +404,8 @@ function pageCoverage() {
       return { joined: !!(r && r.joined), pieces: +pieces.overhang.area.toFixed(1), area: r ? +r.overhang.area.toFixed(1) : null, parts: r ? r.parts : null, per: r ? r.overhang.perPart.map(v => +v.toFixed(1)) : null,
         marks: !!(r && r.marks && r.marks.support.length), helper: !!MF.helper && !MF.helper.failed };
     });
-    if (!pj.joined || !(pj.area < pj.pieces - 1) || !pj.marks || !pj.parts || pj.parts.length !== 2)
+    // (since the tea light's picture steps up underneath, both read 0 mm²: here it is that the result comes from the joined solids)
+    if (!pj.joined || !(pj.area <= pj.pieces + 0.5) || !pj.parts || pj.parts.length !== 2 || !pj.helper)
       findings.push({ where: "print check on the joined solids", what: `the tea light: ${JSON.stringify(pj)}` });
     notes.push(`print check on the joined solids: the tea light's support ${pj.pieces} mm² on the pieces → ${pj.area} mm² joined (${pj.parts && pj.parts.map((n, i) => n + " " + pj.per[i]).join(", ")}); helper thread ${pj.helper}`);
   }

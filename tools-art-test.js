@@ -367,6 +367,34 @@ async function addPicture(MF) {                      // the smoke test's two-col
     } else check(false, "the badge picture was added");
   }
 
+  // ---- Session 86: the bobble head. Its face printed in mid-air (the head is laid out beside the body to print, the picture
+  // stayed where the head is when put together), its post 11 mm up and its spring neck 0.9 mm, and it needed about 1000 mm² of
+  // support (the head's underside, the weight pocket's flat roof) ----
+  console.log("\nthe bobble head: the face on the printed head, everything on the bed, less support");
+  {
+    MF.state.items.length = 0;                       // (the pictures earlier sections left, switched off, keep the quick start's own away)
+    [...document.querySelectorAll("#presetGallery button")].find(b => b.dataset.k === "Bobble head").click(); await settle();
+    for (let i = 0; i < 100 && !MF.printParts().some(p => !/^(Head|Body|Spring neck|Post)$/.test(p.name)); i++){ await sleep(50); await settle(); }
+    const pp = MF.printParts(), head = pp.find(p => p.name === "Head"), hb = head && C.solidBounds(head);
+    const pics = pp.filter(p => !/^(Head|Body|Spring neck|Post)$/.test(p.name)), inHead = b => [0, 1, 2].every(k => b.mn[k] >= hb.mn[k] - 3 && b.mx[k] <= hb.mx[k] + 3);
+    check(head && pics.length >= 2 && pics.every(p => inHead(C.solidBounds(p))), "every piece of the face is on the head as it prints", pics.map(p => `${p.name} ${C.solidBounds(p).mn.map(v => v.toFixed(0)).join(",")}`).join(" | ") + ` [${pp.map(p => p.name).join(",")}; items ${MF.state.items.map(d => d.name + ":" + d.enabled).join(",")}]`);
+    const neckLow = kind => { MF.state.base.bobble.neckKind = kind; MF.rebuild(false); return settle().then(() => { const n = MF.printParts().find(p => /neck|Post/i.test(p.name)); return n ? C.solidBounds(n).mn[1] : NaN; }); };
+    const sp = await neckLow("spring"), po = await neckLow("post");
+    check(Math.abs(sp) < 1e-3 && Math.abs(po) < 1e-3, "the spring neck and a plain post stand on the bed", `${sp.toFixed(2)} and ${po.toFixed(2)} mm up`);
+    MF.state.base.bobble.neckKind = "spring"; MF.rebuild(false); await settle();
+    check(!MF.checks.list.some(c => /float/i.test(c.t)) && MF.floatingGroups(MF.printParts()).length === 0, "nothing floats, and the checks say nothing of it");
+    // the check itself: a part lifted 5 mm clear of the rest is named
+    const lifted = MF.printParts().map(p => p.name === "Spring neck" ? Object.assign({}, p, C.transformSolid(p, 1, 0, 5, 0)) : p), fg = MF.floatingGroups(lifted);
+    check(fg.length === 1 && fg[0].names.join() === "Spring neck" && Math.abs(fg[0].y - 5) < 0.01, "a part lifted 5 mm off the bed, apart from the rest, is found", JSON.stringify(fg));
+    const opts = { nozzle:0.4, layer:0.2, angle:45, bridge:10 }, per = name => { const a = C.analyzePrint(MF.printParts(), opts); return a.overhang.perPart[a.parts.indexOf(name)]; };
+    check(per("Head") < 3 && per("Body") < 3 && MF.state.base.bobble.underside === "shaped", "the head (shaped underneath) and the body (the weight pocket's pointed roof) need no support", `head ${per("Head").toFixed(1)}, body ${per("Body").toFixed(1)} mm²`);
+    MF.state.base.bobble.underside = "round"; MF.rebuild(false); await settle();
+    check(per("Head") > 100, "a round underside, as older projects have it, needs support under the head, as it did", `${per("Head").toFixed(0)} mm²`);
+    MF.state.base.bobble.hat = true; MF.state.base.bobble.underside = "shaped"; MF.rebuild(false); await settle();
+    check(per("Head") < 3, "with a cap, its brim gets a skirt underneath and the head still needs no support", `${per("Head").toFixed(1)} mm²`);
+    MF.state.base.bobble.hat = false; MF.rebuild(false); await settle();
+  }
+
   const errs = env.errors.filter(e => !/navigation|Not implemented: HTMLMediaElement/.test(e));
   check(!errs.length, "no page errors", errs.slice(0, 2).join(" / "));
   console.log(fails ? `\n${fails} FAILED` : "\nall passed");

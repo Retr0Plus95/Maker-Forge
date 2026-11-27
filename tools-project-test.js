@@ -98,6 +98,13 @@ async function settle() {
       "gears with a billion teeth, negative teeth, a module that is text and an unknown layout: clamped, the defaults, the stranger dropped");
     await host("mech", b => { b.mech = { kind: "rocket" }; }, b => b.mech.kind === "gears" && b.mech.hinge.knuckles === 5 || b.mech.kind,
       "an unknown mechanism: gears, with every other group at its defaults");
+    // the bobble head's underside (Session 86): shaped for new heads, round for a project saved before it, round for anything odd
+    await host("bobble", b => { b.bobble.underside = "<img src=x onerror=alert(1)>"; }, b => b.bobble.underside === "round" || b.bobble.underside,
+      "a bobble head whose underside is markup: round");
+    await host("bobble", b => { delete b.bobble.underside; }, b => b.bobble.underside === "round" || b.bobble.underside,
+      "a bobble head saved before its underside could be shaped: it opens round, as it was");
+    await host("bobble", b => { b.bobble.underside = "shaped"; }, b => b.bobble.underside === "shaped" || b.bobble.underside,
+      "a bobble head saved shaped underneath stays shaped");
     await host("fixit", b => { b.fixit.kind = "clip"; b.fixit.clip.count = 1e6; b.fixit.count = 1e6; b.fixit.clip.cable = -3; },
       b => b.fixit.clip.count === 8 && b.fixit.count === 24 && b.fixit.clip.cable === 1 || JSON.stringify([b.fixit.clip.count, b.fixit.count, b.fixit.clip.cable]),
       "a cable clip for a million cables, a million copies, a cable -3 mm thick: 8 cables, 24 copies, 1 mm");

@@ -3692,6 +3692,47 @@ without support; 20. Start pictures for the five newest objects; 21. long curved
 5. raised box art over 0.8 mm needed support the panel said it didn't; 6. Make it all fit couldn't fix a wall board reaching into
 the floor; 7. a negative curve curled the name up and over.
 
+## Session 87: the bobble head, fixed and support-free; floating parts caught (v0.64.2)
+
+After 0.64.1, the same branch. Looking at why the Bobble head quick start needed about 1000 mm² of support turned up worse.
+
+**Found and fixed:**
+- **The face printed in mid-air.** `buildBobble` lays the head out beside the body to print (`layout`), but picture parts were
+  pushed into `modelParts` with no layout, so they printed where the head is when put together: the example's face 74 to 95 mm
+  up, its hair's colour on its own 86 mm up in the export. Each raised picture now takes the layout of the part it sits on
+  (`decalLayout`: the part whose box, as built, holds `d.place.c`, the smallest where boxes overlap, else the nearest), and inlays
+  that of the first part, which they are cut into. Only objects with a laid-out part are affected; every fingerprint but the
+  bobble head's was unchanged.
+- **The post and spring neck floated.** The neck was lifted by `d*0.8` for its bottom plug, but the plug started a wire's thickness
+  up (0.9 mm in the air) and a plain post has no plug (11.2 mm). The neck is dropped onto the bed by its own lowest point.
+
+**New:**
+- **Floating parts in the checks** (`floatingGroups`, in `runChecks`): the printed parts in groups that touch (their boxes within
+  0.05 mm); a group whose lowest point is above the lowest of all by more than half a layer is named, as a red check. The
+  printability check only asked whether the whole print floated. Every quick start and object: none float.
+- **The head shaped to print** (`bobble.underside`, "shaped" for new heads): from the top down, the head's outline never narrows
+  faster than 50° from level, so a round head gets a cone below about 40° under its middle and a cap's brim a skirt. In "Head
+  extras", with a note; the old "A flat under-chin prints without supports" was not so (581 mm² under the head). `sanitizeProject`
+  keeps "shaped" only when saved so: a project from before opens round, as it was.
+- **The weight pocket's roof** pointed at 50° (it was a flat roof 18 mm across, 255 mm² of support inside the body), kept clear of
+  the neck's socket.
+The example now needs support only under the spring's coils (188 mm²: a printed coil; the manual says to print it in TPU).
+
+**Tested:**
+- `tools-art-test.js` (new section): the face on the printed head; the spring neck and a post on the bed; nothing floating and no
+  check about it; a part lifted 5 mm found; head and body at 0 mm² shaped, the head 581 mm² round, a cap's brim shaped at 0. On
+  the 0.64.1 build the first two fail (the face at 74 to 86 mm, the necks at 0.9 and 11.2 mm).
+- `tools-project-test.js`: the underside as markup (round), missing (round, as before), saved shaped (kept).
+- The audit (no findings), `npm run fingerprint` (the bobble head's head and body only, updated), `npm run thumbs` for the bobble
+  head (the cone is under the head, so the README's gallery picture was not taken again), the smoke test, the browser check.
+- `tools-fuzz.js` `UNDO=1` seed 12 finished: its 34 findings are all the 140-letter curved name carried from run 0 into run 1 (the
+  run used the build from before Session 86's curve fix, and the fuzzer keeps an object's state between runs); the one Undo
+  mismatch came after those failed builds. A 140-letter name curved 120° is still refused, by design. Box fuzz seeds 14 and 15:
+  0 problems.
+
+The count: improvements 22 and 23: 22. floating parts caught; 23. the bobble head's head and body without support. Bugs 8 and
+9 of 10: 8. a picture on a laid-out part printed in mid-air; 9. the bobble head's post and spring neck floated.
+
 ## Next
 
 ### The new direction (Session 81, the owner): a mechanical parts library, then the blooming flower lamp

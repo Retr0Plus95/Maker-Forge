@@ -3,6 +3,18 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.64.2
+
+The bobble head, fixed and support-free.
+
+**New**
+- **Floating parts are caught.** The checks now say when a part, or a group of parts that touch, would print above the bed. The print check only looked at whether the whole print floated.
+- **The bobble head prints without support on the head and body.** Under **Head extras**, the head is **shaped to print** underneath: a cone under the chin, a skirt under a cap's brim. The weight pocket's roof is pointed. The example needed about 1000 mm² of support; now only the spring's coils need any. **Round** keeps the perfectly round head, and older projects open as they were.
+
+**Fixed**
+- A picture on the bobble head's head (the example's face) printed in mid-air, where the head sits when the figure is put together, instead of on the head laid out beside the body. A picture now goes wherever the part it's on goes to print.
+- The bobble head's post printed 11 mm above the bed, and its spring neck 0.9 mm.
+
 ## 0.64.1
 
 Less support, and truer print checks.

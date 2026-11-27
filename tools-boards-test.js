@@ -104,6 +104,53 @@ function insideMesh(s, p) {
     check(E.cut.length === ports.length, "pressed again: no second set");
   }
 
+  console.log("\na board in a cradle: nothing between its ports and their openings (Session 79)");
+  {
+    // any surface crossed by the straight line from the board's edge to the wall's inside, inside an opening: a plug stops there
+    const segHit = (s, a, b) => {
+      const P = s.pos, I = s.idx, d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+      for (let t = 0; t < I.length; t += 3) {
+        const i0 = I[t] * 3, i1 = I[t + 1] * 3, i2 = I[t + 2] * 3;
+        const e1 = [P[i1] - P[i0], P[i1 + 1] - P[i0 + 1], P[i1 + 2] - P[i0 + 2]], e2 = [P[i2] - P[i0], P[i2 + 1] - P[i0 + 1], P[i2 + 2] - P[i0 + 2]];
+        const h = [d[1] * e2[2] - d[2] * e2[1], d[2] * e2[0] - d[0] * e2[2], d[0] * e2[1] - d[1] * e2[0]], det = e1[0] * h[0] + e1[1] * h[1] + e1[2] * h[2];
+        if (Math.abs(det) < 1e-12) continue;
+        const f = 1 / det, sv = [a[0] - P[i0], a[1] - P[i0 + 1], a[2] - P[i0 + 2]], u = f * (sv[0] * h[0] + sv[1] * h[1] + sv[2] * h[2]);
+        if (u < 0 || u > 1) continue;
+        const q = [sv[1] * e1[2] - sv[2] * e1[1], sv[2] * e1[0] - sv[0] * e1[2], sv[0] * e1[1] - sv[1] * e1[0]], v = f * (d[0] * q[0] + d[1] * q[1] + d[2] * q[2]);
+        if (v < 0 || u + v > 1) continue;
+        const tt = f * (e2[0] * q[0] + e2[1] * q[1] + e2[2] * q[2]); if (tt > 0 && tt < 1) return true;
+      }
+      return false;
+    };
+    // every opening on a side wall, sampled 0.6 mm in from its edges, from the board's edge to the wall
+    const blocked = (E, I) => {
+      const box = MF.parts.find(p => p.name === "Box").solid, iw = I.inner[0], b = I.board, out = [];
+      E.cut.filter(c => c.face === "left" || c.face === "right").forEach(c => {
+        const right = c.face === "right", x0 = right ? b.bb[2] + 0.05 : -iw / 2 + 0.05, x1 = right ? iw / 2 - 0.05 : b.bb[0] - 0.05;
+        for (let k = 0; k <= 6; k++) for (let j = 0; j <= 4; j++) {
+          const z = (k / 6 - 0.5) * (c.w - 1.2), h = c.v - c.h / 2 + 0.6 + j / 4 * (c.h - 1.2), zz = right ? c.u : -c.u;
+          if (segHit(box, [x0, h, z + zz], [x1, h, z + zz]) || segHit(box, [x0, h, -z - zz], [x1, h, -z - zz])) { out.push(`${c.kind} at ${h.toFixed(1)} mm`); return; }
+        }
+      });
+      return out;
+    };
+    // the board in this photo: a measured 25 × 17 mm module, USB-A on top and micro-USB under it, 1 mm from the right wall
+    fresh({ w: 127, d: 68, h: 29, board: "custom", bw: 25, bd: 17, bsx: 0, bsy: 0, boardHold: "edges", standH: 4, boardX: 48, boardY: 0, cut: [
+      Object.assign(MF.newOpening("usba", "right"), { u: 0, v: 10.5 }), Object.assign(MF.newOpening("micro", "right"), { u: 0, v: 4.7 })] });
+    MF.rebuild(false); await settle();
+    let E = st.base.enclosure, I = MF.enclosure, why = blocked(E, I);
+    check(!why.length && closed(MF.parts) && !I.warn.length, "a measured module in a cradle, USB-A above and micro-USB under it at the right wall: the rim and rib open in front of both", why.join(", ") || I.warn.map(w => w.t).join("; "));
+    // a board from the list, held by its edges, its ports added for it (it moves against the wall they face)
+    fresh({ w: 120, d: 90, h: 40, board: "esp32devkit", boardHold: "edges", cut: [] }); MF.rebuild(false); await settle();
+    MF.addBoardPorts(); await settle();
+    E = st.base.enclosure; I = MF.enclosure; why = blocked(E, I);
+    check(E.cut.length > 0 && !why.length && closed(MF.parts), `${BOARDS.esp32devkit.label} held by its edges: nothing in front of its ports`, why.join(", ") || `${E.cut.length} openings`);
+    // the rim still holds the board on its other sides: the long sides keep their rim
+    const rimParts = MF.parts.find(p => p.name === "Box").solid.idx.length;
+    E.cut = []; MF.rebuild(false); await settle();
+    check(MF.parts.find(p => p.name === "Box").solid.idx.length !== rimParts, "without the openings the rim closes again");
+  }
+
   console.log("\nthe search in the lists");
   {
     fresh({ board: "none" }); MF.rebuild(false); await settle();

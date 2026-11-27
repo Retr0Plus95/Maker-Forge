@@ -3,6 +3,13 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.62.7
+
+Plugs reach a board held in a cradle.
+
+**Fixed**
+- A board held by its edges in a cradle, with a USB or other port on the edge facing a wall opening, had the cradle's rim (1.2 mm above the board), a crush rib and a corner seat between the port and the opening: the plug stopped against them. This happened to the ESP32 DevKit when its ports were added, and to a small charger board with a micro-USB socket under it. The rim, rib and seat now open in front of every wall opening beside the board; the other sides still hold it.
+
 ## 0.62.6
 
 Sturdier project files and tall pictures.

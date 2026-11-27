@@ -484,7 +484,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.62.5</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.62.6</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -11555,8 +11555,9 @@ function encRim(x, y, w, d, g, f, z0, z1, gapsX, gapsY, bounds){
   for (const [half, other, gaps, alongX] of [[w/2, d/2, gapsX, true], [d/2, w/2, gapsY, false]]) for (const s2 of [-1, 1]){
     const bar = (a0, a1, o0, o1) => add(alongX ? [[x + a0, y + s2*o0], [x + a1, y + s2*o0], [x + a1, y + s2*o1], [x + a0, y + s2*o1]]
       : [[x + s2*o0, y + a0], [x + s2*o1, y + a0], [x + s2*o1, y + a1], [x + s2*o0, y + a1]]);
-    minus(-(half + g + r), half + g + r, gaps).forEach(([a0, a1]) => bar(a0, a1, other + g + r, other + g + f));          // the outer strip, to the corners
-    minus(-(half - r), half - r, gaps).forEach(([a0, a1]) => bar(a0, a1, other + g - 0.01, other + g + r + 0.01));        // the inner strip, short of them
+    const gs = (gaps || []).filter(gp => gp[2] == null || gp[2] === s2);       // (a gap may be on one side only: [a, b, side])
+    minus(-(half + g + r), half + g + r, gs).forEach(([a0, a1]) => bar(a0, a1, other + g + r, other + g + f));          // the outer strip, to the corners
+    minus(-(half - r), half - r, gs).forEach(([a0, a1]) => bar(a0, a1, other + g - 0.01, other + g + r + 0.01));        // the inner strip, short of them
   }
   // the rounded outer corners: a quarter disc each
   const rc = f - r;
@@ -11580,16 +11581,17 @@ const encFingerGap = len => len >= 24 ? [[-Math.min(20, Math.max(8, len*0.3))/2,
 // tapered at the top so it pushes in and stays; "clips" — a springy clip in the middle of each long side whose 45° hook clicks
 // over the board's top (and ribs on the short sides); "loose" — the rim alone (a dab of glue)
 const ENC_GRIP = { rib:1.2, into:0.15, clipW:7, clipT:1.0, over:0.6, hookH:1.6 };
-function encGrip(x, y, w, d, fl, sh, grip, bounds, gapsLong){
+function encGrip(x, y, w, d, fl, sh, grip, bounds, gapsLong, ports){
   const F = encFit(), out = [], G = Object.assign({}, ENC_GRIP, { into:F.rib, over:F.clip }), g = F.gap, top = fl + sh + 1.6 + ENC_CRADLE.over, bTop = fl + sh + 1.6, long = w >= d;
   const inB = ([px, py]) => !bounds || (px >= bounds[0] && px <= bounds[2] && py >= bounds[1] && py <= bounds[3]);
   // a point on a side: u along it from its middle, v out from the board's edge (negative: over the board)
   const side = (alongX, s2) => (u, v) => alongX ? [x + u, y + s2*(d/2 + v)] : [x + s2*(w/2 + v), y + u];
   const inGap = (u, gaps) => gaps.some(([a, b]) => u > a - 1 && u < b + 1);
+  const portGap = (alongX, s2) => ((ports && (alongX ? ports.x : ports.y)) || []).filter(gp => gp[2] === s2);   // (Session 79)
   if (grip === "ribs" || grip === "clips") for (const alongX of [true, false]) for (const s2 of [-1, 1]){
     const len = alongX ? w : d, isLong = alongX === long, P = side(alongX, s2);
     const us = isLong ? (grip === "clips" ? [] : [-len/3, len/3]) : [0];
-    us.filter(u => !(isLong && inGap(u, gapsLong))).forEach(u => {
+    us.filter(u => !(isLong && inGap(u, gapsLong)) && !inGap(u, portGap(alongX, s2))).forEach(u => {
       const tri = h => [P(u - G.rib/2, g + 0.01), P(u + G.rib/2, g + 0.01), P(u, -G.into*h)];
       if (![P(u, g), P(u, -G.into)].every(inB)) return;
       out.push(C.extrudePolysAt([{ outer:encOrient(tri(1), true), holes:[] }], fl + sh, top - 1));
@@ -11598,26 +11600,54 @@ function encGrip(x, y, w, d, fl, sh, grip, bounds, gapsLong){
   }
   if (grip === "clips") for (const s2 of [-1, 1]){
     const P = side(long, s2), hw = G.clipW/2;
-    if (![P(-hw, g), P(hw, g + G.clipT)].every(inB)) continue;
+    if (![P(-hw, g), P(hw, g + G.clipT)].every(inB) || portGap(long, s2).some(([a, b]) => b > -hw && a < hw)) continue;
     // the beam, standing free in the rim's middle gap from the floor; its hook: flat underneath (the catch), sloping on top
     out.push(C.extrudePolysAt([{ outer:encOrient([P(-hw, g), P(hw, g), P(hw, g + G.clipT), P(-hw, g + G.clipT)], true), holes:[] }], fl - 0.01, bTop + 0.25));
     out.push(encLoft([P(-hw, -G.over), P(hw, -G.over), P(hw, g + G.clipT), P(-hw, g + G.clipT)], bTop + 0.1, [P(-hw, g + G.clipT - 0.1), P(hw, g + G.clipT - 0.1), P(hw, g + G.clipT), P(-hw, g + G.clipT)], bTop + 0.1 + G.hookH));
   }
   return out;
 }
-function encCradle(x, y, w, d, fl, sh, fence, bounds, grip = "ribs"){
+// ports (Session 79): gaps for the openings in front of the board, { x:[[a, b, side]], y:[...] } (see encCradlePortGaps)
+function encCradle(x, y, w, d, fl, sh, fence, bounds, grip = "ribs", ports){
   const out = [], C2 = ENC_CRADLE, top = fl + sh + 1.6 + C2.over, a = Math.min(C2.arm, w/3, d/3), g = encFit().gap;
-  // the seats: along both sides at each corner, under the board's edge, out to the rim
+  // the seats: along both sides at each corner, under the board's edge, out to the rim. An arm that runs into a port's gap is
+  // left out (Session 79: it stood under a micro-USB socket on the board's underside, and in its plug's way); the corner rests
+  // on its other arm
+  const gapOn = (alongX, s2) => ((ports && (alongX ? ports.x : ports.y)) || []).filter(gp => gp[2] === s2);
   if (sh > 0.05) for (const sx of [-1, 1]) for (const sy of [-1, 1]){
     const cx = x + sx*w/2, cy = y + sy*d/2, at = (px, py) => [cx + sx*px, cy + sy*py];
-    for (const bar of [[[-a, -C2.seat], [g + 0.3, -C2.seat], [g + 0.3, g + 0.3], [-a, g + 0.3]], [[-C2.seat, -a], [g + 0.3, -a], [g + 0.3, g + 0.3], [-C2.seat, g + 0.3]]]){
+    for (const [bar, alongX] of [[[[-a, -C2.seat], [g + 0.3, -C2.seat], [g + 0.3, g + 0.3], [-a, g + 0.3]], true], [[[-C2.seat, -a], [g + 0.3, -a], [g + 0.3, g + 0.3], [-C2.seat, g + 0.3]], false]]){
+      const s2 = alongX ? sy : sx, sg = alongX ? sx : sy, half = (alongX ? w : d)/2, lo = Math.min(sg*(half - a), sg*(half + g + 0.3)), hi = Math.max(sg*(half - a), sg*(half + g + 0.3));
+      if (gapOn(alongX, s2).some(([g0, g1]) => g1 > lo && g0 < hi)) continue;
       const L = encClip(bar.map(q => at(q[0], q[1])), bounds);
       if (L) out.push(C.extrudePolysAt([{ outer:encOrient(L, true), holes:[] }], fl - 0.01, fl + sh));
     }
   }
   const long = w >= d, len = long ? w : d, gaps = grip === "clips" ? [[-Math.max(11, len*0.15), Math.max(11, len*0.15)]] : encFingerGap(len);
-  out.push(...encRim(x, y, w, d, g, fence, fl - 0.01, top, long ? gaps : [], long ? [] : gaps, bounds));
-  out.push(...encGrip(x, y, w, d, fl, sh, grip, bounds, gaps));
+  const px = ports && ports.x || [], py = ports && ports.y || [];
+  out.push(...encRim(x, y, w, d, g, fence, fl - 0.01, top, (long ? gaps : []).concat(px), (long ? [] : gaps).concat(py), bounds));
+  out.push(...encGrip(x, y, w, d, fl, sh, grip, bounds, gaps, ports));
+  return out;
+}
+// the gaps a cradle's rim needs in front of the box's wall openings (Session 79): a rim (and a crush rib in the middle of a short
+// side) standing between a port on the board's edge and its opening stopped the plug, the rim rising 1.2 mm above the board.
+// Each wall opening within 6 mm of the board's side, overlapping the rim's height and the side's length, opens the rim on that
+// side, 1 mm wider than the opening each way. Plan x, y; an opening's u runs as boardPortPlace has it
+function encCradlePortGaps(E, x, y, w, d, z0, z1, iw, id){
+  const out = { x:[], y:[] }, reach = 6, g = encFit().gap + ENC_CRADLE.fence + 1;
+  (E.cut || []).forEach(c => {
+    if (!c || !ENC_WALLS.has(c.face)) return;
+    let bb; try { bb = ringsBounds(placedRings(c, E)); } catch (e){ return; }
+    if (!bb || !(bb[3] > z0 && bb[1] < z1)) return;                              // above or below the rim
+    const f = c.face, alongX = f === "front" || f === "back", s2 = f === "front" || f === "left" ? -1 : 1;
+    const gapToWall = alongX ? id/2 - (s2 < 0 ? -(y - d/2) : y + d/2) : iw/2 - (s2 < 0 ? -(x - w/2) : x + w/2);
+    if (gapToWall > reach) return;
+    // the opening's span along the wall, in plan coordinates, then from the board's middle
+    const a = f === "front" ? [bb[0], bb[2]] : f === "back" ? [-bb[2], -bb[0]] : f === "left" ? [-bb[2], -bb[0]] : [bb[0], bb[2]];
+    const mid = alongX ? x : y, half = (alongX ? w : d)/2 + g, a0 = a[0] - mid - 1, a1 = a[1] - mid + 1;
+    if (a1 <= -half || a0 >= half) return;
+    (alongX ? out.x : out.y).push([a0, a1, s2]);
+  });
   return out;
 }
 // snap pins (Session 59): a board with holes held by printed split pins on its standoffs instead of screws: each pin a little
@@ -13966,7 +13996,8 @@ function buildEnclosure(){
     // its ports left a sliver of rim standing free there, and on a thin wall the rim reached through it)
     else { const fence = bd.lvl ? ENC_CRADLE.fence : Math.min(ENC_CRADLE.fence, t + 0.4), rimOut = encFit().gap + fence + 0.01;
       const nearWall = bd.x - bw/2 - rimOut < -iw/2 || bd.x + bw/2 + rimOut > iw/2 || bd.y - bdp/2 - rimOut < -id/2 || bd.y + bdp/2 + rimOut > id/2;
-      dst.push(...encCradle(bd.x, bd.y, bw, bdp, base, sh, fence, bd.lvl ? plateB : nearWall ? [-iw/2, -id/2, iw/2, id/2] : null, bd.grip)); }
+      const ports = encCradlePortGaps(E, bd.x, bd.y, bw, bdp, base - 0.01, base + sh + 1.6 + ENC_CRADLE.over, iw, id);
+      dst.push(...encCradle(bd.x, bd.y, bw, bdp, base, sh, fence, bd.lvl ? plateB : nearWall ? [-iw/2, -id/2, iw/2, id/2] : null, bd.grip, ports)); }
     // its see-through parts: the board, the room its parts take above it, and its ports (Session 46)
     const tall = boardTall(bd.key, B), solidBody = B.g === "battery" || /^lrs/.test(bd.key);
     const g0 = ghosts.length, shp = solidBody ? [] : boardShapesAt(bd.key, B, bd.x, bd.y, bd.rot, base + sh + 1.6);

@@ -75,13 +75,23 @@ Each gets: a plan view, a catalogue with pictures, recipes, a fit test, Fix what
 - **0.65 The flower lamp's power and servos** (done in 0.65.0, the owner's request): batteries (18650, 3 × AA, LiPo) in cradles with a charge board and a switch, a USB-C socket or a DC jack in the wall, a DS3218 and your own servo's sizes.
 - **0.66 The bird house** (done in 0.66.0, the owner's request, from their own bird house project): a nest box sized for its bird,
   with a loft for an ESP32-CAM looking down at the nest, a motion sensor, a battery or USB-C, a solar panel and the camera's sketch.
-- **0.67 Mechanisms:** what the parts library leaves: gear trains worked out from a ratio, latches, a parts kit maker.
-- **0.68 Organisers:** Gridfinity-style bins and baseplates, drawer dividers, tool holders traced from a photo of the tool.
-- **0.69 Phone, tablet and controller cases and stands**, with a far larger device list and a "measure mine" wizard.
-- **0.71 Jigsaws, games and toys** (after 0.70; moved in Session 81 for the parts library): tile games, dice, tokens, board-game inserts worked out from the box's size.
-- **0.72 Home and garden:** hooks, brackets worked out from the load, planters with drainage, cable clips, wall plates.
-- **0.73 Wearables and gifts:** badges, medals, keychains in sets, ornaments, cookie cutters and stamps as kits.
-- **0.74 Lithophanes and lamps** (moved in Session 89 for the bird house): lamp bases with the electronics box built in, colour lithophanes (CMYW), night lights.
+- **0.67 Arrow nocks** (done in 0.67.0, the owner's request): pushed into a hollow shaft, onto a wooden taper or over the shaft, made
+  to the shaft and the bowstring, with a fit test and the weight in grains.
+- **0.68 From the workshop: the owner's own projects in Maker Forge** (the owner, Session 90: "every project done should be a project
+  incorporated into Maker Forge"). Each finished project of theirs becomes an object, a quick start or a recipe, credited to its repository:
+  - the **RGB lamp controller**'s box (`Retr0Plus95/ESP32-LED-RGB-`, `enclosure/rgb-lamp-controller-box.forge.json`) and the
+    **four-channel bench supply**'s case (`Retr0Plus95/FOUR-CHANNEL-PSU`, two boxes that bolt together, `case/maker-forge/`, with its
+    swappable output plates) as one-click starts;
+  - the **solder fume extractor** ("Sir Sucks-a-Lot", `Retr0Plus95/Solder-Fume-Extractor`) as a fan-and-filter box maker: one or two
+    80 to 140 mm fans in line, a mesh and carbon filter tray, a front panel with the display and the knob, the duct, the rear cap;
+  - the bird house (0.66) and the flower lamp (0.64) are already in.
+- **0.69 Mechanisms** (moved in Session 90): what the parts library leaves: gear trains worked out from a ratio, latches, a parts kit maker.
+- **0.71 Organisers** (moved in Session 90): Gridfinity-style bins and baseplates, drawer dividers, tool holders traced from a photo of the tool.
+- **0.72 Phone, tablet and controller cases and stands** (moved in Session 90), with a far larger device list and a "measure mine" wizard.
+- **0.73 Jigsaws, games and toys** (moved in Sessions 81 and 90): tile games, dice, tokens, board-game inserts worked out from the box's size.
+- **0.74 Home and garden** (moved in Session 90): hooks, brackets worked out from the load, planters with drainage, cable clips, wall plates.
+- **0.76 Wearables and gifts** (moved in Session 90): badges, medals, keychains in sets, ornaments, cookie cutters and stamps as kits.
+- **0.77 Lithophanes and lamps** (moved in Sessions 89 and 90): lamp bases with the electronics box built in, colour lithophanes (CMYW), night lights.
 
 ### 0.70 Electronics, complete
 - A real parts database (several hundred boards and modules), updated without a new release.

@@ -3,6 +3,24 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.67.0
+
+Arrow nocks.
+
+**New**
+- **Arrow nocks** (Functional, in the object list), made to your shafts and your bowstring:
+  - pushed into a hollow carbon or aluminium shaft, slipped onto a wooden shaft's 11° taper, or sleeved over the shaft's end;
+  - the shaft's sizes, the bowstring's serving, the snap on the string, the groove's depth and the head's length;
+  - a ridge to line up with the cock feather;
+  - up to 24 at a time, or a fit test of five sizes, numbered by bumps on their sides.
+  - The panel gives each nock's weight in grains and checks the ears, the snap and the fit on the shaft.
+  - They print standing up with no support.
+- Maker Forge now takes in the owner's own projects as they are finished: the plan for the bench supply, the RGB lamp controller
+  and the solder fume extractor is on the roadmap (0.68).
+
+**Fixed**
+- Nothing this time.
+
 ## 0.66.0
 
 The bird house.

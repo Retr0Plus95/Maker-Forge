@@ -69,8 +69,9 @@ Each gets: a plan view, a catalogue with pictures, recipes, a fit test, Fix what
   connectors and a BOM line, one printer clearance and a fit coupon; servo mounts, fasteners, electronics mounts, LED holders,
   hinges, linkages with travel calculators, gears and racks, snap fits, bearing seats, couplers, the flexure spring.
 - **Core primitives** (done in 0.63 with the library): revolve, loft, sweep, and thin shells from parametric surfaces.
-- **0.64 The blooming flower lamp:** one servo opening every petal, self-holding at both ends, LEDs, a base that opens, the
-  travel animated and checked for collisions, plates, BOM and a starter sketch.
+- **0.64 The blooming flower lamp** (done in 0.64.0): one servo opening every petal through a runner and links, self-holding at both
+  ends (an over-centre crank), a NeoPixel ring, a base that opens with screws, the travel animated and checked for collisions,
+  plates, what you'll need and a starter sketch. Left for later: a pull line instead of the rod, more than one ring of petals.
 - **0.66 Lithophanes and lamps:** lamp bases with the electronics box built in, colour lithophanes (CMYW), night lights.
 - **0.67 Mechanisms:** what the parts library leaves: gear trains worked out from a ratio, latches, a parts kit maker.
 - **0.68 Organisers:** Gridfinity-style bins and baseplates, drawer dividers, tool holders traced from a photo of the tool.

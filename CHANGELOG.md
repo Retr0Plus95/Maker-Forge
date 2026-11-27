@@ -3,6 +3,20 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.64.0
+
+The blooming flower lamp.
+
+**New**
+- **Blooming flower lamp** (Functional): a tulip, rose or lotus of 5 to 14 petals that opens and lights up when you touch it, and closes when you touch it again. One servo moves every petal through links from a runner inside the bud, and the crank in the base goes past its dead centre at each end, so the flower **holds itself open or closed with the servo off**.
+- **The lamp and its parts:** the view shows the lamp put together, with **Bloom** and **Open and close** to watch it move, or the parts laid out on your bed to print. Every part prints with no support; the petals stand on their hinge.
+- **Checks over the whole travel:** petal on petal, petals on the head, the runner and the links inside the bud, the runner above the LEDs, the rod through the ring. It says how well it holds itself, too.
+- **What you'll need**, the steps to put it together, the crank's travel angle by angle, and an **Arduino/ESP32 sketch** to download (touch to bloom and fade in, again to fade out and close; the servo off at rest). The export has the sketch and the steps.
+- The parts library has two new travel calculators: an **over-centre crank** (the offset that puts its dead centres just inside the servo's 180°) and a petal's lever.
+
+**Fixed**
+- Nothing this time.
+
 ## 0.63.0
 
 The mechanical parts library.

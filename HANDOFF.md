@@ -3493,6 +3493,112 @@ The count (Session 81): improvements 4 to 8: 4. the parts library and its API (c
 printer clearance on every part, with the fit test a button away; 6. the linkage travel calculators; 7. the Mechanical parts object
 and its panel built from each part's settings; 8. the Bench 2.0 plan. Bugs: still 3 of 10.
 
+## Session 83: Maker Forge Bench 1.0.5, in Bench's repository
+
+The owner asked for the improvements and bug finding in Bench as well ("Meant bench as well"). `Retr0Plus95/Maker-Forge-Bench` was
+attached with push access and its agreed next release built there: **1.0.5 "The case"**
+([Retr0Plus95/Maker-Forge-Bench#2](https://github.com/Retr0Plus95/Maker-Forge-Bench/pull/2), squash-merged). Its design and plan
+are in Bench's `docs/design/2026-11-27-release-1.0.5-design.md` and `docs/plans/2026-11-27-release-1.0.5-the-case.md`.
+- Every STL and 3MF in a project is a case part in a new **Case** tab, with:
+  - its size, plastic and fit on your printer (pick one, or type your bed);
+  - what the README's `File | What it is | Print` table says;
+  - a small picture, a Printed tick, and Look in 3D on the bed inside the build volume.
+- **What you have** at the top of the Guide tab shows every piece of the build with its count.
+- **Readers:** they follow this app's `parseSTL` and `parse3MFModel`. The 3MF's zip is opened by the browser's own
+  `DecompressionStream`, so Bench's security rules are unchanged.
+- **Fixed in Bench:** Ctrl+Z, Ctrl+Y and Ctrl+S did nothing while a tick box had the focus. Bench's README was brought up to date
+  (1.0.1–1.0.5).
+- **Tried on the owner's four-channel bench supply** (nine STLs made here). Its Maker Forge boxes have many edges where two solid
+  pieces meet, each used by four triangles: Bench's first gap check called those gaps, so only odd-count edges count now.
+
+The count: improvements 9 to 12: 9. case parts in Bench, with size, plastic and fit; 10. the README's notes per part; 11. Look in
+3D on your bed; 12. What you have. Bugs 4 of 10: 4. Ctrl+Z ignored on a focused tick box (Bench).
+
+## Session 85: the blooming flower lamp (v0.64.0)
+
+The owner's new direction, step 3 (see "The new direction" under Next). On `claude/relaxed-dirac-cuhvec` after 0.63.0.
+
+**What the user gets.** The **Blooming flower lamp** object (Functional, 🌷):
+- a tulip, rose or lotus of 5–14 petals that opens and lights up when touched, and closes when touched again;
+- one servo moving every petal, the flower holding itself open or closed with the servo off;
+- a view of the lamp put together (Bloom, Open and close) or of the parts laid out on plates. The export is always the plates,
+  with `flower-lamp.ino` and `how-to-assemble.txt`;
+- the checks over the travel, what you'll need, the steps, the crank's travel table, and the sketch.
+
+**The mechanism (core, `PRCore.flower`).** An inverted umbrella.
+- **Petals:** each hinges on the head at radius Rp, on a 1.75 mm filament pin through the head's cheeks and its knuckle.
+- **Runner and links:** a runner high inside the bud has a link (`hornLink` from the library) to a lug on each petal's inner face.
+  Pulling the runner down (a bought 4 mm rod through the stem) pushes the lugs out.
+- **Over-centre crank:** `parts.overCentre(a, b, over)` finds the offset e that puts the crank-slider's dead centres 172° apart.
+  A 180° servo then goes 4° past each; past a dead centre any push or pull on the rod turns the crank further into its end or
+  straightens the rod. The holding torque from the petals' weight is about 0.1 N·mm against an unpowered servo's ~20 N·mm
+  (typical, not measured); `info.hold` gives both.
+- **Dimensions (`flowerPlan`):** the runner is placed first, 60% of the way from the lug to the petal's tip. That gives the link,
+  the stroke the opening needs, and the crank arm (8–20 mm, bisection). The link is then set again for that arm's exact stroke.
+  - Sizing from the stroke first put the runner 243 mm above a 99 mm tulip: at 45° a lug alone drops nearly the whole stroke.
+  - The crank's rod is 1.8a + 4: shorter than first written, for a base about 85 mm tall.
+
+**The parts.**
+- **Petal:** `shellSurface` over a profile of revolution (belly, top, tip per style), the sector narrowed to the knuckle at the base
+  and to the tip.
+  - Its print turn is searched (−50° to 50°) for the least steep area with the knuckle lowest; a tulip's curl needs it.
+  - The knuckle has a flat foot, and the shell's bottom edge is a shallow V inside it, so no buried face looks straight down.
+    The print check runs on pieces; this is the E1 note again.
+- **Head:** one revolved profile (socket, 45° cone, the rod's and wires' axial hole), the top with the wires' groove, the ring's
+  lip, and the cheeks.
+- **Runner:** printed disc-down, hung upside down in the lamp.
+- **Stem:** a keyhole bore. The wire lobe is narrower than the rod, so the rod stays centred.
+- **Rod block:** on the rod's lower end.
+- **Base:** printed upside down. It has a notch from the rim for the USB plug (no bridge), a ring groove marking the touch pad (a
+  recess would be a ceiling), a socket with a 45° ledge, and screw columns placed clear of the tray, the servo and the notch.
+- **Floor:** the servo's bracket with a U slot (no bridge) and the library's board tray, the USB end near the wall.
+- **Crank and rod:** the library's `servoHorn` and `hornLink`.
+
+**Checks (`flowerInfo`)**, over nine steps of the travel:
+- petal on petal (the mid-surfaces' distance less the wall);
+- petals over the head's disc;
+- the runner's room inside the bud;
+- a link's edge to its petal (away from the lug);
+- the runner above the LEDs when open;
+- the ring's hole round the head's.
+
+A tulip is held to 45° and a rose to 60°: wider, the curl comes down on the link. A flower too small for its ring and petals grows,
+and says so.
+
+**The app.**
+- `buildFlower` lays the parts out with the box maker's `encPackPlates` and bakes the layout in, so the files print as they are.
+- `flowerSceneMeshes` draws the lamp at the bloom instead of the plates; it's cached per bloom, and nothing is picked.
+- `flowerFields` builds the panel from the settings.
+- `flowerCleanSet` cleans the settings in place: a fresh copy on each redraw left controls drawn before it writing to the old one,
+  and the app test caught choices that changed nothing.
+- `state.base.flower = { set, clearance, show, bloom, petalSlot }`, cleaned in `sanitizeProject`.
+
+**Tested:**
+- `tools-flower-test.js` (`npm run test:flower`; `CORE=1` for the library):
+  - 87 lamps (each flower with every setting at its ends and four extremes), every part closed, outward, finite, on the bed and
+    under 250 mm;
+  - every check and holding;
+  - the crank's 180° and 172°;
+  - the travel only opening, the link's length constant, the runner inside the bud and above the LEDs;
+  - the tulip's limit and the flower that grows;
+  - five lamps' every part under 5 mm² of support;
+  - both sketches, the list and the steps, and cleaning.
+- In the app (`tools-flower-app.js`):
+  - the panel, slots and plates;
+  - every slider's ends, none dead (the bloom is view-only, listed in the audit);
+  - five choices;
+  - the bloom leaving the files alone, Parts to print;
+  - a saved and a hostile project.
+- The export's files are checked in `tools-browser-check.js` (ONLY=flower), as JSZip doesn't finish in jsdom.
+- Also run: the audit, the smoke test, the print survey, `npm run test:project`, `npm run test:parts`, `npm run fingerprint:update`
+  (the new object only).
+- New manual picture `docs/images/flower-lamp.jpg`.
+
+**Still to check:** a real print and assembly. The servo's unpowered holding is a typical figure; the pins' fit wants the fit test.
+
+The count: improvements 13 to 17: 13. the blooming flower lamp; 14. the over-centre crank and petal lever calculators;
+15. the lamp's checks over the travel; 16. the sketch; 17. the lamp's view and plates. Bugs: still 4 of 10.
+
 ## Next
 
 ### The new direction (Session 81, the owner): a mechanical parts library, then the blooming flower lamp

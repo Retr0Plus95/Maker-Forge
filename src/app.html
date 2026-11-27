@@ -739,7 +739,7 @@ const CONSUMES_ART = { cutter:1, pcb:1, lightbox:1, tracer:1, jigsaw:1, lithopha
 // which of the picture's own settings each of those objects reads; the Art tab shows only these
 const ART_USED_BY = { cutter:["width","mirror","colours","smooth"], lightbox:["mirror","colours","smooth"], enclosure:["mirror","colours","smooth"], phonecase:["mirror","colours","smooth"], card:["mirror","colours","smooth"],
   jigsaw:["mirror","colours","smooth"], pcb:["mirror"], tracer:[], lithophane:["mirror"], canvas:["mirror","colours","smooth"] };
-const SHAPES = [["tracer","Photo to 3D tracer"],["lithophane","Lithophane"],["board","Flat shape"],["nameplate","Name plate & keychain"],["card","Business card"],["mech","Mechanisms"],["parts","Mechanical parts"],["fixit","Fix-it parts"],["sign","Sign"],["relief","3D relief from a photo"],["canvas","Plastic canvas / mosaic"],["jigsaw","Jigsaw puzzle"],
+const SHAPES = [["tracer","Photo to 3D tracer"],["lithophane","Lithophane"],["board","Flat shape"],["nameplate","Name plate & keychain"],["card","Business card"],["mech","Mechanisms"],["parts","Mechanical parts"],["flower","Blooming flower lamp"],["fixit","Fix-it parts"],["sign","Sign"],["relief","3D relief from a photo"],["canvas","Plastic canvas / mosaic"],["jigsaw","Jigsaw puzzle"],
   ["bobble","Bobble head"],["cutter","Cookie cutter from artwork"],["turned","Turned shape (vase, egg, cone)"],
   ["pcb","Circuit board from a schematic"],["lightbox","Lightbox / shadow box"],["frame","Photo frame"],["shell","Tea light / lantern"],["box","Plaque / box"],["cylinder","Cylinder"],
   ["hex","Hex prism"],["sphere","Sphere"],["enclosure","Project box / enclosure"],["phonecase","Phone case"],["stl","Import a model"],["none","No object"]];
@@ -945,6 +945,7 @@ const DEFAULTS = () => ({
     sign:{ style:"channel", text:"BAR", font:Math.max(0, FONTS.findIndex(f => f.n === "Anton")), letterH:100, depth:25, wall:1.6, back:2,
       diffuser:1, diffuserSlot:0, wallSlot:0, strip:6, backing:"none", margin:10, mount:"keyhole", holes:true, stand:false },
     parts:{ kind:"servoMount", clearance:0.2, set:{} },          // the mechanical parts library (Session 82)
+    flower:{ set:{}, clearance:0.2, show:"lamp", bloom:0, petalSlot:1 },   // the blooming flower lamp (Session 85)
     mech:{ kind:"gears",
       gears:{ teeth1:24, teeth2:12, module:1.5, thick:6, bore:5, boreShape:"d", hub:true, hubDia:12, hubH:4, layout:"apart", angle:20 },
       bolt:{ size:"M10", dia:10, pitch:1.5, af:16, length:25, head:"hex", headH:6.5, nut:true, nutH:8.4 },
@@ -9058,6 +9059,91 @@ function partsFields(p){
     });
   }
 }
+// ---- the blooming flower lamp (Session 85): PRCore.flower makes every part, the lamp at any bloom, the checks and the sketch ----
+let flowerInfo = null, renderedFlowerSig = "", flowerView = { key:"", meshes:[], mats:{} }, flowerAnim = 0;
+// the settings cleaned in place: the panel's controls keep the same object across redraws (a fresh copy each redraw left a
+// control drawn before it writing to the old one)
+function flowerCleanSet(F){
+  if (!F.set || typeof F.set !== "object" || Array.isArray(F.set)) F.set = {};
+  const cl = C.flower.clean(F.set);
+  Object.keys(F.set).forEach(k => { if (!(k in cl)) delete F.set[k]; });
+  Object.assign(F.set, cl);
+}
+const flowerPetalSlot = () => clamp(Math.round(+state.base.flower.petalSlot || 0), 0, state.slots.length - 1);
+function buildFlower(){
+  const F = state.base.flower; flowerCleanSet(F);
+  const r = C.flower.make(F.set, { clearance:clamp(+F.clearance, 0, 1) });
+  flowerInfo = r; flowerView.key = "";
+  const body = clamp(state.base.slot || 0, 0, state.slots.length - 1), petals = flowerPetalSlot(), list = [];
+  r.printed.forEach(q => { for (let k = 0; k < q.count; k++) list.push({ name:q.count > 1 ? `${q.name} ${k + 1}` : q.name, slot:q.role === "petal" ? petals : body, solid:q.solid, role:"part", key:q.key }); });
+  // laid out on plates of the bed (the box maker's packer): each part at its place, so the files print as they are
+  encPackPlates(list, state.printer.bed || [256, 256, 256]);
+  list.forEach(q => { const o = q.layout; q.solid = C.transformSolid(q.solid, 1, o[0], o[1], o[2]); delete q.layout; });
+  return list;
+}
+// the lamp itself, drawn instead of the plates (never printed: the files are the plates); kept per bloom
+function flowerSceneMeshes(){
+  const F = state.base.flower, t = Math.round(clamp(+F.bloom || 0, 0, 1) * 200) / 200, key = `${flowerInfo ? JSON.stringify(flowerInfo.settings) + flowerInfo.clearance : ""}|${t}|${state.slots.map(x => x.hex).join()}|${flowerPetalSlot()}`;
+  if (flowerView.key === key) return flowerView.meshes;
+  flowerView.meshes.forEach(m => m.geometry.dispose());
+  const A = flowerInfo.assembly(t), body = clamp(state.base.slot || 0, 0, state.slots.length - 1);
+  // the bought parts (servo, ring, board, rod) in their own colours: one material each, kept (the bloom redraws many times)
+  const bought = c => flowerView.mats[c] || (flowerView.mats[c] = new THREE.MeshStandardMaterial({ color:c, roughness:0.5, metalness:0.2, flatShading:true }));
+  flowerView.meshes = A.parts.map(q => {
+    const mat = q.role === "petal" ? slotMat(flowerPetalSlot()) : q.role === "body" ? slotMat(body) : bought(q.colour || "#9aa0a6");
+    const m = new THREE.Mesh(solidToGeometry(q.solid), mat); m.raycast = () => {}; m.userData.ghost = q.name; return m;
+  });
+  flowerView.key = key; flowerView.angle = A.angle;
+  return flowerView.meshes;
+}
+function flowerAnimate(){
+  if (flowerAnim){ cancelAnimationFrame(flowerAnim); flowerAnim = 0; return; }
+  const F = state.base.flower, t0 = performance.now(), from = +F.bloom || 0, dur = 2600;
+  const step = now => { const k = (now - t0) / dur; F.bloom = k < 1 ? from + (1 - from) * Math.min(1, k) : Math.max(0, 1 - (k - 1)); refreshScene();
+    if (k < 2){ flowerAnim = requestAnimationFrame(step); } else { F.bloom = 0; flowerAnim = 0; refreshScene(); if (tab === "make") renderTab(); } };
+  flowerAnim = requestAnimationFrame(step);
+}
+const FLOWER_LABELS = { style:k => C.flower.styles[k].label, servo:k => C.parts.servos[k].label, led:k => `${k} LEDs (${C.parts.rings[k].od} mm)`,
+  board:k => C.parts.boards[k].label, control:k => k === "touch" ? "A touch pad (copper tape)" : "A push button" };
+function flowerFields(p){
+  const F = state.base.flower, spec = C.flower.settings; flowerCleanSet(F);
+  const S = F.set, I = flowerInfo && flowerInfo.info;
+  segField(p, [["lamp","The lamp"],["plates","Parts to print"]], ()=>F.show === "plates" ? "plates" : "lamp", v=>{ F.show = v; renderTab(); refreshScene(); }, "two");
+  if (F.show !== "plates"){
+    numField(p, { label:"Bloom (%)", min:0, max:100, step:1, get:()=>Math.round(clamp(+F.bloom || 0, 0, 1) * 100), set:v=>F.bloom = clamp(v / 100, 0, 1), onChange:()=>refreshScene(),
+      sub:()=>flowerView.angle != null ? `The petals open by ${flowerView.angle.toFixed(0)}° here. The files are always the parts laid out to print.` : "" });
+    buttonRow(p, [[flowerAnim ? "Stop" : "Open and close", ()=>{ flowerAnimate(); renderTab(); }]]);
+  }
+  for (const [k, sp] of Object.entries(spec)){
+    if (Array.isArray(sp)) numField(p, { label:sp[4], min:sp[1], max:sp[2], step:sp[3], get:()=>S[k], set:v=>S[k] = v, onChange:baseChanged });
+    else selField(p, sp.label, sp.opts.map(o => [o, FLOWER_LABELS[k] ? FLOWER_LABELS[k](o) : o]), ()=>S[k], v=>{ S[k] = v; renderTab(); baseChanged(); });
+  }
+  if (state.slots.length > 1) selField(p, "Petals' filament", state.slots.map((x, i) => [String(i), `${i + 1}: ${x.name}`]), ()=>String(flowerPetalSlot()), v=>{ F.petalSlot = +v; baseChanged(); });
+  else note(p, "Add a second filament (translucent) for the petals: they glow when the light is on.");
+  group(p, "Fit", g2 => {
+    numField(g2, { label:"Printer clearance (mm)", min:0, max:1, step:0.05, get:()=>F.clearance, set:v=>F.clearance = v, onChange:baseChanged,
+      sub:()=>"Added to every pin, link and socket. 0.2 mm suits most printers; the fit test finds yours." });
+    buttonRow(g2, [["Print the fit test", ()=>{ chooseObject("mech"); state.base.mech.kind = "coupon"; baseChanged(); renderTab(); pushHistory(); notify("The fit test: print it, find the gap that turns freely, and use it as the printer clearance here."); }]]);
+  });
+  if (!I) return;
+  I.warn.forEach(w => note(p, `<b>Note:</b> ${esc(w)}`));
+  note(p, `<b>${I.size.flower} mm flower, ${I.size.height} mm tall.</b> Base ${I.size.base[0]} × ${I.size.base[1]} mm. It opens by ${I.size.open}°, the rod moving ${I.size.stroke} mm.`);
+  group(p, "Checks over the whole travel", g2 => {
+    I.checks.forEach(q => note(g2, `${q.ok ? "✓" : "✗"} ${esc(q.name)} (${esc(q.why)}: ${q.worst} mm${q.ok ? "" : `, needs ${q.need}`}).`));
+    note(g2, I.hold.ok ? `✓ Holds itself open and closed with the servo off: the petals' weight turns the crank with ${Math.max(I.hold.closed, I.hold.open).toFixed(2)} N·mm, about ${Math.round(I.hold.friction / Math.max(0.01, I.hold.closed, I.hold.open))} times less than an unpowered servo's gears hold (typical, not measured).`
+      : `✗ The petals' weight could turn the crank (${Math.max(I.hold.closed, I.hold.open).toFixed(2)} N·mm): keep the servo powered.`);
+  }, true);
+  group(p, "What you'll need", g2 => note(g2, I.bom.map(([n, w]) => `${n} × ${esc(w)}`).join("<br>")), true);
+  group(p, "Print and put together", g2 => { I.notes.forEach(n => note(g2, esc(n))); note(g2, I.assembly.map((t, k) => `${k + 1}. ${esc(t)}`).join("<br>")); });
+  group(p, "The crank and the travel", g2 => {
+    note(g2, `Crank arm ${I.crank.arm} mm, crank rod ${I.crank.rod} mm, the rod's line ${Math.abs(I.crank.offset)} mm beside the servo's shaft; the crank turns from ${I.crank.start}° to ${I.crank.end}° (4° past each dead centre). Petal links ${I.link} mm; the ${I.rod} mm rod.`);
+    note(g2, "<b>Servo angle → rod down, petals open:</b> " + I.travel.rows.map(([a, d, g]) => `${a}° → ${d} mm, ${g}°`).join("; ") + ".");
+  });
+  group(p, "The sketch (Arduino or ESP32)", g2 => {
+    note(g2, S.control === "touch" ? "Touch the pad: the flower opens and the light fades in. Touch again: it fades out and closes. The servo is switched off at rest." : "Press the button: the flower opens and the light fades in. Again: it fades out and closes. The servo is switched off at rest.");
+    buttonRow(g2, [["Download flower-lamp.ino", ()=>offerDownload("flower-lamp.ino", I.sketch, "text/plain")], ["Copy it", ()=>{ navigator.clipboard && navigator.clipboard.writeText(I.sketch).then(()=>notify("The sketch is on the clipboard.")).catch(()=>notify("Copying isn't allowed here: use Download.")); }]]);
+  });
+}
 function mechFields(p){
   const M = state.base.mech;
   selField(p, "What to make", [["gears","Gears (a pair)"],["bolt","Bolt and nut"],["hinge","Print-in-place hinge"],["snap","Snap-fit clip"],["coupon","Fit test"]],
@@ -9705,7 +9791,7 @@ function heightOf(d, slot){
 // artwork cut into the object (Session 32): "engrave" cuts it in, "inlay" cuts it in and fills the cut with the
 // artwork's colours, flush with the surface. Its solids are then the cutters: from CUT_OUT above the surface (so the
 // whole surface is cut, also between the points it was laid on) to its depth below it
-const CUT_OUT = 0.6, NO_DECALS = { jigsaw:1, lithophane:1, enclosure:1, phonecase:1, card:1, mech:1, parts:1, fixit:1, sign:1, relief:1 };
+const CUT_OUT = 0.6, NO_DECALS = { jigsaw:1, lithophane:1, enclosure:1, phonecase:1, card:1, mech:1, parts:1, flower:1, fixit:1, sign:1, relief:1 };
 let cutBlocked = "";                                 // why artwork cannot be cut into this model ("open", "load"), or ""
 const cutWanted = d => d.enabled !== false && d.mode !== "relief" && (d.cut === "engrave" || d.cut === "inlay") && !NO_DECALS[state.base.type];
 const cutMode = d => baseSoup && !cutBlocked && cutWanted(d) ? d.cut : null;
@@ -11948,6 +12034,7 @@ async function rebuildAll(resetItems, mode){
     else if (t === "card") parts = await buildCard();
     else if (t === "mech") parts = buildMech();
     else if (t === "parts") parts = buildMechParts();
+    else if (t === "flower") parts = buildFlower();
     else if (t === "fixit") parts = buildFixit();
     else if (t === "sign") parts = await buildSign();
     else if (t === "relief") parts = buildRelief();
@@ -11989,7 +12076,7 @@ async function rebuildAll(resetItems, mode){
       if (d.enabled === false){ d.solids = null; continue; }
       if (t === "jigsaw"){ d.solids = null; continue; }      // a decal across the pieces would glue them together
       if (t === "lithophane"){ d.solids = null; continue; }  // other artwork would only cast a shadow on it
-      if (t === "mech" || t === "parts" || t === "fixit" || t === "sign" || t === "relief"){ d.solids = null; continue; }   // parts that fit: a picture on them would spoil the fit
+      if (t === "mech" || t === "parts" || t === "flower" || t === "fixit" || t === "sign" || t === "relief"){ d.solids = null; continue; }   // parts that fit: a picture on them would spoil the fit
       if (t === "enclosure"){ d.solids = null; continue; }   // not stamped on boxes yet
       if (t === "phonecase"){ d.solids = null; continue; }   // a case takes its picture as an inlay in the back
       if (t === "card"){ d.solids = null; continue; }        // a card takes its picture as its logo
@@ -12032,6 +12119,11 @@ async function rebuildAll(resetItems, mode){
       if (sig !== renderedPartsSig){ const a = document.activeElement, inPanel = a && a.closest && a.closest("#panel") && a.matches("input,textarea,select");
         if (!inPanel){ renderedPartsSig = sig; renderTab(); } else a.addEventListener("blur", () => { if (tab === "make" && state.base.type === "parts"){ renderedPartsSig = sig; renderTab(); } }, { once:true }); }
     }
+    if (t === "flower" && tab === "make" && flowerInfo){
+      const sig = JSON.stringify([flowerInfo.info.checks.map(q => [q.ok, q.worst]), flowerInfo.info.warn, flowerInfo.info.size, flowerInfo.info.bom]);
+      if (sig !== renderedFlowerSig){ const a = document.activeElement, inPanel = a && a.closest && a.closest("#panel") && a.matches("input,textarea,select");
+        if (!inPanel){ renderedFlowerSig = sig; renderTab(); } else a.addEventListener("blur", () => { if (tab === "make" && state.base.type === "flower"){ renderedFlowerSig = sig; renderTab(); } }, { once:true }); }
+    }
     if (t === "enclosure" && tab === "make" && enclosureInfo){
       const sig = encPanelSig(enclosureInfo);
       if (sig !== renderedEncWarn){
@@ -12069,7 +12161,9 @@ function partOffset(p, i){
 function refreshScene(){
   while (modelGroup.children.length) modelGroup.children.pop();
   const box = new THREE.Box3();
-  modelParts.forEach((p,i)=>{
+  const lampView = state.base.type === "flower" && flowerInfo && state.base.flower.show !== "plates" && !viewOpts.layout && modelParts.length;
+  if (lampView) flowerSceneMeshes().forEach(m => { m.geometry.computeBoundingBox(); box.union(m.geometry.boundingBox); modelGroup.add(m); });
+  else modelParts.forEach((p,i)=>{
     const mesh = new THREE.Mesh(p.geom, p.paint ? paintMat() : slotMat(p.slot));
     mesh.userData.part = i; mesh.raycast = boxedRaycast;
     const off = partOffset(p,i);
@@ -13002,7 +13096,7 @@ const OBJECT_GROUPS = [
   ["Personalise", [["nameplate","🔑"],["card","💳"],["sign","🔤"],["board","🏷️"],["frame","🖼️"],["box","🪧"]]],
   ["From a picture", [["tracer","📐"],["relief","🗿"],["lithophane","🌅"],["jigsaw","🧩"],["cutter","🍪"],["pcb","🔌"],["lightbox","💡"],["canvas","🧶"]]],
   ["Figures and décor", [["bobble","🙂"],["shell","🕯️"],["turned","🏺"]]],
-  ["Functional", [["enclosure","🧰"],["phonecase","📱"],["mech","⚙️"],["parts","🔩"],["fixit","🔧"]]],
+  ["Functional", [["enclosure","🧰"],["phonecase","📱"],["mech","⚙️"],["parts","🔩"],["flower","🌷"],["fixit","🔧"]]],
   ["Basic shapes", [["cylinder","🥫"],["hex","⬢"],["sphere","⚪"]]],
   ["Bring your own", [["stl","📦"],["none","✦"]]]
 ];
@@ -13067,7 +13161,7 @@ function tabMake(p){
   ({ nameplate:nameplateFields, canvas:canvasFields, bobble:bobbleFields, cutter:cutterFields, turned:turnedFields,
      pcb:pcbFields, lightbox:lightboxFields, tracer:tracerFields, jigsaw:jigsawFields, lithophane:lithophaneFields,
      board:boardFields, frame:frameFields, shell:shellFields, box:boxFields, cylinder:cylFields, hex:hexFields,
-     sphere:sphereFields, enclosure:enclosureFields, phonecase:phonecaseFields, card:cardFields, mech:mechFields, parts:partsFields, fixit:fixitFields, sign:signFields, relief:reliefFields, stl:stlFields, none:noneFields })[b.type](p);
+     sphere:sphereFields, enclosure:enclosureFields, phonecase:phonecaseFields, card:cardFields, mech:mechFields, parts:partsFields, flower:flowerFields, fixit:fixitFields, sign:signFields, relief:reliefFields, stl:stlFields, none:noneFields })[b.type](p);
   if (!["none","bobble","lightbox","jigsaw","enclosure"].includes(b.type))
     slotField(p, "Object filament", ()=>String(b.slot), v=>{ b.slot = +v; baseChanged(); });
   buttonRow(p, [["Change the object →", ()=>{ setSide("right", true); const el = $("#objectSel"); if (el) el.focus(); }]]);
@@ -18823,6 +18917,12 @@ function sanitizeProject(data){
     if (Pp.set && typeof Pp.set === "object" && !Array.isArray(Pp.set)) for (const k of keys) if (Pp.set[k] && typeof Pp.set[k] === "object") set[k] = C.parts.clean(k, Pp.set[k]);
     st.base.parts = { kind:keys.includes(Pp.kind) ? Pp.kind : "servoMount", clearance:Math.min(1, Math.max(0, cleanNum(Pp.clearance, 0.2))), set };
   }
+  // the blooming flower lamp (Session 85): its settings cleaned by the library; the view's choices kept in range
+  if (st.base && "flower" in st.base){
+    const Fp = st.base.flower && typeof st.base.flower === "object" && !Array.isArray(st.base.flower) ? st.base.flower : {};
+    st.base.flower = { set:C.flower.clean(Fp.set), clearance:Math.min(1, Math.max(0, cleanNum(Fp.clearance, 0.2))), show:Fp.show === "plates" ? "plates" : "lamp",
+      bloom:Math.min(1, Math.max(0, cleanNum(Fp.bloom, 0))), petalSlot:Math.min(15, Math.max(0, Math.round(cleanNum(Fp.petalSlot, 1)))) };
+  }
   if (st.base && st.base.enclosure && typeof st.base.enclosure === "object"){
     const E = st.base.enclosure, one = (v, list) => list.includes(v) ? v : list[0];
     E.lid = one(E.lid, ["screw","press","magnet","slide","none","twist"]); E.postStyle = one(E.postStyle, ["full","hang"]); E.snap = E.snap === true; E.hinge = E.hinge === true; E.gasket = [1.5, 2, 2.5, 3].includes(+E.gasket) ? +E.gasket : 0; E.fasten = one(E.fasten, ["insert","screw","nut","none"]); E.head = one(E.head, ["sink","bore","plain"]);
@@ -19179,6 +19279,9 @@ async function buildZip(parts, title, unjoined){
   if (state.base.type === "enclosure" && enclosureInfo && !state.base.enclosure.test && (state.base.enclosure.cut || []).length){
     zip.file("cad/faces-drilling-templates.svg", encFaceSVG(state.base.enclosure, enclosureInfo, title)); zip.file("cad/faces.dxf", encFaceDXF(state.base.enclosure, enclosureInfo)); }
   if (fw) zip.file(fw.file, fw.text.join("\n") + "\n");
+  const fl = state.base.type === "flower" && flowerInfo ? flowerInfo.info : null;
+  if (fl){ zip.file("flower-lamp.ino", fl.sketch);
+    zip.file("how-to-assemble.txt", [`How to put ${title} together`, "", ...fl.notes, "", ...fl.assembly.map((t, k) => `${k + 1}. ${t}`), "", "What you'll need:", ...fl.bom.map(([n, w]) => `  ${n} x ${w}`)].join("\r\n")); }
   if (asm.length) zip.file("how-to-assemble.txt", [`How to put ${title} together`, "", ...asm.map((t, k) => `${k + 1}. ${t}`), "",
     ...(enclosureInfo.need && enclosureInfo.need.length ? ["What you'll need:", ...enclosureInfo.need.map(([n, w]) => `  ${n} x ${w}`)] : [])].join("\r\n"));
   if (state.base.type === "jigsaw" && jigsawInfo) zip.file("cad/puzzle-cut-lines.svg", C.jigsawSVG(jigsawInfo.cut, title));
@@ -19207,6 +19310,7 @@ async function buildZip(parts, title, unjoined){
       : "One colour at a time: print stl/all-parts-merged.stl.",
     ...(cardNfcText(title) ? ["An NFC tag goes inside: nfc-tag.txt says where to pause and put it in."] : []),
     ...(asm.length ? ["A project box: how-to-assemble.txt has the steps and what you'll need."] : []),
+    ...(fl ? ["The flower lamp: how-to-assemble.txt has the steps and what you'll need; flower-lamp.ino is the sketch for the board."] : []),
     ...(wiring ? ["wiring.txt lists every wire, end to end, with its colour and length."] : []),
     ...(state.base.type === "enclosure" && (state.base.enclosure.cut || []).length && !state.base.enclosure.test ? ["cad/faces-drilling-templates.svg has each face with its openings at true size: print it at 100% and tape it on a bought box to drill. cad/faces.dxf is the same for CAD or a laser cutter."] : []),
     ...(fw ? [fw.kind === "esphome" ? "esphome.yaml is a starting point for the firmware (ESPHome), from the wiring: check every pin." : "pins.h has the pins from the wiring as Arduino #defines: check every pin."] : []),
@@ -19521,6 +19625,7 @@ window.MakerForge = {
   boxRoom:{ shape:{ kinds:ENC_SHAPES, geo:encShapeGeo, twist:encTwist, slope:encSlope, clam:encClam, cache:() => encShapeCache }, place:encPlace, freeU:encFreeU, onFace:encRoomOnFace, shrink:encShrinkWrap, fixAll:encFixAll, makeRoom:encMakeRoom, busy:encBusy, assembly:encAssembly, kicad:kicadParse, importKicad:encImportKicad, heat:encHeat, wires:encWires, kits:ENC_KITS, startKit:encStartKit, battery:encBattery, batteryWh:encBatteryWh, firmware:encFirmware, boardFromPhoto, openPhotoBoard, boardFile:boardFileParse, addCustomBoard:encAddCustomBoard, myParts, myPartsSave, measuredBoard:encMeasuredBoard, faceSVG:encFaceSVG, faceDXF:encFaceDXF, faceDrawings:encFaceDrawings, fit:{ printer:printerFit, sample:fitSample, defaults:FIT_DEFAULT, clean:cleanFit, rows:FIT_ROWS, save:fitSave, screw:encScrew, card:ENC_HOLDERS } }, boxDrag:{ pick:boxDragPick, start:h => { boxDrag = Object.assign(h, { id:-1, moved:false, t:0 }); }, to:lr => { const ok = boxDragTo(lr); if (ok && boxDrag) boxDrag.moved = true; return ok; }, end:boxDragEnd }, applyPlan:encApplyPlan, recipes:ENC_RECIPES, newOpening, openingRings, lensMinHole, buildEnclosure, get bedHelper(){ return bedHelper; },
   get jigsaw(){ return jigsawInfo; },
   get mechParts(){ return partsInfo; },
+  get flower(){ return flowerInfo; }, flowerAnimate,
   get lithophane(){ return lithoInfo; },
   get print(){ return printFresh() ? printInfo : null; },
   printNow: runPrintability, optimize: optimizePrint, revertOptimize, exportParts,

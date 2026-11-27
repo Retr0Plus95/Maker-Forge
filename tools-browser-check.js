@@ -459,6 +459,29 @@ function pageCoverage() {
     notes.push(`business card: rebuilt in ${Math.round(card.ms)} ms after a change of name; both QR codes read back from the geometry with real fonts (and with rounded and round eyes); NFC pause before layer ${card.nfc && card.nfc.layer}; messages: ${card.warn.join("; ") || "none"}`);
   }
   // ---------- signs with real fonts, and a relief from the real depth model (Session 38) ----------
+  // the blooming flower lamp (Session 85): the export's sketch, steps and plates (JSZip runs only in a real browser), and the lamp
+  // drawn closed and open
+  if (!ONLY || ONLY.includes("flower")) {
+    const fl = await page.evaluate(async () => {
+      const MF = window.MakerForge, C = MF.core, sleep = ms => new Promise(q => setTimeout(q, ms));
+      const settle = async () => { const r0 = MF.rev; for (let i = 0; i < 40 && MF.rev === r0 && !MF.busy; i++) await sleep(30); for (let i = 0; i < 1200; i++){ if (!MF.busy){ await sleep(60); if (!MF.busy) break; } await sleep(25); } };
+      const sel = document.querySelector("#objectSel"); sel.value = "flower"; sel.dispatchEvent(new Event("change")); await settle();
+      const out = { parts:MF.parts.length, open:MF.parts.reduce((a, p) => a + C.checkMesh(p.solid).open, 0), ok:MF.flower.info.ok };
+      const zip = await MF.paint.buildZip(MF.exportParts(), "flower lamp"), names = Object.keys(zip.files);
+      const ino = await zip.file("flower-lamp.ino").async("string"), steps = await zip.file("how-to-assemble.txt").async("string"), readme = await zip.file("README.txt").async("string");
+      out.zip = /servo\.detach/.test(ino) && /What you'll need/.test(steps) && /flower-lamp\.ino/.test(readme) && names.some(n => /^plates\/plate-1/.test(n));
+      return out;
+    });
+    await byText(page, "#tabs button", "make");
+    await shot(page, "flower-closed", "The blooming flower lamp, closed: the picture of the lamp (the files are the parts laid out to print)", {});
+    await page.evaluate(() => { window.MakerForge.state.base.flower.bloom = 1; window.MakerForge.rebuild(false); });
+    await settle(page);
+    await shot(page, "flower-open", "The flower lamp open", {});
+    await page.evaluate(() => { window.MakerForge.state.base.flower.bloom = 0; window.MakerForge.rebuild(false); });
+    await settle(page);
+    if (!fl.ok || fl.open || !fl.zip) findings.push({ where: "flower lamp", what: JSON.stringify(fl) });
+    notes.push(`flower lamp: ${fl.parts} parts, every check passing ${fl.ok}; the export has the sketch, the steps and the plates: ${fl.zip}`);
+  }
   if (!ONLY || ONLY.includes("sign")) {
     const sg = await page.evaluate(async () => {
       const MF = window.MakerForge, C = MF.core, sleep = ms => new Promise(q => setTimeout(q, ms));

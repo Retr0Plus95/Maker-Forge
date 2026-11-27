@@ -945,7 +945,7 @@ const DEFAULTS = () => ({
     sign:{ style:"channel", text:"BAR", font:Math.max(0, FONTS.findIndex(f => f.n === "Anton")), letterH:100, depth:25, wall:1.6, back:2,
       diffuser:1, diffuserSlot:0, wallSlot:0, strip:6, backing:"none", margin:10, mount:"keyhole", holes:true, stand:false },
     parts:{ kind:"servoMount", clearance:0.2, set:{} },          // the mechanical parts library (Session 82)
-    flower:{ set:{}, clearance:0.2, show:"lamp", bloom:0, petalSlot:1 },   // the blooming flower lamp (Session 85)
+    flower:{ set:C.flower.clean({}), clearance:0.2, show:"lamp", bloom:0, petalSlot:1 },   // the blooming flower lamp (Session 85): every setting, as a project brings it back
     mech:{ kind:"gears",
       gears:{ teeth1:24, teeth2:12, module:1.5, thick:6, bore:5, boreShape:"d", hub:true, hubDia:12, hubH:4, layout:"apart", angle:20 },
       bolt:{ size:"M10", dia:10, pitch:1.5, af:16, length:25, head:"hex", headH:6.5, nut:true, nutH:8.4 },

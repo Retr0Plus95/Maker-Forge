@@ -3994,6 +3994,34 @@ scheme and backdrop with high contrast, the website's colours in the styles. Loo
 
 **Still to check:** the schemes in a real browser's dark mode on a phone; the colours' contrast with the screen reader's high contrast.
 
+## Session 93: the website's old stylesheet (v0.69.1)
+
+The owner sent a picture of Start from on the website after 0.69.0: the Find box a plain white square and the category chips blank
+light-grey boxes on seven rows. Maker Forge's own file was right (the browser check had passed); the website's copy was not.
+
+**Why:** the Website repository's importer (`tools/import-maker-forge.py`, read only) moves the page's `<style>` into `app.css`, a
+fixed name, which its `.htaccess` lets a browser keep for a week (`max-age=604800` for css), while the scripts go into
+`app.<hash>.js`, a new name each release, and the HTML is `no-cache`. So a browser ran 0.69.0's code with 0.68.0's styles: no rules
+for `.startsearch` or `.startchips`, and `button{color:inherit}` put the panel's light text on the browser's own light buttons.
+
+**Fixed** (`src/app.html`, `build.py`):
+- The styles carry their release: `:root{--mf-styles:"v0.69.1"}` at the top of the first `<style>`, written by `build.py` from
+  `package.json` like the version badge (it stops if the line is missing).
+- `freshStyles(document)` runs right after `APP_VERSION` is read: when the styles' release isn't the page's, every
+  `link[rel=stylesheet]` to `app.css` (or `app.<anything>.css`) gets a twin at `app.css?v=<release>`, an address the browser hasn't
+  kept; the old one goes when the new one has loaded. It says so with a `console.warn`. The single file has its styles inside, so
+  nothing happens there. The website's policy (`style-src 'self'`) allows it; the importer's patterns are untouched.
+- Future releases are covered the same way, not only this one.
+
+**Tested:** `tools-stylecache-check.js` (new, in `check:browser`) serves the page split the way the importer does, in Chromium,
+dark: with an older `app.css` kept (this release's without its stamp and Start from's rules, or `OLD=` an older `index.html`'s) the
+page fetches `app.css?v=0.69.1` once, drops the old one, the chips are round, on one row and in the page's colours, the Find box
+too; with this release's styles nothing is fetched again. It fails on 0.69.0 with 0.68.0's styles (9 chips on 7 rows, grey with
+light text: the owner's picture) and passes on 0.69.1 with them. Look, project and smoke tests pass.
+
+**For the website's own session** (not done from here): naming the stylesheet by its contents, like `app.<hash>.js`, would make
+this unnecessary there.
+
 ## Next
 
 ### The new direction (Session 81, the owner): a mechanical parts library, then the blooming flower lamp

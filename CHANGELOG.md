@@ -3,6 +3,14 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.69.1
+
+A fix for the website's copy.
+
+**Fixed**
+- On the website, Start from's new Find box and its chips could show as blank white boxes on many rows after the update (the
+  browser had kept the last release's styles). The page now notices old styles and fetches its own.
+
 ## 0.69.0
 
 Colours, and finding things faster.

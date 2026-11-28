@@ -68,7 +68,9 @@ Plus, depending on what changed:
   checked number by number against the old way (Session 28)
 - how the app starts (the `makerForge()` starter at the end of `src/app.html`, which loads the `prcore` script itself
   when a page's security policy blocks it, as the owner's website does) → `npm run check:browser`, and serve a copy
-  the way the website does (Session 28 in `HANDOFF.md`)
+  the way the website does (Session 28 in `HANDOFF.md`); the styles' release stamp (`:root{--mf-styles:…}`, written by `build.py`)
+  and `freshStyles`, which fetches the website's `app.css` again when a browser kept an older one → `node tools-stylecache-check.js index.html`
+  (Chromium, part of `check:browser`; `OLD=` an older `index.html` to use its styles as the kept copy)
 - new settings, `sanitizeProject`, `LIMITS` / `LIMITS_AT`, or `DEFAULTS` → `npm run test:project` (every quick start and object
   must come back unchanged from a saved project, and out-of-range values must not make a build run away)
 - after any generator change → `node tools-print-survey.js index.html` (look for new warnings) and `npm run fingerprint` (each object's and quick start's parts: triangles, volume and size against `tools-fingerprints.json`; it lists what moved. When the change is meant, `npm run fingerprint:update` and commit the file)

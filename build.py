@@ -79,5 +79,9 @@ version = json.loads((root / "package.json").read_text(encoding="utf-8"))["versi
 out, n_badge = re.subn(r'(id="verBadge">)v[0-9][0-9A-Za-z.\-]*(<)', lambda m: m.group(1) + "v" + version + m.group(2), out)
 if n_badge != 1:
     raise SystemExit("build.py: the version badge (id=\"verBadge\") was not found once in src/app.html")
+# so do the styles' own (freshStyles() in the page fetches app.css again when a browser kept an older release's copy)
+out, n_css = re.subn(r'(:root\{--mf-styles:")v[0-9][0-9A-Za-z.\-]*(")', lambda m: m.group(1) + "v" + version + m.group(2), out)
+if n_css != 1:
+    raise SystemExit("build.py: the styles' release (:root{--mf-styles:...}) was not found once in src/app.html")
 (root / "index.html").write_text(out, encoding="utf-8")
 print("built index.html", len(out.encode("utf-8")), "bytes, with", len(files), "font files and", len(thumbs), "start pictures")

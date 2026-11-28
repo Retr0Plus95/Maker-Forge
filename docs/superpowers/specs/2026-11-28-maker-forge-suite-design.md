@@ -1,7 +1,10 @@
 # The Maker Forge suite on forge.retr0plus.se: Shaper and Bench, and the apps after them
 
-*Written 2026-11-28 in one session across Maker-Forge, Maker-Forge-Bench and Website. Status: **draft for the owner's
-review**. The fixes in section 3 are built and pushed; nothing else in this document is built yet.*
+*Written 2026-11-28 in one session across Maker-Forge, Maker-Forge-Bench, Website, ShopFlow and Maker-Forge-Home. Status:
+**draft for the owner's review**, with the owner's answers to its three questions folded in (section 16) and the owner's
+wish for unified workflows across every project added (section 17). The fixes in section 3 are built and pushed; nothing
+else in this document is built yet. This document moves to Maker-Forge-Home, the suite's own repository, with its first
+release.*
 
 ## 1. What the owner asked for, and why
 
@@ -33,7 +36,7 @@ room for more apps, in the look of retr0plus.se.
 **Non-goals**
 - Merging the apps' code into one program. Each stays its own repository, its own release, its own tests (Bench design §2 rule 1).
 - Accounts, servers or sync. Everything stays in the visitor's browser (all three repositories promise this).
-- Moving ShopFlow (PitBoard) here: see section 11.
+- Moving ShopFlow (PitBoard) here, or listing it in the suite's roadmap (the owner, 2026-11-28: no). Its code is reused.
 
 **Anti-goals** (what would make this a failure even if it "works")
 - Anyone's saved work lost: an old Maker Forge autosave, Bench's ticks, a share link that no longer opens.
@@ -58,8 +61,10 @@ that reads `file://`); the normal browser check caught it and it was fixed befor
 
 ## 4. Approaches considered for the suite
 
-**How shared code reaches each app** (the owner handed over the how: "reuse any code wherever you see fit"; this is my call):
-- **A. One suite kit, copied into each app by its own build (chosen).** The kit's files live in one place; Shaper's `build.py`
+**How shared code reaches each app** (the owner handed over the how: "reuse any code wherever you see fit", "reuse code from
+the repo or any other repo to save time"; this is my call):
+- **A. One suite kit, copied into each app by its own build (chosen).** The kit's files live in one place
+  (**`Retr0Plus95/Maker-Forge-Home`**, public, MIT: the owner made it for this, 2026-11-28); Shaper's `build.py`
   inlines them (Shaper stays one file, works offline), Bench's esbuild bundles them. Each app names the kit version it carries
   and a check fails if its copy differs. Trade-off: an update reaches an app at its next release, not instantly.
 - **B. Shared files served at runtime from `/suite/`.** One copy, instant updates. Rejected: Shaper must work as one file
@@ -133,7 +138,8 @@ What goes in it, and where each piece comes from ("reuse any code"):
 
 | Kit file | What | Taken from |
 |---|---|---|
-| `theme.css` | The website's tokens (substrate `#150a24`, traces `#6d28d9`/`#a855f7`, gold pads `#d4a54a`/`#ffd88a`, silk `#ede7f6`, amber, red), edge-cut corners, buttons, panels, Easy reading classes, the seasons | Website `site/css/style.css` (tokens, "Edge-cut PCB", Easy reading, seasons sections) |
+| `theme.css` | The website's tokens (substrate `#150a24`, traces `#6d28d9`/`#a855f7`, gold pads `#d4a54a`/`#ffd88a`, silk `#ede7f6`, amber, red), each also as `--name-rgb` for see-through shades, so a theme only swaps tokens; edge-cut corners, buttons, panels, Easy reading classes, the seasons | Website `site/css/style.css` (tokens, "Edge-cut PCB", Easy reading, seasons); ShopFlow `shopflow/static/style.css` (the same palette already as swappable tokens) |
+| `palette.js` + its check | Works out a theme's tokens from its base colours and holds every text colour to 4.5:1 on its background and lines to 3:1, lightening or darkening until it passes: the light variant is made and checked this way, and a test fails the build if a pair falls short | ShopFlow `shopflow/branding.py` (`palette`, `readable`, `contrast`), ported to JavaScript |
 | `fonts/` | Chakra Petch, Share Tech Mono, IBM Plex Sans, Space Grotesk (logo), Atkinson Hyperlegible; OFL, with licences | Website `site/fonts/` (Shaper already builds fonts in; Bench ships Atkinson) |
 | `suite-bar` | The top bar every app shows: the logo with its gold plus pad, the app's name, a switcher to the other apps and home, the Easy reading button | Website header + Easy reading panel, rebuilt with `createElement` only |
 | `storage.js` | Prefixed localStorage, IndexedDB helpers, the move of old saves, quota errors in words, the storage meter | Bench `store.js`; new |
@@ -154,9 +160,11 @@ Plain JavaScript modules with no page code where possible, so they run in Node f
   already what Shaper and Bench offer, with names to line up.
 - **Seasons** follow the website: Halloween week and December, by date, with `?season=` to preview. On the home page and the
   app bar only; calm mode and high contrast turn them off.
-- **Light or dark:** the website is dark only. Shaper and Bench both have a light theme today, used in a bright workshop and for
-  printing. Proposal: a light "white solder mask" variant of the same tokens (white board, purple traces, gold pads). **The
-  owner picks the look from mockups before anything is built** (the website's rule: show a small demo, then ask).
+- **Light and dark (the owner, 2026-11-28: yes to a light variant):** the website is dark only; Shaper and Bench both have a
+  light theme today, used in a bright workshop and for printing. The suite gets a light "white solder mask" variant of the same
+  tokens (white board, purple traces, gold pads), made by `palette.js` and held to the contrast checks. Light, dark, or follow
+  the computer, in Easy reading. **The owner picks the details from mockups before it is built** (the website's rule: show a
+  small demo, then ask).
 - Shaper's 3D view keeps its own bed and model colours (they show filament colours, which must stay true); only the panels
   around it change.
 
@@ -209,10 +217,8 @@ and Shaper's roadmap:
 | Share | **Journal** (a build notebook to retr0plus.se), **Live** (a stream page) | Idea |
 | Shared, not an app | **The Maker Forge Library**: one set of parts every app reads (Shaper's 0.63 parts library, Bench's 3D parts) | Started |
 
-**ShopFlow (PitBoard)** was cloned into this session too. It runs a car workshop on one PC on the shop's own network, with
-customer data that must never leave it, so it can't live on forge.retr0plus.se. What the suite can borrow from it: a role
-per device (1.7), a theme made only of tokens so a shop's own colours swap in with contrast checks (2.7), the calm-UI rule,
-and its strict rules (no inline scripts, Origin checks). Whether it should be listed as a related app is the owner's call.
+**ShopFlow (PitBoard)** is not listed (the owner, 2026-11-28). It runs a car workshop on one PC on the shop's own network.
+Its code is reused (its token theme and contrast checks, section 7), and it takes part in the unified workflows (section 17).
 
 ## 12. Ideas and improvements (the owner asked for them)
 
@@ -247,13 +253,16 @@ and its strict rules (no inline scripts, Origin checks). Whether it should be li
 ## 14. The order of work
 
 1. **Done:** the fixes (section 3): Bench and Website branches pushed; Maker Forge 0.67.1.
-2. **The kit and saving** (section 6 and 7): the kit's first files; Shaper's autosave to IndexedDB with the move of old saves;
+2. **Maker-Forge-Home's first release:** its `CLAUDE.md`, `docs/STATUS.md`, `./check`, `CHANGELOG.md`, the reusable workflows
+   (section 17), this design moved in, and the kit's first files.
+3. **The kit and saving** (section 6 and 7): the kit's first files; Shaper's autosave to IndexedDB with the move of old saves;
    failed saves said in words.
-3. **The look:** mockups of the suite bar, the home and both apps in the website's theme, dark and the light proposal, for the
+4. **The look:** mockups of the suite bar, the home and both apps in the website's theme, dark and the light proposal, for the
    owner to pick. Then `theme.css`.
-4. **The move:** Shaper at `/shaper/`, the home at `/`, old links, the suite updater, Bench published.
-5. **Shared settings:** `suite.prefs`, `suite.ai`, `suite.printer`, the projects list, the hand-off inbox.
-6. **The roadmap** entries and the "adding an app" checklist.
+5. **The move:** Shaper at `/shaper/`, the home at `/`, old links, the suite updater, Bench published.
+6. **Shared settings:** `suite.prefs`, `suite.ai`, `suite.printer`, the projects list, the hand-off inbox.
+7. **The roadmap** entries and the "adding an app" checklist.
+8. **Unified workflows** in Shaper, Bench, Website and ShopFlow (section 17), each in a small release of its own.
 
 Each step is its own release and pull request in each repository it touches (the owner's rule), with its HANDOFF/README notes.
 
@@ -262,10 +271,52 @@ Each step is its own release and pull request in each repository it touches (the
 The kit's exact file layout and API names, the IndexedDB schema, how each app's build pins the kit version, the home page's
 layout within the chosen look, and test names, following each repository's conventions.
 
-## 16. Questions only the owner can answer
+## 16. Decided by the owner (2026-11-28)
 
-1. **Where the kit and the home page live:** a new public repository (my suggestion: `Retr0Plus95/Maker-Forge-Home`, MIT,
-   holding the kit, the home page and the suite roadmap), or inside an existing one. The Website repository is private, so a
-   kit there couldn't be copied into the public apps' builds.
-2. **The look:** a light variant next to the dark purple board, or dark only like the website (decided from mockups).
-3. **ShopFlow:** listed in the suite's roadmap as a related app, or left out.
+1. **The kit, the home page and the suite's roadmap live in `Retr0Plus95/Maker-Forge-Home`** (made empty for this; public).
+2. **A light variant** next to the dark purple board, its details picked from mockups.
+3. **ShopFlow is not in the suite's roadmap**, but its code is reused, and "all our projects" get the unified workflows below.
+
+## 17. Unified workflows for every project
+
+The owner: "I want all our projects to have unified workflows and good code, logical, effective and necessary." Five
+repositories, each grown its own way:
+
+| | Maker-Forge (Shaper) | Maker-Forge-Bench | Website | ShopFlow | Maker-Forge-Home |
+|---|---|---|---|---|---|
+| Instructions for Claude | `CLAUDE.md`, `HANDOFF.md` (4,200 lines) | **none** | `CLAUDE.md`, `docs/DECISIONS.md` | `CLAUDE.md`, `docs/STATUS.md` | empty |
+| One command for every check | **none** (20+ `npm run test:*`) | `check.sh` | `./check`, `check.cmd` | `python -m pytest -q` | — |
+| Version and release notes | `package.json`, `CHANGELOG.md`, a GitHub Release per version | `package.json` says 0.1.0 (it is 1.0.5), notes in `ROADMAP.md` | none | in `README.md`, `docs/STATUS.md` | — |
+| Designs and plans | `docs/superpowers/specs/` (new) | `docs/design/`, `docs/plans/` | `docs/` | `docs/superpowers/specs/`, `plans/` | — |
+| Merging | squash, with `tools-after-squash.js` and its workflow | merge commits | — | straight to `main` (the shop pulls) | — |
+| GitHub Actions | releases, after-squash | none | none | Windows tests, by hand (to save minutes) | — |
+
+**The same in every repository from now on** (each adopts it in its next release, through its own pull request, nothing
+rewritten for its own sake):
+1. **`CLAUDE.md`** with the same headings in the same order: what it is; the rules that are never broken; the layout; the
+   commands; what to run after a change; conventions; working with the owner. Plus **`docs/STATUS.md`**: where things stand,
+   what is unchecked, what's next, kept short (history goes in `CHANGELOG.md` and the specs, not here). Shaper's `HANDOFF.md`
+   stays as its history; its "Next", "Unfinished" and "Known bugs" move to `STATUS.md`. Bench gets its first `CLAUDE.md`.
+2. **One command runs every check:** `./check` (and `check.cmd` on Windows), ending with `ALL CHECKS PASSED`; `--quick` for the
+   fast part. Shaper's gets written over its existing suites; Bench's `check.sh` is renamed; ShopFlow's wraps `pytest`.
+3. **A version and `CHANGELOG.md` in every repository**, newest first, with **New** and **Fixed** in a user's words (the owner's
+   rule, Session 21 of Shaper). Where there are releases to download (Shaper, Bench, Home), a GitHub Release per version, made by
+   one reusable workflow taken from Shaper's `tools-release.js`.
+4. **Designs in `docs/superpowers/specs/`, plans in `docs/superpowers/plans/`**, dated (`YYYY-MM-DD-topic`). Bench's old
+   `docs/design/` and `docs/plans/` stay where they are; new ones go to the new place.
+5. **Pull requests:** one per release (the owner's rule, Session 20), described with **New** and **Fixed**, squash-merged, and
+   brought up to date after a squash by one reusable workflow taken from Shaper's `tools-after-squash.js`. **ShopFlow keeps
+   pushing to `main`** after its tests pass: the running shop pulls `main` with `UPDATE.bat`, and that is its safety rule.
+6. **GitHub Actions that cost nothing or are asked for:** in the public repositories (Shaper, Bench, Home, where Actions are free)
+   `./check --quick` on every pull request; in the private ones (Website, ShopFlow, with 2,000 free minutes a month that
+   ShopFlow once used up in a week) only when started by hand. The reusable workflows live in Maker-Forge-Home
+   (`.github/workflows/`), called from each repository, so a fix to one is a fix to all.
+7. **Good code:** every change has a test that fails without it; nothing dead left behind; shared code taken from the kit or
+   the other repositories rather than written again (the owner: "reuse code from the repo or any other repo"); each repository's
+   security rules kept (strict CSP, no inline scripts, input checked twice), the strictest one setting the bar.
+8. **Bugs found in passing** are fixed in the repository they belong to when small, and otherwise written into that
+   repository's `docs/STATUS.md`, so none are lost between sessions.
+
+**In what order:** Maker-Forge-Home starts with all of it (its first release). Shaper and Bench adopt it with the suite's
+releases they already need. Website and ShopFlow adopt items 1 to 4 and 6 in a small release each, and nothing that touches
+how ShopFlow reaches the shop.

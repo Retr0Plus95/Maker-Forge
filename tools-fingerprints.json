@@ -2186,5 +2186,101 @@
     32
    ]
   }
+ ],
+ "preset RGB lamp controller": [
+  {
+   "name": "Box",
+   "tris": 11792,
+   "vol": 98804.1,
+   "size": [
+    171,
+    50,
+    91
+   ]
+  },
+  {
+   "name": "Lid",
+   "tris": 15088,
+   "vol": 38013.3,
+   "size": [
+    171,
+    5.4,
+    91
+   ]
+  },
+  {
+   "name": "Pilot light lenses (1)",
+   "tris": 112,
+   "vol": 223.9,
+   "size": [
+    12.66,
+    7.07,
+    12.66
+   ]
+  }
+ ],
+ "preset Bench supply (left)": [
+  {
+   "name": "Box",
+   "tris": 19268,
+   "vol": 294898,
+   "size": [
+    151.5,
+    122,
+    222
+   ]
+  },
+  {
+   "name": "Lid",
+   "tris": 5392,
+   "vol": 103075.3,
+   "size": [
+    151.5,
+    6,
+    222
+   ]
+  },
+  {
+   "name": "Pilot light lenses (2)",
+   "tris": 224,
+   "vol": 471.3,
+   "size": [
+    27.36,
+    7.66,
+    12.66
+   ]
+  }
+ ],
+ "preset Bench supply (right)": [
+  {
+   "name": "Box",
+   "tris": 11128,
+   "vol": 297965,
+   "size": [
+    151.5,
+    122,
+    222
+   ]
+  },
+  {
+   "name": "Lid",
+   "tris": 5392,
+   "vol": 103075.3,
+   "size": [
+    151.5,
+    6,
+    222
+   ]
+  },
+  {
+   "name": "Pilot light lenses (2)",
+   "tris": 224,
+   "vol": 471.3,
+   "size": [
+    27.36,
+    7.66,
+    12.66
+   ]
+  }
  ]
 }

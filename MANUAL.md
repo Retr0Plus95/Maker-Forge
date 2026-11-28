@@ -69,7 +69,17 @@ Finding things (new in 0.69):
 - **Find** at the top: type what you want to make (*keychain*, *box*, *lamp*, *arrow*) and only what matches stays. **Enter** opens the first one.
 - The **chips** under it show one kind at a time: **Names and signs**, **From a picture**, **Gifts and décor**, **Electronics**, **Workshop
   and repair**, **Hobbies and outdoors**, **Basic shapes**, or **From the workshop**: the maker's own projects (the flower lamp, the bird
-  house, the arrow nocks). **All** shows everything again.
+  house, the arrow nocks, and, new in 0.70, their boxes, below). **All** shows everything again.
+- **From the workshop's boxes** (new in 0.70) are the maker's own project boxes, exactly as they made them, to print or to change:
+  - **RGB lamp controller**: the box for their ESP32 RGB lamp controller ([Retr0Plus95/ESP32-LED-RGB-](https://github.com/Retr0Plus95/ESP32-LED-RGB-)),
+    171 × 91 × 50 mm, a 90 × 70 mm board on M2.5 posts, the IR receiver, a status light and the on/off button in front, USB, 12 V and the
+    LED strip's cable at the back;
+  - **Bench supply (left)** and **(right)**: the two halves of their four-channel bench supply's case
+    ([Retr0Plus95/FOUR-CHANNEL-PSU](https://github.com/Retr0Plus95/FOUR-CHANNEL-PSU)), each 151.5 × 222 × 122 mm, bolted together round a
+    big opening where they meet: the display, the channels' knobs, buttons and lights, the openings for four screwed-on output plates, the mains inlet, the switch and
+    two fans. Each half and its lid print on a plate of their own (they don't fit a 256 mm bed side by side). Search *psu* or *esp32*.
+
+![The owner's three boxes: the RGB lamp controller's box, and the bench supply's left and right halves with their lids](docs/images/workshop-boxes.jpg)
 - **Recently** at the top lists what you opened last in this browser, and the newest objects carry a **New** badge.
 - **Small pictures** (Settings) puts three to a row.
 

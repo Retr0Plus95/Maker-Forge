@@ -525,8 +525,8 @@ function pageCoverage() {
       return out;
     });
     await byText(page, "#tabs button", "make");
-    await shot(page, "arrow-nocks", "Arrow nocks: six, laid out to print standing on the shaft's end", {});
-    if (!nk.ok || nk.open || !nk.zip || nk.parts !== 6) findings.push({ where: "arrow nocks", what: JSON.stringify(nk) });
+    await shot(page, "arrow-nocks", "Arrow nocks: the owner's design, tilted 45° to print", {});
+    if (!nk.ok || nk.open || !nk.zip || nk.parts !== 1) findings.push({ where: "arrow nocks", what: JSON.stringify(nk) });   // the owner's design makes one by default
     notes.push(`arrow nocks: ${nk.parts} nocks of ${nk.grains} grains, every check passing ${nk.ok}; the export has how to print and use them: ${nk.zip}`);
   }
   if (!ONLY || ONLY.includes("sign")) {

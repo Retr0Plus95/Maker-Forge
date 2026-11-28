@@ -3923,6 +3923,43 @@ one-click starts; the fume extractor a fan-and-filter box maker. Those repositor
 **Still to check:** a real print on real shafts and a real string. The defaults are typical (a 6.2 mm inside, 7.6 mm outside carbon
 shaft; a 2.6 mm serving): print the fit test first. Shoot nothing on a nock you haven't checked.
 
+## Session 91: the arrow nocks on the owner's own design (v0.68.0)
+
+The owner shared their own parametric nock, `arrow_nock.scad` (OpenSCAD, uploaded to the session), with "maybe use this for the arrow
+nocks?". 0.67's nock (Session 90) is replaced by a port of it; their later messages (the website's colours as a theme, more colours and
+options, a tidier UI, Start from and categories) are the next release, 0.69, on the roadmap.
+
+**The port** (`PRCore.nock`): Maker Forge has no cutting during a build, so the SCAD's differences and intersections are built directly:
+- `NOCK_SETTINGS` are the SCAD's parameters with its defaults (slip-over, 7.0 mm, 30 mm long, a 6 mm tip, a 2.6 × 8 mm throat, tilted 45°,
+  one nock), in its groups (Arrow shaft, Mount, Retention, String throat, Shape, Cock vane index, Label, Print), plus 0.67's fit test.
+  Arrays carry their group and a "shown when" (`nockShown`: a value, a list, "some" for above 0, "words" for a label or numbers). On/off
+  settings are `bool`, the label `text` (cleaned to what the stroke font draws, 10 at most). A 0.67 project's settings are carried over
+  in `nockClean`.
+- `nockPlan`: the SCAD's sizes. Its asserts become fixes with a warning (the taper closing up, the pin as wide as the shaft, too little
+  plastic between the socket and the throat) or checks (the ears).
+- `nockSolid`: the body is a `revolve` up to Ts: the socket (straight or tapered, the mouth chamfer, the 45° ceiling, glue grooves as
+  V rings) or the pin (its lead-in, grooves, the collar). The taper up to the slot is a `loft` of whole slices; each ear a `loft` of
+  slices past the slot's half-width (`nockH`: the round seat, the snap, the lead-in), the round clamped by the flats (`nockF`) and
+  following the SCAD's profile and rounded tip (`nockR`). An ear that runs out at the tip ends in a point. Crush ribs are columns; the
+  ridge a squashed bead turned to its angle. The label is the stroke font traced (`strokePolys`) and wrapped onto the side (`nockWrap`):
+  raised letters, and cutters for engraving.
+- `nockMake`: each nock tipped over about x by the orientation (the ears stay side by side, so tilted and on its side they print
+  strong), laid out in rows; per nock its cutters and raised letters, and its text (numbers when asked, 1 to 5 for the fit test).
+- **The app:** `cutNockLabels` runs after the build (as an imported model's flat cut does): it waits for the cutting tool and cuts each
+  nock's letters in (kept until the settings change), or shows them raised and says why. The panel shows the design's groups as pages,
+  each setting only for its choices, with icons for each group.
+
+**Tested** (`npm run test:nock`, rewritten): 571 sets (every setting at its ends for each mount and orientation), 816 nocks and their
+letters, closed and on the bed; no support upright for every mount, a little inside a socket tilted 45° (16 mm² slip-over, 40 tapered);
+rays: the round seat, the throat's width with the snap, the ears, the flats along the string, the socket's size and ceiling, the
+pin; ribs narrow the socket by their height, a groove widens it, the ridge stands out at 0° and 90°; raised letters and cutters;
+Manifold engraves and the nock stays closed; long text shrunk and said; numbered arrows; the fit test's sockets 0.05 mm apart; the
+weight; the checks and warnings; 13 laid out; the notes and credit; a 0.67 project; cleaning. **App:** the design's groups as pages;
+settings shown for their choices; raised and engraved letters (Manifold in Node); saved, hostile and 0.67 projects.
+`node tools-audit.js index.html nock` with and without the cutting tool: no findings.
+
+**Still to check:** a real print, tilted 45°, on real shafts. Engraved letters 2.5 mm tall and 0.4 mm deep need a fine nozzle to read.
+
 ## Next
 
 ### The new direction (Session 81, the owner): a mechanical parts library, then the blooming flower lamp

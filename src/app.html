@@ -9290,8 +9290,9 @@ function birdFields(p){
     buttonRow(g2, [["Download birdhouse-camera.ino", ()=>offerDownload("birdhouse-camera.ino", I.sketch, "text/plain")], ["Copy it", ()=>copyText(I.sketch, "The sketch is on the clipboard.")]]);
   });
 }
-// ---- arrow nocks (Session 90): PRCore.nock makes each nock to the shaft and the string; laid out in rows to print ----
-let nockInfo = null, renderedNockSig = "";
+// ---- arrow nocks (Sessions 90 and 91): the owner's own nock design (arrow_nock.scad), made by PRCore.nock; engraved labels are cut in
+// with the cutting tool after the build (cutNockLabels), or shown raised when it can't load ----
+let nockInfo = null, renderedNockSig = "", nockCut = { key:"", solids:[], failed:"" };
 function nockCleanSet(N){
   if (!N.set || typeof N.set !== "object" || Array.isArray(N.set)) N.set = {};
   const cl = C.nock.clean(N.set);
@@ -9302,22 +9303,51 @@ function buildNock(){
   const N = state.base.nock; nockCleanSet(N);
   const r = C.nock.make(N.set); nockInfo = r;
   const slot = clamp(state.base.slot || 0, 0, state.slots.length - 1);
-  return r.printed.map(q => ({ name:q.name, slot, solid:q.solid, role:"part", key:q.key }));
+  return r.printed.map(q => ({ name:q.name, slot, solid:q.solid, role:"part", key:q.key, cutters:q.cutters, raisedLetters:q.raisedLetters }));
 }
-const NOCK_LABELS = { fit:k => ({ insert:"Pushes into a hollow shaft (carbon, aluminium)", taper:"Slips onto a wooden shaft's 11° taper", over:"Sleeves over the shaft's end" })[k],
-  index:k => k === "ridge" ? "A ridge, square to the string" : "None", make:k => k === "test" ? "A fit test: five sizes, 0.05 mm apart" : "The nocks" };
+// engraved letters: each nock cut by its letters (kept between builds while nothing changed); raised when the tool won't load
+async function cutNockLabels(parts){
+  if (!parts.some(p => p.cutters && p.cutters.length)) { nockCut.failed = ""; return parts; }
+  const key = JSON.stringify(state.base.nock.set);
+  if (nockCut.key === key && nockCut.solids.length === parts.length) return parts.map((p, i) => ({ ...p, solid:nockCut.solids[i] }));
+  try { await cutReady(); }
+  catch (err){ nockCut.failed = cutState.error || err.message || "it didn't load"; console.warn(err);   // (said on the panel: shown raised)
+    return parts.map(p => p.raisedLetters && p.raisedLetters.length ? { ...p, solid:C.mergeSolids([p.solid, ...p.raisedLetters]) } : p); }
+  const solids = parts.map(p => {
+    if (!p.cutters || !p.cutters.length) return p.solid;
+    const prep = C.cutBase(cutState.M, p.solid);
+    try { const r = C.cutSolid(prep, p.cutters.map(solid => ({ solid, keep:false }))); return r.solid && r.solid.idx.length ? { pos:r.solid.pos, idx:r.solid.idx } : p.solid; }
+    finally { C.cutFree(prep); }
+  });
+  nockCut = { key, solids, failed:"" };
+  return parts.map((p, i) => ({ ...p, solid:solids[i] }));
+}
+const NOCK_LABELS = { preset:k => C.nock.presets[k] || k,
+  mount:k => ({ slip:"Slip-over (glue it, or press it on)", tapered:"Tapered socket (wooden shafts)", pushin:"Push-in (into a hollow shaft)" })[k],
+  labelStyle:k => k === "raised" ? "Raised" : "Engraved", orientation:k => ({ upright:"Upright (weakest ears)", tilt45:"Tilted 45° (strong ears, no support)", side:"On its side (strongest ears)" })[k] };
+const NOCK_HELP = { throatW:"Measure your string's centre serving with calipers.", shaftId:"Push-in only: measure it, or take it from the shaft's chart (often 4.2, 5.2 or 6.2 mm).",
+  clearance:"Added to the shaft's diameter: about 0.1 for glue; 0.1 to 0.2 more if your printer prints holes small.", interference:"The pin less the shaft's inside: a little over 0 presses in." };
 function nockFields(p){
   const N = state.base.nock, spec = C.nock.settings; nockCleanSet(N);
-  const S = N.set, I = nockInfo && nockInfo.info;
-  for (const [k, sp] of Object.entries(spec)){
-    if (Array.isArray(sp) && sp[5] && !Object.entries(sp[5]).every(([k2, v2]) => S[k2] === v2)) continue;   // shown only for a choice
-    if (Array.isArray(sp)) numField(p, { label:sp[4], min:sp[1], max:sp[2], step:sp[3], get:()=>S[k], set:v=>S[k] = v, onChange:baseChanged,
-      sub:k === "string" ? ()=>"Measure the serving where the nock sits, with calipers." : k === "shaftId" ? ()=>"Measure it, or take it from the shaft's chart: often 4.2, 5.2 or 6.2 mm." : undefined });
-    else selField(p, sp.label, sp.opts.map(o => [o, NOCK_LABELS[k] ? NOCK_LABELS[k](o) : o]), ()=>S[k], v=>{ S[k] = v; renderTab(); baseChanged(); });
-  }
+  const S = N.set, I = nockInfo && nockInfo.info, groups = [];
+  for (const [k, sp] of Object.entries(spec)){ const g = Array.isArray(sp) ? sp[6] : sp.group; if (!groups.includes(g)) groups.push(g); }
+  const field = (box, k) => {
+    const sp = spec[k]; if (!C.nock.shown(k, S)) return;
+    if (Array.isArray(sp)) numField(box, { label:sp[4], min:sp[1], max:sp[2], step:sp[3], get:()=>S[k], set:v=>S[k] = v, onChange:baseChanged, sub:NOCK_HELP[k] ? ()=>NOCK_HELP[k] : undefined });
+    else if (sp.bool) checkField(box, sp.label, ()=>!!S[k], v=>{ S[k] = v; renderTab(); baseChanged(); });
+    else if (sp.text) textField(box, sp.label, ()=>S[k], v=>{ S[k] = v.toUpperCase().replace(/[^0-9A-Z+\-\/.: ]/g, ""); }, { max:sp.max, placeholder:"e.g. AB", onChange:baseChanged });
+    else selField(box, sp.label, sp.opts.map(o => [o, NOCK_LABELS[k] ? NOCK_LABELS[k](o) : o]), ()=>S[k], v=>{ S[k] = v; renderTab(); baseChanged(); });
+  };
+  // the first group on the basics page, the others each a page of their own (the design's own groups)
+  groups.forEach((g, i) => {
+    const keys = Object.keys(spec).filter(k => (Array.isArray(spec[k]) ? spec[k][6] : spec[k].group) === g);
+    if (i === 0){ keys.forEach(k => field(p, k)); return; }
+    group(p, g, box => keys.forEach(k => field(box, k)), true);
+  });
   if (!I) return;
   I.warn.forEach(w => note(p, `<b>Note:</b> ${esc(w)}`));
-  note(p, `<b>Each ${I.size.across} mm across and ${I.size.long} mm long, about ${I.size.grains} grains (${I.size.grams} g) in PETG.</b>`);
+  if (nockCut.failed && S.labelStyle === "engraved") note(p, `<b>Note:</b> the letters are shown raised: the cutting tool couldn't load (${esc(nockCut.failed)}).`);
+  note(p, `<b>Each ${I.size.across} mm across and ${I.size.long} mm long, about ${I.size.grains} grains (${I.size.grams} g) in PETG.</b> ${esc(I.credit)}.`);
   group(p, "Checks", g2 => I.checks.forEach(q => note(g2, `${q.ok ? "✓" : "✗"} ${esc(q.name)} (${esc(q.why)}).`)), true);
   group(p, "Print and use", g2 => I.notes.forEach(n => note(g2, esc(n))), true);
 }
@@ -12302,6 +12332,7 @@ async function rebuildAll(resetItems, mode){
     else parts = buildSimpleObject();
     cutDrop = 0; flatInfo = null;                    // only an imported model is cut flat: nothing else is lowered
     if (t === "stl") parts = await cutModelFlat(parts);
+    if (t === "nock") parts = await cutNockLabels(parts);   // engraved labels on arrow nocks (Session 91)
     // an imported model is the same solid from build to build: its geometry, the copy pictures are laid on and
     // its picking boxes are kept, not made again for every change to artwork or paint (Session 28)
     parts.forEach(p => {
@@ -13218,7 +13249,7 @@ document.querySelectorAll(".viewtools button[title]").forEach(b => { if (!b.getA
    active page is shown, so panels stay short, and the active page plus its scroll position are
    remembered per tab and object, so changing a setting never loses your place. */
 const SECTION_ICONS = [
-  [/put together/i,"🔧"], [/sketch/i,"⌨"],      // the flower lamp's and the bird house's steps and their boards' sketches (Session 89)
+  [/put together/i,"🔧"], [/sketch/i,"⌨"], [/^arrow shaft$/i,"⇕"], [/^mount$/i,"⊓"], [/^retention$/i,"✳"], [/^string throat$/i,"∪"], [/^cock vane index$/i,"▲"], [/^label$/i,"Aa"], [/^print and use$/i,"🔧"], [/^print$/i,"⎙"],      // the flower lamp's and the bird house's steps and their boards' sketches (Session 89)
   [/^plan of the inside/i,"⊞"], [/^heat and air/i,"♨"], [/^battery life/i,"🔋"], [/^outdoors$/i,"☂"], [/^templates and drawings/i,"⌖"], [/^start from a recipe/i,"★"], [/^style$/i,"✎"], [/^wiring$/i,"⌇"],
   [/^art, words and icons/i,"✦"], [/^floor, names and extras/i,"▦"], [/^what you'll need/i,"≡"],
   [/hanging hole/i,"◎"], [/^thickness$/i,"⇕"], [/^feet$/i,"⊥"], [/cut it flat/i,"✂"],

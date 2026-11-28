@@ -8397,6 +8397,7 @@
       "A nock is a wear part: check each one before you shoot, and replace any that is cracked or loose. A nock that breaks can make the bow dry-fire."
     ];
     if (s.fitTest) notes.push("The fit test: five nocks 0.05 mm apart on the fit, numbered 1 (the loosest) to 5. Try each on a shaft and on the string, then set the clearance (or the pin's press fit) by the one that fits.");
+    if (s.orientation !== "upright") notes.push("Tilted or on its side, it stands on a small edge: add a brim (Export tab, Brim width) so it stays put while it prints.");
     if (text && shrink < 0.999) notes.push(`The text is made ${Math.round(shrink * 100)}% of its size to fit the ${(P.labelZ1 - P.labelZ0).toFixed(1)} mm of side there is. Shorter text, or a longer nock, keeps it full size.`);
     const size = { across:+(2 * P.R).toFixed(2), long:+(P.L + (P.push ? s.pinLen : 0)).toFixed(1), grains:+(g * NOCK.grain).toFixed(1), grams:+g.toFixed(2) };
     return { checks, ok:checks.every(q => q.ok), notes, size, warn:P.warn.slice(), credit:"The owner's own design (arrow_nock.scad), made in Maker Forge" };

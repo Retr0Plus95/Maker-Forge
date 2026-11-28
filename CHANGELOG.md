@@ -3,6 +3,19 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.67.1
+
+Safer on its website, next to Maker Forge Bench.
+
+**New**
+- On forge.retr0plus.se the browser now checks everything Maker Forge writes into its page (Trusted Types): HTML is cleaned of
+  anything that could run, and only Maker Forge's own helper code may start. Nothing changes for you: the app's own pages,
+  objects and tools all pass through unchanged. A copy opened from your computer works as before.
+
+**Fixed**
+- Nothing you would notice: this release makes the app safer to share a website with Maker Forge Bench, where the two keep
+  their saved work side by side.
+
 ## 0.67.0
 
 Arrow nocks.

@@ -3923,6 +3923,57 @@ one-click starts; the fume extractor a fan-and-filter box maker. Those repositor
 **Still to check:** a real print on real shafts and a real string. The defaults are typical (a 6.2 mm inside, 7.6 mm outside carbon
 shaft; a 2.6 mm serving): print the fit test first. Shoot nothing on a nock you haven't checked.
 
+## Session 91: Trusted Types, for sharing forge.retr0plus.se with Bench (v0.67.1)
+
+The owner asked to combine Shape (this app) and Bench under forge.retr0plus.se as two apps of the Maker Forge suite, to rename
+this app **Shaper**, and to start with a design (saved progress, shared code, security rules, the website's themes, room for
+more apps). Website, Bench and ShopFlow were cloned into this session alongside this repository, and the owner asked for the
+work in all of them from here ("reuse any code wherever you see fit"; "find bugs along the way and security weaknesses").
+The CLAUDE.md rule "website work is done in the Website repository's own session" is set aside for this suite work at the
+owner's word (2026-11-28). The owner picked one shared address (folders, as Bench's design has it) and said "fix the problems
+first": this release is this app's part of those fixes. The rename to Shaper and the move to `/shaper/` are in the suite's
+design, next.
+
+**Why:** apps at one address share the browser's saved data, so the weakest app's rules guard everyone's (Bench's ticks and
+notes, and later one Claude key for the suite). Bench writes no HTML from strings and enforces Trusted Types; this app writes
+HTML in 164 places (`innerHTML`, `insertAdjacentHTML`), each escaped by hand. In fairness, the site's rules already stopped an
+escaping slip from running a script (no inline scripts, frames, plugins or forms; nothing reachable but the site), so this is a
+second line, not a hole closed. It also guards the three places that start a script, and stops the rules being loosened by
+accident.
+
+**What:** `TT` at the top of the page's main script, before `makerForge()` (the start-up fallback uses it too):
+- `mf-url` (createScriptURL): only a `blob:` this page made (`blob:<origin>/`, or `blob:null/` for a page opened from disk:
+  there `location.origin` reads `file://`, which the browser check caught). Used for the helper and joiner workers and the
+  core's start-up fallback (`TT.url`). Dynamic `import()` of a blob (the runtime, Manifold) is not a Trusted Types sink.
+- `mf-xml` (createHTML, passes through): the two DOMParser reads of data files (an SVG, an Eagle board), whose documents never
+  run anything (`TT.xml`).
+- `default`: every other HTML write is cleaned. Read in a scratch document with no window (`mf-tpl` hands it the text);
+  removes script, iframe, frame(set), object, embed, applet, base, link, meta, template, noscript, noembed, noframes, xmp,
+  plaintext, portal, math, foreignObject, form, style, use, animate, set, animateMotion, animateTransform; every `on…`
+  attribute, `srcdoc`, `formaction`; `javascript:`, `vbscript:`, `data:`, `blob:` and `filesystem:` in URL attributes except
+  `data:image/png|jpeg|gif|webp|svg+xml`. Text without `<` or `&` is returned as it is. createScript and createScriptURL
+  refuse, so a script started any other way fails loudly. Anything removed is counted (`MakerForge.trustedTypes.stripped`).
+- Without Trusted Types asked for (a file from disk, GitHub's release HTML) the policies exist but the browser never calls
+  `default`, so pages behave as before.
+- The website's import (`tools/import-maker-forge.py`, Website repository) adds `require-trusted-types-for 'script';
+  trusted-types default mf-url mf-xml mf-tpl` to the app's rules only when the imported index.html makes all four policies, so
+  an older Maker Forge is never broken by it. Pattern-matched by the import: `createPolicy("<name>"` (keep that shape).
+- Chrome reports in the console every `on…="…"` it reads under these rules, even in the scratch document where nothing runs. The
+  app writes none (below), so the report only shows for HTML that came from somewhere it shouldn't.
+
+**Tested:**
+- `CSP=site npm run check:browser` (new mode in `tools-browser-check.js`): the page served over http with the website's rules
+  plus Trusted Types (inline scripts allowed by hash, as the import moves them to files; the CDN allowed, as the import hosts
+  the libraries; `models/` served as the website does). Every quick start, object, page and tool ran with no Trusted Types or
+  policy errors, the cleaner never changed the app's own HTML, and hostile HTML (an `onerror`, a script, a `javascript:` link
+  spelled with a tab, `srcdoc`, SVG `animate` and `foreignObject`, a form, MathML, an `object`) came out as its words and a
+  picture, with an outside script and a `data:` worker refused. The check's own QR reader is run from outside the page there.
+- `npm run check:browser` from disk: as before (it caught the `blob:null/` case above). Smoke test passed.
+- The real import (a scratch copy skipping the three Hugging Face models, which this environment's network blocks) served from
+  Apache 2.4.58 over HTTPS and HTTP/2, with Bench at `/bench/`: all 29 objects built under Trusted Types, nothing cleaned, no errors.
+
+**Still to check:** the site after the next forge-update (the owner's desktop runs the real import, with the depth model).
+
 ## Next
 
 ### The new direction (Session 81, the owner): a mechanical parts library, then the blooming flower lamp

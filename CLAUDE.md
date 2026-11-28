@@ -97,6 +97,9 @@ Plus, depending on what changed:
 - arrow nocks, the owner's own design (`NOCK_SETTINGS`, `NOCK_PRESETS`, `nockShown`, `nockClean`, `nockPlan`, `nockR`, `nockF`, `nockH`, `nockWrap`, `nockSolid`, `nockMake`, `nockInfo` in `src/core.js`;
   `buildNock`, `cutNockLabels`, `nockFields` in `src/app.html`) → `npm run test:nock` (`CORE=1` for the library only: every setting at its ends for each mount and
   orientation, support upright and tilted, the seat, throat, flats, socket, pin, ribs, grooves and ridge checked with rays, engraving with Manifold, the fit test, a 0.67 project)
+- colour schemes and Start from (`SCHEMES`, `BACKDROPS`, `lookFields`, the `prefs` loader and `applyPrefs`; `OBJECT_GROUPS`, `START_CATS`, `PRESET_CAT`,
+  `OBJECT_WORDS`, `WORKSHOP`, `NEW_OBJECTS`, `renderStarts`, `filterStarts`, `rememberStart` in `src/app.html`) → `npm run test:look` and `npm run check:browser`
+  (and `npm run screenshots` when Start from changes, for the manual's picture). Keep `#presetGallery button[data-k]`: the tools find the quick starts that way
 - photo frames and stands (`frameDims`, `buildPhotoFrame`, `slotStand`, `standFor`) → `npm run test:frame`; signs (`buildSign`, `signMounts`, `withHoles`) → `npm run test:sign`; a relief from a photo (`buildRelief`, `depthOf`, `depthField`,
   `AI_FIGURE.depth`, `ortRuntime`) → `npm run test:relief` (it runs the real depth model when `models/depth-anything-v2-small-int8.onnx`
   is there: not in the repository, 27 MB, the URL and SHA-256 are in `AI_FIGURE`) and `npm run test:photo` (the shared runtime);

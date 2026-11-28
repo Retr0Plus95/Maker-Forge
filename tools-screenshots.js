@@ -63,6 +63,7 @@ const figureKit = () => { globalThis.earcut = globalThis.earcut || require("earc
     // the Start from sidebar with its pictures, and the app on the phone case
     async sidebar() {
       const { ctx, page } = await open(1440, 1000); await preset(page, "Phone case");
+      await page.evaluate(() => { const b = document.querySelector("#startsBody"); if (b) b.scrollTop = 0; });   // from the top: the Find box and the chips
       const box = await (await page.$("#starts")).boundingBox();
       await shot(page, path.join(MANUAL, "start-sidebar.jpg"), { x: box.x, y: box.y, width: box.width, height: Math.min(box.height, 1000 - box.y) });
       await shot(page, path.join(IMAGES, "phone-case-example.jpg")); await ctx.close();

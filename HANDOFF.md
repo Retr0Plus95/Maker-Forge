@@ -3960,6 +3960,40 @@ settings shown for their choices; raised and engraved letters (Manifold in Node)
 
 **Still to check:** a real print, tilted 45°, on real shafts. Engraved letters 2.5 mm tall and 0.4 mm deep need a fine nozzle to read.
 
+## Session 92: colours, and finding things (v0.69.0)
+
+The owner: "add the colours of the website and background as an option for the maker forge and i feel like the ui and categories and
+start from need optimizing", "and more colours and options for the maker forge". The website's palette was read (read-only) from the
+Website repository's `site/css/style.css` ("Purple board rev.A"): `--sub #150a24`, `--sub2 #1e0f33`, traces `#6d28d9`/`#a855f7`, glow
+`#c084fc`, gold `#d4a54a`, silk `#ede7f6`, its perfboard (dots every 32 px), scanlines and vignette, and its own high contrast.
+
+**Looks** (`src/app.html`):
+- `SCHEMES` (Maker Forge, Retr0+, Forest, Sunset, Rose, Ocean, Graphite, your colour) and `BACKDROPS` (soft, perfboard dots, grid,
+  blueprint, plain). Each scheme is `:root[data-scheme=…]` overriding the colour tokens, with dark variants (system dark and the Dark
+  choice) so a light scheme never mixes with dark panels. Retr0+ is dark only, puts scanlines and a vignette over the view, and gold under
+  the active tab; with high contrast it uses the website's own (`[data-contrast="high"][data-scheme="retro"]`, after the other contrast rules).
+- Your colour sets `--accent` inline, its tint with `color-mix`, and dark or light text on it by its brightness.
+- Backdrops are layers on `.stage`'s background (the 3D canvas is see-through).
+- `makeBed` draws the bed's edge in the accent and its grid in the scheme's lines.
+- They are preferences (`prefs.scheme`, `accent`, `backdrop`, `tiles`, `recent`), in this browser, read back cleaned; Easy reading's
+  Back to normal keeps them. `lookFields` is the Look section at the top of Settings.
+
+**Start from:**
+- `renderStarts` builds a Find box and category chips (`.startchips`: `.chips` is the colour chips elsewhere, which wrap), Recently
+  (`#recentRow`, not in `#presetGallery`), the quick starts and the objects regrouped (`OBJECT_GROUPS` with a category each). Every tile
+  has its categories (`PRESET_CAT`, the group, `workshop` for the owner's projects in `WORKSHOP`) and words (`OBJECT_WORDS`).
+- `filterStarts` hides what doesn't match the words and the chip, and the headings of empty groups. `#startsBody [hidden]` needs
+  `!important`: the tiles' `display:grid` beat the `hidden` attribute (found in the pictures: nothing was filtered at first).
+- `rememberStart` keeps the last six picks. New badges for `NEW_OBJECTS`. Small pictures put three to a row.
+
+**Tested** (`npm run test:look`, new; `tools-test-env.js` gained `opts.storage`, preferences saved before the page opens): the eight
+schemes, Retr0+ and its note, the dots, your colour with dark or light text, another scheme clearing it, Back to normal keeping the
+colours; Start from with all 31 quick starts, "lamp", "arrow", nothing found, From the workshop, Electronics, the new headings, New
+badges, Enter opening the first, Recently, small pictures; odd saved values cleaned, the recent picks kept only when real, a saved
+scheme and backdrop with high contrast, the website's colours in the styles. Looked at in Chromium: each scheme and backdrop.
+
+**Still to check:** the schemes in a real browser's dark mode on a phone; the colours' contrast with the screen reader's high contrast.
+
 ## Next
 
 ### The new direction (Session 81, the owner): a mechanical parts library, then the blooming flower lamp

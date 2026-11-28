@@ -64,6 +64,15 @@ The **Start from** sidebar has two kinds of button.
 - **Quick starts** set everything up for one product: the object, its size, the filaments that suit it and a tip on how to print it. *Car badge*, for example, makes a 95 × 32 mm plate and reminds you that PLA softens in a hot car.
 - **Objects** are the makers behind the quick starts: a flat shape, a name plate, a jigsaw, a lithophane and so on. Choosing one keeps your pictures and colours and changes only the object.
 
+Finding things (new in 0.69):
+
+- **Find** at the top: type what you want to make (*keychain*, *box*, *lamp*, *arrow*) and only what matches stays. **Enter** opens the first one.
+- The **chips** under it show one kind at a time: **Names and signs**, **From a picture**, **Gifts and décor**, **Electronics**, **Workshop
+  and repair**, **Hobbies and outdoors**, **Basic shapes**, or **From the workshop**: the maker's own projects (the flower lamp, the bird
+  house, the arrow nocks). **All** shows everything again.
+- **Recently** at the top lists what you opened last in this browser, and the newest objects carry a **New** badge.
+- **Small pictures** (Settings) puts three to a row.
+
 ![The Start from sidebar, each button with a picture of its example](docs/manual/start-sidebar.jpg)
 
 ### The examples
@@ -728,6 +737,21 @@ The view is only drawn again when something changes, so an open Maker Forge left
 - **Ctrl+S** (or **Save project** on the Export tab) downloads a project file (`.json`) with everything in it, pictures and imported models included. **Open project** opens one again. The last three projects you saved or downloaded files for are listed there too, to open with one click.
 - **Share a link** puts your design in a link to send to someone. Pictures are left out of links; send the project file for those.
 - **Start over** clears everything for a new project.
+
+### Colours and look (Settings ⚙ → Look)
+
+New in 0.69. These stay in this browser, for every project.
+
+- **Match system, Light or Dark.**
+- **Colours:** Maker Forge's own teal, **Retr0+ (the website)**: the deep violet, purple and gold of forge.retr0plus.se, always dark,
+  with faint scanlines over the view. Or **Forest**, **Sunset**, **Rose**, **Ocean**, **Graphite**, or **Your colour** from a colour picker
+  (the text on it turns dark or light to stay readable). The bed in the 3D view takes the colour too.
+- **Behind the model:** soft light (as before), **perfboard dots** (like the website), a **grid**, a **blueprint**, or plain.
+- **Big or small pictures** in Start from.
+
+![Maker Forge in the Retr0+ colours, with the perfboard behind the model](docs/images/look-retro.jpg)
+
+High contrast (Easy reading) works with every scheme; with Retr0+ it uses the website's own high-contrast colours.
 
 ## 10. Easy reading
 

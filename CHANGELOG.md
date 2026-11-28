@@ -3,6 +3,26 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.68.0
+
+The arrow nocks, remade on the owner's own design.
+
+**New**
+- **Arrow nocks follow the owner's own parametric nock** (their OpenSCAD design), in its own groups:
+  - **shaft sizes** from 5 mm to 3/8 in, or your own;
+  - **slip-over**, **tapered** (any angle) or **push-in**;
+  - **crush ribs** or **glue grooves** for the fit;
+  - a **throat** with a lead-in and snap;
+  - a head that **tapers** to the ear tips, with **flats** either side of the slot and a rounded tip;
+  - the cock-vane **ridge** at any angle;
+  - **your initials and arrow numbers** along the side, engraved or raised;
+  - printed **upright**, **tilted 45°** or **on its side**.
+- Kept from 0.67: the fit test (now numbered 1 to 5 on the side) and the weight in grains.
+- Projects saved with 0.67's nocks open with their settings carried over.
+
+**Fixed**
+- Nothing this time.
+
 ## 0.67.0
 
 Arrow nocks.

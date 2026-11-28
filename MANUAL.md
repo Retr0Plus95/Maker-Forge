@@ -513,27 +513,35 @@ the height to hang it for birds where you live.
 
 ### Arrow nocks
 
-New in 0.67: nocks for the end of an arrow, made to your shafts and your bowstring (**Arrow nocks** in the object list, under
-Functional).
+New in 0.67, remade in 0.68 on the owner's own design (their parametric OpenSCAD nock): nocks for the end of an arrow, made to your
+shafts and your bowstring (**Arrow nocks** in the object list, under Functional). The settings are in the design's own groups, one page each.
 
-![Arrow nocks: one pushed into a carbon shaft, one on a wooden shaft's taper, one over a straight shaft, and a fit test of five, numbered by the bumps on their sides](docs/images/arrow-nocks.jpg)
+![Arrow nocks: a slip-over on a shaft, a tapered nock on a wooden shaft, a push-in nock in a carbon shaft, and a fit test of five with engraved numbers](docs/images/arrow-nocks.jpg)
 
-- **How it fits the arrow:** it **pushes into a hollow shaft** (carbon or aluminium), **slips onto a wooden shaft's 11° taper** (the
-  taper you cut with a taper tool), or **sleeves over the shaft's end**. Glue the last two on.
-- **The shaft's inside diameter** (for one that pushes in: measure it, or take it from the shaft's chart; often 4.2, 5.2 or 6.2 mm)
-  and **outside diameter**. **Tighter or looser** makes the fit on the shaft firmer or easier, 0.05 mm at a time.
-- **How far it goes onto the shaft**, the **bowstring's serving** (measure it with calipers where the nock sits), **Snap on the
-  string** (how much narrower the throat is than the string, so it clicks on and holds), the **groove depth** and the **head's
-  length** past the shaft.
-- **Cock-feather mark:** a ridge square to the string, to line up with the odd-coloured feather.
-- **Print:** the nocks (up to 24, laid out in rows), or a **fit test**: five nocks 0.05 mm apart, numbered by the bumps on their
-  sides (1 the loosest). Push each onto a shaft and onto the string, and set **Tighter or looser** by the one that grips firmly.
-- The panel says each nock's size and **weight in grains**, and checks the ears are thick enough, the snap isn't too tight and the
-  nock stops on the shaft.
+- **Arrow shaft:** a common **shaft size** (5 to 9.53 mm, with 9/32, 5/16, 11/32 and 3/8 in) or **Custom** and its outside diameter;
+  for a push-in nock, the shaft's **inside diameter**.
+- **Mount:** **slip-over** (glue it, or press it on), a **tapered socket** for wooden shafts (the taper's angle: usually 10 to 11°),
+  or **push-in** (a pin into a hollow shaft). A socket has its **clearance** (about 0.1 mm for glue), **depth** and **wall**, with a
+  chamfered mouth and a pointed ceiling so it prints without support inside. A pin has its **length** and **press fit**, and the
+  push-in nock its **head length**.
+- **Retention:** **crush ribs** inside the socket or on the pin, for a glue-free press fit, and **glue grooves** that hold glue
+  (not on a tapered socket).
+- **String throat:** its **width** (your string's centre serving), its **depth** from the ear tips, a **lead-in** chamfer so the
+  string slides in, and **snap**: the throat a little narrower just above the round seat, so the string clicks in.
+- **Shape:** the **overall length**, the **diameter at the ear tips** (the head tapers to it, with a rounded tip), and **flats**
+  on the taper either side of the slot.
+- **Cock vane index:** a raised **ridge** you can nock by feel, at any **angle** (0 is square to the string).
+- **Label:** **text along the side** (your initials) and **arrow numbers** (1, 2, 3…), **engraved** or **raised**, at a letter
+  height of your choice; text too long for the side is made smaller, and the panel says so. Engraved letters are cut in when the
+  cutting tool has loaded (the first time, a moment after the first build); until then they are shown raised.
+- **Print:** **upright** (neat, the weakest ears), **tilted 45°** (the design's choice: strong ears, no support), or **on its side**
+  (the strongest ears; the flat under the head may want a little support). **How many**, up to 24, or a **fit test** instead:
+  five nocks 0.05 mm apart on the fit, numbered 1 (the loosest) to 5.
+- The panel gives each nock's size and **weight in grains**, and checks the ears (at least 1.2 mm), the plastic between the socket
+  and the throat, and that a push-in nock stops on the shaft.
 
-They print standing on the shaft's end with the groove up, so the string's seat is smooth and nothing needs support. Use PETG or
-nylon, 0.12 mm layers and 100% infill. A nock is a wear part: check every one before you shoot and replace any that is cracked or
-loose, because a nock that breaks can make the bow dry-fire.
+Use PETG or nylon, 0.12 mm layers and 100% infill. A nock is a wear part: check every one before you shoot and replace any that is
+cracked or loose, because a nock that breaks can make the bow dry-fire.
 
 ## 4. Art: pictures and text
 

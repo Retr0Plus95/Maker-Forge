@@ -86,6 +86,8 @@ Each gets: a plan view, a catalogue with pictures, recipes, a fit test, Fix what
     80 to 140 mm fans in line, a mesh and carbon filter tray, a front panel with the display and the knob, the duct, the rear cap;
   - the bird house (0.66) and the flower lamp (0.64) are already in.
   - **done in 0.68.0:** the arrow nocks remade on the owner's own design (`arrow_nock.scad`, Session 91).
+  - **done in 0.70.0:** the RGB lamp controller's box and the bench supply's two halves as quick starts (Session 94). Still to do: the
+    fume extractor maker.
 - **0.69 Looks and finding things** (done in 0.69.0, the owner's request, Session 91): the website's colours and background
   (forge.retr0plus.se's purple board) as a scheme, five more and your own colour, backgrounds behind the model, and Start from with
   a search, category chips (From the workshop among them), recent picks, New badges, small pictures and the objects regrouped.

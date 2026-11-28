@@ -869,7 +869,88 @@ const PRESETS = {
   "Bolt and nut":{ base:{ type:"mech", mech:{ kind:"bolt" } },
     tip:"Pick a metric size or type your own. Both print standing, with no supports; the nut has the fit gap of play." },
   "Replacement knob":{ base:{ type:"fixit", fixit:{ kind:"knob" } },
-    tip:"Measure the shaft with calipers: its diameter, and the flat if it has one. The knob prints on its top." }
+    tip:"Measure the shaft with calipers: its diameter, and the flat if it has one. The knob prints on its top." },
+  // From the workshop (Session 94): the owner's own boxes, as they made them (the owner, Session 90: every finished project becomes part of Maker Forge)
+  "RGB lamp controller":{ base:{ type:"enclosure", enclosure:{ w:171,d:91,h:50,wall:2.4,floor:2.4,radius:4,lid:"screw",lidThick:2.4,lipH:3,lipW:1.2,fit:0.2,fasten:"insert",screw:"M3",head:"sink",teardrop:true,grow:true,lensSlot:0,clear:0.2,magnet:"6x2",feet:"none",footSize:"8",footDepth:1,labelH:4,labelLine:0.6,labelDepth:0.4,test:false,board:"custom",boardX:30,boardY:0,boardRot:false,standH:5,bw:90,bd:70,bsx:84,bsy:64,bscrew:"M2.5",boxSlot:1,lidSlot:1,
+      cut:[
+        {face:"front",kind:"round",u:8,v:36,rot:false,label:"IR",labelPos:"below",top:"flat",notch:false,dia:6.5},
+        {face:"front",kind:"pilotp5",u:30,v:36,rot:false,label:"STATUS",labelPos:"below",top:"flat",notch:false,dia:8},
+        {face:"front",kind:"btn",u:64,v:36,rot:false,label:"ON/OFF",labelPos:"below",top:"flat",notch:false,dia:12.2},
+        {face:"back",kind:"rect",u:37,v:13.3,rot:false,label:"USB",labelPos:"above",top:"pointed",notch:false,w:12,h:8,r:2},
+        {face:"back",kind:"barrel",u:2,v:34,rot:false,label:"12V",labelPos:"below",top:"flat",notch:false,dia:8},
+        {face:"back",kind:"round",u:-46.5,v:34,rot:false,label:"STRIP",labelPos:"below",top:"flat",notch:false,dia:12.2},
+        {face:"top",kind:"vent",u:11,v:8,rot:false,label:"RGB LAMP",labelPos:"below",top:"flat",notch:false,w:36,h:18,style:"slots"},
+        {face:"bottom",kind:"vent",u:30,v:-6,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:44,h:20,style:"slots"},
+        {face:"bottom",kind:"hole",u:-72.56,v:27.63,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.4},
+        {face:"bottom",kind:"hole",u:-24.3,v:26.36,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.4},
+        {face:"bottom",kind:"hole",u:-67.48,v:-24.44,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.4},
+        {face:"bottom",kind:"hole",u:-39.54,v:-24.44,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.4} ] } },
+    slots:[{ hex:"#e9edf0", name:"Clear PETG (lens)", mat:"PETG" }, { hex:"#5b6470", name:"Grey PETG (box and lid)", mat:"PETG" }],
+    tip:"The owner's box for their ESP32 RGB lamp controller (Retr0Plus95/ESP32-LED-RGB-): the 90 × 70 mm board on M2.5 posts, the IR receiver, a status light and the on/off button in front, USB, 12 V and the strip's cable at the back. Print the light's lens in clear PETG." },
+  "Bench supply (left)":{ base:{ type:"enclosure", enclosure:{ w:151.5,d:222,h:122,wall:3,floor:3,radius:5,lid:"screw",lidThick:3,lipH:3,lipW:1.2,fit:0.2,fasten:"insert",screw:"M3",head:"sink",teardrop:false,grow:false,lensSlot:0,clear:0.2,magnet:"6x2",feet:"recess",footSize:"12.7",footDepth:1,labelH:4,labelLine:0.6,labelDepth:0.4,test:false,board:"none",boardX:0,boardY:0,boardRot:false,standH:5,bw:60,bd:40,bsx:52,bsy:32,bscrew:"M3",boxSlot:1,lidSlot:1,
+      cut:[
+        {face:"front",kind:"lcd1602",u:0,v:100,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:71.5,h:24.5,hw:75,hh:31,hd:3.2},
+        {face:"front",kind:"pot",u:-52,v:66,rot:false,label:"TRIP",labelPos:"below",top:"flat",notch:false,dia:7.3},
+        {face:"front",kind:"btn",u:-34,v:66,rot:false,label:"CH1 24V",labelPos:"above",top:"flat",notch:false,dia:12.2},
+        {face:"front",kind:"pilotp5",u:-17,v:66,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:8},
+        {face:"front",kind:"pot",u:18,v:66,rot:false,label:"TRIP",labelPos:"below",top:"flat",notch:false,dia:7.3},
+        {face:"front",kind:"btn",u:36,v:66,rot:false,label:"CH2 12V",labelPos:"above",top:"flat",notch:false,dia:12.2},
+        {face:"front",kind:"pilotp5",u:53,v:66,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:8},
+        {face:"front",kind:"rect",u:-35,v:28,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:40,h:36,r:2},
+        {face:"front",kind:"hole",u:-60,v:6,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:-60,v:50,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:-10,v:6,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:-10,v:50,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"rect",u:35,v:28,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:40,h:36,r:2},
+        {face:"front",kind:"hole",u:10,v:6,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:10,v:50,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:60,v:6,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:60,v:50,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"back",kind:"rect",u:42,v:94,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:29,h:33,r:0.5},
+        {face:"back",kind:"hole",u:22,v:94,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"back",kind:"hole",u:62,v:94,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"back",kind:"rockerL",u:-4,v:94,rot:false,label:"POWER",labelPos:"below",top:"flat",notch:false,w:30.2,h:22.2,r:0.5},
+        {face:"back",kind:"fan",u:-30,v:33,rot:false,label:"",labelPos:"below",top:"flat",notch:false,size:40,style:"rings"},
+        {face:"left",kind:"vent",u:45,v:80,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:90,h:34,style:"slots"},
+        {face:"right",kind:"rect",u:5,v:50.5,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:182,h:95,r:0},
+        {face:"right",kind:"hole",u:-92,v:108.5,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"right",kind:"hole",u:-40,v:108.5,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"right",kind:"hole",u:20,v:108.5,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"right",kind:"hole",u:80,v:108.5,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"right",kind:"hole",u:-94,v:30,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"right",kind:"hole",u:-94,v:70,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"bottom",kind:"hole",u:-60.75,v:86,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"bottom",kind:"hole",u:-60.75,v:-34,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3} ] } },
+    slots:[{ hex:"#e9eef2", name:"Clear PETG", mat:"PETG" }, { hex:"#22303c", name:"Charcoal PETG", mat:"PETG" }],
+    tip:"The left half of the owner's four-channel bench supply (Retr0Plus95/FOUR-CHANNEL-PSU): the display, two channels' trip knobs, buttons and lights, and two output plates in front; the mains inlet, the power switch and a fan at the back. The halves bolt together round the big opening where they meet. Mains is dangerous: earth the inlet, and print in PETG with supports." },
+  "Bench supply (right)":{ base:{ type:"enclosure", enclosure:{ w:151.5,d:222,h:122,wall:3,floor:3,radius:5,lid:"screw",lidThick:3,lipH:3,lipW:1.2,fit:0.2,fasten:"insert",screw:"M3",head:"sink",teardrop:false,grow:false,lensSlot:0,clear:0.2,magnet:"6x2",feet:"recess",footSize:"12.7",footDepth:1,labelH:4,labelLine:0.6,labelDepth:0.4,test:false,board:"none",boardX:0,boardY:0,boardRot:false,standH:5,bw:60,bd:40,bsx:52,bsy:32,bscrew:"M3",boxSlot:1,lidSlot:1,
+      cut:[
+        {face:"front",kind:"rect",u:-20,v:96,rot:false,label:"CH3 0-22V",labelPos:"below",top:"flat",notch:false,w:71,h:39,r:0.5},
+        {face:"front",kind:"pilotp5",u:40,v:100,rot:false,label:"ON",labelPos:"below",top:"flat",notch:false,dia:8},
+        {face:"front",kind:"pilotp5",u:57,v:100,rot:false,label:"HOT",labelPos:"below",top:"flat",notch:false,dia:8},
+        {face:"front",kind:"rect",u:-35,v:28,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:40,h:36,r:2},
+        {face:"front",kind:"hole",u:-60,v:6,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:-60,v:50,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:-10,v:6,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:-10,v:50,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"rect",u:35,v:28,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:40,h:36,r:2},
+        {face:"front",kind:"hole",u:10,v:6,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:10,v:50,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:60,v:6,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:60,v:50,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"back",kind:"fan",u:30,v:33,rot:false,label:"",labelPos:"below",top:"flat",notch:false,size:40,style:"rings"},
+        {face:"right",kind:"vent",u:-45,v:80,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:90,h:34,style:"slots"},
+        {face:"left",kind:"rect",u:-5,v:50.5,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:182,h:95,r:0},
+        {face:"left",kind:"hole",u:92,v:108.5,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"left",kind:"hole",u:40,v:108.5,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"left",kind:"hole",u:-20,v:108.5,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"left",kind:"hole",u:-80,v:108.5,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"left",kind:"hole",u:94,v:30,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"left",kind:"hole",u:94,v:70,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"bottom",kind:"hole",u:60.75,v:86,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"bottom",kind:"hole",u:60.75,v:-34,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3} ] } },
+    slots:[{ hex:"#e9eef2", name:"Clear PETG", mat:"PETG" }, { hex:"#22303c", name:"Charcoal PETG", mat:"PETG" }],
+    tip:"The right half of the owner's four-channel bench supply (Retr0Plus95/FOUR-CHANNEL-PSU): the adjustable channel's window, ON and HOT lights and two output plates in front, a fan at the back. It bolts to the left half round the big opening where they meet. Print in PETG with supports." }
 };
 /*EXAMPLES*/
 
@@ -7064,9 +7145,10 @@ function buildEnclosure(){
     const r = encSplitParts(parts.filter(p => !p.inside), split, splitG, lidShift), plates = encPackPlates(r.parts.concat(insideParts), split.bed);
     out = r.parts.concat(insideParts);
     splitInfo = Object.assign({}, split, { seams:r.seams, plates, flangeVolume:r.flangeVolume }, encSplitText(split, plates, lidOn, magnet));
-  } else if (insideParts.length && !state.base.enclosure.test){
+  } else if (!state.base.enclosure.test){
     // with levels and dividers the parts may not fit one bed together: then each goes on a plate (Session 46), as a box
-    // in parts does; the lid's logo stays with the lid
+    // in parts does; the lid's logo stays with the lid. So does a big box and its lid, each fitting the bed but not side by
+    // side (Session 94: the owner's bench supply halves, 151.5 × 222 mm, were "bigger than the print bed")
     const bed = state.printer.bed || [256, 256, 256], mn = [Infinity, Infinity], mx = [-Infinity, -Infinity];
     out.forEach(p => { const b = C.solidBounds(p.solid); mn[0] = Math.min(mn[0], b.mn[0]); mx[0] = Math.max(mx[0], b.mx[0]); mn[1] = Math.min(mn[1], b.mn[2]); mx[1] = Math.max(mx[1], b.mx[2]); });
     if (mx[0] - mn[0] > bed[0] || mx[1] - mn[1] > bed[1]){
@@ -10542,7 +10624,7 @@ function makeBed(){
   for (let i = 1; i < nPlates; i++){
     const at = platePlace(i, nPlates, bed), x = at[0]*sc*(state.model.mirror ? -1 : 1), z = at[1]*sc;
     bedHelper.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(p[0] + x, p[1], p[2] + z))),
-      new THREE.LineBasicMaterial({ color: dark?0x63b6d1:0x1f6f8b })));
+      new THREE.LineBasicMaterial({ color:edge })));                       // in the scheme's colour too, like the bed (Session 94)
   }
   scene.add(bedHelper);
 }
@@ -13072,7 +13154,7 @@ function runChecks(){
 }
 
 /* ---------- 8. interface ---------- */
-const PRESET_ICONS = { "Business card":"💳", "Project box":"🧰", "Power bank box":"🔋", "PSU box":"⚡", "Raspberry Pi case":"🍓", "Trace a part":"📐", "Lightbox":"💡", "Circuit board":"🔌", "Name keychain":"🔑", "Double-sided tag":"🏷️", "Iron-on patch":"🧵", "Car badge":"🚗",
+const PRESET_ICONS = { "Business card":"💳", "Project box":"🧰", "Power bank box":"🔋", "PSU box":"⚡", "Raspberry Pi case":"🍓", "RGB lamp controller":"🌈", "Bench supply (left)":"🔌", "Bench supply (right)":"⚡", "Trace a part":"📐", "Lightbox":"💡", "Circuit board":"🔌", "Name keychain":"🔑", "Double-sided tag":"🏷️", "Iron-on patch":"🧵", "Car badge":"🚗",
   "Ornament":"🎄", "Tea light":"🕯️", "Plastic canvas":"🧶", "Bobble head":"🙂", "Cookie cutter":"🍪", "Photo frame":"🖼️",
   "Jigsaw puzzle":"🧩", "Kids' puzzle":"🧸", "Lithophane":"🌅", "Lithophane lamp":"🏮" };
 const SHAPE_LABEL = Object.fromEntries(SHAPES);
@@ -13538,8 +13620,11 @@ const PRESET_CAT = { "Name keychain":"names", "Double-sided tag":"names", "Iron-
   "Neon sign":"names", "House number":"names", "Plastic canvas":"picture", "Cookie cutter":"picture", "Trace a part":"picture", "Lightbox":"picture", "Circuit board":"picture",
   "Photo frame":"picture", "Frame for a photo":"picture", "Lithophane":"picture", "Lithophane lamp":"picture", "Photo relief":"picture", "Ornament":"decor", "Tea light":"decor",
   "Bobble head":"decor", "Jigsaw puzzle":"decor", "Kids' puzzle":"decor", "Project box":"electronics", "Power bank box":"electronics", "PSU box":"electronics",
-  "Raspberry Pi case":"electronics", "Phone case":"electronics", "Gear pair":"repair", "Bolt and nut":"repair", "Replacement knob":"repair" };
+  "Raspberry Pi case":"electronics", "Phone case":"electronics", "Gear pair":"repair", "Bolt and nut":"repair", "Replacement knob":"repair",
+  "RGB lamp controller":"electronics workshop", "Bench supply (left)":"electronics workshop", "Bench supply (right)":"electronics workshop" };
 // words people might look for, besides each one's name
+const PRESET_WORDS = { "RGB lamp controller":"esp32 led strip rgb ir remote retr0plus", "Bench supply (left)":"psu power supply bench mains lcd retr0plus",
+  "Bench supply (right)":"psu power supply bench mains retr0plus", "PSU box":"power supply mains", "Power bank box":"battery 18650 charger" };
 const OBJECT_WORDS = { nameplate:"name keychain key ring tag bag", card:"business card qr nfc contact", sign:"house number letters neon shop sign lit", board:"badge patch flat shape coaster logo sticker",
   box:"plaque desk", tracer:"photo trace part outline dxf svg bracket", relief:"photo depth relief 3d face pet", lithophane:"photo light lamp", cutter:"cookie biscuit cutter",
   pcb:"circuit board pcb electronics art", lightbox:"shadow box light paper cut", canvas:"pixel mosaic stitch canvas", frame:"photo frame stand picture", bobble:"bobble head figure",
@@ -13590,7 +13675,7 @@ function renderStarts(){
     ? `<img src="${START_THUMBS[key]}" alt="" width="160" height="120">` : `<span class="em">${icon}</span>`;
   const pickPreset = k => { rememberStart("preset:" + k); applyPreset(k); renderStarts(); startsChosen(); };
   const pickObject = k => { rememberStart("object:" + k); chooseObject(k); startsChosen(); };
-  g.innerHTML = Object.keys(PRESETS).map(k=>`<button data-k="${esc(k)}" data-cat="${PRESET_CAT[k] || ""}" data-words="${esc((k + " " + (PRESET_CAT[k] || "")).toLowerCase())}">${pic("preset:" + k, PRESET_ICONS[k]||"◻")}<span>${esc(k)}</span></button>`).join("");
+  g.innerHTML = Object.keys(PRESETS).map(k=>`<button data-k="${esc(k)}" data-cat="${PRESET_CAT[k] || ""}" data-words="${esc((k + " " + (PRESET_CAT[k] || "") + " " + (PRESET_WORDS[k] || "")).toLowerCase())}">${pic("preset:" + k, PRESET_ICONS[k]||"◻")}<span>${esc(k)}</span></button>`).join("");
   g.querySelectorAll("button").forEach(b=>b.onclick = ()=>pickPreset(b.dataset.k));
   const objIcon = {};
   OBJECT_GROUPS.forEach(([title, list, cat])=>{

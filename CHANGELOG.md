@@ -3,6 +3,21 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.70.0
+
+From the workshop: the maker's own boxes.
+
+**New**
+- **Three quick starts from the workshop**, the maker's own project boxes as they made them, each credited to its project:
+  - **RGB lamp controller**, the box for their ESP32 RGB lamp controller;
+  - **Bench supply (left)** and **(right)**, the two halves of their four-channel bench supply's case, which bolt together.
+  - They show under **From the workshop** and **Electronics**, and *psu* or *esp32* in Find finds them.
+
+**Fixed**
+- A big box whose box and lid each fit the bed, but not side by side, was called "bigger than the print bed". Now each goes on a
+  plate of its own, as a box in parts does, and the download has a file for each plate.
+- With a colour scheme, the outlines of a box's other plates (⊞) stayed teal; they take the scheme's colour like the bed.
+
 ## 0.69.1
 
 A fix for the website's copy.

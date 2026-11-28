@@ -4022,6 +4022,39 @@ light text: the owner's picture) and passes on 0.69.1 with them. Look, project a
 **For the website's own session** (not done from here): naming the stylesheet by its contents, like `app.<hash>.js`, would make
 this unnecessary there.
 
+## Session 94: From the workshop, the owner's boxes (v0.70.0)
+
+From ROADMAP 0.68 ("every project done should be a project incorporated into Maker Forge", Session 90): the owner's two finished
+box projects, read (read only) from their repositories cloned beside this one, become quick starts.
+
+**New** (`src/app.html`):
+- `PRESETS` gained "RGB lamp controller" (`Retr0Plus95/ESP32-LED-RGB-`, `enclosure/rgb-lamp-controller-box.forge.json`) and "Bench
+  supply (left)" / "(right)" (`Retr0Plus95/FOUR-CHANNEL-PSU`, `case/maker-forge/psu-case-left.json` and `-right.json`). Each is the owner's
+  saved `base.enclosure` as it is (every setting and opening, the logo left out as it was off), with their filament names (the RGB file
+  said PLA for PETG filaments: PETG here). The tips credit the repositories. Written by a script from the files, so nothing was typed.
+- `PRESET_CAT` puts them in "electronics workshop" (the chips split on spaces), so they show under From the workshop too.
+- `PRESET_WORDS` (new): words to find a quick start by besides its name: *psu*, *power supply*, *esp32*, *led strip*, *battery*...
+- Start pictures for the three (`npm run thumbs` with `ONLY=`), and their fingerprints.
+
+**Fixed:**
+- A box and lid that each fit the bed but not side by side were "Bigger than the print bed" (the bench supply's halves, 151.5 mm wide,
+  laid out 313 mm wide on a 256 mm bed), with advice to split the box. The packing onto plates that Session 46 did only with levels or
+  dividers inside now runs for any box (not the fit test) whose layout is bigger than the bed: `encPackPlates` puts the box and the lid
+  on a plate each, the print check says "Fits the bed: … on 2 plates", the download has a pair of 3mf files per plate. A box that
+  fits as it was keeps one plate (no `plate` on its parts, so nothing else changes).
+- The other plates' outlines (⊞) were drawn in the old teal whatever the scheme; they use the bed's edge colour.
+
+**Tested:** `tools-workshop-test.js` (new, `npm run test:workshop`): each box opens with the owner's size, board, openings and labels,
+the credit in the tip and their filaments; the bench supply halves' big joining opening is on the inner side, the box and lid on plates
+of their own, the print check saying it fits; the project box stays on one plate; *psu*, *esp32*, From the workshop and Electronics find
+them. Look test updated (34 quick starts, *lamp* finds the RGB lamp controller too, From the workshop shows the three boxes). Box tests,
+project test, smoke, print survey (the halves need support under about 2100 mm², as the owner's notes say: "supports on").
+
+**The count:** improvements 28 and 29: 28. the owner's boxes as quick starts; 29. words to find quick starts by. Bugs past the ten: the
+false bed warning on a big box, the other plates' outline colour (and in 0.69.1 the website's old stylesheet).
+
+**Still to do (0.68 From the workshop):** the solder fume extractor (Sir Sucks-a-Lot) as a fan-and-filter box maker.
+
 ## Next
 
 ### The new direction (Session 81, the owner): a mechanical parts library, then the blooming flower lamp

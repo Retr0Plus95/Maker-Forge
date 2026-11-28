@@ -513,6 +513,23 @@ function pageCoverage() {
     if (!bh.ok || bh.open || !bh.zip) findings.push({ where: "bird house", what: JSON.stringify(bh) });
     notes.push(`bird house: ${bh.parts} parts, every check passing ${bh.ok}; the export has the camera's sketch, the steps and the plates: ${bh.zip}`);
   }
+  // the fume extractor (Session 95): the export's steps and plates (JSZip runs only in a real browser), and the extractor put together
+  if (!ONLY || ONLY.includes("fume")) {
+    const fu = await page.evaluate(async () => {
+      const MF = window.MakerForge, C = MF.core, sleep = ms => new Promise(q => setTimeout(q, ms));
+      const settle = async () => { const r0 = MF.rev; for (let i = 0; i < 40 && MF.rev === r0 && !MF.busy; i++) await sleep(30); for (let i = 0; i < 1200; i++){ if (!MF.busy){ await sleep(60); if (!MF.busy) break; } await sleep(25); } };
+      const sel = document.querySelector("#objectSel"); sel.value = "fume"; sel.dispatchEvent(new Event("change")); await settle();
+      const out = { parts:MF.parts.length, open:MF.parts.reduce((a, p) => a + C.checkMesh(p.solid).open, 0), ok:MF.fume.info.ok };
+      const zip = await MF.paint.buildZip(MF.exportParts(), "fume extractor"), names = Object.keys(zip.files);
+      const steps = await zip.file("how-to-assemble.txt").async("string"), readme = await zip.file("README.txt").async("string");
+      out.zip = /What you'll need/.test(steps) && /Solder-Fume-Extractor/.test(steps) && /fume extractor: how-to-assemble/.test(readme) && names.some(n => /^plates\/plate-1/.test(n));
+      return out;
+    });
+    await byText(page, "#tabs button", "make");
+    await shot(page, "fume-extractor", "The fume extractor: put together, the panels in the second filament (the files are the parts laid out to print)", {});
+    if (!fu.ok || fu.open || !fu.zip || fu.parts !== 4) findings.push({ where: "fume extractor", what: JSON.stringify(fu) });
+    notes.push(`fume extractor: ${fu.parts} parts, every check passing ${fu.ok}; the export has the steps and the plates: ${fu.zip}`);
+  }
   // arrow nocks (Session 90): six nocks, the export's how-to file and the README line (JSZip runs only in a real browser)
   if (!ONLY || ONLY.includes("nock")) {
     const nk = await page.evaluate(async () => {

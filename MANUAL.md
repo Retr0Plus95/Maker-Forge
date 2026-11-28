@@ -69,7 +69,7 @@ Finding things (new in 0.69):
 - **Find** at the top: type what you want to make (*keychain*, *box*, *lamp*, *arrow*) and only what matches stays. **Enter** opens the first one.
 - The **chips** under it show one kind at a time: **Names and signs**, **From a picture**, **Gifts and décor**, **Electronics**, **Workshop
   and repair**, **Hobbies and outdoors**, **Basic shapes**, or **From the workshop**: the maker's own projects (the flower lamp, the bird
-  house, the arrow nocks, and, new in 0.70, their boxes, below). **All** shows everything again.
+  house, the arrow nocks, the fume extractor (new in 0.71) and, new in 0.70, their boxes, below). **All** shows everything again.
 - **From the workshop's boxes** (new in 0.70) are the maker's own project boxes, exactly as they made them, to print or to change:
   - **RGB lamp controller**: the box for their ESP32 RGB lamp controller ([Retr0Plus95/ESP32-LED-RGB-](https://github.com/Retr0Plus95/ESP32-LED-RGB-)),
     171 × 91 × 50 mm, a 90 × 70 mm board on M2.5 posts, the IR receiver, a status light and the on/off button in front, USB, 12 V and the
@@ -529,6 +529,34 @@ house** in the object list, under Functional). It hangs flat on a wall or a tree
 It is dim inside a nest box: an OV2640 camera without its infrared filter (sold as night vision) with one or two 850 nm infrared
 LEDs takes clearer pictures without disturbing the birds. Put the house up before the nesting season, and check the hole size and
 the height to hang it for birds where you live.
+
+### The fume extractor
+
+New in 0.71: the owner's own solder fume extractor, *Sir Sucks-a-Lot* ([Retr0Plus95/Solder-Fume-Extractor](https://github.com/Retr0Plus95/Solder-Fume-Extractor)),
+as a maker (**Fume extractor** in the object list, under Workshop and repair, and From the workshop). One or two fans, one behind the other in
+a printed duct, pull the fumes through an aluminium mesh and an activated-carbon pad held in a tray behind the front grille. Under the fans,
+an electronics bay: the display, the speed knob and the power switch on the front panel, the board on standoffs on the rear cap, and the
+power socket and a few vents beside it. The owner's board, wiring and firmware (an ATmega328P that sets both fans' speed and reads their
+speed back on a 1602 display) are in their repository.
+
+- **Fan size** 80, 92, 120 or 140 mm, and **one or two fans**. The duct is 10 mm wider than the fans, so the corner screws clear the fans'
+  rounded corners.
+- **Carbon pad** thickness: the tray is made to hold it with the mesh.
+- **Electronics bay**: its height, the **display** (a 1602 LCD or a 0.96 inch OLED, or none), the **knob**, the **switch** (a rocker, a
+  round rocker or a mini toggle), **power in** at the back (a 5.5 × 2.1 mm DC socket or USB-C) and your **board's size**. The display goes
+  beside the knob and switch, or above them when the bay is narrow (with an 80 or 92 mm fan). No bay makes it shorter; the fans' cable
+  then leaves through a hole in the rear cap.
+- **Grilles**: bars or honeycomb; **feet**: two printed rails, or none for stick-on rubber feet; a **name** raised along the right-hand side.
+- **The extractor** shows it put together (with the fans, the pad, the board, the display, the knob and the switch); **Parts to print** shows
+  the four parts laid out: the duct on its back, the panels and the tray flat, none needing support. The front panel and rear cap print in
+  the **panels' filament**.
+- **Checks**: the fans and the tray clear the corner screws, the air gets through the grilles, the display, knob and switch fit the bay, the
+  board and socket fit, and there is room between the board and the display. **What you'll need** lists the fans, the pad and mesh, the
+  heat inserts and screws, the fans' M4 bolts, the display, the knob and the socket. The download has how-to-assemble.txt.
+
+![The fume extractor put together, orange with a white front panel, a 1602 display, a knob and a switch; and its four parts laid out to print](docs/images/fume-extractor.jpg)
+
+It reduces the fumes you breathe; it doesn't replace airing the room. Keep it close to the joint and change the pad when the smell comes through.
 
 ### Arrow nocks
 

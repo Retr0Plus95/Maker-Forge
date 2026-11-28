@@ -58,14 +58,14 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     check(!document.querySelector("#startsNone").hidden, "nothing matching says so");
     await type("");
     all(".startchips button").find(b => b.dataset.cat === "workshop").click(); await sleep(20);
-    check(shown(".objcard").map(b => b.dataset.k).sort().join() === "birdhouse,flower,nock" && shown("#presetGallery button").length === 3, "From the workshop: the owner's own projects (the flower lamp, the bird house, the nocks, and their three boxes)");
+    check(shown(".objcard").map(b => b.dataset.k).sort().join() === "birdhouse,flower,fume,nock" && shown("#presetGallery button").length === 3, "From the workshop: the owner's own projects (the flower lamp, the bird house, the nocks, the fume extractor, and their three boxes)");
     all(".startchips button").find(b => b.dataset.cat === "electronics").click(); await sleep(20);
     check(shown("#presetGallery button").map(b => b.dataset.k).includes("Raspberry Pi case") && shown(".objcard").map(b => b.dataset.k).sort().join() === "enclosure,phonecase", "Electronics: the boxes and cases, quick starts and objects");
     all(".startchips button").find(b => b.dataset.cat === "all").click(); await sleep(20);
     const heads = all("#startsBody .objcat").map(h => h.textContent);
     check(["Names and signs", "From a picture", "Gifts and décor", "Electronics", "Workshop and repair", "Hobbies and outdoors"].every(h => heads.includes(h)) && !heads.includes("Functional"),
       "the objects grouped by what they are for (\"Functional\" had eight)", heads.join(" | "));
-    check(all(".objcard .newbadge").map(b => b.closest(".objcard").dataset.k).sort().join() === "birdhouse,flower,nock", "the newest objects carry a New badge");
+    check(all(".objcard .newbadge").map(b => b.closest(".objcard").dataset.k).sort().join() === "birdhouse,flower,fume,nock", "the newest objects carry a New badge");
     await type("nock"); search.dispatchEvent(new win.KeyboardEvent("keydown", { key:"Enter" })); await settle();
     check(MF.state.base.type === "nock", "Enter opens the first thing found");
     await type("");

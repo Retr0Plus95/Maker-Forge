@@ -99,6 +99,9 @@ Plus, depending on what changed:
 - arrow nocks, the owner's own design (`NOCK_SETTINGS`, `NOCK_PRESETS`, `nockShown`, `nockClean`, `nockPlan`, `nockR`, `nockF`, `nockH`, `nockWrap`, `nockSolid`, `nockMake`, `nockInfo` in `src/core.js`;
   `buildNock`, `cutNockLabels`, `nockFields` in `src/app.html`) → `npm run test:nock` (`CORE=1` for the library only: every setting at its ends for each mount and
   orientation, support upright and tilted, the seat, throat, flats, socket, pin, ribs, grooves and ridge checked with rays, engraving with Manifold, the fit test, a 0.67 project)
+- the fume extractor (`FUME_SETTINGS`, `FUME_FANS`, `FUME_DISPLAYS`, `FUME_SWITCHES`, `fumeClean`, `fumePlan`, `fumeGrille`, `fumeBody`, `fumeFront`, `fumeRear`, `fumeTray`, `fumeMake`, `fumeInfo` in `src/core.js`;
+  `buildFume`, `fumeFields`, `fumeSceneMeshes` in `src/app.html`) → `npm run test:fume` (`CORE=1` for the library only: every setting at its ends, support-free parts,
+  the corner screws, the fans' bolts, the air's way, the display and the knob checked with rays) and `ONLY=fume npm run check:browser`
 - the owner's boxes as quick starts (the From the workshop entries in `PRESETS`, `PRESET_WORDS`), or a box's parts put on plates when they
   don't fit the bed side by side → `npm run test:workshop` and `npm run test:enclosure`
 - colour schemes and Start from (`SCHEMES`, `BACKDROPS`, `lookFields`, the `prefs` loader and `applyPrefs`; `OBJECT_GROUPS`, `START_CATS`, `PRESET_CAT`,

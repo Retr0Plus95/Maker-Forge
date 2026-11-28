@@ -3,6 +3,22 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.71.0
+
+From the workshop: the fume extractor.
+
+**New**
+- **Fume extractor**, the maker's own solder fume extractor (*Sir Sucks-a-Lot*, Retr0Plus95/Solder-Fume-Extractor) as an object:
+  - one or two 80 to 140 mm fans in a printed duct, a tray for the mesh and carbon pad behind the front grille;
+  - an electronics bay with the display (1602 LCD or OLED), the speed knob and the switch on the front panel, the board on the rear
+    cap, the power socket and vents beside it;
+  - bars or honeycomb grilles, printed feet, and a name raised along the side;
+  - shown put together, or as the four parts laid out to print, none needing support;
+  - checks, what you'll need and how to put it together, also in the download.
+
+**Fixed**
+- Nothing this time.
+
 ## 0.70.0
 
 From the workshop: the maker's own boxes.

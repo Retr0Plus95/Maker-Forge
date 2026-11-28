@@ -5,7 +5,7 @@
 Free and open source (MIT). One HTML file: no install, no account, no uploads. It runs on your own computer, tablet or phone, even offline.
 
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-2a9d8f)](LICENSE)
-[![Version 0.70.0](https://img.shields.io/badge/version-0.70.0-1f6f8b)](CHANGELOG.md)
+[![Version 0.71.0](https://img.shields.io/badge/version-0.71.0-1f6f8b)](CHANGELOG.md)
 [![Runs in the browser](https://img.shields.io/badge/runs%20in-your%20browser-e9c46a)](#get-started-in-a-minute)
 [![Exports 3MF, STL, OBJ](https://img.shields.io/badge/exports-3MF%20·%20STL%20·%20OBJ-d1495b)](#printers-and-slicers)
 
@@ -86,8 +86,8 @@ Every button in the **Start from** sidebar opens with a finished example, so you
 | ![The bird house put together, its loft from above with the camera, battery and motion sensor, and cut down the middle](docs/images/birdhouse.jpg) | ![Inside two flower lamp bases: two 18650 cells with the charge board at the wall, and a DS3218 servo with a DC jack](docs/images/flower-power.jpg) |
 | **Arrow nocks** (the owner's design): slip-over, tapered, push-in; a fit test numbered by engraving | **Colours**: Retr0+ (the website's purple board), five more, or your own |
 | ![Three arrow nocks on their shafts, and a fit test of five with engraved numbers](docs/images/arrow-nocks.jpg) | ![Maker Forge in the Retr0+ colours, with the perfboard behind the model](docs/images/look-retro.jpg) |
-| **From the workshop**: the owner's RGB lamp controller box and bench supply case, as quick starts | |
-| ![The owner's three boxes: the RGB lamp controller's box, and the bench supply's left and right halves with their lids](docs/images/workshop-boxes.jpg) | |
+| **From the workshop**: the owner's RGB lamp controller box and bench supply case, as quick starts | **Fume extractor**: the owner's Sir Sucks-a-Lot, one or two fans, a carbon filter, a display and a knob |
+| ![The owner's three boxes: the RGB lamp controller's box, and the bench supply's left and right halves with their lids](docs/images/workshop-boxes.jpg) | ![The fume extractor put together, orange with a white front panel, and its four parts laid out to print](docs/images/fume-extractor.jpg) |
 | **Phone case** with a picture inlaid in the back | **Paint** any model: a fade, stripes and bands |
 | ![A phone case turned over to show a retro sunset inlaid in its back](docs/images/phone-case-example.jpg) | ![The Paint tab with a vase painted in teal, gold and apricot](docs/manual/paint-tab.jpg) |
 | **Trace a part** from a photo on paper | **Lightbox** with a backlit colour panel, frame and stand |

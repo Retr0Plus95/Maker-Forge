@@ -39,6 +39,60 @@
   --danger:#f08a72; --warn:#ddb45f; --good:#77c9a3;
   --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 26px rgba(0,0,0,.25);
 }
+/* colour schemes (Session 92): each sets the tokens; light and dark where the scheme has both. Retr0+ is the owner's website
+   (forge.retr0plus.se, "Purple board rev.A"): dark only, deep violet, purple traces, gold pads, silkscreen white */
+:root[data-scheme="retro"]{
+  --bg:#150a24; --panel:#1e0f33; --panel2:#26143f; --ink:#ede7f6; --muted:#a898c4; --line:#3a2160;
+  --accent:#c084fc; --accent-ink:#150a24; --accent-soft:#2e1752; --gold:#d4a54a;
+  --stage-top:#24123e; --stage-bot:#0c0514; --field:#130922;
+  --danger:#ff6b66; --warn:#ffb347; --good:#7ee0a8;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px rgba(8,3,16,.45);
+  color-scheme:dark;
+}
+:root[data-scheme="forest"]{ --bg:#eef3ef; --panel2:#f2f7f3; --line:#dde7e0; --accent:#2e7d4f; --accent-soft:#e3f1e8; --stage-top:#e4ece6; --stage-bot:#c7d5cb; }
+:root[data-scheme="sunset"]{ --bg:#f6f0eb; --panel2:#faf5f1; --line:#ece2d9; --accent:#b4501a; --accent-soft:#f8e9df; --stage-top:#efe6de; --stage-bot:#d9c8ba; }
+:root[data-scheme="rose"]{ --bg:#f5eef1; --panel2:#faf4f7; --line:#ecdfe5; --accent:#a8325f; --accent-soft:#f7e6ee; --stage-top:#eee3e8; --stage-bot:#d8c6ce; }
+:root[data-scheme="ocean"]{ --bg:#edf1f7; --panel2:#f3f6fb; --line:#dfe6f0; --accent:#1f58b5; --accent-soft:#e4ecf8; --stage-top:#e3e9f2; --stage-bot:#c5d1e2; }
+:root[data-scheme="graphite"]{ --bg:#f0f1f2; --panel2:#f5f6f7; --line:#e1e3e6; --accent:#3d4550; --accent-soft:#e7e9ec; --stage-top:#e7e8ea; --stage-bot:#cdd0d4; }
+@media (prefers-color-scheme: dark){
+  :root[data-scheme="forest"]:not([data-theme="light"]){ --bg:#0d1511; --panel:#141e18; --panel2:#19251e; --line:#253328; --accent:#7fcf9f; --accent-ink:#08110c; --accent-soft:#183026; --stage-top:#17221b; --stage-bot:#0a110d; --field:#111a15; }
+  :root[data-scheme="sunset"]:not([data-theme="light"]){ --bg:#16110d; --panel:#1f1813; --panel2:#251d17; --line:#382b22; --accent:#f2a065; --accent-ink:#140c07; --accent-soft:#33241a; --stage-top:#231a14; --stage-bot:#100b08; --field:#1a140f; }
+  :root[data-scheme="rose"]:not([data-theme="light"]){ --bg:#160e12; --panel:#1f151a; --panel2:#251a20; --line:#382630; --accent:#f08cb5; --accent-ink:#14080d; --accent-soft:#33202a; --stage-top:#22171c; --stage-bot:#100a0d; --field:#1a1216; }
+  :root[data-scheme="ocean"]:not([data-theme="light"]){ --bg:#0c121b; --panel:#131b27; --panel2:#18212f; --line:#243145; --accent:#7fb2f0; --accent-ink:#07101c; --accent-soft:#182a40; --stage-top:#162131; --stage-bot:#090e16; --field:#101826; }
+  :root[data-scheme="graphite"]:not([data-theme="light"]){ --bg:#111214; --panel:#191b1e; --panel2:#1f2125; --line:#2d3036; --accent:#c6ccd4; --accent-ink:#111214; --accent-soft:#2a2d32; --stage-top:#1d1f23; --stage-bot:#0c0d0f; --field:#16181b; }
+}
+:root[data-scheme="forest"][data-theme="dark"]{ --bg:#0d1511; --panel:#141e18; --panel2:#19251e; --line:#253328; --accent:#7fcf9f; --accent-ink:#08110c; --accent-soft:#183026; --stage-top:#17221b; --stage-bot:#0a110d; --field:#111a15; }
+:root[data-scheme="sunset"][data-theme="dark"]{ --bg:#16110d; --panel:#1f1813; --panel2:#251d17; --line:#382b22; --accent:#f2a065; --accent-ink:#140c07; --accent-soft:#33241a; --stage-top:#231a14; --stage-bot:#100b08; --field:#1a140f; }
+:root[data-scheme="rose"][data-theme="dark"]{ --bg:#160e12; --panel:#1f151a; --panel2:#251a20; --line:#382630; --accent:#f08cb5; --accent-ink:#14080d; --accent-soft:#33202a; --stage-top:#22171c; --stage-bot:#100a0d; --field:#1a1216; }
+:root[data-scheme="ocean"][data-theme="dark"]{ --bg:#0c121b; --panel:#131b27; --panel2:#18212f; --line:#243145; --accent:#7fb2f0; --accent-ink:#07101c; --accent-soft:#182a40; --stage-top:#162131; --stage-bot:#090e16; --field:#101826; }
+:root[data-scheme="graphite"][data-theme="dark"]{ --bg:#111214; --panel:#191b1e; --panel2:#1f2125; --line:#2d3036; --accent:#c6ccd4; --accent-ink:#111214; --accent-soft:#2a2d32; --stage-top:#1d1f23; --stage-bot:#0c0d0f; --field:#16181b; }
+/* backgrounds behind the model: the website's perfboard holes, a grid, a blueprint */
+:root[data-backdrop="dots"] .stage{background:radial-gradient(circle, color-mix(in srgb, var(--accent) 22%, transparent) 1.4px, transparent 1.7px) 0 0/32px 32px, radial-gradient(120% 90% at 55% 0%, var(--stage-top), var(--stage-bot))}
+:root[data-backdrop="grid"] .stage{background:linear-gradient(color-mix(in srgb, var(--ink) 7%, transparent) 1px, transparent 1px) 0 0/24px 24px, linear-gradient(90deg, color-mix(in srgb, var(--ink) 7%, transparent) 1px, transparent 1px) 0 0/24px 24px, radial-gradient(120% 90% at 55% 0%, var(--stage-top), var(--stage-bot))}
+:root[data-backdrop="blueprint"] .stage{background:linear-gradient(color-mix(in srgb, var(--accent) 16%, transparent) 1px, transparent 1px) 0 0/20px 20px, linear-gradient(90deg, color-mix(in srgb, var(--accent) 16%, transparent) 1px, transparent 1px) 0 0/20px 20px, linear-gradient(color-mix(in srgb, var(--accent) 9%, transparent) 1px, transparent 1px) 0 0/100px 100px, radial-gradient(120% 90% at 55% 0%, color-mix(in srgb, var(--accent) 14%, var(--stage-top)), var(--stage-bot))}
+:root[data-backdrop="plain"] .stage{background:var(--stage-bot)}
+/* the website's look goes a little further: its scanlines over the view, its gold on the active tab and the big button */
+:root[data-scheme="retro"] .stage::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(180deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px), radial-gradient(ellipse at center, transparent 60%, rgba(8,3,16,.5) 100%);z-index:1}
+:root[data-scheme="retro"] .tabs button[aria-selected="true"], :root[data-scheme="retro"] .tabs button.on{box-shadow:inset 0 -2px 0 var(--gold)}
+
+/* Start from (Session 92): the search, the category chips, the New badge, small tiles; the Look settings' swatches */
+.startsearch{position:sticky;top:-4px;z-index:2;background:var(--panel);margin:0 -12px;padding:8px 12px 6px;border-bottom:1px solid transparent}
+.startsearch input{width:100%;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--field);color:var(--ink);font-size:13px}
+.startsearch input:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+.startchips{display:flex;flex-wrap:nowrap;gap:5px;margin:7px 0 0;overflow-x:auto;padding-bottom:5px;scrollbar-width:thin}
+.startchips button{flex:0 0 auto;white-space:nowrap;border:1px solid var(--line);background:var(--field);border-radius:999px;padding:3px 9px;font-size:11.5px;font-weight:700;color:var(--muted);cursor:pointer;line-height:1.5}
+#startsBody [hidden]{display:none !important}   /* the tiles' own display would show them anyway */
+.startchips button:hover{border-color:var(--accent);color:var(--ink)}
+.startchips button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.objcard,.gallery button{position:relative}
+.newbadge{position:absolute;top:5px;right:5px;background:var(--accent);color:var(--accent-ink);font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:999px;letter-spacing:.03em;line-height:1.5}
+#startsBody.small #presetGallery,#startsBody.small .objgrid,#startsBody.small #recentRow{grid-template-columns:1fr 1fr 1fr}
+#startsBody.small .objcard,#startsBody.small .gallery button{font-size:10.5px;padding:4px 3px 6px}
+.startsnone{color:var(--muted);font-size:12.5px;padding:10px 2px}
+.schemes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:6px 0 10px}
+.schemes button{border:2px solid var(--line);border-radius:12px;padding:8px 4px 7px;background:var(--field);cursor:pointer;display:grid;gap:5px;justify-items:center;font-size:11.5px;font-weight:700;color:var(--ink);line-height:1.2}
+.schemes button[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.schemes .sw{width:40px;height:24px;border-radius:7px;display:block;border:1px solid rgba(0,0,0,.12)}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
   font-family:"Manrope","Segoe UI",system-ui,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
@@ -403,6 +457,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
 :root[data-contrast="high"]{--muted:#2b3642;--line:#6b7887;--accent:#0b4f68;--accent-soft:#d8ecf4}
 @media (prefers-color-scheme: dark){ :root[data-contrast="high"]:not([data-theme="light"]){--ink:#ffffff;--muted:#d4dde6;--line:#8193a5;--accent:#8fd3ea;--accent-soft:#1d3a47} }
 :root[data-contrast="high"][data-theme="dark"]{--ink:#ffffff;--muted:#d4dde6;--line:#8193a5;--accent:#8fd3ea;--accent-soft:#1d3a47}
+:root[data-contrast="high"][data-scheme="retro"]{--ink:#ffffff;--muted:#e9e2f7;--line:#a882d8;--accent:#e2c4ff;--accent-soft:#3a1d66}   /* the website's own high contrast (Session 92) */
 :root[data-contrast="high"] .hint,:root[data-contrast="high"] .field .sub,:root[data-contrast="high"] .method span{font-weight:600}
 :root[data-contrast="high"] :focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 :root[data-contrast="high"] .seg button[aria-pressed="true"],:root[data-contrast="high"] .toptabs button[aria-selected="true"]{outline:2px solid var(--ink)}
@@ -10468,12 +10523,17 @@ function makeBed(){
   const bed = state.printer.bed || [256,256,256];
   const dark = getComputedStyle(document.documentElement).getPropertyValue("--panel").trim().startsWith("#1");
   bedHelper = new THREE.Group();
-  const g = new THREE.GridHelper(Math.max(bed[0],bed[1]), Math.round(Math.max(bed[0],bed[1])/10),
-    dark?0x3b4652:0x9aa6b2, dark?0x232b33:0xc2cad2);
+  // the grid in the scheme's own lines (Session 92), the major lines a little stronger
+  let gMaj = new THREE.Color(dark ? 0x3b4652 : 0x9aa6b2), gMin = new THREE.Color(dark ? 0x232b33 : 0xc2cad2);
+  try { const cs = getComputedStyle(document.documentElement), ln = cs.getPropertyValue("--line").trim(), mu = cs.getPropertyValue("--muted").trim();
+    if (/^#[0-9a-f]{6}$/i.test(ln) && /^#[0-9a-f]{6}$/i.test(mu) && document.documentElement.hasAttribute("data-scheme")){ gMin = new THREE.Color(ln); gMaj = new THREE.Color(ln).lerp(new THREE.Color(mu), 0.45); } } catch (e) {}
+  const g = new THREE.GridHelper(Math.max(bed[0],bed[1]), Math.round(Math.max(bed[0],bed[1])/10), gMaj, gMin);
   g.position.y = -0.02; bedHelper.add(g);
   const pts = [[-bed[0]/2,0,-bed[1]/2],[bed[0]/2,0,-bed[1]/2],[bed[0]/2,0,bed[1]/2],[-bed[0]/2,0,bed[1]/2],[-bed[0]/2,0,-bed[1]/2]];
+  let edge = new THREE.Color(dark ? 0x63b6d1 : 0x1f6f8b);
+  try { const a = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim(); if (/^#[0-9a-f]{6}$/i.test(a)) edge = new THREE.Color(a); } catch (e) {}   // the scheme's colour (Session 92)
   bedHelper.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(p=>new THREE.Vector3(...p))),
-    new THREE.LineBasicMaterial({ color: dark?0x63b6d1:0x1f6f8b })));
+    new THREE.LineBasicMaterial({ color:edge })));
   if (viewOpts.rulers) bedHelper.add(makeRulers(bed, dark));
   // parts on several plates (Session 40): the other plates' outlines beside the bed, where ⊞ lays their parts out
   const nPlates = viewOpts.layout ? Math.max(0, ...modelParts.map(p => p.plate == null ? 0 : p.plate + 1)) : 0, sc = modelScale();
@@ -13249,7 +13309,7 @@ document.querySelectorAll(".viewtools button[title]").forEach(b => { if (!b.getA
    active page is shown, so panels stay short, and the active page plus its scroll position are
    remembered per tab and object, so changing a setting never loses your place. */
 const SECTION_ICONS = [
-  [/put together/i,"🔧"], [/sketch/i,"⌨"], [/^arrow shaft$/i,"⇕"], [/^mount$/i,"⊓"], [/^retention$/i,"✳"], [/^string throat$/i,"∪"], [/^cock vane index$/i,"▲"], [/^label$/i,"Aa"], [/^print and use$/i,"🔧"], [/^print$/i,"⎙"],      // the flower lamp's and the bird house's steps and their boards' sketches (Session 89)
+  [/put together/i,"🔧"], [/sketch/i,"⌨"], [/^arrow shaft$/i,"⇕"], [/^mount$/i,"⊓"], [/^retention$/i,"✳"], [/^string throat$/i,"∪"], [/^cock vane index$/i,"▲"], [/^label$/i,"Aa"], [/^print and use$/i,"🔧"], [/^print$/i,"⎙"], [/^shape$/i,"◭"],      // the flower lamp's and the bird house's steps and their boards' sketches (Session 89)
   [/^plan of the inside/i,"⊞"], [/^heat and air/i,"♨"], [/^battery life/i,"🔋"], [/^outdoors$/i,"☂"], [/^templates and drawings/i,"⌖"], [/^start from a recipe/i,"★"], [/^style$/i,"✎"], [/^wiring$/i,"⌇"],
   [/^art, words and icons/i,"✦"], [/^floor, names and extras/i,"▦"], [/^what you'll need/i,"≡"],
   [/hanging hole/i,"◎"], [/^thickness$/i,"⇕"], [/^feet$/i,"⊥"], [/cut it flat/i,"✂"],
@@ -13435,14 +13495,36 @@ function updateDock(){
 
 /* ---- Make ---- */
 /* the right sidebar: quick-start presets and every object, grouped so things are easy to find */
+// the objects in Start from, by what they are for (Session 92: "Functional" had grown to eight); each group a category chip too
 const OBJECT_GROUPS = [
-  ["Personalise", [["nameplate","🔑"],["card","💳"],["sign","🔤"],["board","🏷️"],["frame","🖼️"],["box","🪧"]]],
-  ["From a picture", [["tracer","📐"],["relief","🗿"],["lithophane","🌅"],["jigsaw","🧩"],["cutter","🍪"],["pcb","🔌"],["lightbox","💡"],["canvas","🧶"]]],
-  ["Figures and décor", [["bobble","🙂"],["shell","🕯️"],["turned","🏺"]]],
-  ["Functional", [["enclosure","🧰"],["phonecase","📱"],["mech","⚙️"],["parts","🔩"],["flower","🌷"],["birdhouse","🐦"],["nock","🏹"],["fixit","🔧"]]],
-  ["Basic shapes", [["cylinder","🥫"],["hex","⬢"],["sphere","⚪"]]],
-  ["Bring your own", [["stl","📦"],["none","✦"]]]
+  ["Names and signs", [["nameplate","🔑"],["card","💳"],["sign","🔤"],["board","🏷️"],["box","🪧"]], "names"],
+  ["From a picture", [["tracer","📐"],["relief","🗿"],["lithophane","🌅"],["cutter","🍪"],["pcb","🔌"],["lightbox","💡"],["canvas","🧶"],["frame","🖼️"]], "picture"],
+  ["Gifts and décor", [["bobble","🙂"],["shell","🕯️"],["turned","🏺"],["flower","🌷"],["jigsaw","🧩"]], "decor"],
+  ["Electronics", [["enclosure","🧰"],["phonecase","📱"]], "electronics"],
+  ["Workshop and repair", [["mech","⚙️"],["parts","🔩"],["fixit","🔧"]], "repair"],
+  ["Hobbies and outdoors", [["birdhouse","🐦"],["nock","🏹"]], "hobby"],
+  ["Basic shapes", [["cylinder","🥫"],["hex","⬢"],["sphere","⚪"]], "shapes"],
+  ["Bring your own", [["stl","📦"],["none","✦"]], "own"]
 ];
+const START_CATS = [["all","All"],["workshop","From the workshop"],["names","Names and signs"],["picture","From a picture"],["decor","Gifts and décor"],
+  ["electronics","Electronics"],["repair","Workshop and repair"],["hobby","Hobbies and outdoors"],["shapes","Basic shapes"]];
+// the owner's own projects, brought into Maker Forge (the owner, Session 90)
+const WORKSHOP = { flower:1, birdhouse:1, nock:1 };
+const NEW_OBJECTS = { flower:1, birdhouse:1, nock:1 };
+const PRESET_CAT = { "Name keychain":"names", "Double-sided tag":"names", "Iron-on patch":"names", "Car badge":"names", "Business card":"names", "Light-up letters":"names",
+  "Neon sign":"names", "House number":"names", "Plastic canvas":"picture", "Cookie cutter":"picture", "Trace a part":"picture", "Lightbox":"picture", "Circuit board":"picture",
+  "Photo frame":"picture", "Frame for a photo":"picture", "Lithophane":"picture", "Lithophane lamp":"picture", "Photo relief":"picture", "Ornament":"decor", "Tea light":"decor",
+  "Bobble head":"decor", "Jigsaw puzzle":"decor", "Kids' puzzle":"decor", "Project box":"electronics", "Power bank box":"electronics", "PSU box":"electronics",
+  "Raspberry Pi case":"electronics", "Phone case":"electronics", "Gear pair":"repair", "Bolt and nut":"repair", "Replacement knob":"repair" };
+// words people might look for, besides each one's name
+const OBJECT_WORDS = { nameplate:"name keychain key ring tag bag", card:"business card qr nfc contact", sign:"house number letters neon shop sign lit", board:"badge patch flat shape coaster logo sticker",
+  box:"plaque desk", tracer:"photo trace part outline dxf svg bracket", relief:"photo depth relief 3d face pet", lithophane:"photo light lamp", cutter:"cookie biscuit cutter",
+  pcb:"circuit board pcb electronics art", lightbox:"shadow box light paper cut", canvas:"pixel mosaic stitch canvas", frame:"photo frame stand picture", bobble:"bobble head figure",
+  shell:"tea light lantern candle", turned:"vase pot cup bowl egg", flower:"lamp flower servo light", jigsaw:"puzzle jigsaw kids game", enclosure:"box case electronics enclosure raspberry esp32 arduino project",
+  phonecase:"phone case iphone galaxy pixel", mech:"gear bolt nut hinge thread screw", parts:"servo bracket gear parts mount", fixit:"knob repair spare replacement cap clip",
+  birdhouse:"bird nest box camera garden", nock:"arrow archery nock bow", cylinder:"cylinder tube", hex:"hexagon", sphere:"ball sphere", stl:"import model stl obj 3mf glb paint", none:"artwork only" };
+let startQuery = "", startCat = "all";
+function rememberStart(key){ prefs.recent = [key, ...prefs.recent.filter(k => k !== key)].slice(0, 6); savePrefs(); }
 // paint belongs to one model: a new object or an imported file starts unpainted (Undo brings it back)
 function clearPaintForNewModel(){
   paintPrepared = false;
@@ -13474,30 +13556,70 @@ function chooseObject(v){
 }
 function renderStarts(){
   const body = $("#startsBody"); if (!body) return;
-  body.innerHTML = `<div class="objcat">Quick start</div><div class="gallery" id="presetGallery"></div>`;
+  body.classList.toggle("small", prefs.tiles === "small");
+  // (Session 92) a search and category chips above everything; what you picked lately; the objects by what they are for
+  body.innerHTML = `<div class="startsearch"><input type="search" id="startSearch" placeholder="🔍 Find: keychain, box, lamp…" aria-label="Find what to make" autocomplete="off">
+    <div class="startchips" role="group" aria-label="Show">${START_CATS.map(([k, l]) => `<button data-cat="${k}" aria-pressed="${startCat === k}">${esc(l)}</button>`).join("")}</div></div>
+    <div id="recentBox" hidden><div class="objcat">Recently</div><div class="gallery" id="recentRow"></div></div>
+    <div class="objcat" data-head="presets">Quick start</div><div class="gallery" id="presetGallery"></div>`;
   const g = body.querySelector("#presetGallery");
   const pic = (key, icon) => encHas(START_THUMBS, key) && /^data:image\/(webp|png);base64,[A-Za-z0-9+/=]+$/.test(START_THUMBS[key])
     ? `<img src="${START_THUMBS[key]}" alt="" width="160" height="120">` : `<span class="em">${icon}</span>`;
-  g.innerHTML = Object.keys(PRESETS).map(k=>`<button data-k="${esc(k)}">${pic("preset:" + k, PRESET_ICONS[k]||"◻")}<span>${esc(k)}</span></button>`).join("");
-  g.querySelectorAll("button").forEach(b=>b.onclick = ()=>{ applyPreset(b.dataset.k); renderStarts(); startsChosen(); });
-  OBJECT_GROUPS.forEach(([title, list])=>{
-    body.insertAdjacentHTML("beforeend", `<div class="objcat">${esc(title)}</div>`);
-    const grid = document.createElement("div"); grid.className = "objgrid";
+  const pickPreset = k => { rememberStart("preset:" + k); applyPreset(k); renderStarts(); startsChosen(); };
+  const pickObject = k => { rememberStart("object:" + k); chooseObject(k); startsChosen(); };
+  g.innerHTML = Object.keys(PRESETS).map(k=>`<button data-k="${esc(k)}" data-cat="${PRESET_CAT[k] || ""}" data-words="${esc((k + " " + (PRESET_CAT[k] || "")).toLowerCase())}">${pic("preset:" + k, PRESET_ICONS[k]||"◻")}<span>${esc(k)}</span></button>`).join("");
+  g.querySelectorAll("button").forEach(b=>b.onclick = ()=>pickPreset(b.dataset.k));
+  const objIcon = {};
+  OBJECT_GROUPS.forEach(([title, list, cat])=>{
+    body.insertAdjacentHTML("beforeend", `<div class="objcat" data-head="${cat}">${esc(title)}</div>`);
+    const grid = document.createElement("div"); grid.className = "objgrid"; grid.dataset.group = cat;
     list.forEach(([k, em])=>{
-      const b = document.createElement("button"); b.className = "objcard";
+      objIcon[k] = em;
+      const b = document.createElement("button"); b.className = "objcard"; b.dataset.k = k; b.dataset.cat = cat + (WORKSHOP[k] ? " workshop" : "");
+      b.dataset.words = `${SHAPE_LABEL[k] || k} ${title} ${OBJECT_WORDS[k] || ""}${WORKSHOP[k] ? " workshop retr0" : ""}`.toLowerCase();
       b.setAttribute("aria-pressed", String(state.base.type === k));
-      b.innerHTML = `${pic("object:" + k, em)}<span>${esc(SHAPE_LABEL[k]||k)}</span>`;
-      b.onclick = ()=>{ chooseObject(k); startsChosen(); };
+      b.innerHTML = `${pic("object:" + k, em)}<span>${esc(SHAPE_LABEL[k]||k)}</span>${NEW_OBJECTS[k] ? `<span class="newbadge">New</span>` : ""}`;
+      b.onclick = ()=>pickObject(k);
       grid.appendChild(b);
     });
     body.appendChild(grid);
   });
+  body.insertAdjacentHTML("beforeend", `<p class="startsnone" id="startsNone" hidden>Nothing matches. Try another word, or choose All.</p>`);
+  // what you picked lately (this browser)
+  const recent = prefs.recent.filter(k => k.startsWith("preset:") ? PRESETS[k.slice(7)] : SHAPE_LABEL[k.slice(7)]).slice(0, prefs.tiles === "small" ? 6 : 4);
+  if (recent.length){
+    const row = body.querySelector("#recentRow");
+    recent.forEach(key => { const preset = key.startsWith("preset:"), k = key.slice(7), b = document.createElement("button");
+      b.dataset.recent = key; b.innerHTML = `${pic(key, preset ? PRESET_ICONS[k] || "◻" : objIcon[k] || "◻")}<span>${esc(preset ? k : SHAPE_LABEL[k] || k)}</span>`;
+      b.onclick = () => preset ? pickPreset(k) : pickObject(k); row.appendChild(b); });
+  }
+  const search = body.querySelector("#startSearch"); search.value = startQuery;
+  search.oninput = () => { startQuery = search.value; filterStarts(); };
+  search.onkeydown = e => { if (e.key === "Enter"){ const b = [...body.querySelectorAll("#presetGallery button, .objcard")].find(x => !x.hidden); if (b) b.click(); } };
+  body.querySelectorAll(".startchips button").forEach(b => b.onclick = () => { startCat = b.dataset.cat; body.querySelectorAll(".startchips button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); filterStarts(); });
+  filterStarts();
   // a plain list as well, for keyboards and screen readers
   const w = document.createElement("div"); w.className = "field full";
   w.innerHTML = `<label for="objectSel">All objects</label><select class="sel" id="objectSel">${SHAPES.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join("")}</select>`;
   body.appendChild(w);
   const sel = w.querySelector("select"); sel.value = state.base.type;
   sel.onchange = ()=>{ chooseObject(sel.value); startsChosen(); };
+}
+// show what matches the words and the chip; the headings of empty groups go too (Session 92)
+function filterStarts(){
+  const body = $("#startsBody"); if (!body) return;
+  const words = startQuery.toLowerCase().split(/\s+/).filter(Boolean), cat = startCat;
+  const fits = b => (cat === "all" || (b.dataset.cat || "").split(" ").includes(cat)) && words.every(w => (b.dataset.words || "").includes(w));
+  let any = 0;
+  const g = body.querySelector("#presetGallery"), pb = [...g.querySelectorAll("button")];
+  pb.forEach(b => { b.hidden = !fits(b); any += !b.hidden; });
+  const pv = pb.some(b => !b.hidden); g.hidden = !pv; body.querySelector('[data-head="presets"]').hidden = !pv;
+  body.querySelectorAll(".objgrid").forEach(grid => {
+    const bs = [...grid.querySelectorAll(".objcard")]; bs.forEach(b => { b.hidden = !fits(b); any += !b.hidden; });
+    const v = bs.some(b => !b.hidden); grid.hidden = !v; const h = body.querySelector(`[data-head="${grid.dataset.group}"]`); if (h) h.hidden = !v;
+  });
+  const rb = body.querySelector("#recentBox"); if (rb) rb.hidden = !!(words.length || cat !== "all" || !body.querySelector("#recentRow").children.length);
+  const none = body.querySelector("#startsNone"); if (none) none.hidden = !!any;
 }
 function tabMake(p){
   const b = state.base;
@@ -18689,7 +18811,10 @@ $("#modalClose").onclick = ()=>{ $("#modal").hidden = true; };
 $("#modal").onclick = e => { if (e.target.id === "modal") $("#modal").hidden = true; };
 document.addEventListener("keydown", e => { if (e.key === "Escape") $("#modal").hidden = true; });
 $("#settingsBtn").onclick = ()=>openModal("Settings", b => {
+  b.insertAdjacentHTML("beforeend", `<h2>Look</h2>`);
   segField(b, [["auto","Match system"],["light","Light"],["dark","Dark"]], ()=>state.view.theme, v=>{ state.view.theme = v; applyTheme(); $("#settingsBtn").click(); });
+  lookFields(b);
+  b.insertAdjacentHTML("beforeend", `<h2>Working</h2>`);
   selField(b, "Units", [["mm","Millimetres"],["in","Inches"]], ()=>state.view.units, v=>{ state.view.units = v; refreshScene(); renderTab(); });
   checkField(b, "Save my work in this browser automatically", ()=>state.view.autosave !== false, v=>{ state.view.autosave = v; });
   aiSettings(b);
@@ -18697,6 +18822,28 @@ $("#settingsBtn").onclick = ()=>openModal("Settings", b => {
     set:v=>state.view.maxCells=v, onChange:()=>{ dirty(); }, sub:()=>"Lower it if the app feels slow on this computer." });
   buttonRow(b, [["Clear saved work in this browser", ()=>{ try { localStorage.removeItem("makerforge.project"); localStorage.removeItem("makerforge.recent"); forgetModels(); notify("Saved work cleared."); } catch(e){} }]]);
 });
+// the Look settings (Session 92): the colour scheme (Retr0+ is the owner's website), your own colour, what's behind the model and
+// Start from's tiles. They stay in this browser, for every project
+function lookFields(b){
+  const box = document.createElement("div"); box.className = "schemes"; box.setAttribute("role", "group"); box.setAttribute("aria-label", "Colours");
+  SCHEMES.forEach(([k, name, col]) => {
+    const btn = document.createElement("button"); btn.dataset.scheme = k; btn.setAttribute("aria-pressed", String(prefs.scheme === k));
+    btn.innerHTML = `<span class="sw" style="background:${k === "retro" ? "linear-gradient(135deg,#150a24 0 45%,#a855f7 45% 75%,#d4a54a 75%)" : k === "custom" ? esc(prefs.accent) : col}"></span>${esc(name)}`;
+    btn.onclick = () => { prefs.scheme = k; savePrefs(); applyPrefs(); $("#settingsBtn").click(); };
+    box.appendChild(btn);
+  });
+  b.appendChild(box);
+  if (prefs.scheme === "retro") note(b, "The colours and the perfboard of forge.retr0plus.se: deep violet, purple traces and gold. It is always dark.");
+  if (prefs.scheme === "custom"){
+    const w = document.createElement("div"); w.className = "field full";
+    w.innerHTML = `<label for="lookAccent">Your colour</label><input type="color" id="lookAccent" value="${esc(prefs.accent)}">`;
+    w.querySelector("input").oninput = e => { if (/^#[0-9a-f]{6}$/i.test(e.target.value)){ prefs.accent = e.target.value.toLowerCase(); savePrefs(); applyPrefs(); } };
+    b.appendChild(w);
+  }
+  selField(b, "Behind the model", BACKDROPS, () => prefs.backdrop, v => { prefs.backdrop = v; savePrefs(); applyPrefs(); });
+  segField(b, [["big","Big pictures"],["small","Small pictures"]], () => prefs.tiles, v => { prefs.tiles = v; savePrefs(); renderStarts(); }, "two");
+  note(b, "Start from shows three to a row with small pictures. These settings stay in this browser.");
+}
 // the user manual: the whole of MANUAL.md, with its contents list jumping within the window
 $("#helpBtn").onclick = ()=>openModal("User manual", b => {
   $("#modal").classList.add("wide");
@@ -19863,7 +20010,11 @@ function applyPreset(key){
 }
 
 /* ---- easy reading: kept in this browser for every project, not in project files ---- */
-const PREFS_DEFAULT = { ui:1, contrast:"normal", font:"normal", motion:"auto", notice:1, speak:false, patterns:false };
+const PREFS_DEFAULT = { ui:1, contrast:"normal", font:"normal", motion:"auto", notice:1, speak:false, patterns:false, scheme:"forge", accent:"#1f6f8b", backdrop:"soft", tiles:"big", recent:[] };
+// colour schemes (Session 92): Maker Forge's own, the owner's website (forge.retr0plus.se), five more, and your own colour
+const SCHEMES = [["forge","Maker Forge","#1f6f8b"],["retro","Retr0+ (the website)","#a855f7"],["forest","Forest","#2e7d4f"],["sunset","Sunset","#b4501a"],
+  ["rose","Rose","#a8325f"],["ocean","Ocean","#1f58b5"],["graphite","Graphite","#3d4550"],["custom","Your colour",null]];
+const BACKDROPS = [["soft","Soft light (as before)"],["dots","Perfboard dots (like the website)"],["grid","Grid"],["blueprint","Blueprint"],["plain","Plain"]];
 let prefs = Object.assign({}, PREFS_DEFAULT);
 try { const raw = JSON.parse(localStorage.getItem("makerforge.prefs") || "null");
   if (raw && typeof raw === "object"){
@@ -19874,6 +20025,11 @@ try { const raw = JSON.parse(localStorage.getItem("makerforge.prefs") || "null")
     prefs.notice = [1, 2, 4].includes(raw.notice) ? raw.notice : 1;
     prefs.speak = raw.speak === true;
     prefs.patterns = raw.patterns === true;
+    prefs.scheme = SCHEMES.some(([k]) => k === raw.scheme) ? raw.scheme : "forge";
+    prefs.accent = typeof raw.accent === "string" && /^#[0-9a-f]{6}$/i.test(raw.accent) ? raw.accent.toLowerCase() : PREFS_DEFAULT.accent;
+    prefs.backdrop = BACKDROPS.some(([k]) => k === raw.backdrop) ? raw.backdrop : "soft";
+    prefs.tiles = raw.tiles === "small" ? "small" : "big";
+    prefs.recent = Array.isArray(raw.recent) ? raw.recent.filter(k => typeof k === "string" && /^(preset|object):[\w '\-]{1,40}$/.test(k)).slice(0, 6) : [];
   } } catch(e){}
 function savePrefs(){ try { localStorage.setItem("makerforge.prefs", JSON.stringify(prefs)); } catch(e){} }
 function applyPrefs(){
@@ -19884,6 +20040,13 @@ function applyPrefs(){
     r.setAttribute("data-font", "clear");           // Atkinson Hyperlegible, built in (see fontFaceCSS)
   } else r.removeAttribute("data-font");
   if (prefs.motion === "reduce") r.setAttribute("data-motion", "reduce"); else r.removeAttribute("data-motion");
+  if (prefs.scheme !== "forge" && prefs.scheme !== "custom") r.setAttribute("data-scheme", prefs.scheme); else r.removeAttribute("data-scheme");
+  if (prefs.backdrop !== "soft") r.setAttribute("data-backdrop", prefs.backdrop); else r.removeAttribute("data-backdrop");
+  if (prefs.scheme === "custom"){                                  // your colour: its light tint and a readable text on it
+    const c = prefs.accent, v = parseInt(c.slice(1), 16), lum = (0.2126 * (v >> 16 & 255) + 0.7152 * (v >> 8 & 255) + 0.0722 * (v & 255)) / 255;
+    r.style.setProperty("--accent", c); r.style.setProperty("--accent-soft", `color-mix(in srgb, ${c} 16%, var(--panel))`); r.style.setProperty("--accent-ink", lum > 0.6 ? "#101418" : "#ffffff");
+  } else ["--accent", "--accent-soft", "--accent-ink"].forEach(k => r.style.removeProperty(k));
+  if (typeof makeBed === "function" && typeof scene !== "undefined") try { makeBed(); } catch (e) {}
   patUniforms.uPat.value = prefs.patterns ? 1 : 0;
   patUniforms.uPatScale.value = 10 * (window.devicePixelRatio || 1) * prefs.ui;
   // big text needs the room: on narrower screens Start from becomes a drawer and the app bar folds up
@@ -19930,7 +20093,7 @@ function openEasyReading(){
     b.insertAdjacentHTML("beforeend", `<h2>Colours</h2>`);
     checkField(b, "A pattern on each filament, to tell them apart without colour", () => prefs.patterns, v => { prefs.patterns = v; savePrefs(); applyPrefs(); if (tab === "paint") renderTab(); });
     note(b, "The first filament stays plain; the others get stripes, lines, dots, cross-hatching or checks, on the model and on the colour swatches.");
-    buttonRow(b, [["🔊 Read this page aloud", () => { $("#modal").hidden = true; speakPage(); }], ["Back to normal", () => { prefs = Object.assign({}, PREFS_DEFAULT); savePrefs(); applyPrefs(); openEasyReading(); }]]);
+    buttonRow(b, [["🔊 Read this page aloud", () => { $("#modal").hidden = true; speakPage(); }], ["Back to normal", () => { const keep = { scheme:prefs.scheme, accent:prefs.accent, backdrop:prefs.backdrop, tiles:prefs.tiles, recent:prefs.recent }; prefs = Object.assign({}, PREFS_DEFAULT, keep); savePrefs(); applyPrefs(); openEasyReading(); }]]);
     note(b, "Your browser's own zoom (Ctrl and +) makes everything bigger too, including the 3D view.");
   });
 }

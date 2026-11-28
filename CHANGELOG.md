@@ -3,6 +3,29 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
+## 0.69.0
+
+Colours, and finding things faster.
+
+**New**
+- **Colour schemes** (Settings → Look):
+  - **Retr0+**: the website's deep violet, purple and gold, with its perfboard behind the model;
+  - **Forest**, **Sunset**, **Rose**, **Ocean** and **Graphite**, each light and dark;
+  - **your own colour** from a colour picker.
+  - The 3D view's bed follows the colours.
+- **Behind the model:** perfboard dots, a grid, a blueprint or plain, besides the soft light.
+- **Start from:**
+  - a **Find** box: type *lamp* or *box* and only what matches stays, and Enter opens it;
+  - **chips** for each kind, with **From the workshop** for the maker's own projects;
+  - **Recently** at the top;
+  - **New** badges;
+  - **small pictures**, three to a row.
+- **The objects are grouped by what they are for**: Names and signs, From a picture, Gifts and décor, Electronics, Workshop and repair, and Hobbies and outdoors. "Functional" had grown to eight.
+- The arrow nock's Shape page has its own icon.
+
+**Fixed**
+- Nothing this time.
+
 ## 0.68.0
 
 The arrow nocks, remade on the owner's own design.

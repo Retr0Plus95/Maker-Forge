@@ -3,7 +3,7 @@
 Every release of Maker Forge, newest first. The [README](README.md) describes the app as it is now, and the
 [user manual](MANUAL.md) explains how to use it. Developer notes for each release are in [HANDOFF.md](HANDOFF.md).
 
-## 0.67.1
+## 0.71.1
 
 Safer on its website, next to Maker Forge Bench.
 
@@ -15,6 +15,87 @@ Safer on its website, next to Maker Forge Bench.
 **Fixed**
 - Nothing you would notice: this release makes the app safer to share a website with Maker Forge Bench, where the two keep
   their saved work side by side.
+## 0.71.0
+
+From the workshop: the fume extractor.
+
+**New**
+- **Fume extractor**, the maker's own solder fume extractor (*Sir Sucks-a-Lot*, Retr0Plus95/Solder-Fume-Extractor) as an object:
+  - one or two 80 to 140 mm fans in a printed duct, a tray for the mesh and carbon pad behind the front grille;
+  - an electronics bay with the display (1602 LCD or OLED), the speed knob and the switch on the front panel, the board on the rear
+    cap, the power socket and vents beside it;
+  - bars or honeycomb grilles, printed feet, and a name raised along the side;
+  - shown put together, or as the four parts laid out to print, none needing support;
+  - checks, what you'll need and how to put it together, also in the download.
+
+**Fixed**
+- Nothing this time.
+
+## 0.70.0
+
+From the workshop: the maker's own boxes.
+
+**New**
+- **Three quick starts from the workshop**, the maker's own project boxes as they made them, each credited to its project:
+  - **RGB lamp controller**, the box for their ESP32 RGB lamp controller;
+  - **Bench supply (left)** and **(right)**, the two halves of their four-channel bench supply's case, which bolt together.
+  - They show under **From the workshop** and **Electronics**, and *psu* or *esp32* in Find finds them.
+
+**Fixed**
+- A big box whose box and lid each fit the bed, but not side by side, was called "bigger than the print bed". Now each goes on a
+  plate of its own, as a box in parts does, and the download has a file for each plate.
+- With a colour scheme, the outlines of a box's other plates (⊞) stayed teal; they take the scheme's colour like the bed.
+
+## 0.69.1
+
+A fix for the website's copy.
+
+**Fixed**
+- On the website, Start from's new Find box and its chips could show as blank white boxes on many rows after the update (the
+  browser had kept the last release's styles). The page now notices old styles and fetches its own.
+
+## 0.69.0
+
+Colours, and finding things faster.
+
+**New**
+- **Colour schemes** (Settings → Look):
+  - **Retr0+**: the website's deep violet, purple and gold, with its perfboard behind the model;
+  - **Forest**, **Sunset**, **Rose**, **Ocean** and **Graphite**, each light and dark;
+  - **your own colour** from a colour picker.
+  - The 3D view's bed follows the colours.
+- **Behind the model:** perfboard dots, a grid, a blueprint or plain, besides the soft light.
+- **Start from:**
+  - a **Find** box: type *lamp* or *box* and only what matches stays, and Enter opens it;
+  - **chips** for each kind, with **From the workshop** for the maker's own projects;
+  - **Recently** at the top;
+  - **New** badges;
+  - **small pictures**, three to a row.
+- **The objects are grouped by what they are for**: Names and signs, From a picture, Gifts and décor, Electronics, Workshop and repair, and Hobbies and outdoors. "Functional" had grown to eight.
+- The arrow nock's Shape page has its own icon.
+
+**Fixed**
+- Nothing this time.
+
+## 0.68.0
+
+The arrow nocks, remade on the owner's own design.
+
+**New**
+- **Arrow nocks follow the owner's own parametric nock** (their OpenSCAD design), in its own groups:
+  - **shaft sizes** from 5 mm to 3/8 in, or your own;
+  - **slip-over**, **tapered** (any angle) or **push-in**;
+  - **crush ribs** or **glue grooves** for the fit;
+  - a **throat** with a lead-in and snap;
+  - a head that **tapers** to the ear tips, with **flats** either side of the slot and a rounded tip;
+  - the cock-vane **ridge** at any angle;
+  - **your initials and arrow numbers** along the side, engraved or raised;
+  - printed **upright**, **tilted 45°** or **on its side**.
+- Kept from 0.67: the fit test (now numbered 1 to 5 on the side) and the weight in grains.
+- Projects saved with 0.67's nocks open with their settings carried over.
+
+**Fixed**
+- Nothing this time.
 
 ## 0.67.0
 

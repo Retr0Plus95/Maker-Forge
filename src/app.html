@@ -16,6 +16,8 @@
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Maker Forge","applicationCategory":"DesignApplication","operatingSystem":"Any (web browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://opensource.org/licenses/MIT","url":"https://github.com/Retr0Plus95/Maker-Forge","description":"Free, open-source multi-colour 3D print designer that runs in the browser and exports 3MF, STL and OBJ."}</script>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <style>
+/* which release these styles are from (build.py writes it): freshStyles() checks it against the page's own */
+:root{--mf-styles:"v0.69.0"}
 :root{
   --bg:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --ink:#141b24; --muted:#63707f; --line:#e2e7ee;
   --accent:#1f6f8b; --accent-ink:#ffffff; --accent-soft:#e6f1f5;
@@ -39,6 +41,60 @@
   --danger:#f08a72; --warn:#ddb45f; --good:#77c9a3;
   --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 26px rgba(0,0,0,.25);
 }
+/* colour schemes (Session 92): each sets the tokens; light and dark where the scheme has both. Retr0+ is the owner's website
+   (forge.retr0plus.se, "Purple board rev.A"): dark only, deep violet, purple traces, gold pads, silkscreen white */
+:root[data-scheme="retro"]{
+  --bg:#150a24; --panel:#1e0f33; --panel2:#26143f; --ink:#ede7f6; --muted:#a898c4; --line:#3a2160;
+  --accent:#c084fc; --accent-ink:#150a24; --accent-soft:#2e1752; --gold:#d4a54a;
+  --stage-top:#24123e; --stage-bot:#0c0514; --field:#130922;
+  --danger:#ff6b66; --warn:#ffb347; --good:#7ee0a8;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px rgba(8,3,16,.45);
+  color-scheme:dark;
+}
+:root[data-scheme="forest"]{ --bg:#eef3ef; --panel2:#f2f7f3; --line:#dde7e0; --accent:#2e7d4f; --accent-soft:#e3f1e8; --stage-top:#e4ece6; --stage-bot:#c7d5cb; }
+:root[data-scheme="sunset"]{ --bg:#f6f0eb; --panel2:#faf5f1; --line:#ece2d9; --accent:#b4501a; --accent-soft:#f8e9df; --stage-top:#efe6de; --stage-bot:#d9c8ba; }
+:root[data-scheme="rose"]{ --bg:#f5eef1; --panel2:#faf4f7; --line:#ecdfe5; --accent:#a8325f; --accent-soft:#f7e6ee; --stage-top:#eee3e8; --stage-bot:#d8c6ce; }
+:root[data-scheme="ocean"]{ --bg:#edf1f7; --panel2:#f3f6fb; --line:#dfe6f0; --accent:#1f58b5; --accent-soft:#e4ecf8; --stage-top:#e3e9f2; --stage-bot:#c5d1e2; }
+:root[data-scheme="graphite"]{ --bg:#f0f1f2; --panel2:#f5f6f7; --line:#e1e3e6; --accent:#3d4550; --accent-soft:#e7e9ec; --stage-top:#e7e8ea; --stage-bot:#cdd0d4; }
+@media (prefers-color-scheme: dark){
+  :root[data-scheme="forest"]:not([data-theme="light"]){ --bg:#0d1511; --panel:#141e18; --panel2:#19251e; --line:#253328; --accent:#7fcf9f; --accent-ink:#08110c; --accent-soft:#183026; --stage-top:#17221b; --stage-bot:#0a110d; --field:#111a15; }
+  :root[data-scheme="sunset"]:not([data-theme="light"]){ --bg:#16110d; --panel:#1f1813; --panel2:#251d17; --line:#382b22; --accent:#f2a065; --accent-ink:#140c07; --accent-soft:#33241a; --stage-top:#231a14; --stage-bot:#100b08; --field:#1a140f; }
+  :root[data-scheme="rose"]:not([data-theme="light"]){ --bg:#160e12; --panel:#1f151a; --panel2:#251a20; --line:#382630; --accent:#f08cb5; --accent-ink:#14080d; --accent-soft:#33202a; --stage-top:#22171c; --stage-bot:#100a0d; --field:#1a1216; }
+  :root[data-scheme="ocean"]:not([data-theme="light"]){ --bg:#0c121b; --panel:#131b27; --panel2:#18212f; --line:#243145; --accent:#7fb2f0; --accent-ink:#07101c; --accent-soft:#182a40; --stage-top:#162131; --stage-bot:#090e16; --field:#101826; }
+  :root[data-scheme="graphite"]:not([data-theme="light"]){ --bg:#111214; --panel:#191b1e; --panel2:#1f2125; --line:#2d3036; --accent:#c6ccd4; --accent-ink:#111214; --accent-soft:#2a2d32; --stage-top:#1d1f23; --stage-bot:#0c0d0f; --field:#16181b; }
+}
+:root[data-scheme="forest"][data-theme="dark"]{ --bg:#0d1511; --panel:#141e18; --panel2:#19251e; --line:#253328; --accent:#7fcf9f; --accent-ink:#08110c; --accent-soft:#183026; --stage-top:#17221b; --stage-bot:#0a110d; --field:#111a15; }
+:root[data-scheme="sunset"][data-theme="dark"]{ --bg:#16110d; --panel:#1f1813; --panel2:#251d17; --line:#382b22; --accent:#f2a065; --accent-ink:#140c07; --accent-soft:#33241a; --stage-top:#231a14; --stage-bot:#100b08; --field:#1a140f; }
+:root[data-scheme="rose"][data-theme="dark"]{ --bg:#160e12; --panel:#1f151a; --panel2:#251a20; --line:#382630; --accent:#f08cb5; --accent-ink:#14080d; --accent-soft:#33202a; --stage-top:#22171c; --stage-bot:#100a0d; --field:#1a1216; }
+:root[data-scheme="ocean"][data-theme="dark"]{ --bg:#0c121b; --panel:#131b27; --panel2:#18212f; --line:#243145; --accent:#7fb2f0; --accent-ink:#07101c; --accent-soft:#182a40; --stage-top:#162131; --stage-bot:#090e16; --field:#101826; }
+:root[data-scheme="graphite"][data-theme="dark"]{ --bg:#111214; --panel:#191b1e; --panel2:#1f2125; --line:#2d3036; --accent:#c6ccd4; --accent-ink:#111214; --accent-soft:#2a2d32; --stage-top:#1d1f23; --stage-bot:#0c0d0f; --field:#16181b; }
+/* backgrounds behind the model: the website's perfboard holes, a grid, a blueprint */
+:root[data-backdrop="dots"] .stage{background:radial-gradient(circle, color-mix(in srgb, var(--accent) 22%, transparent) 1.4px, transparent 1.7px) 0 0/32px 32px, radial-gradient(120% 90% at 55% 0%, var(--stage-top), var(--stage-bot))}
+:root[data-backdrop="grid"] .stage{background:linear-gradient(color-mix(in srgb, var(--ink) 7%, transparent) 1px, transparent 1px) 0 0/24px 24px, linear-gradient(90deg, color-mix(in srgb, var(--ink) 7%, transparent) 1px, transparent 1px) 0 0/24px 24px, radial-gradient(120% 90% at 55% 0%, var(--stage-top), var(--stage-bot))}
+:root[data-backdrop="blueprint"] .stage{background:linear-gradient(color-mix(in srgb, var(--accent) 16%, transparent) 1px, transparent 1px) 0 0/20px 20px, linear-gradient(90deg, color-mix(in srgb, var(--accent) 16%, transparent) 1px, transparent 1px) 0 0/20px 20px, linear-gradient(color-mix(in srgb, var(--accent) 9%, transparent) 1px, transparent 1px) 0 0/100px 100px, radial-gradient(120% 90% at 55% 0%, color-mix(in srgb, var(--accent) 14%, var(--stage-top)), var(--stage-bot))}
+:root[data-backdrop="plain"] .stage{background:var(--stage-bot)}
+/* the website's look goes a little further: its scanlines over the view, its gold on the active tab and the big button */
+:root[data-scheme="retro"] .stage::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(180deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px), radial-gradient(ellipse at center, transparent 60%, rgba(8,3,16,.5) 100%);z-index:1}
+:root[data-scheme="retro"] .tabs button[aria-selected="true"], :root[data-scheme="retro"] .tabs button.on{box-shadow:inset 0 -2px 0 var(--gold)}
+
+/* Start from (Session 92): the search, the category chips, the New badge, small tiles; the Look settings' swatches */
+.startsearch{position:sticky;top:-4px;z-index:2;background:var(--panel);margin:0 -12px;padding:8px 12px 6px;border-bottom:1px solid transparent}
+.startsearch input{width:100%;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--field);color:var(--ink);font-size:13px}
+.startsearch input:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+.startchips{display:flex;flex-wrap:nowrap;gap:5px;margin:7px 0 0;overflow-x:auto;padding-bottom:5px;scrollbar-width:thin}
+.startchips button{flex:0 0 auto;white-space:nowrap;border:1px solid var(--line);background:var(--field);border-radius:999px;padding:3px 9px;font-size:11.5px;font-weight:700;color:var(--muted);cursor:pointer;line-height:1.5}
+#startsBody [hidden]{display:none !important}   /* the tiles' own display would show them anyway */
+.startchips button:hover{border-color:var(--accent);color:var(--ink)}
+.startchips button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.objcard,.gallery button{position:relative}
+.newbadge{position:absolute;top:5px;right:5px;background:var(--accent);color:var(--accent-ink);font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:999px;letter-spacing:.03em;line-height:1.5}
+#startsBody.small #presetGallery,#startsBody.small .objgrid,#startsBody.small #recentRow{grid-template-columns:1fr 1fr 1fr}
+#startsBody.small .objcard,#startsBody.small .gallery button{font-size:10.5px;padding:4px 3px 6px}
+.startsnone{color:var(--muted);font-size:12.5px;padding:10px 2px}
+.schemes{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:6px 0 10px}
+.schemes button{border:2px solid var(--line);border-radius:12px;padding:8px 4px 7px;background:var(--field);cursor:pointer;display:grid;gap:5px;justify-items:center;font-size:11.5px;font-weight:700;color:var(--ink);line-height:1.2}
+.schemes button[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.schemes .sw{width:40px;height:24px;border-radius:7px;display:block;border:1px solid rgba(0,0,0,.12)}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
   font-family:"Manrope","Segoe UI",system-ui,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
@@ -403,6 +459,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
 :root[data-contrast="high"]{--muted:#2b3642;--line:#6b7887;--accent:#0b4f68;--accent-soft:#d8ecf4}
 @media (prefers-color-scheme: dark){ :root[data-contrast="high"]:not([data-theme="light"]){--ink:#ffffff;--muted:#d4dde6;--line:#8193a5;--accent:#8fd3ea;--accent-soft:#1d3a47} }
 :root[data-contrast="high"][data-theme="dark"]{--ink:#ffffff;--muted:#d4dde6;--line:#8193a5;--accent:#8fd3ea;--accent-soft:#1d3a47}
+:root[data-contrast="high"][data-scheme="retro"]{--ink:#ffffff;--muted:#e9e2f7;--line:#a882d8;--accent:#e2c4ff;--accent-soft:#3a1d66}   /* the website's own high contrast (Session 92) */
 :root[data-contrast="high"] .hint,:root[data-contrast="high"] .field .sub,:root[data-contrast="high"] .method span{font-weight:600}
 :root[data-contrast="high"] :focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 :root[data-contrast="high"] .seg button[aria-pressed="true"],:root[data-contrast="high"] .toptabs button[aria-selected="true"]{outline:2px solid var(--ink)}
@@ -790,7 +847,7 @@ const CONSUMES_ART = { cutter:1, pcb:1, lightbox:1, tracer:1, jigsaw:1, lithopha
 // which of the picture's own settings each of those objects reads; the Art tab shows only these
 const ART_USED_BY = { cutter:["width","mirror","colours","smooth"], lightbox:["mirror","colours","smooth"], enclosure:["mirror","colours","smooth"], phonecase:["mirror","colours","smooth"], card:["mirror","colours","smooth"],
   jigsaw:["mirror","colours","smooth"], pcb:["mirror"], tracer:[], lithophane:["mirror"], canvas:["mirror","colours","smooth"] };
-const SHAPES = [["tracer","Photo to 3D tracer"],["lithophane","Lithophane"],["board","Flat shape"],["nameplate","Name plate & keychain"],["card","Business card"],["mech","Mechanisms"],["parts","Mechanical parts"],["flower","Blooming flower lamp"],["birdhouse","Bird house"],["nock","Arrow nocks"],["fixit","Fix-it parts"],["sign","Sign"],["relief","3D relief from a photo"],["canvas","Plastic canvas / mosaic"],["jigsaw","Jigsaw puzzle"],
+const SHAPES = [["tracer","Photo to 3D tracer"],["lithophane","Lithophane"],["board","Flat shape"],["nameplate","Name plate & keychain"],["card","Business card"],["mech","Mechanisms"],["parts","Mechanical parts"],["flower","Blooming flower lamp"],["birdhouse","Bird house"],["nock","Arrow nocks"],["fume","Fume extractor"],["fixit","Fix-it parts"],["sign","Sign"],["relief","3D relief from a photo"],["canvas","Plastic canvas / mosaic"],["jigsaw","Jigsaw puzzle"],
   ["bobble","Bobble head"],["cutter","Cookie cutter from artwork"],["turned","Turned shape (vase, egg, cone)"],
   ["pcb","Circuit board from a schematic"],["lightbox","Lightbox / shadow box"],["frame","Photo frame"],["shell","Tea light / lantern"],["box","Plaque / box"],["cylinder","Cylinder"],
   ["hex","Hex prism"],["sphere","Sphere"],["enclosure","Project box / enclosure"],["phonecase","Phone case"],["stl","Import a model"],["none","No object"]];
@@ -863,7 +920,88 @@ const PRESETS = {
   "Bolt and nut":{ base:{ type:"mech", mech:{ kind:"bolt" } },
     tip:"Pick a metric size or type your own. Both print standing, with no supports; the nut has the fit gap of play." },
   "Replacement knob":{ base:{ type:"fixit", fixit:{ kind:"knob" } },
-    tip:"Measure the shaft with calipers: its diameter, and the flat if it has one. The knob prints on its top." }
+    tip:"Measure the shaft with calipers: its diameter, and the flat if it has one. The knob prints on its top." },
+  // From the workshop (Session 94): the owner's own boxes, as they made them (the owner, Session 90: every finished project becomes part of Maker Forge)
+  "RGB lamp controller":{ base:{ type:"enclosure", enclosure:{ w:171,d:91,h:50,wall:2.4,floor:2.4,radius:4,lid:"screw",lidThick:2.4,lipH:3,lipW:1.2,fit:0.2,fasten:"insert",screw:"M3",head:"sink",teardrop:true,grow:true,lensSlot:0,clear:0.2,magnet:"6x2",feet:"none",footSize:"8",footDepth:1,labelH:4,labelLine:0.6,labelDepth:0.4,test:false,board:"custom",boardX:30,boardY:0,boardRot:false,standH:5,bw:90,bd:70,bsx:84,bsy:64,bscrew:"M2.5",boxSlot:1,lidSlot:1,
+      cut:[
+        {face:"front",kind:"round",u:8,v:36,rot:false,label:"IR",labelPos:"below",top:"flat",notch:false,dia:6.5},
+        {face:"front",kind:"pilotp5",u:30,v:36,rot:false,label:"STATUS",labelPos:"below",top:"flat",notch:false,dia:8},
+        {face:"front",kind:"btn",u:64,v:36,rot:false,label:"ON/OFF",labelPos:"below",top:"flat",notch:false,dia:12.2},
+        {face:"back",kind:"rect",u:37,v:13.3,rot:false,label:"USB",labelPos:"above",top:"pointed",notch:false,w:12,h:8,r:2},
+        {face:"back",kind:"barrel",u:2,v:34,rot:false,label:"12V",labelPos:"below",top:"flat",notch:false,dia:8},
+        {face:"back",kind:"round",u:-46.5,v:34,rot:false,label:"STRIP",labelPos:"below",top:"flat",notch:false,dia:12.2},
+        {face:"top",kind:"vent",u:11,v:8,rot:false,label:"RGB LAMP",labelPos:"below",top:"flat",notch:false,w:36,h:18,style:"slots"},
+        {face:"bottom",kind:"vent",u:30,v:-6,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:44,h:20,style:"slots"},
+        {face:"bottom",kind:"hole",u:-72.56,v:27.63,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.4},
+        {face:"bottom",kind:"hole",u:-24.3,v:26.36,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.4},
+        {face:"bottom",kind:"hole",u:-67.48,v:-24.44,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.4},
+        {face:"bottom",kind:"hole",u:-39.54,v:-24.44,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.4} ] } },
+    slots:[{ hex:"#e9edf0", name:"Clear PETG (lens)", mat:"PETG" }, { hex:"#5b6470", name:"Grey PETG (box and lid)", mat:"PETG" }],
+    tip:"The owner's box for their ESP32 RGB lamp controller (Retr0Plus95/ESP32-LED-RGB-): the 90 × 70 mm board on M2.5 posts, the IR receiver, a status light and the on/off button in front, USB, 12 V and the strip's cable at the back. Print the light's lens in clear PETG." },
+  "Bench supply (left)":{ base:{ type:"enclosure", enclosure:{ w:151.5,d:222,h:122,wall:3,floor:3,radius:5,lid:"screw",lidThick:3,lipH:3,lipW:1.2,fit:0.2,fasten:"insert",screw:"M3",head:"sink",teardrop:false,grow:false,lensSlot:0,clear:0.2,magnet:"6x2",feet:"recess",footSize:"12.7",footDepth:1,labelH:4,labelLine:0.6,labelDepth:0.4,test:false,board:"none",boardX:0,boardY:0,boardRot:false,standH:5,bw:60,bd:40,bsx:52,bsy:32,bscrew:"M3",boxSlot:1,lidSlot:1,
+      cut:[
+        {face:"front",kind:"lcd1602",u:0,v:100,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:71.5,h:24.5,hw:75,hh:31,hd:3.2},
+        {face:"front",kind:"pot",u:-52,v:66,rot:false,label:"TRIP",labelPos:"below",top:"flat",notch:false,dia:7.3},
+        {face:"front",kind:"btn",u:-34,v:66,rot:false,label:"CH1 24V",labelPos:"above",top:"flat",notch:false,dia:12.2},
+        {face:"front",kind:"pilotp5",u:-17,v:66,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:8},
+        {face:"front",kind:"pot",u:18,v:66,rot:false,label:"TRIP",labelPos:"below",top:"flat",notch:false,dia:7.3},
+        {face:"front",kind:"btn",u:36,v:66,rot:false,label:"CH2 12V",labelPos:"above",top:"flat",notch:false,dia:12.2},
+        {face:"front",kind:"pilotp5",u:53,v:66,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:8},
+        {face:"front",kind:"rect",u:-35,v:28,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:40,h:36,r:2},
+        {face:"front",kind:"hole",u:-60,v:6,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:-60,v:50,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:-10,v:6,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:-10,v:50,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"rect",u:35,v:28,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:40,h:36,r:2},
+        {face:"front",kind:"hole",u:10,v:6,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:10,v:50,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:60,v:6,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:60,v:50,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"back",kind:"rect",u:42,v:94,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:29,h:33,r:0.5},
+        {face:"back",kind:"hole",u:22,v:94,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"back",kind:"hole",u:62,v:94,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"back",kind:"rockerL",u:-4,v:94,rot:false,label:"POWER",labelPos:"below",top:"flat",notch:false,w:30.2,h:22.2,r:0.5},
+        {face:"back",kind:"fan",u:-30,v:33,rot:false,label:"",labelPos:"below",top:"flat",notch:false,size:40,style:"rings"},
+        {face:"left",kind:"vent",u:45,v:80,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:90,h:34,style:"slots"},
+        {face:"right",kind:"rect",u:5,v:50.5,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:182,h:95,r:0},
+        {face:"right",kind:"hole",u:-92,v:108.5,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"right",kind:"hole",u:-40,v:108.5,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"right",kind:"hole",u:20,v:108.5,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"right",kind:"hole",u:80,v:108.5,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"right",kind:"hole",u:-94,v:30,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"right",kind:"hole",u:-94,v:70,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"bottom",kind:"hole",u:-60.75,v:86,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"bottom",kind:"hole",u:-60.75,v:-34,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3} ] } },
+    slots:[{ hex:"#e9eef2", name:"Clear PETG", mat:"PETG" }, { hex:"#22303c", name:"Charcoal PETG", mat:"PETG" }],
+    tip:"The left half of the owner's four-channel bench supply (Retr0Plus95/FOUR-CHANNEL-PSU): the display, two channels' trip knobs, buttons and lights, and two output plates in front; the mains inlet, the power switch and a fan at the back. The halves bolt together round the big opening where they meet. Mains is dangerous: earth the inlet, and print in PETG with supports." },
+  "Bench supply (right)":{ base:{ type:"enclosure", enclosure:{ w:151.5,d:222,h:122,wall:3,floor:3,radius:5,lid:"screw",lidThick:3,lipH:3,lipW:1.2,fit:0.2,fasten:"insert",screw:"M3",head:"sink",teardrop:false,grow:false,lensSlot:0,clear:0.2,magnet:"6x2",feet:"recess",footSize:"12.7",footDepth:1,labelH:4,labelLine:0.6,labelDepth:0.4,test:false,board:"none",boardX:0,boardY:0,boardRot:false,standH:5,bw:60,bd:40,bsx:52,bsy:32,bscrew:"M3",boxSlot:1,lidSlot:1,
+      cut:[
+        {face:"front",kind:"rect",u:-20,v:96,rot:false,label:"CH3 0-22V",labelPos:"below",top:"flat",notch:false,w:71,h:39,r:0.5},
+        {face:"front",kind:"pilotp5",u:40,v:100,rot:false,label:"ON",labelPos:"below",top:"flat",notch:false,dia:8},
+        {face:"front",kind:"pilotp5",u:57,v:100,rot:false,label:"HOT",labelPos:"below",top:"flat",notch:false,dia:8},
+        {face:"front",kind:"rect",u:-35,v:28,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:40,h:36,r:2},
+        {face:"front",kind:"hole",u:-60,v:6,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:-60,v:50,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:-10,v:6,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:-10,v:50,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"rect",u:35,v:28,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:40,h:36,r:2},
+        {face:"front",kind:"hole",u:10,v:6,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:10,v:50,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:60,v:6,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"front",kind:"hole",u:60,v:50,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.8},
+        {face:"back",kind:"fan",u:30,v:33,rot:false,label:"",labelPos:"below",top:"flat",notch:false,size:40,style:"rings"},
+        {face:"right",kind:"vent",u:-45,v:80,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:90,h:34,style:"slots"},
+        {face:"left",kind:"rect",u:-5,v:50.5,rot:false,label:"",labelPos:"below",top:"flat",notch:false,w:182,h:95,r:0},
+        {face:"left",kind:"hole",u:92,v:108.5,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"left",kind:"hole",u:40,v:108.5,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"left",kind:"hole",u:-20,v:108.5,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"left",kind:"hole",u:-80,v:108.5,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"left",kind:"hole",u:94,v:30,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"left",kind:"hole",u:94,v:70,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"bottom",kind:"hole",u:60.75,v:86,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3},
+        {face:"bottom",kind:"hole",u:60.75,v:-34,rot:false,label:"",labelPos:"below",top:"flat",notch:false,dia:3.3} ] } },
+    slots:[{ hex:"#e9eef2", name:"Clear PETG", mat:"PETG" }, { hex:"#22303c", name:"Charcoal PETG", mat:"PETG" }],
+    tip:"The right half of the owner's four-channel bench supply (Retr0Plus95/FOUR-CHANNEL-PSU): the adjustable channel's window, ON and HOT lights and two output plates in front, a fan at the back. It bolts to the left half round the big opening where they meet. Print in PETG with supports." }
 };
 /*EXAMPLES*/
 
@@ -998,6 +1136,7 @@ const DEFAULTS = () => ({
     parts:{ kind:"servoMount", clearance:0.2, set:{} },          // the mechanical parts library (Session 82)
     flower:{ set:C.flower.clean({}), clearance:0.2, show:"lamp", bloom:0, petalSlot:1 },
     birdhouse:{ set:C.bird.clean({}), show:"house", roofSlot:1 },
+    fume:{ set:C.fume.clean({}), show:"together", panelSlot:1 },   // the fume extractor (Session 95)
     nock:{ set:C.nock.clean({}) },   // arrow nocks (Session 90): every setting, cleaned by the library   // the bird house (Session 89): every setting, cleaned by the library   // the blooming flower lamp (Session 85): every setting, as a project brings it back
     mech:{ kind:"gears",
       gears:{ teeth1:24, teeth2:12, module:1.5, thick:6, bore:5, boreShape:"d", hub:true, hubDia:12, hubH:4, layout:"apart", angle:20 },
@@ -7058,9 +7197,10 @@ function buildEnclosure(){
     const r = encSplitParts(parts.filter(p => !p.inside), split, splitG, lidShift), plates = encPackPlates(r.parts.concat(insideParts), split.bed);
     out = r.parts.concat(insideParts);
     splitInfo = Object.assign({}, split, { seams:r.seams, plates, flangeVolume:r.flangeVolume }, encSplitText(split, plates, lidOn, magnet));
-  } else if (insideParts.length && !state.base.enclosure.test){
+  } else if (!state.base.enclosure.test){
     // with levels and dividers the parts may not fit one bed together: then each goes on a plate (Session 46), as a box
-    // in parts does; the lid's logo stays with the lid
+    // in parts does; the lid's logo stays with the lid. So does a big box and its lid, each fitting the bed but not side by
+    // side (Session 94: the owner's bench supply halves, 151.5 × 222 mm, were "bigger than the print bed")
     const bed = state.printer.bed || [256, 256, 256], mn = [Infinity, Infinity], mx = [-Infinity, -Infinity];
     out.forEach(p => { const b = C.solidBounds(p.solid); mn[0] = Math.min(mn[0], b.mn[0]); mx[0] = Math.max(mx[0], b.mx[0]); mn[1] = Math.min(mn[1], b.mn[2]); mx[1] = Math.max(mx[1], b.mx[2]); });
     if (mx[0] - mn[0] > bed[0] || mx[1] - mn[1] > bed[1]){
@@ -9341,8 +9481,69 @@ function birdFields(p){
     buttonRow(g2, [["Download birdhouse-camera.ino", ()=>offerDownload("birdhouse-camera.ino", I.sketch, "text/plain")], ["Copy it", ()=>copyText(I.sketch, "The sketch is on the clipboard.")]]);
   });
 }
-// ---- arrow nocks (Session 90): PRCore.nock makes each nock to the shaft and the string; laid out in rows to print ----
-let nockInfo = null, renderedNockSig = "";
+// ---- the fume extractor (Session 95): the owner's Sir Sucks-a-Lot (Retr0Plus95/Solder-Fume-Extractor), made by PRCore.fume: the duct and
+// the tray in the main filament, the front panel and the rear cap in the panels' filament; the extractor put together in the view ----
+let fumeInfo = null, renderedFumeSig = "", fumeView = { key:"", meshes:[], mats:{} };
+function fumeCleanSet(F){
+  if (!F.set || typeof F.set !== "object" || Array.isArray(F.set)) F.set = {};
+  const cl = C.fume.clean(F.set);
+  Object.keys(F.set).forEach(k => { if (!(k in cl)) delete F.set[k]; });
+  Object.assign(F.set, cl);
+}
+const fumePanelSlot = () => clamp(+state.base.fume.panelSlot || 0, 0, state.slots.length - 1);
+function buildFume(){
+  const F = state.base.fume; fumeCleanSet(F);
+  const r = C.fume.make(F.set);
+  fumeInfo = r; fumeView.key = "";
+  const body = clamp(state.base.slot || 0, 0, state.slots.length - 1), list = [];
+  r.printed.forEach(q => list.push({ name:q.name, slot:q.key === "front" || q.key === "rear" ? fumePanelSlot() : body, solid:q.solid, role:"part", key:q.key }));
+  // laid out on plates of the bed (the box maker's packer), so the files print as they are
+  encPackPlates(list, state.printer.bed || [256, 256, 256]);
+  list.forEach(q => { const o = q.layout; q.solid = C.transformSolid(q.solid, 1, o[0], o[1], o[2]); delete q.layout; });
+  return list;
+}
+// the extractor put together, drawn instead of the plates (never printed: the files are the plates)
+function fumeSceneMeshes(){
+  const key = `${fumeInfo ? JSON.stringify(fumeInfo.settings) : ""}|${state.slots.map(x => x.hex).join()}|${fumePanelSlot()}|${state.base.slot}`;
+  if (fumeView.key === key) return fumeView.meshes;
+  fumeView.meshes.forEach(m => m.geometry.dispose());
+  const A = fumeInfo.assembly(), body = clamp(state.base.slot || 0, 0, state.slots.length - 1);
+  const bought = c => fumeView.mats[c] || (fumeView.mats[c] = new THREE.MeshStandardMaterial({ color:c, roughness:0.6, metalness:0.1, flatShading:true }));
+  fumeView.meshes = A.parts.map(q => {
+    const mat = q.role === "panel" ? slotMat(fumePanelSlot()) : q.role === "body" ? slotMat(body) : bought(q.colour || "#9aa0a6");
+    const m = new THREE.Mesh(solidToGeometry(q.solid), mat); m.raycast = () => {}; m.userData.fumePart = q.name; return m;
+  });
+  fumeView.key = key;
+  return fumeView.meshes;
+}
+const FUME_LABELS = { fan:k => `${k} mm`, fans:k => k === "1" ? "One fan" : "Two fans, one behind the other", bay:k => k === "none" ? "None (the fans only)" : "Under the fans",
+  display:k => k === "none" ? "None" : C.fume.displays[k].label, knob:k => k === "none" ? "None" : "A potentiometer and a knob", sw:k => k === "none" ? "None" : C.fume.switches[k].label,
+  power:k => ({ barrel:"5.5 × 2.1 mm DC socket (12 V)", usbc:"USB-C socket (with a 12 V PD trigger)", none:"None" })[k], grille:k => k === "honeycomb" ? "Honeycomb" : "Bars",
+  feet:k => k === "none" ? "None (stick-on rubber feet)" : "Two printed rails" };
+// the electronics' settings mean nothing with no bay: they are hidden then
+const FUME_BAY_ONLY = { bayH:1, display:1, knob:1, sw:1, power:1, boardW:1, boardH:1 };
+function fumeFields(p){
+  const F = state.base.fume, spec = C.fume.settings; fumeCleanSet(F);
+  const S = F.set, I = fumeInfo && fumeInfo.info;
+  segField(p, [["together","The extractor"],["plates","Parts to print"]], ()=>F.show === "plates" ? "plates" : "together", v=>{ F.show = v; renderTab(); refreshScene(); }, "two");
+  note(p, "The owner's own fume extractor, Sir Sucks-a-Lot: fans pull the fumes through a mesh and a carbon pad. Their board, wiring and firmware are in <b>Retr0Plus95/Solder-Fume-Extractor</b>.");
+  for (const [k, sp] of Object.entries(spec)){
+    if (FUME_BAY_ONLY[k] && S.bay === "none") continue;
+    if (Array.isArray(sp)) numField(p, { label:sp[4], min:sp[1], max:sp[2], step:sp[3], get:()=>S[k], set:v=>S[k] = v, onChange:baseChanged });
+    else if (sp.text) textField(p, sp.label, ()=>S[k], v=>{ S[k] = v.toUpperCase().replace(/[^0-9A-Z+\-\/.: ]/g, ""); }, { max:sp.max, placeholder:"Raised along the right-hand side", onChange:baseChanged });
+    else selField(p, sp.label, sp.opts.map(o => [o, FUME_LABELS[k] ? FUME_LABELS[k](o) : o]), ()=>S[k], v=>{ S[k] = v; renderTab(); baseChanged(); });
+  }
+  if (state.slots.length > 1) selField(p, "Panels' filament", state.slots.map((x, i) => [String(i), `${i + 1}: ${x.name}`]), ()=>String(fumePanelSlot()), v=>{ F.panelSlot = +v; baseChanged(); });
+  if (!I) return;
+  I.warn.forEach(w => note(p, `<b>Note:</b> ${esc(w)}`));
+  note(p, `<b>Outside about ${I.size.outside.join(" × ")} mm; the filter tray ${I.size.tray.join(" × ")} mm.</b>`);
+  group(p, "Checks", g2 => I.checks.forEach(q => note(g2, `${q.ok ? "✓" : "✗"} ${esc(q.name)} (${esc(q.why)}).`)), true);
+  group(p, "What you'll need", g2 => note(g2, I.bom.map(([n, w]) => `${n} × ${esc(w)}`).join("<br>")), true);
+  group(p, "Print and put together", g2 => { I.notes.forEach(n => note(g2, esc(n))); note(g2, I.steps.map((t, k) => `${k + 1}. ${esc(t)}`).join("<br>")); });
+}
+// ---- arrow nocks (Sessions 90 and 91): the owner's own nock design (arrow_nock.scad), made by PRCore.nock; engraved labels are cut in
+// with the cutting tool after the build (cutNockLabels), or shown raised when it can't load ----
+let nockInfo = null, renderedNockSig = "", nockCut = { key:"", solids:[], failed:"" };
 function nockCleanSet(N){
   if (!N.set || typeof N.set !== "object" || Array.isArray(N.set)) N.set = {};
   const cl = C.nock.clean(N.set);
@@ -9353,22 +9554,51 @@ function buildNock(){
   const N = state.base.nock; nockCleanSet(N);
   const r = C.nock.make(N.set); nockInfo = r;
   const slot = clamp(state.base.slot || 0, 0, state.slots.length - 1);
-  return r.printed.map(q => ({ name:q.name, slot, solid:q.solid, role:"part", key:q.key }));
+  return r.printed.map(q => ({ name:q.name, slot, solid:q.solid, role:"part", key:q.key, cutters:q.cutters, raisedLetters:q.raisedLetters }));
 }
-const NOCK_LABELS = { fit:k => ({ insert:"Pushes into a hollow shaft (carbon, aluminium)", taper:"Slips onto a wooden shaft's 11° taper", over:"Sleeves over the shaft's end" })[k],
-  index:k => k === "ridge" ? "A ridge, square to the string" : "None", make:k => k === "test" ? "A fit test: five sizes, 0.05 mm apart" : "The nocks" };
+// engraved letters: each nock cut by its letters (kept between builds while nothing changed); raised when the tool won't load
+async function cutNockLabels(parts){
+  if (!parts.some(p => p.cutters && p.cutters.length)) { nockCut.failed = ""; return parts; }
+  const key = JSON.stringify(state.base.nock.set);
+  if (nockCut.key === key && nockCut.solids.length === parts.length) return parts.map((p, i) => ({ ...p, solid:nockCut.solids[i] }));
+  try { await cutReady(); }
+  catch (err){ nockCut.failed = cutState.error || err.message || "it didn't load"; console.warn(err);   // (said on the panel: shown raised)
+    return parts.map(p => p.raisedLetters && p.raisedLetters.length ? { ...p, solid:C.mergeSolids([p.solid, ...p.raisedLetters]) } : p); }
+  const solids = parts.map(p => {
+    if (!p.cutters || !p.cutters.length) return p.solid;
+    const prep = C.cutBase(cutState.M, p.solid);
+    try { const r = C.cutSolid(prep, p.cutters.map(solid => ({ solid, keep:false }))); return r.solid && r.solid.idx.length ? { pos:r.solid.pos, idx:r.solid.idx } : p.solid; }
+    finally { C.cutFree(prep); }
+  });
+  nockCut = { key, solids, failed:"" };
+  return parts.map((p, i) => ({ ...p, solid:solids[i] }));
+}
+const NOCK_LABELS = { preset:k => C.nock.presets[k] || k,
+  mount:k => ({ slip:"Slip-over (glue it, or press it on)", tapered:"Tapered socket (wooden shafts)", pushin:"Push-in (into a hollow shaft)" })[k],
+  labelStyle:k => k === "raised" ? "Raised" : "Engraved", orientation:k => ({ upright:"Upright (weakest ears)", tilt45:"Tilted 45° (strong ears, no support)", side:"On its side (strongest ears)" })[k] };
+const NOCK_HELP = { throatW:"Measure your string's centre serving with calipers.", shaftId:"Push-in only: measure it, or take it from the shaft's chart (often 4.2, 5.2 or 6.2 mm).",
+  clearance:"Added to the shaft's diameter: about 0.1 for glue; 0.1 to 0.2 more if your printer prints holes small.", interference:"The pin less the shaft's inside: a little over 0 presses in." };
 function nockFields(p){
   const N = state.base.nock, spec = C.nock.settings; nockCleanSet(N);
-  const S = N.set, I = nockInfo && nockInfo.info;
-  for (const [k, sp] of Object.entries(spec)){
-    if (Array.isArray(sp) && sp[5] && !Object.entries(sp[5]).every(([k2, v2]) => S[k2] === v2)) continue;   // shown only for a choice
-    if (Array.isArray(sp)) numField(p, { label:sp[4], min:sp[1], max:sp[2], step:sp[3], get:()=>S[k], set:v=>S[k] = v, onChange:baseChanged,
-      sub:k === "string" ? ()=>"Measure the serving where the nock sits, with calipers." : k === "shaftId" ? ()=>"Measure it, or take it from the shaft's chart: often 4.2, 5.2 or 6.2 mm." : undefined });
-    else selField(p, sp.label, sp.opts.map(o => [o, NOCK_LABELS[k] ? NOCK_LABELS[k](o) : o]), ()=>S[k], v=>{ S[k] = v; renderTab(); baseChanged(); });
-  }
+  const S = N.set, I = nockInfo && nockInfo.info, groups = [];
+  for (const [k, sp] of Object.entries(spec)){ const g = Array.isArray(sp) ? sp[6] : sp.group; if (!groups.includes(g)) groups.push(g); }
+  const field = (box, k) => {
+    const sp = spec[k]; if (!C.nock.shown(k, S)) return;
+    if (Array.isArray(sp)) numField(box, { label:sp[4], min:sp[1], max:sp[2], step:sp[3], get:()=>S[k], set:v=>S[k] = v, onChange:baseChanged, sub:NOCK_HELP[k] ? ()=>NOCK_HELP[k] : undefined });
+    else if (sp.bool) checkField(box, sp.label, ()=>!!S[k], v=>{ S[k] = v; renderTab(); baseChanged(); });
+    else if (sp.text) textField(box, sp.label, ()=>S[k], v=>{ S[k] = v.toUpperCase().replace(/[^0-9A-Z+\-\/.: ]/g, ""); }, { max:sp.max, placeholder:"e.g. AB", onChange:baseChanged });
+    else selField(box, sp.label, sp.opts.map(o => [o, NOCK_LABELS[k] ? NOCK_LABELS[k](o) : o]), ()=>S[k], v=>{ S[k] = v; renderTab(); baseChanged(); });
+  };
+  // the first group on the basics page, the others each a page of their own (the design's own groups)
+  groups.forEach((g, i) => {
+    const keys = Object.keys(spec).filter(k => (Array.isArray(spec[k]) ? spec[k][6] : spec[k].group) === g);
+    if (i === 0){ keys.forEach(k => field(p, k)); return; }
+    group(p, g, box => keys.forEach(k => field(box, k)), true);
+  });
   if (!I) return;
   I.warn.forEach(w => note(p, `<b>Note:</b> ${esc(w)}`));
-  note(p, `<b>Each ${I.size.across} mm across and ${I.size.long} mm long, about ${I.size.grains} grains (${I.size.grams} g) in PETG.</b>`);
+  if (nockCut.failed && S.labelStyle === "engraved") note(p, `<b>Note:</b> the letters are shown raised: the cutting tool couldn't load (${esc(nockCut.failed)}).`);
+  note(p, `<b>Each ${I.size.across} mm across and ${I.size.long} mm long, about ${I.size.grains} grains (${I.size.grams} g) in PETG.</b> ${esc(I.credit)}.`);
   group(p, "Checks", g2 => I.checks.forEach(q => note(g2, `${q.ok ? "✓" : "✗"} ${esc(q.name)} (${esc(q.why)}).`)), true);
   group(p, "Print and use", g2 => I.notes.forEach(n => note(g2, esc(n))), true);
 }
@@ -10019,7 +10249,7 @@ function heightOf(d, slot){
 // artwork cut into the object (Session 32): "engrave" cuts it in, "inlay" cuts it in and fills the cut with the
 // artwork's colours, flush with the surface. Its solids are then the cutters: from CUT_OUT above the surface (so the
 // whole surface is cut, also between the points it was laid on) to its depth below it
-const CUT_OUT = 0.6, NO_DECALS = { jigsaw:1, lithophane:1, enclosure:1, phonecase:1, card:1, mech:1, parts:1, flower:1, birdhouse:1, nock:1, fixit:1, sign:1, relief:1 };
+const CUT_OUT = 0.6, NO_DECALS = { jigsaw:1, lithophane:1, enclosure:1, phonecase:1, card:1, mech:1, parts:1, flower:1, birdhouse:1, nock:1, fume:1, fixit:1, sign:1, relief:1 };
 let cutBlocked = "";                                 // why artwork cannot be cut into this model ("open", "load"), or ""
 const cutWanted = d => d.enabled !== false && d.mode !== "relief" && (d.cut === "engrave" || d.cut === "inlay") && !NO_DECALS[state.base.type];
 const cutMode = d => baseSoup && !cutBlocked && cutWanted(d) ? d.cut : null;
@@ -10489,19 +10719,24 @@ function makeBed(){
   const bed = state.printer.bed || [256,256,256];
   const dark = getComputedStyle(document.documentElement).getPropertyValue("--panel").trim().startsWith("#1");
   bedHelper = new THREE.Group();
-  const g = new THREE.GridHelper(Math.max(bed[0],bed[1]), Math.round(Math.max(bed[0],bed[1])/10),
-    dark?0x3b4652:0x9aa6b2, dark?0x232b33:0xc2cad2);
+  // the grid in the scheme's own lines (Session 92), the major lines a little stronger
+  let gMaj = new THREE.Color(dark ? 0x3b4652 : 0x9aa6b2), gMin = new THREE.Color(dark ? 0x232b33 : 0xc2cad2);
+  try { const cs = getComputedStyle(document.documentElement), ln = cs.getPropertyValue("--line").trim(), mu = cs.getPropertyValue("--muted").trim();
+    if (/^#[0-9a-f]{6}$/i.test(ln) && /^#[0-9a-f]{6}$/i.test(mu) && document.documentElement.hasAttribute("data-scheme")){ gMin = new THREE.Color(ln); gMaj = new THREE.Color(ln).lerp(new THREE.Color(mu), 0.45); } } catch (e) {}
+  const g = new THREE.GridHelper(Math.max(bed[0],bed[1]), Math.round(Math.max(bed[0],bed[1])/10), gMaj, gMin);
   g.position.y = -0.02; bedHelper.add(g);
   const pts = [[-bed[0]/2,0,-bed[1]/2],[bed[0]/2,0,-bed[1]/2],[bed[0]/2,0,bed[1]/2],[-bed[0]/2,0,bed[1]/2],[-bed[0]/2,0,-bed[1]/2]];
+  let edge = new THREE.Color(dark ? 0x63b6d1 : 0x1f6f8b);
+  try { const a = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim(); if (/^#[0-9a-f]{6}$/i.test(a)) edge = new THREE.Color(a); } catch (e) {}   // the scheme's colour (Session 92)
   bedHelper.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(p=>new THREE.Vector3(...p))),
-    new THREE.LineBasicMaterial({ color: dark?0x63b6d1:0x1f6f8b })));
+    new THREE.LineBasicMaterial({ color:edge })));
   if (viewOpts.rulers) bedHelper.add(makeRulers(bed, dark));
   // parts on several plates (Session 40): the other plates' outlines beside the bed, where ⊞ lays their parts out
   const nPlates = viewOpts.layout ? Math.max(0, ...modelParts.map(p => p.plate == null ? 0 : p.plate + 1)) : 0, sc = modelScale();
   for (let i = 1; i < nPlates; i++){
     const at = platePlace(i, nPlates, bed), x = at[0]*sc*(state.model.mirror ? -1 : 1), z = at[1]*sc;
     bedHelper.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(p[0] + x, p[1], p[2] + z))),
-      new THREE.LineBasicMaterial({ color: dark?0x63b6d1:0x1f6f8b })));
+      new THREE.LineBasicMaterial({ color:edge })));                       // in the scheme's colour too, like the bed (Session 94)
   }
   scene.add(bedHelper);
 }
@@ -12347,12 +12582,14 @@ async function rebuildAll(resetItems, mode){
     else if (t === "flower") parts = buildFlower();
     else if (t === "birdhouse") parts = buildBirdhouse();
     else if (t === "nock") parts = buildNock();
+    else if (t === "fume") parts = buildFume();
     else if (t === "fixit") parts = buildFixit();
     else if (t === "sign") parts = await buildSign();
     else if (t === "relief") parts = buildRelief();
     else parts = buildSimpleObject();
     cutDrop = 0; flatInfo = null;                    // only an imported model is cut flat: nothing else is lowered
     if (t === "stl") parts = await cutModelFlat(parts);
+    if (t === "nock") parts = await cutNockLabels(parts);   // engraved labels on arrow nocks (Session 91)
     // an imported model is the same solid from build to build: its geometry, the copy pictures are laid on and
     // its picking boxes are kept, not made again for every change to artwork or paint (Session 28)
     parts.forEach(p => {
@@ -12388,7 +12625,7 @@ async function rebuildAll(resetItems, mode){
       if (d.enabled === false){ d.solids = null; continue; }
       if (t === "jigsaw"){ d.solids = null; continue; }      // a decal across the pieces would glue them together
       if (t === "lithophane"){ d.solids = null; continue; }  // other artwork would only cast a shadow on it
-      if (t === "mech" || t === "parts" || t === "flower" || t === "birdhouse" || t === "nock" || t === "fixit" || t === "sign" || t === "relief"){ d.solids = null; continue; }   // parts that fit: a picture on them would spoil the fit
+      if (t === "mech" || t === "parts" || t === "flower" || t === "birdhouse" || t === "nock" || t === "fume" || t === "fixit" || t === "sign" || t === "relief"){ d.solids = null; continue; }   // parts that fit: a picture on them would spoil the fit
       if (t === "enclosure"){ d.solids = null; continue; }   // not stamped on boxes yet
       if (t === "phonecase"){ d.solids = null; continue; }   // a case takes its picture as an inlay in the back
       if (t === "card"){ d.solids = null; continue; }        // a card takes its picture as its logo
@@ -12451,6 +12688,12 @@ async function rebuildAll(resetItems, mode){
       if (sig !== renderedBirdSig){ const a = document.activeElement, inPanel = a && a.closest && a.closest("#panel") && a.matches("input,textarea,select");
         if (!inPanel){ renderedBirdSig = sig; renderTab(); } else a.addEventListener("blur", () => { if (tab === "make" && state.base.type === "birdhouse"){ renderedBirdSig = sig; renderTab(); } }, { once:true }); }
     }
+    // the fume extractor (Session 95): its checks, notes, sizes and list follow the settings
+    if (t === "fume" && tab === "make" && fumeInfo){
+      const I = fumeInfo.info, sig = JSON.stringify([I.checks, I.warn, I.size, I.bom]);
+      if (sig !== renderedFumeSig){ const a = document.activeElement, inPanel = a && a.closest && a.closest("#panel") && a.matches("input,textarea,select");
+        if (!inPanel){ renderedFumeSig = sig; renderTab(); } else a.addEventListener("blur", () => { if (tab === "make" && state.base.type === "fume"){ renderedFumeSig = sig; renderTab(); } }, { once:true }); }
+    }
     if (t === "enclosure" && tab === "make" && enclosureInfo){
       const sig = encPanelSig(enclosureInfo);
       if (sig !== renderedEncWarn){
@@ -12490,7 +12733,8 @@ function refreshScene(){
   const box = new THREE.Box3();
   const lampView = state.base.type === "flower" && flowerInfo && state.base.flower.show !== "plates" && !viewOpts.layout && modelParts.length;
   const houseView = state.base.type === "birdhouse" && birdInfo && state.base.birdhouse.show !== "plates" && !viewOpts.layout && modelParts.length;
-  if (lampView || houseView) (lampView ? flowerSceneMeshes() : birdSceneMeshes()).forEach(m => { m.geometry.computeBoundingBox(); box.union(m.geometry.boundingBox); modelGroup.add(m); });
+  const fumeShow = state.base.type === "fume" && fumeInfo && state.base.fume.show !== "plates" && !viewOpts.layout && modelParts.length;
+  if (lampView || houseView || fumeShow) (lampView ? flowerSceneMeshes() : houseView ? birdSceneMeshes() : fumeSceneMeshes()).forEach(m => { m.geometry.computeBoundingBox(); box.union(m.geometry.boundingBox); modelGroup.add(m); });
   else modelParts.forEach((p,i)=>{
     const mesh = new THREE.Mesh(p.geom, p.paint ? paintMat() : slotMat(p.slot));
     mesh.userData.part = i; mesh.raycast = boxedRaycast;
@@ -13030,7 +13274,7 @@ function runChecks(){
 }
 
 /* ---------- 8. interface ---------- */
-const PRESET_ICONS = { "Business card":"💳", "Project box":"🧰", "Power bank box":"🔋", "PSU box":"⚡", "Raspberry Pi case":"🍓", "Trace a part":"📐", "Lightbox":"💡", "Circuit board":"🔌", "Name keychain":"🔑", "Double-sided tag":"🏷️", "Iron-on patch":"🧵", "Car badge":"🚗",
+const PRESET_ICONS = { "Business card":"💳", "Project box":"🧰", "Power bank box":"🔋", "PSU box":"⚡", "Raspberry Pi case":"🍓", "RGB lamp controller":"🌈", "Bench supply (left)":"🔌", "Bench supply (right)":"⚡", "Trace a part":"📐", "Lightbox":"💡", "Circuit board":"🔌", "Name keychain":"🔑", "Double-sided tag":"🏷️", "Iron-on patch":"🧵", "Car badge":"🚗",
   "Ornament":"🎄", "Tea light":"🕯️", "Plastic canvas":"🧶", "Bobble head":"🙂", "Cookie cutter":"🍪", "Photo frame":"🖼️",
   "Jigsaw puzzle":"🧩", "Kids' puzzle":"🧸", "Lithophane":"🌅", "Lithophane lamp":"🏮" };
 const SHAPE_LABEL = Object.fromEntries(SHAPES);
@@ -13251,6 +13495,27 @@ function symbolField(parent, get, set){
 const TABS = [["make","Make","◈"],["art","Art","✦"],["colour","Colours","◉"],["paint","Paint","🖌"],["export","Export","↓"]];
 $("#tabs").innerHTML = TABS.map(([k,l,ico])=>`<button role="tab" data-k="${k}" aria-selected="${k===tab}"><span class="ico">${ico}</span>${l}</button>`).join("");
 const APP_VERSION = (document.getElementById("verBadge")||{}).textContent || "";
+// The website serves these styles as app.css under the same name each release and lets a browser keep it a week, while the
+// scripts get a new name each time: a page could run one release's code with the last one's styles (0.69's Find box and chips
+// in Start from showed as blank white boxes). The styles carry their release; when it isn't this page's, fetch them again
+// under an address the browser hasn't kept. The single file has its styles inside, so they always match.
+function freshStyles(doc){
+  try {
+    const got = getComputedStyle(doc.documentElement).getPropertyValue("--mf-styles").replace(/["'\s]/g, "");
+    if (!APP_VERSION || got === APP_VERSION) return 0;
+    let n = 0;
+    for (const l of doc.querySelectorAll('link[rel~="stylesheet"]')){
+      const href = l.getAttribute("href") || "";
+      if (!/(^|\/)app(\.[\w-]+)?\.css(\?|$)/.test(href) || l.dataset.fresh) continue;
+      const f = l.cloneNode(); f.dataset.fresh = "1";
+      f.setAttribute("href", href.replace(/\?.*$/, "") + "?v=" + encodeURIComponent(APP_VERSION.replace(/^v/, "")));
+      f.onload = () => l.remove(); l.after(f); n++;
+    }
+    if (n) console.warn(`Maker Forge: the styles in this browser were from ${got || "an older release"}, fetching ${APP_VERSION}'s`);
+    return n;
+  } catch (e) { return 0; }
+}
+freshStyles(document);
 $("#tabs").querySelectorAll("button").forEach(b=>b.onclick = ()=>{ tab = b.dataset.k; if (tab !== "paint" && !paintOps().length) paintPrepared = false; renderTab(); });
 // arrow keys walk the tabs and the page icons, like any list of tabs
 function arrowNav(box, sel, vertical){
@@ -13269,7 +13534,7 @@ document.querySelectorAll(".viewtools button[title]").forEach(b => { if (!b.getA
    active page is shown, so panels stay short, and the active page plus its scroll position are
    remembered per tab and object, so changing a setting never loses your place. */
 const SECTION_ICONS = [
-  [/put together/i,"🔧"], [/sketch/i,"⌨"],      // the flower lamp's and the bird house's steps and their boards' sketches (Session 89)
+  [/put together/i,"🔧"], [/sketch/i,"⌨"], [/^arrow shaft$/i,"⇕"], [/^mount$/i,"⊓"], [/^retention$/i,"✳"], [/^string throat$/i,"∪"], [/^cock vane index$/i,"▲"], [/^label$/i,"Aa"], [/^print and use$/i,"🔧"], [/^print$/i,"⎙"], [/^shape$/i,"◭"],      // the flower lamp's and the bird house's steps and their boards' sketches (Session 89)
   [/^plan of the inside/i,"⊞"], [/^heat and air/i,"♨"], [/^battery life/i,"🔋"], [/^outdoors$/i,"☂"], [/^templates and drawings/i,"⌖"], [/^start from a recipe/i,"★"], [/^style$/i,"✎"], [/^wiring$/i,"⌇"],
   [/^art, words and icons/i,"✦"], [/^floor, names and extras/i,"▦"], [/^what you'll need/i,"≡"],
   [/hanging hole/i,"◎"], [/^thickness$/i,"⇕"], [/^feet$/i,"⊥"], [/cut it flat/i,"✂"],
@@ -13455,14 +13720,39 @@ function updateDock(){
 
 /* ---- Make ---- */
 /* the right sidebar: quick-start presets and every object, grouped so things are easy to find */
+// the objects in Start from, by what they are for (Session 92: "Functional" had grown to eight); each group a category chip too
 const OBJECT_GROUPS = [
-  ["Personalise", [["nameplate","🔑"],["card","💳"],["sign","🔤"],["board","🏷️"],["frame","🖼️"],["box","🪧"]]],
-  ["From a picture", [["tracer","📐"],["relief","🗿"],["lithophane","🌅"],["jigsaw","🧩"],["cutter","🍪"],["pcb","🔌"],["lightbox","💡"],["canvas","🧶"]]],
-  ["Figures and décor", [["bobble","🙂"],["shell","🕯️"],["turned","🏺"]]],
-  ["Functional", [["enclosure","🧰"],["phonecase","📱"],["mech","⚙️"],["parts","🔩"],["flower","🌷"],["birdhouse","🐦"],["nock","🏹"],["fixit","🔧"]]],
-  ["Basic shapes", [["cylinder","🥫"],["hex","⬢"],["sphere","⚪"]]],
-  ["Bring your own", [["stl","📦"],["none","✦"]]]
+  ["Names and signs", [["nameplate","🔑"],["card","💳"],["sign","🔤"],["board","🏷️"],["box","🪧"]], "names"],
+  ["From a picture", [["tracer","📐"],["relief","🗿"],["lithophane","🌅"],["cutter","🍪"],["pcb","🔌"],["lightbox","💡"],["canvas","🧶"],["frame","🖼️"]], "picture"],
+  ["Gifts and décor", [["bobble","🙂"],["shell","🕯️"],["turned","🏺"],["flower","🌷"],["jigsaw","🧩"]], "decor"],
+  ["Electronics", [["enclosure","🧰"],["phonecase","📱"]], "electronics"],
+  ["Workshop and repair", [["mech","⚙️"],["parts","🔩"],["fixit","🔧"],["fume","💨"]], "repair"],
+  ["Hobbies and outdoors", [["birdhouse","🐦"],["nock","🏹"]], "hobby"],
+  ["Basic shapes", [["cylinder","🥫"],["hex","⬢"],["sphere","⚪"]], "shapes"],
+  ["Bring your own", [["stl","📦"],["none","✦"]], "own"]
 ];
+const START_CATS = [["all","All"],["workshop","From the workshop"],["names","Names and signs"],["picture","From a picture"],["decor","Gifts and décor"],
+  ["electronics","Electronics"],["repair","Workshop and repair"],["hobby","Hobbies and outdoors"],["shapes","Basic shapes"]];
+// the owner's own projects, brought into Maker Forge (the owner, Session 90)
+const WORKSHOP = { flower:1, birdhouse:1, nock:1, fume:1 };
+const NEW_OBJECTS = { flower:1, birdhouse:1, nock:1, fume:1 };
+const PRESET_CAT = { "Name keychain":"names", "Double-sided tag":"names", "Iron-on patch":"names", "Car badge":"names", "Business card":"names", "Light-up letters":"names",
+  "Neon sign":"names", "House number":"names", "Plastic canvas":"picture", "Cookie cutter":"picture", "Trace a part":"picture", "Lightbox":"picture", "Circuit board":"picture",
+  "Photo frame":"picture", "Frame for a photo":"picture", "Lithophane":"picture", "Lithophane lamp":"picture", "Photo relief":"picture", "Ornament":"decor", "Tea light":"decor",
+  "Bobble head":"decor", "Jigsaw puzzle":"decor", "Kids' puzzle":"decor", "Project box":"electronics", "Power bank box":"electronics", "PSU box":"electronics",
+  "Raspberry Pi case":"electronics", "Phone case":"electronics", "Gear pair":"repair", "Bolt and nut":"repair", "Replacement knob":"repair",
+  "RGB lamp controller":"electronics workshop", "Bench supply (left)":"electronics workshop", "Bench supply (right)":"electronics workshop" };
+// words people might look for, besides each one's name
+const PRESET_WORDS = { "RGB lamp controller":"esp32 led strip rgb ir remote retr0plus", "Bench supply (left)":"psu power supply bench mains lcd retr0plus",
+  "Bench supply (right)":"psu power supply bench mains retr0plus", "PSU box":"power supply mains", "Power bank box":"battery 18650 charger" };
+const OBJECT_WORDS = { nameplate:"name keychain key ring tag bag", card:"business card qr nfc contact", sign:"house number letters neon shop sign lit", board:"badge patch flat shape coaster logo sticker",
+  box:"plaque desk", tracer:"photo trace part outline dxf svg bracket", relief:"photo depth relief 3d face pet", lithophane:"photo light lamp", cutter:"cookie biscuit cutter",
+  pcb:"circuit board pcb electronics art", lightbox:"shadow box light paper cut", canvas:"pixel mosaic stitch canvas", frame:"photo frame stand picture", bobble:"bobble head figure",
+  shell:"tea light lantern candle", turned:"vase pot cup bowl egg", flower:"lamp flower servo light", jigsaw:"puzzle jigsaw kids game", enclosure:"box case electronics enclosure raspberry esp32 arduino project",
+  phonecase:"phone case iphone galaxy pixel", mech:"gear bolt nut hinge thread screw", parts:"servo bracket gear parts mount", fixit:"knob repair spare replacement cap clip",
+  birdhouse:"bird nest box camera garden", nock:"arrow archery nock bow", fume:"fume extractor solder smoke fan filter carbon bench", cylinder:"cylinder tube", hex:"hexagon", sphere:"ball sphere", stl:"import model stl obj 3mf glb paint", none:"artwork only" };
+let startQuery = "", startCat = "all";
+function rememberStart(key){ prefs.recent = [key, ...prefs.recent.filter(k => k !== key)].slice(0, 6); savePrefs(); }
 // paint belongs to one model: a new object or an imported file starts unpainted (Undo brings it back)
 function clearPaintForNewModel(){
   paintPrepared = false;
@@ -13494,24 +13784,48 @@ function chooseObject(v){
 }
 function renderStarts(){
   const body = $("#startsBody"); if (!body) return;
-  body.innerHTML = `<div class="objcat">Quick start</div><div class="gallery" id="presetGallery"></div>`;
+  body.classList.toggle("small", prefs.tiles === "small");
+  // (Session 92) a search and category chips above everything; what you picked lately; the objects by what they are for
+  body.innerHTML = `<div class="startsearch"><input type="search" id="startSearch" placeholder="🔍 Find: keychain, box, lamp…" aria-label="Find what to make" autocomplete="off">
+    <div class="startchips" role="group" aria-label="Show">${START_CATS.map(([k, l]) => `<button data-cat="${k}" aria-pressed="${startCat === k}">${esc(l)}</button>`).join("")}</div></div>
+    <div id="recentBox" hidden><div class="objcat">Recently</div><div class="gallery" id="recentRow"></div></div>
+    <div class="objcat" data-head="presets">Quick start</div><div class="gallery" id="presetGallery"></div>`;
   const g = body.querySelector("#presetGallery");
   const pic = (key, icon) => encHas(START_THUMBS, key) && /^data:image\/(webp|png);base64,[A-Za-z0-9+/=]+$/.test(START_THUMBS[key])
     ? `<img src="${START_THUMBS[key]}" alt="" width="160" height="120">` : `<span class="em">${icon}</span>`;
-  g.innerHTML = Object.keys(PRESETS).map(k=>`<button data-k="${esc(k)}">${pic("preset:" + k, PRESET_ICONS[k]||"◻")}<span>${esc(k)}</span></button>`).join("");
-  g.querySelectorAll("button").forEach(b=>b.onclick = ()=>{ applyPreset(b.dataset.k); renderStarts(); startsChosen(); });
-  OBJECT_GROUPS.forEach(([title, list])=>{
-    body.insertAdjacentHTML("beforeend", `<div class="objcat">${esc(title)}</div>`);
-    const grid = document.createElement("div"); grid.className = "objgrid";
+  const pickPreset = k => { rememberStart("preset:" + k); applyPreset(k); renderStarts(); startsChosen(); };
+  const pickObject = k => { rememberStart("object:" + k); chooseObject(k); startsChosen(); };
+  g.innerHTML = Object.keys(PRESETS).map(k=>`<button data-k="${esc(k)}" data-cat="${PRESET_CAT[k] || ""}" data-words="${esc((k + " " + (PRESET_CAT[k] || "") + " " + (PRESET_WORDS[k] || "")).toLowerCase())}">${pic("preset:" + k, PRESET_ICONS[k]||"◻")}<span>${esc(k)}</span></button>`).join("");
+  g.querySelectorAll("button").forEach(b=>b.onclick = ()=>pickPreset(b.dataset.k));
+  const objIcon = {};
+  OBJECT_GROUPS.forEach(([title, list, cat])=>{
+    body.insertAdjacentHTML("beforeend", `<div class="objcat" data-head="${cat}">${esc(title)}</div>`);
+    const grid = document.createElement("div"); grid.className = "objgrid"; grid.dataset.group = cat;
     list.forEach(([k, em])=>{
-      const b = document.createElement("button"); b.className = "objcard";
+      objIcon[k] = em;
+      const b = document.createElement("button"); b.className = "objcard"; b.dataset.k = k; b.dataset.cat = cat + (WORKSHOP[k] ? " workshop" : "");
+      b.dataset.words = `${SHAPE_LABEL[k] || k} ${title} ${OBJECT_WORDS[k] || ""}${WORKSHOP[k] ? " workshop retr0" : ""}`.toLowerCase();
       b.setAttribute("aria-pressed", String(state.base.type === k));
-      b.innerHTML = `${pic("object:" + k, em)}<span>${esc(SHAPE_LABEL[k]||k)}</span>`;
-      b.onclick = ()=>{ chooseObject(k); startsChosen(); };
+      b.innerHTML = `${pic("object:" + k, em)}<span>${esc(SHAPE_LABEL[k]||k)}</span>${NEW_OBJECTS[k] ? `<span class="newbadge">New</span>` : ""}`;
+      b.onclick = ()=>pickObject(k);
       grid.appendChild(b);
     });
     body.appendChild(grid);
   });
+  body.insertAdjacentHTML("beforeend", `<p class="startsnone" id="startsNone" hidden>Nothing matches. Try another word, or choose All.</p>`);
+  // what you picked lately (this browser)
+  const recent = prefs.recent.filter(k => k.startsWith("preset:") ? PRESETS[k.slice(7)] : SHAPE_LABEL[k.slice(7)]).slice(0, prefs.tiles === "small" ? 6 : 4);
+  if (recent.length){
+    const row = body.querySelector("#recentRow");
+    recent.forEach(key => { const preset = key.startsWith("preset:"), k = key.slice(7), b = document.createElement("button");
+      b.dataset.recent = key; b.innerHTML = `${pic(key, preset ? PRESET_ICONS[k] || "◻" : objIcon[k] || "◻")}<span>${esc(preset ? k : SHAPE_LABEL[k] || k)}</span>`;
+      b.onclick = () => preset ? pickPreset(k) : pickObject(k); row.appendChild(b); });
+  }
+  const search = body.querySelector("#startSearch"); search.value = startQuery;
+  search.oninput = () => { startQuery = search.value; filterStarts(); };
+  search.onkeydown = e => { if (e.key === "Enter"){ const b = [...body.querySelectorAll("#presetGallery button, .objcard")].find(x => !x.hidden); if (b) b.click(); } };
+  body.querySelectorAll(".startchips button").forEach(b => b.onclick = () => { startCat = b.dataset.cat; body.querySelectorAll(".startchips button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); filterStarts(); });
+  filterStarts();
   // a plain list as well, for keyboards and screen readers
   const w = document.createElement("div"); w.className = "field full";
   w.innerHTML = `<label for="objectSel">All objects</label><select class="sel" id="objectSel">${SHAPES.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join("")}</select>`;
@@ -13519,12 +13833,28 @@ function renderStarts(){
   const sel = w.querySelector("select"); sel.value = state.base.type;
   sel.onchange = ()=>{ chooseObject(sel.value); startsChosen(); };
 }
+// show what matches the words and the chip; the headings of empty groups go too (Session 92)
+function filterStarts(){
+  const body = $("#startsBody"); if (!body) return;
+  const words = startQuery.toLowerCase().split(/\s+/).filter(Boolean), cat = startCat;
+  const fits = b => (cat === "all" || (b.dataset.cat || "").split(" ").includes(cat)) && words.every(w => (b.dataset.words || "").includes(w));
+  let any = 0;
+  const g = body.querySelector("#presetGallery"), pb = [...g.querySelectorAll("button")];
+  pb.forEach(b => { b.hidden = !fits(b); any += !b.hidden; });
+  const pv = pb.some(b => !b.hidden); g.hidden = !pv; body.querySelector('[data-head="presets"]').hidden = !pv;
+  body.querySelectorAll(".objgrid").forEach(grid => {
+    const bs = [...grid.querySelectorAll(".objcard")]; bs.forEach(b => { b.hidden = !fits(b); any += !b.hidden; });
+    const v = bs.some(b => !b.hidden); grid.hidden = !v; const h = body.querySelector(`[data-head="${grid.dataset.group}"]`); if (h) h.hidden = !v;
+  });
+  const rb = body.querySelector("#recentBox"); if (rb) rb.hidden = !!(words.length || cat !== "all" || !body.querySelector("#recentRow").children.length);
+  const none = body.querySelector("#startsNone"); if (none) none.hidden = !!any;
+}
 function tabMake(p){
   const b = state.base;
   ({ nameplate:nameplateFields, canvas:canvasFields, bobble:bobbleFields, cutter:cutterFields, turned:turnedFields,
      pcb:pcbFields, lightbox:lightboxFields, tracer:tracerFields, jigsaw:jigsawFields, lithophane:lithophaneFields,
      board:boardFields, frame:frameFields, shell:shellFields, box:boxFields, cylinder:cylFields, hex:hexFields,
-     sphere:sphereFields, enclosure:enclosureFields, phonecase:phonecaseFields, card:cardFields, mech:mechFields, parts:partsFields, flower:flowerFields, birdhouse:birdFields, nock:nockFields, fixit:fixitFields, sign:signFields, relief:reliefFields, stl:stlFields, none:noneFields })[b.type](p);
+     sphere:sphereFields, enclosure:enclosureFields, phonecase:phonecaseFields, card:cardFields, mech:mechFields, parts:partsFields, flower:flowerFields, birdhouse:birdFields, nock:nockFields, fume:fumeFields, fixit:fixitFields, sign:signFields, relief:reliefFields, stl:stlFields, none:noneFields })[b.type](p);
   if (!["none","bobble","lightbox","jigsaw","enclosure"].includes(b.type))
     slotField(p, "Object filament", ()=>String(b.slot), v=>{ b.slot = +v; baseChanged(); });
   buttonRow(p, [["Change the object →", ()=>{ setSide("right", true); const el = $("#objectSel"); if (el) el.focus(); }]]);
@@ -18709,7 +19039,10 @@ $("#modalClose").onclick = ()=>{ $("#modal").hidden = true; };
 $("#modal").onclick = e => { if (e.target.id === "modal") $("#modal").hidden = true; };
 document.addEventListener("keydown", e => { if (e.key === "Escape") $("#modal").hidden = true; });
 $("#settingsBtn").onclick = ()=>openModal("Settings", b => {
+  b.insertAdjacentHTML("beforeend", `<h2>Look</h2>`);
   segField(b, [["auto","Match system"],["light","Light"],["dark","Dark"]], ()=>state.view.theme, v=>{ state.view.theme = v; applyTheme(); $("#settingsBtn").click(); });
+  lookFields(b);
+  b.insertAdjacentHTML("beforeend", `<h2>Working</h2>`);
   selField(b, "Units", [["mm","Millimetres"],["in","Inches"]], ()=>state.view.units, v=>{ state.view.units = v; refreshScene(); renderTab(); });
   checkField(b, "Save my work in this browser automatically", ()=>state.view.autosave !== false, v=>{ state.view.autosave = v; });
   aiSettings(b);
@@ -18717,6 +19050,28 @@ $("#settingsBtn").onclick = ()=>openModal("Settings", b => {
     set:v=>state.view.maxCells=v, onChange:()=>{ dirty(); }, sub:()=>"Lower it if the app feels slow on this computer." });
   buttonRow(b, [["Clear saved work in this browser", ()=>{ try { localStorage.removeItem("makerforge.project"); localStorage.removeItem("makerforge.recent"); forgetModels(); notify("Saved work cleared."); } catch(e){} }]]);
 });
+// the Look settings (Session 92): the colour scheme (Retr0+ is the owner's website), your own colour, what's behind the model and
+// Start from's tiles. They stay in this browser, for every project
+function lookFields(b){
+  const box = document.createElement("div"); box.className = "schemes"; box.setAttribute("role", "group"); box.setAttribute("aria-label", "Colours");
+  SCHEMES.forEach(([k, name, col]) => {
+    const btn = document.createElement("button"); btn.dataset.scheme = k; btn.setAttribute("aria-pressed", String(prefs.scheme === k));
+    btn.innerHTML = `<span class="sw" style="background:${k === "retro" ? "linear-gradient(135deg,#150a24 0 45%,#a855f7 45% 75%,#d4a54a 75%)" : k === "custom" ? esc(prefs.accent) : col}"></span>${esc(name)}`;
+    btn.onclick = () => { prefs.scheme = k; savePrefs(); applyPrefs(); $("#settingsBtn").click(); };
+    box.appendChild(btn);
+  });
+  b.appendChild(box);
+  if (prefs.scheme === "retro") note(b, "The colours and the perfboard of forge.retr0plus.se: deep violet, purple traces and gold. It is always dark.");
+  if (prefs.scheme === "custom"){
+    const w = document.createElement("div"); w.className = "field full";
+    w.innerHTML = `<label for="lookAccent">Your colour</label><input type="color" id="lookAccent" value="${esc(prefs.accent)}">`;
+    w.querySelector("input").oninput = e => { if (/^#[0-9a-f]{6}$/i.test(e.target.value)){ prefs.accent = e.target.value.toLowerCase(); savePrefs(); applyPrefs(); } };
+    b.appendChild(w);
+  }
+  selField(b, "Behind the model", BACKDROPS, () => prefs.backdrop, v => { prefs.backdrop = v; savePrefs(); applyPrefs(); });
+  segField(b, [["big","Big pictures"],["small","Small pictures"]], () => prefs.tiles, v => { prefs.tiles = v; savePrefs(); renderStarts(); }, "two");
+  note(b, "Start from shows three to a row with small pictures. These settings stay in this browser.");
+}
 // the user manual: the whole of MANUAL.md, with its contents list jumping within the window
 $("#helpBtn").onclick = ()=>openModal("User manual", b => {
   $("#modal").classList.add("wide");
@@ -19298,6 +19653,11 @@ function sanitizeProject(data){
     const Hp = st.base.birdhouse && typeof st.base.birdhouse === "object" && !Array.isArray(st.base.birdhouse) ? st.base.birdhouse : {};
     st.base.birdhouse = { set:C.bird.clean(Hp.set), show:Hp.show === "plates" ? "plates" : "house", roofSlot:Math.min(15, Math.max(0, Math.round(cleanNum(Hp.roofSlot, 1)))) };
   }
+  // the fume extractor (Session 95): the library cleans the settings
+  if (st.base && "fume" in st.base){
+    const Fp = st.base.fume && typeof st.base.fume === "object" && !Array.isArray(st.base.fume) ? st.base.fume : {};
+    st.base.fume = { set:C.fume.clean(Fp.set), show:Fp.show === "plates" ? "plates" : "together", panelSlot:Math.min(15, Math.max(0, Math.round(cleanNum(Fp.panelSlot, 1)))) };
+  }
   // arrow nocks (Session 90): the library cleans the settings
   if (st.base && "nock" in st.base){
     const Np = st.base.nock && typeof st.base.nock === "object" && !Array.isArray(st.base.nock) ? st.base.nock : {};
@@ -19665,6 +20025,8 @@ async function buildZip(parts, title, unjoined){
   const bh = state.base.type === "birdhouse" && birdInfo ? birdInfo.info : null;
   if (bh){ if (bh.sketch) zip.file("birdhouse-camera.ino", bh.sketch);
     zip.file("how-to-assemble.txt", [`How to put ${title} together`, "", ...bh.notes, "", ...bh.steps.map((t, k) => `${k + 1}. ${t}`), "", "What you'll need:", ...bh.bom.map(([n, w]) => `  ${n} x ${w}`)].join("\r\n")); }
+  const fu = state.base.type === "fume" && fumeInfo ? fumeInfo.info : null;
+  if (fu) zip.file("how-to-assemble.txt", [`How to put ${title} together`, "", ...fu.notes, "", ...fu.steps.map((t, k) => `${k + 1}. ${t}`), "", "What you'll need:", ...fu.bom.map(([n, w]) => `  ${n} x ${w}`)].join("\r\n"));
   const nk = state.base.type === "nock" && nockInfo ? nockInfo.info : null;
   if (nk) zip.file("how-to-print-and-use.txt", [`${title}`, "", `Each ${nk.size.across} mm across and ${nk.size.long} mm long, about ${nk.size.grains} grains in PETG.`, "", ...nk.notes].join("\r\n"));
   if (asm.length) zip.file("how-to-assemble.txt", [`How to put ${title} together`, "", ...asm.map((t, k) => `${k + 1}. ${t}`), "",
@@ -19696,6 +20058,7 @@ async function buildZip(parts, title, unjoined){
     ...(cardNfcText(title) ? ["An NFC tag goes inside: nfc-tag.txt says where to pause and put it in."] : []),
     ...(asm.length ? ["A project box: how-to-assemble.txt has the steps and what you'll need."] : []),
     ...(fl ? ["The flower lamp: how-to-assemble.txt has the steps and what you'll need; flower-lamp.ino is the sketch for the board."] : []),
+    ...(fu ? ["The fume extractor: how-to-assemble.txt has the steps and what you'll need."] : []),
     ...(nk ? ["Arrow nocks: how-to-print-and-use.txt says how to print them and how to check them before you shoot."] : []),
     ...(bh ? [`The bird house: how-to-assemble.txt has the steps and what you'll need${bh.sketch ? "; birdhouse-camera.ino is the sketch for the camera" : ""}.`] : []),
     ...(wiring ? ["wiring.txt lists every wire, end to end, with its colour and length."] : []),
@@ -19883,7 +20246,11 @@ function applyPreset(key){
 }
 
 /* ---- easy reading: kept in this browser for every project, not in project files ---- */
-const PREFS_DEFAULT = { ui:1, contrast:"normal", font:"normal", motion:"auto", notice:1, speak:false, patterns:false };
+const PREFS_DEFAULT = { ui:1, contrast:"normal", font:"normal", motion:"auto", notice:1, speak:false, patterns:false, scheme:"forge", accent:"#1f6f8b", backdrop:"soft", tiles:"big", recent:[] };
+// colour schemes (Session 92): Maker Forge's own, the owner's website (forge.retr0plus.se), five more, and your own colour
+const SCHEMES = [["forge","Maker Forge","#1f6f8b"],["retro","Retr0+ (the website)","#a855f7"],["forest","Forest","#2e7d4f"],["sunset","Sunset","#b4501a"],
+  ["rose","Rose","#a8325f"],["ocean","Ocean","#1f58b5"],["graphite","Graphite","#3d4550"],["custom","Your colour",null]];
+const BACKDROPS = [["soft","Soft light (as before)"],["dots","Perfboard dots (like the website)"],["grid","Grid"],["blueprint","Blueprint"],["plain","Plain"]];
 let prefs = Object.assign({}, PREFS_DEFAULT);
 try { const raw = JSON.parse(localStorage.getItem("makerforge.prefs") || "null");
   if (raw && typeof raw === "object"){
@@ -19894,6 +20261,11 @@ try { const raw = JSON.parse(localStorage.getItem("makerforge.prefs") || "null")
     prefs.notice = [1, 2, 4].includes(raw.notice) ? raw.notice : 1;
     prefs.speak = raw.speak === true;
     prefs.patterns = raw.patterns === true;
+    prefs.scheme = SCHEMES.some(([k]) => k === raw.scheme) ? raw.scheme : "forge";
+    prefs.accent = typeof raw.accent === "string" && /^#[0-9a-f]{6}$/i.test(raw.accent) ? raw.accent.toLowerCase() : PREFS_DEFAULT.accent;
+    prefs.backdrop = BACKDROPS.some(([k]) => k === raw.backdrop) ? raw.backdrop : "soft";
+    prefs.tiles = raw.tiles === "small" ? "small" : "big";
+    prefs.recent = Array.isArray(raw.recent) ? raw.recent.filter(k => typeof k === "string" && /^(preset|object):[\w '\-]{1,40}$/.test(k)).slice(0, 6) : [];
   } } catch(e){}
 function savePrefs(){ try { localStorage.setItem("makerforge.prefs", JSON.stringify(prefs)); } catch(e){} }
 function applyPrefs(){
@@ -19904,6 +20276,13 @@ function applyPrefs(){
     r.setAttribute("data-font", "clear");           // Atkinson Hyperlegible, built in (see fontFaceCSS)
   } else r.removeAttribute("data-font");
   if (prefs.motion === "reduce") r.setAttribute("data-motion", "reduce"); else r.removeAttribute("data-motion");
+  if (prefs.scheme !== "forge" && prefs.scheme !== "custom") r.setAttribute("data-scheme", prefs.scheme); else r.removeAttribute("data-scheme");
+  if (prefs.backdrop !== "soft") r.setAttribute("data-backdrop", prefs.backdrop); else r.removeAttribute("data-backdrop");
+  if (prefs.scheme === "custom"){                                  // your colour: its light tint and a readable text on it
+    const c = prefs.accent, v = parseInt(c.slice(1), 16), lum = (0.2126 * (v >> 16 & 255) + 0.7152 * (v >> 8 & 255) + 0.0722 * (v & 255)) / 255;
+    r.style.setProperty("--accent", c); r.style.setProperty("--accent-soft", `color-mix(in srgb, ${c} 16%, var(--panel))`); r.style.setProperty("--accent-ink", lum > 0.6 ? "#101418" : "#ffffff");
+  } else ["--accent", "--accent-soft", "--accent-ink"].forEach(k => r.style.removeProperty(k));
+  if (typeof makeBed === "function" && typeof scene !== "undefined") try { makeBed(); } catch (e) {}
   patUniforms.uPat.value = prefs.patterns ? 1 : 0;
   patUniforms.uPatScale.value = 10 * (window.devicePixelRatio || 1) * prefs.ui;
   // big text needs the room: on narrower screens Start from becomes a drawer and the app bar folds up
@@ -19950,7 +20329,7 @@ function openEasyReading(){
     b.insertAdjacentHTML("beforeend", `<h2>Colours</h2>`);
     checkField(b, "A pattern on each filament, to tell them apart without colour", () => prefs.patterns, v => { prefs.patterns = v; savePrefs(); applyPrefs(); if (tab === "paint") renderTab(); });
     note(b, "The first filament stays plain; the others get stripes, lines, dots, cross-hatching or checks, on the model and on the colour swatches.");
-    buttonRow(b, [["🔊 Read this page aloud", () => { $("#modal").hidden = true; speakPage(); }], ["Back to normal", () => { prefs = Object.assign({}, PREFS_DEFAULT); savePrefs(); applyPrefs(); openEasyReading(); }]]);
+    buttonRow(b, [["🔊 Read this page aloud", () => { $("#modal").hidden = true; speakPage(); }], ["Back to normal", () => { const keep = { scheme:prefs.scheme, accent:prefs.accent, backdrop:prefs.backdrop, tiles:prefs.tiles, recent:prefs.recent }; prefs = Object.assign({}, PREFS_DEFAULT, keep); savePrefs(); applyPrefs(); openEasyReading(); }]]);
     note(b, "Your browser's own zoom (Ctrl and +) makes everything bigger too, including the 3D view.");
   });
 }
@@ -20017,6 +20396,7 @@ window.MakerForge = {
   get flower(){ return flowerInfo; }, flowerAnimate,
   get birdhouse(){ return birdInfo; },
   get nock(){ return nockInfo; },
+  get fume(){ return fumeInfo; },
   get lithophane(){ return lithoInfo; },
   get print(){ return printFresh() ? printInfo : null; },
   printNow: runPrintability, optimize: optimizePrint, revertOptimize, exportParts,

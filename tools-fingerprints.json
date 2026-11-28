@@ -460,62 +460,54 @@
  "object nock": [
   {
    "name": "Nock 1",
-   "tris": 2464,
-   "vol": 547.3,
+   "tris": 8408,
+   "vol": 995.2,
    "size": [
-    7.6,
-    17,
-    8.1
+    9.48,
+    25.23,
+    25.23
+   ]
+  }
+ ],
+ "object fume": [
+  {
+   "name": "Duct body",
+   "tris": 1020,
+   "vol": 155937.5,
+   "size": [
+    134.8,
+    73,
+    219.2
    ]
   },
   {
-   "name": "Nock 2",
-   "tris": 2464,
-   "vol": 547.3,
+   "name": "Front panel",
+   "tris": 988,
+   "vol": 63960.7,
    "size": [
-    7.6,
-    17,
-    8.1
+    134.8,
+    3,
+    217.2
    ]
   },
   {
-   "name": "Nock 3",
-   "tris": 2464,
-   "vol": 547.3,
+   "name": "Rear cap",
+   "tris": 1592,
+   "vol": 69683.6,
    "size": [
-    7.6,
-    17,
-    8.1
+    134.8,
+    9,
+    217.2
    ]
   },
   {
-   "name": "Nock 4",
-   "tris": 2464,
-   "vol": 547.3,
+   "name": "Filter tray",
+   "tris": 380,
+   "vol": 20680.6,
    "size": [
-    7.6,
-    17,
-    8.1
-   ]
-  },
-  {
-   "name": "Nock 5",
-   "tris": 2464,
-   "vol": 547.3,
-   "size": [
-    7.6,
-    17,
-    8.1
-   ]
-  },
-  {
-   "name": "Nock 6",
-   "tris": 2464,
-   "vol": 547.3,
-   "size": [
-    7.6,
-    17,
-    8.1
+    129,
+    15.99,
+    129
    ]
   }
  ],
@@ -2234,6 +2226,102 @@
     31.23,
     18,
     32
+   ]
+  }
+ ],
+ "preset RGB lamp controller": [
+  {
+   "name": "Box",
+   "tris": 11792,
+   "vol": 98804.1,
+   "size": [
+    171,
+    50,
+    91
+   ]
+  },
+  {
+   "name": "Lid",
+   "tris": 15088,
+   "vol": 38013.3,
+   "size": [
+    171,
+    5.4,
+    91
+   ]
+  },
+  {
+   "name": "Pilot light lenses (1)",
+   "tris": 112,
+   "vol": 223.9,
+   "size": [
+    12.66,
+    7.07,
+    12.66
+   ]
+  }
+ ],
+ "preset Bench supply (left)": [
+  {
+   "name": "Box",
+   "tris": 19268,
+   "vol": 294898,
+   "size": [
+    151.5,
+    122,
+    222
+   ]
+  },
+  {
+   "name": "Lid",
+   "tris": 5392,
+   "vol": 103075.3,
+   "size": [
+    151.5,
+    6,
+    222
+   ]
+  },
+  {
+   "name": "Pilot light lenses (2)",
+   "tris": 224,
+   "vol": 471.3,
+   "size": [
+    27.36,
+    7.66,
+    12.66
+   ]
+  }
+ ],
+ "preset Bench supply (right)": [
+  {
+   "name": "Box",
+   "tris": 11128,
+   "vol": 297965,
+   "size": [
+    151.5,
+    122,
+    222
+   ]
+  },
+  {
+   "name": "Lid",
+   "tris": 5392,
+   "vol": 103075.3,
+   "size": [
+    151.5,
+    6,
+    222
+   ]
+  },
+  {
+   "name": "Pilot light lenses (2)",
+   "tris": 224,
+   "vol": 471.3,
+   "size": [
+    27.36,
+    7.66,
+    12.66
    ]
   }
  ]

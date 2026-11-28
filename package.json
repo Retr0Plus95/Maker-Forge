@@ -1,6 +1,6 @@
 {
   "name": "maker-forge",
-  "version": "0.67.1",
+  "version": "0.71.1",
   "private": true,
   "description": "Free, open-source multi-colour (multi-color) 3D print designer that runs in the browser: name keychains, patches, phone cases, lithophanes, jigsaw puzzles, cookie cutters, lightboxes, project boxes and painted models, exported as 3MF for Bambu Studio, OrcaSlicer and PrusaSlicer. This package.json only lists the test dependencies.",
   "keywords": [
@@ -63,7 +63,7 @@
     "test:iconai": "node tools-iconai-test.js index.html",
     "test:clickcolour": "node tools-clickcolour-test.js index.html",
     "test:size": "node tools-size-check.js index.html",
-    "check:browser": "node tools-browser-check.js index.html && node tools-paintmove-check.js index.html && node tools-clickcolour-check.js index.html",
+    "check:browser": "node tools-browser-check.js index.html && node tools-paintmove-check.js index.html && node tools-clickcolour-check.js index.html && node tools-stylecache-check.js index.html",
     "test:paint": "node tools-paint-test.js index.html",
     "test:phonecase": "node tools-phonecase-test.js index.html",
     "test:art": "node tools-art-test.js index.html",
@@ -79,6 +79,9 @@
     "test:flower": "node tools-flower-test.js index.html",
     "test:bird": "node tools-bird-test.js index.html",
     "test:nock": "node tools-nock-test.js index.html",
+    "test:look": "node tools-look-test.js index.html",
+    "test:workshop": "node tools-workshop-test.js index.html",
+    "test:fume": "node tools-fume-test.js index.html",
     "test:fit": "node tools-fit-test.js index.html",
     "test:sign": "node tools-sign-test.js index.html",
     "test:relief": "node tools-relief-test.js index.html",

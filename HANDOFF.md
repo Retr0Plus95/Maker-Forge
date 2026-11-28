@@ -3923,7 +3923,180 @@ one-click starts; the fume extractor a fan-and-filter box maker. Those repositor
 **Still to check:** a real print on real shafts and a real string. The defaults are typical (a 6.2 mm inside, 7.6 mm outside carbon
 shaft; a 2.6 mm serving): print the fit test first. Shoot nothing on a nock you haven't checked.
 
-## Session 91: Trusted Types, for sharing forge.retr0plus.se with Bench (v0.67.1)
+## Session 91: the arrow nocks on the owner's own design (v0.68.0)
+
+The owner shared their own parametric nock, `arrow_nock.scad` (OpenSCAD, uploaded to the session), with "maybe use this for the arrow
+nocks?". 0.67's nock (Session 90) is replaced by a port of it; their later messages (the website's colours as a theme, more colours and
+options, a tidier UI, Start from and categories) are the next release, 0.69, on the roadmap.
+
+**The port** (`PRCore.nock`): Maker Forge has no cutting during a build, so the SCAD's differences and intersections are built directly:
+- `NOCK_SETTINGS` are the SCAD's parameters with its defaults (slip-over, 7.0 mm, 30 mm long, a 6 mm tip, a 2.6 × 8 mm throat, tilted 45°,
+  one nock), in its groups (Arrow shaft, Mount, Retention, String throat, Shape, Cock vane index, Label, Print), plus 0.67's fit test.
+  Arrays carry their group and a "shown when" (`nockShown`: a value, a list, "some" for above 0, "words" for a label or numbers). On/off
+  settings are `bool`, the label `text` (cleaned to what the stroke font draws, 10 at most). A 0.67 project's settings are carried over
+  in `nockClean`.
+- `nockPlan`: the SCAD's sizes. Its asserts become fixes with a warning (the taper closing up, the pin as wide as the shaft, too little
+  plastic between the socket and the throat) or checks (the ears).
+- `nockSolid`: the body is a `revolve` up to Ts: the socket (straight or tapered, the mouth chamfer, the 45° ceiling, glue grooves as
+  V rings) or the pin (its lead-in, grooves, the collar). The taper up to the slot is a `loft` of whole slices; each ear a `loft` of
+  slices past the slot's half-width (`nockH`: the round seat, the snap, the lead-in), the round clamped by the flats (`nockF`) and
+  following the SCAD's profile and rounded tip (`nockR`). An ear that runs out at the tip ends in a point. Crush ribs are columns; the
+  ridge a squashed bead turned to its angle. The label is the stroke font traced (`strokePolys`) and wrapped onto the side (`nockWrap`):
+  raised letters, and cutters for engraving.
+- `nockMake`: each nock tipped over about x by the orientation (the ears stay side by side, so tilted and on its side they print
+  strong), laid out in rows; per nock its cutters and raised letters, and its text (numbers when asked, 1 to 5 for the fit test).
+- **The app:** `cutNockLabels` runs after the build (as an imported model's flat cut does): it waits for the cutting tool and cuts each
+  nock's letters in (kept until the settings change), or shows them raised and says why. The panel shows the design's groups as pages,
+  each setting only for its choices, with icons for each group.
+
+**Tested** (`npm run test:nock`, rewritten): 571 sets (every setting at its ends for each mount and orientation), 816 nocks and their
+letters, closed and on the bed; no support upright for every mount, a little inside a socket tilted 45° (16 mm² slip-over, 40 tapered);
+rays: the round seat, the throat's width with the snap, the ears, the flats along the string, the socket's size and ceiling, the
+pin; ribs narrow the socket by their height, a groove widens it, the ridge stands out at 0° and 90°; raised letters and cutters;
+Manifold engraves and the nock stays closed; long text shrunk and said; numbered arrows; the fit test's sockets 0.05 mm apart; the
+weight; the checks and warnings; 13 laid out; the notes and credit; a 0.67 project; cleaning. **App:** the design's groups as pages;
+settings shown for their choices; raised and engraved letters (Manifold in Node); saved, hostile and 0.67 projects.
+`node tools-audit.js index.html nock` with and without the cutting tool: no findings.
+
+**Still to check:** a real print, tilted 45°, on real shafts. Engraved letters 2.5 mm tall and 0.4 mm deep need a fine nozzle to read.
+
+## Session 92: colours, and finding things (v0.69.0)
+
+The owner: "add the colours of the website and background as an option for the maker forge and i feel like the ui and categories and
+start from need optimizing", "and more colours and options for the maker forge". The website's palette was read (read-only) from the
+Website repository's `site/css/style.css` ("Purple board rev.A"): `--sub #150a24`, `--sub2 #1e0f33`, traces `#6d28d9`/`#a855f7`, glow
+`#c084fc`, gold `#d4a54a`, silk `#ede7f6`, its perfboard (dots every 32 px), scanlines and vignette, and its own high contrast.
+
+**Looks** (`src/app.html`):
+- `SCHEMES` (Maker Forge, Retr0+, Forest, Sunset, Rose, Ocean, Graphite, your colour) and `BACKDROPS` (soft, perfboard dots, grid,
+  blueprint, plain). Each scheme is `:root[data-scheme=…]` overriding the colour tokens, with dark variants (system dark and the Dark
+  choice) so a light scheme never mixes with dark panels. Retr0+ is dark only, puts scanlines and a vignette over the view, and gold under
+  the active tab; with high contrast it uses the website's own (`[data-contrast="high"][data-scheme="retro"]`, after the other contrast rules).
+- Your colour sets `--accent` inline, its tint with `color-mix`, and dark or light text on it by its brightness.
+- Backdrops are layers on `.stage`'s background (the 3D canvas is see-through).
+- `makeBed` draws the bed's edge in the accent and its grid in the scheme's lines.
+- They are preferences (`prefs.scheme`, `accent`, `backdrop`, `tiles`, `recent`), in this browser, read back cleaned; Easy reading's
+  Back to normal keeps them. `lookFields` is the Look section at the top of Settings.
+
+**Start from:**
+- `renderStarts` builds a Find box and category chips (`.startchips`: `.chips` is the colour chips elsewhere, which wrap), Recently
+  (`#recentRow`, not in `#presetGallery`), the quick starts and the objects regrouped (`OBJECT_GROUPS` with a category each). Every tile
+  has its categories (`PRESET_CAT`, the group, `workshop` for the owner's projects in `WORKSHOP`) and words (`OBJECT_WORDS`).
+- `filterStarts` hides what doesn't match the words and the chip, and the headings of empty groups. `#startsBody [hidden]` needs
+  `!important`: the tiles' `display:grid` beat the `hidden` attribute (found in the pictures: nothing was filtered at first).
+- `rememberStart` keeps the last six picks. New badges for `NEW_OBJECTS`. Small pictures put three to a row.
+
+**Tested** (`npm run test:look`, new; `tools-test-env.js` gained `opts.storage`, preferences saved before the page opens): the eight
+schemes, Retr0+ and its note, the dots, your colour with dark or light text, another scheme clearing it, Back to normal keeping the
+colours; Start from with all 31 quick starts, "lamp", "arrow", nothing found, From the workshop, Electronics, the new headings, New
+badges, Enter opening the first, Recently, small pictures; odd saved values cleaned, the recent picks kept only when real, a saved
+scheme and backdrop with high contrast, the website's colours in the styles. Looked at in Chromium: each scheme and backdrop.
+
+**Still to check:** the schemes in a real browser's dark mode on a phone; the colours' contrast with the screen reader's high contrast.
+
+## Session 93: the website's old stylesheet (v0.69.1)
+
+The owner sent a picture of Start from on the website after 0.69.0: the Find box a plain white square and the category chips blank
+light-grey boxes on seven rows. Maker Forge's own file was right (the browser check had passed); the website's copy was not.
+
+**Why:** the Website repository's importer (`tools/import-maker-forge.py`, read only) moves the page's `<style>` into `app.css`, a
+fixed name, which its `.htaccess` lets a browser keep for a week (`max-age=604800` for css), while the scripts go into
+`app.<hash>.js`, a new name each release, and the HTML is `no-cache`. So a browser ran 0.69.0's code with 0.68.0's styles: no rules
+for `.startsearch` or `.startchips`, and `button{color:inherit}` put the panel's light text on the browser's own light buttons.
+
+**Fixed** (`src/app.html`, `build.py`):
+- The styles carry their release: `:root{--mf-styles:"v0.69.1"}` at the top of the first `<style>`, written by `build.py` from
+  `package.json` like the version badge (it stops if the line is missing).
+- `freshStyles(document)` runs right after `APP_VERSION` is read: when the styles' release isn't the page's, every
+  `link[rel=stylesheet]` to `app.css` (or `app.<anything>.css`) gets a twin at `app.css?v=<release>`, an address the browser hasn't
+  kept; the old one goes when the new one has loaded. It says so with a `console.warn`. The single file has its styles inside, so
+  nothing happens there. The website's policy (`style-src 'self'`) allows it; the importer's patterns are untouched.
+- Future releases are covered the same way, not only this one.
+
+**Tested:** `tools-stylecache-check.js` (new, in `check:browser`) serves the page split the way the importer does, in Chromium,
+dark: with an older `app.css` kept (this release's without its stamp and Start from's rules, or `OLD=` an older `index.html`'s) the
+page fetches `app.css?v=0.69.1` once, drops the old one, the chips are round, on one row and in the page's colours, the Find box
+too; with this release's styles nothing is fetched again. It fails on 0.69.0 with 0.68.0's styles (9 chips on 7 rows, grey with
+light text: the owner's picture) and passes on 0.69.1 with them. Look, project and smoke tests pass.
+
+**For the website's own session** (not done from here): naming the stylesheet by its contents, like `app.<hash>.js`, would make
+this unnecessary there.
+
+## Session 94: From the workshop, the owner's boxes (v0.70.0)
+
+From ROADMAP 0.68 ("every project done should be a project incorporated into Maker Forge", Session 90): the owner's two finished
+box projects, read (read only) from their repositories cloned beside this one, become quick starts.
+
+**New** (`src/app.html`):
+- `PRESETS` gained "RGB lamp controller" (`Retr0Plus95/ESP32-LED-RGB-`, `enclosure/rgb-lamp-controller-box.forge.json`) and "Bench
+  supply (left)" / "(right)" (`Retr0Plus95/FOUR-CHANNEL-PSU`, `case/maker-forge/psu-case-left.json` and `-right.json`). Each is the owner's
+  saved `base.enclosure` as it is (every setting and opening, the logo left out as it was off), with their filament names (the RGB file
+  said PLA for PETG filaments: PETG here). The tips credit the repositories. Written by a script from the files, so nothing was typed.
+- `PRESET_CAT` puts them in "electronics workshop" (the chips split on spaces), so they show under From the workshop too.
+- `PRESET_WORDS` (new): words to find a quick start by besides its name: *psu*, *power supply*, *esp32*, *led strip*, *battery*...
+- Start pictures for the three (`npm run thumbs` with `ONLY=`), and their fingerprints.
+
+**Fixed:**
+- A box and lid that each fit the bed but not side by side were "Bigger than the print bed" (the bench supply's halves, 151.5 mm wide,
+  laid out 313 mm wide on a 256 mm bed), with advice to split the box. The packing onto plates that Session 46 did only with levels or
+  dividers inside now runs for any box (not the fit test) whose layout is bigger than the bed: `encPackPlates` puts the box and the lid
+  on a plate each, the print check says "Fits the bed: … on 2 plates", the download has a pair of 3mf files per plate. A box that
+  fits as it was keeps one plate (no `plate` on its parts, so nothing else changes).
+- The other plates' outlines (⊞) were drawn in the old teal whatever the scheme; they use the bed's edge colour.
+
+**Tested:** `tools-workshop-test.js` (new, `npm run test:workshop`): each box opens with the owner's size, board, openings and labels,
+the credit in the tip and their filaments; the bench supply halves' big joining opening is on the inner side, the box and lid on plates
+of their own, the print check saying it fits; the project box stays on one plate; *psu*, *esp32*, From the workshop and Electronics find
+them. Look test updated (34 quick starts, *lamp* finds the RGB lamp controller too, From the workshop shows the three boxes). Box tests,
+project test, smoke, print survey (the halves need support under about 2100 mm², as the owner's notes say: "supports on").
+
+**The count:** improvements 28 and 29: 28. the owner's boxes as quick starts; 29. words to find quick starts by. Bugs past the ten: the
+false bed warning on a big box, the other plates' outline colour (and in 0.69.1 the website's old stylesheet).
+
+**Still to do (0.68 From the workshop):** the solder fume extractor (Sir Sucks-a-Lot) as a fan-and-filter box maker.
+
+## Session 95: the fume extractor (v0.71.0)
+
+The last of ROADMAP 0.68's From the workshop: the owner's solder fume extractor, Sir Sucks-a-Lot (`Retr0Plus95/Solder-Fume-Extractor`, read
+only: its README, build guide and the pictures of its four printed parts), as a maker. Their parts: a duct body 127 × 207 × 80 with a divider,
+a front panel with a bar grille, the LCD and the knob, a rear cap with a grille, the socket and vents, a filter tray 116 × 120 × 20 with a grid.
+
+**New** (`src/core.js`, `PRCore.fume`; `src/app.html`, the `fume` object):
+- `fumePlan`: the duct is the fan + 10 mm wide inside (the corner bosses, 7.5 mm round with a 4 mm hole for an M3 insert at each end, then
+  clear a fan's r 5 corners by 1.1 mm); the bay under it; the depth from the fans (25 mm each, bolted to the rear cap with M4 bolts, nuts in
+  front: a 4 mm gap), the tray's stops and the tray (pad + mesh + grid). Only four bosses: one where the divider meets a wall would cut
+  the divider (the first try had six; the test's ray through the screw hole found the divider in the way).
+- The front panel's bay: the display (1602 or 0.96 inch OLED, their windows and screw holes) beside a column with the knob and the switch,
+  or above a row of them when the bay is narrow; or it says what doesn't fit.
+- `fumeBody`: one prism for the walls and the divider, the bosses, the tray's stops (flat towards the tray, 55° behind), the cable notch
+  through the divider at the back with a pointed top (a flat one needed support; 45° counted as overhang too), feet rails from the bed
+  (starting 5 mm up, their ends needed support), the name raised on the right-hand side.
+- `fumeFront`, `fumeRear` (the fan's bolt holes at its own spacing, the board's standoffs, the socket, the vents, or a cable hole with no
+  bay), `fumeTray` (corners cut 12 mm to clear the bosses, the grid's cells clipped to them), `fumeGrille` (bars 5 on 8, or hexagons 7 mm
+  across with 1.6 webs: about 60% of the blades' circle open). Each part built standing as on the bench, then turned to print.
+- `fumeInfo`: checks, what you'll need (fans, pad and mesh cut to size, 8 inserts and screws, the M4 bolts' length, the display, knob,
+  switch, socket, board), notes (credit, safety, print, airflow), steps. `assembly()` for the view with the fans, pad, board, display, knob
+  and switch.
+- App: `buildFume` (the panels in `panelSlot`, the rest in the main filament, packed on plates), `fumeSceneMeshes`, `fumeFields` (the bay's
+  settings hidden with no bay), the panel's refresh signature, sanitizing, the download's how-to-assemble.txt and README line, Start from
+  (Workshop and repair, From the workshop, New, words).
+
+**Tested:** `tools-fume-test.js` (new, `npm run test:fume`): 48 extractors at every setting's ends, every part closed, outward, finite and
+on the bed, within a 256 mm bed (the 140 mm fan with the tallest bay says it needs more); nothing needs support (and the raised name
+none); with rays through the parts put together: every corner screw through both panels into its insert hole, the fan's bolt holes, the air
+straight through the front grille, the tray's grid and the rear grille, the walls closed, the display's window, the knob's and the switch's
+holes; the tray between its stops and the panel; the checks, warnings and list; cleaning. In the app: Start from, the panel, every slider
+at both ends and every choice changing the parts, no bay, the name, the plates and the picture, the panels' filament, a saved and a hostile
+project. Audit (no dead controls), fingerprints (only the new object), print survey (no support, no warnings), project, look and workshop
+tests, smoke, the browser check (the export's steps and plates).
+
+**The count:** improvement 30: the fume extractor (29 were the workshop boxes' words). That completes the owner's 30 improvements and 10
+bugs from Session 81.
+
+**Still to check:** a real print and a real fan's fit; the 1602 module's window position differs a little between makers (check yours
+against the holes).
+
+## Session 96: Trusted Types, for sharing forge.retr0plus.se with Bench (v0.71.1)
 
 The owner asked to combine Shape (this app) and Bench under forge.retr0plus.se as two apps of the Maker Forge suite, to rename
 this app **Shaper**, and to start with a design (saved progress, shared code, security rules, the website's themes, room for
@@ -3931,8 +4104,9 @@ more apps). Website, Bench and ShopFlow were cloned into this session alongside 
 work in all of them from here ("reuse any code wherever you see fit"; "find bugs along the way and security weaknesses").
 The CLAUDE.md rule "website work is done in the Website repository's own session" is set aside for this suite work at the
 owner's word (2026-11-28). The owner picked one shared address (folders, as Bench's design has it) and said "fix the problems
-first": this release is this app's part of those fixes. The rename to Shaper and the move to `/shaper/` are in the suite's
-design, next.
+first": this release is this app's part of those fixes. Built on 0.67.0 alongside Sessions 91 to 95 (another session), and
+merged with them as 0.71.1. The app's name in the suite settled as **Shape** (`/shape/`); the design is in
+Retr0Plus95/Maker-Forge-Home (`docs/suite.md` here points to it).
 
 **Why:** apps at one address share the browser's saved data, so the weakest app's rules guard everyone's (Bench's ticks and
 notes, and later one Claude key for the suite). Bench writes no HTML from strings and enforces Trusted Types; this app writes

@@ -8178,114 +8178,500 @@
     ].join("\n");
   }
 
-  // ---------- arrow nocks (Session 90): a nock for the end of an arrow, made to the shaft and the bowstring. It pushes into a hollow
-  // shaft (carbon, aluminium), slips over a wooden shaft's 11° taper, or sleeves over a straight shaft. Printed standing on the shaft's
-  // end, the groove up: the string's seat is a floor as it prints, and nothing needs support ----------
+  // ---------- arrow nocks (Sessions 90 and 91): the owner's own parametric nock (their OpenSCAD design, arrow_nock.scad), made here
+  // without cutting: a revolved body with the socket or the pin, the head lofted slice by slice (the taper, the flats either side of the
+  // slot, the round seat, the snap and the lead-in), crush ribs, glue grooves, the cock-vane ridge and a label along the side. Engraved
+  // labels are cut in by the app (Manifold); here they are cutters, and raised letters when cutting isn't to hand ----------
+  const NOCK_PRESETS = { custom:"Custom", "5.0":"5.0 mm", "5.5":"5.5 mm", "6.0":"6.0 mm", "6.5":"6.5 mm", "7.0":"7.0 mm", "7.14":"9/32 in (7.14 mm)",
+    "7.5":"7.5 mm", "7.94":"5/16 in (7.94 mm)", "8.0":"8.0 mm", "8.73":"11/32 in (8.73 mm)", "9.0":"9.0 mm", "9.53":"3/8 in (9.53 mm)" };
+  // [default, least, most, step, label, shown when, group]; choices { opts, def, label, when, group }; on/off { bool }; words { text, max }
   const NOCK_SETTINGS = {
-    fit:{ opts:["insert", "taper", "over"], def:"insert", label:"How it fits the arrow" },
-    shaftId:[6.2, 3, 9, 0.05, "Shaft's inside diameter (mm)", { fit:"insert" }],
-    shaftOd:[7.6, 4, 12, 0.05, "Shaft's outside diameter (mm)"],
-    tight:[0, -0.3, 0.3, 0.05, "Tighter (+) or looser (−) on the shaft (mm)"],
-    shank:[9, 5, 20, 0.5, "How far it goes onto the shaft (mm)"],
-    string:[2.6, 1.6, 4, 0.05, "Bowstring's serving (mm across)"],
-    snap:[0.15, 0, 0.4, 0.05, "Snap on the string (mm narrower)"],
-    depth:[5, 3.5, 8, 0.25, "Groove depth (mm)"],
-    head:[8, 5, 14, 0.5, "Head past the shaft (mm)"],
-    index:{ opts:["ridge", "none"], def:"ridge", label:"Cock-feather mark" },
-    make:{ opts:["nocks", "test"], def:"nocks", label:"Print" },
-    count:[6, 1, 24, 1, "How many", { make:"nocks" }]
+    preset:{ opts:Object.keys(NOCK_PRESETS), def:"custom", label:"Shaft size", group:"Arrow shaft" },
+    shaftOd:[7.0, 4, 12, 0.01, "Shaft's outside diameter (mm)", { preset:"custom" }, "Arrow shaft"],
+    shaftId:[6.2, 3, 10, 0.01, "Shaft's inside diameter (mm)", { mount:"pushin" }, "Arrow shaft"],
+    mount:{ opts:["slip", "tapered", "pushin"], def:"slip", label:"How it fits the arrow", group:"Mount" },
+    clearance:[0.1, -0.2, 0.5, 0.01, "Socket clearance (mm)", { mount:["slip", "tapered"] }, "Mount"],
+    socket:[12, 6, 20, 0.5, "Socket depth (mm)", { mount:["slip", "tapered"] }, "Mount"],
+    wall:[0.95, 0.8, 2, 0.05, "Socket wall (mm)", { mount:["slip", "tapered"] }, "Mount"],
+    taper:[11, 5, 15, 0.5, "Taper's included angle (°)", { mount:"tapered" }, "Mount"],
+    pinLen:[8, 4, 15, 0.5, "Pin length (mm)", { mount:"pushin" }, "Mount"],
+    interference:[0.05, -0.2, 0.3, 0.01, "Pin's press fit (mm over the inside)", { mount:"pushin" }, "Mount"],
+    headLen:[15, 10, 25, 0.5, "Head length (mm)", { mount:"pushin" }, "Mount"],
+    ribs:[0, 0, 8, 1, "Crush ribs (0: none)", { mount:["slip", "pushin"] }, "Retention"],
+    ribH:[0.15, 0.05, 0.4, 0.05, "How far each rib stands out (mm)", { mount:["slip", "pushin"], ribs:"some" }, "Retention"],
+    grooves:[0, 0, 4, 1, "Glue grooves (0: none)", { mount:["slip", "pushin"] }, "Retention"],
+    throatW:[2.6, 1.8, 3.6, 0.05, "Throat width: your string's serving (mm)", null, "String throat"],
+    throatD:[8, 5, 12, 0.5, "Throat depth from the ear tips (mm)", null, "String throat"],
+    leadIn:[0.5, 0, 1, 0.1, "Lead-in chamfer (mm)", null, "String throat"],
+    snap:[0, 0, 0.4, 0.05, "Snap: narrower above the seat (mm)", null, "String throat"],
+    length:[30, 22, 40, 0.5, "Overall length (mm)", { mount:["slip", "tapered"] }, "Shape"],
+    tipD:[6.0, 4.5, 9, 0.1, "Diameter at the ear tips (mm)", null, "Shape"],
+    flats:{ bool:true, def:true, label:"Flats on the taper, either side of the slot", group:"Shape" },
+    index:{ bool:true, def:true, label:"A ridge for the cock vane, to nock by feel", group:"Cock vane index" },
+    indexAngle:[0, 0, 180, 5, "Index angle (°, 0: square to the string)", { index:true }, "Cock vane index"],
+    label:{ text:true, def:"", max:10, label:"Text along the side (your initials)", group:"Label" },
+    number:{ bool:true, def:false, label:"Number the arrows (1, 2, 3…)", group:"Label" },
+    labelStyle:{ opts:["engraved", "raised"], def:"engraved", label:"Letters", when:{ label:"words" }, group:"Label" },
+    labelSize:[2.5, 1.5, 4, 0.1, "Letter height (mm)", { label:"words" }, "Label"],
+    orientation:{ opts:["upright", "tilt45", "side"], def:"tilt45", label:"Print it", group:"Print" },
+    quantity:[1, 1, 24, 1, "How many", { fitTest:false }, "Print"],
+    fitTest:{ bool:true, def:false, label:"A fit test instead: five, 0.05 mm apart on the fit, numbered 1 to 5", group:"Print" }
   };
-  const NOCK = { taper:5.5, wall:1.0, clear:0.1, flare:0.6, petg:0.00127, grain:15.4324 };   // the 11° taper's half angle; g/mm³; grains a gram
+  const NOCK = { bc:0.4, petg:0.00127, grain:15.4324, chars:/[^0-9A-Z+\-\/.: ]/g };
+  // is a setting shown (and used) for these choices: "some" is any number above 0; "words" is text along the side or arrow numbers
+  function nockShown(k, s){
+    const sp = NOCK_SETTINGS[k], w = Array.isArray(sp) ? sp[5] : sp && sp.when; if (!w) return true;
+    return Object.entries(w).every(([k2, v]) => v === "some" ? +s[k2] > 0 : v === "words" ? !!(s.label || s.number || s.fitTest) : Array.isArray(v) ? v.includes(s[k2]) : s[k2] === v);
+  }
   function nockClean(raw){
-    const r = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}, out = {};
+    let r = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+    // a project from 0.67 (Session 90's settings): carried over to these
+    if (!("mount" in r) && ("fit" in r || "string" in r)){
+      const m = { insert:"pushin", taper:"tapered", over:"slip" }[r.fit] || "slip";
+      r = { mount:m, shaftOd:r.shaftOd, shaftId:r.shaftId, throatW:r.string, snap:r.snap, throatD:r.depth, quantity:r.count,
+        index:r.index !== "none", fitTest:r.make === "test", orientation:"upright",
+        ...(m === "pushin" ? { pinLen:r.shank, headLen:r.head, interference:+r.tight || 0 } : { socket:r.shank, clearance:0.1 - (+r.tight || 0) }) };
+    }
+    const out = {};
     for (const [k, sp] of Object.entries(NOCK_SETTINGS)){
       if (Array.isArray(sp)){ const v = +r[k], [d, lo, hi, st] = sp; out[k] = Number.isFinite(v) ? +Math.min(hi, Math.max(lo, Math.round(v / st) * st)).toFixed(4) : d; }
+      else if (sp.bool) out[k] = typeof r[k] === "boolean" ? r[k] : sp.def;
+      else if (sp.text) out[k] = typeof r[k] === "string" ? r[k].toUpperCase().replace(NOCK.chars, "").slice(0, sp.max) : sp.def;
       else out[k] = typeof r[k] === "string" && sp.opts.includes(r[k]) ? r[k] : sp.def;
     }
     return out;
   }
-  // the sizes, made to go together (and said so when they had to be)
+  // the sizes (the SCAD's), made to go together, and said when they had to be
   function nockPlan(s){
-    const warn = [], insert = s.fit === "insert";
-    let id = s.shaftId, od = s.shaftOd;
-    if (insert && od < id + 0.4){ od = +(id + 0.4).toFixed(2); warn.push(`The shaft's outside is made ${od} mm: it must be bigger than its inside.`); }
-    const R = insert ? od / 2 : od / 2 + NOCK.clear + NOCK.wall;                       // the head (flush with a hollow shaft)
-    const sock = insert ? 0 : od / 2 + NOCK.clear - s.tight / 2;                      // the socket's mouth, round the shaft
-    const rs = insert ? (id + s.tight) / 2 : 0;                                       // the shank, in the shaft
-    const ds = s.string + 0.1, r = ds / 2, w = Math.max(0.8, s.string - s.snap);      // the string's seat and the throat
-    // a socket's end is pointed (45°, no ceiling as it prints): the head holds that point, 1.5 mm, then the groove
-    const bot = insert ? 0 : s.fit === "taper" ? sock - s.shank * Math.tan(NOCK.taper * Math.PI / 180) : sock;
-    const least = insert ? s.depth + 2 : Math.ceil((bot + 1.5 + s.depth) * 2) / 2;
-    let head = s.head;
-    if (head < least){ head = least; if (insert || s.head !== NOCK_SETTINGS.head[0]) warn.push(`The head is made ${head} mm long: it needs ${insert ? "2 mm" : "room for the socket's end"} under the groove.`); }
-    const ear = R - r;                                                                 // the ears' thickness beside the seat
-    return { s, insert, id, od, R, sock, bot, rs, ds, r, w, head, ear, warn };
+    const warn = [], push = s.mount === "pushin", taper = s.mount === "tapered", rad = Math.PI / 180;
+    const od = s.preset !== "custom" ? +s.preset : s.shaftOd, socketD = od + s.clearance;
+    let pinD = s.shaftId + s.interference;
+    if (push && pinD > od - 0.4){ pinD = +(od - 0.4).toFixed(2); warn.push(`The pin is made ${pinD} mm: it can't be as wide as the shaft (check the inside diameter).`); }
+    const R = push ? od / 2 : socketD / 2 + s.wall;
+    let depth = s.socket;
+    const tipOf = d => socketD - 2 * d * Math.tan(s.taper / 2 * rad);
+    if (taper && tipOf(depth) < 2){ depth = Math.floor((socketD - 2) / (2 * Math.tan(s.taper / 2 * rad)) * 2) / 2; warn.push(`The socket is made ${depth} mm deep: deeper, the taper would close up.`); }
+    const ceilD = taper ? tipOf(depth) : socketD, coneTop = push ? 0 : depth + ceilD / 2;
+    const w = s.throatW, ws = Math.max(0.6, w - s.snap);
+    let L = push ? s.headLen : s.length;
+    if (!push && L - s.throatD - coneTop < 1.5){ L = Math.ceil((coneTop + 1.5 + s.throatD) * 2) / 2; warn.push(`The nock is made ${L} mm long, to keep 1.5 mm of plastic between the socket and the throat.`); }
+    if (push && L - s.throatD < 2){ L = s.throatD + 2; warn.push(`The head is made ${L} mm long: it needs 2 mm under the throat.`); }
+    const slotBottom = L - s.throatD, Ts = push ? Math.max(1, slotBottom - 3) : coneTop + 0.5;
+    const rTip = Math.min(s.tipD / 2, R), tipRound = Math.min(1.2, rTip * 0.4), flatTip = 0.55 * rTip, flatSlope = (R + 0.2 - flatTip) / (L - Ts);
+    const engrave = push ? 0.4 : Math.min(0.4, s.wall - 0.5);
+    const P = { s, push, taper, od, socketD, pinD, R, depth, ceilD, coneTop, w, ws, L, slotBottom, Ts, rTip, tipRound, flatSlope, engrave, warn,
+      base:push ? s.pinLen : 0, ear:rTip - ws / 2 };
+    P.labelZ0 = push ? 0.6 : 1.5; P.labelZ1 = push ? slotBottom - 0.6 : Ts - 0.5;
+    return P;
   }
-  // one nock, standing on the shaft's end (y = 0 on the bed), the groove at the top. `rsAdj`: a fit test's step on the shank or socket;
-  // `marks`: a fit test's number, as bumps on the side away from the mark
-  function nockSolid(P, rsAdj, marks){
-    const s = P.s, out = [], R = P.R, L = s.shank, top = L + P.head, yS = top - s.depth + P.r;   // the seat's centre
-    // the body under the groove: the shank in the shaft, or the socket over it
-    const yb = yS - P.r;                                                               // the groove's bottom
-    if (P.insert){
-      const rs = P.rs + (rsAdj || 0) / 2, ch = Math.min(0.4, rs * 0.2);                // a lead-in at the tip, steeper than 45°
-      out.push(revolve([[0, 0], [rs - ch, 0], [rs, ch * 1.6], [rs, L], [R, L], [R, yb + 0.01], [0, yb + 0.01]], segsFor(R, 48)));
+  // the outside's radius at a height on the body (from its base), the taper and the rounded tip; the flats' half-width; the slot's
+  function nockR(P, z){
+    const { R, Ts, L, rTip, tipRound:tr } = P, pr = z2 => { if (z2 <= Ts) return R; const t = Math.min(1, Math.max(0, (z2 - Ts) / (L - Ts))); return R - (R - rTip) * (0.35 * t * t + 0.65 * t); };
+    if (z <= L - tr) return pr(z);
+    const re = pr(L - tr), dz = z - (L - tr); return re - tr + Math.sqrt(Math.max(0, tr * tr - dz * dz));
+  }
+  const nockF = (P, z) => !P.s.flats ? Infinity : z <= P.Ts ? P.R + 0.2 : P.R + 0.2 - P.flatSlope * (z - P.Ts);
+  function nockH(P, z){
+    const { w, ws, L, slotBottom:sb } = P, li = P.s.leadIn, yc = sb + w / 2, c = Math.abs(z - yc) <= w / 2 ? Math.sqrt(Math.max(0, w * w / 4 - (z - yc) * (z - yc))) : 0;
+    let h = z <= yc ? c : Math.max(ws / 2, c);
+    if (li > 0 && z > L - 2 * li) h = Math.max(h, ws / 2 + li * (z - (L - 2 * li)) / (2 * li + 0.1));
+    return h;
+  }
+  // a 2D outline wrapped onto the round side: (u along the axis, v round it) at radii r0..r1; the label's letters
+  function nockWrap(poly, map, r0, r1){
+    const rings = [poly.outer, ...(poly.holes || [])], flat = [], hidx = [], pts = [];
+    rings.forEach((ring, k) => { if (k) hidx.push(pts.length); ring.forEach(p => { pts.push(p); flat.push(p[0], p[1]); }); });
+    const tri = global.earcut(flat, hidx, 2), n = pts.length, pos = [], idx = [];
+    for (const r of [r0, r1]) pts.forEach(p => { const q = map(p[0], p[1], r); pos.push(q[0], q[1], q[2]); });
+    for (let t = 0; t < tri.length; t += 3){ idx.push(tri[t], tri[t + 2], tri[t + 1]); idx.push(n + tri[t], n + tri[t + 1], n + tri[t + 2]); }
+    let o = 0; rings.forEach(ring => { const m = ring.length; for (let i = 0; i < m; i++){ const a = o + i, b = o + (i + 1) % m; idx.push(a, b, n + b, a, n + b, n + a); } o += m; });
+    const sol = { pos:new Float32Array(pos), idx:new Uint32Array(idx) };
+    if (signedVolume(sol) < 0) for (let q = 0; q < sol.idx.length; q += 3){ const t2 = sol.idx[q + 1]; sol.idx[q + 1] = sol.idx[q + 2]; sol.idx[q + 2] = t2; }
+    return sol;
+  }
+  // one nock, upright (its shaft end down), the slot along z, the ears either side along x. step: a fit test's change on the socket or
+  // pin (mm across); text: its label. Returns the solid, the label's raised letters and its cutters (for engraving)
+  function nockSolid(P, step, text){
+    const s = P.s, out = [], y0 = P.base, rad = Math.PI / 180, segs = segsFor(P.R, 48);
+    const at = (phi, r, y) => [r * Math.cos(phi), y, -r * Math.sin(phi)];          // round the axis: 0 is +x (an ear), towards −z
+    // the body: the socket or the pin, up to the start of the taper (Ts)
+    const prof = [];
+    if (P.push){
+      const pr = (P.pinD + (step || 0)) / 2, gz = [];
+      for (let k = 1; k <= (s.grooves || 0); k++) gz.push(P.base * k / (s.grooves + 1));
+      prof.push([0, 0], [pr - 0.4, 0], [pr, 0.4]);
+      gz.forEach(z => prof.push([pr, z - 0.3], [pr - 0.3, z], [pr, z + 0.3]));              // glue grooves: V rings (no overhang)
+      const c0 = Math.max(pr, P.R - NOCK.bc);
+      prof.push([pr, y0], [c0, y0 + Math.max(0, pr - (P.R - NOCK.bc))], [P.R, y0 + NOCK.bc]);
     } else {
-      const m = P.sock - (rsAdj || 0) / 2, bot = P.bot - (rsAdj || 0) / 2;
-      // from the socket's pointed end (45°, so it prints without a ceiling) down its wall, out along the bed, up the outside, over the top
-      out.push(revolve([[0, L + bot], [bot, L], [m, 0], [R, 0], [R, yb + 0.01], [0, yb + 0.01]], segsFor(R, 48)));
+      const sr = (P.socketD - (step || 0)) / 2, cr = P.taper ? (P.ceilD - (step || 0)) / 2 : sr, wallR = z => sr + (cr - sr) * z / P.depth;
+      const gz = []; if (!P.taper) for (let k = 1; k <= (s.grooves || 0); k++) gz.push(P.depth * k / (s.grooves + 1));
+      prof.push([0, P.depth + cr], [cr, P.depth]);                                          // the ceiling: a 45° cone, no support inside
+      gz.slice().reverse().forEach(z => prof.push([wallR(z + 0.3), z + 0.3], [wallR(z) + 0.3, z], [wallR(z - 0.3), z - 0.3]));
+      const mouth = Math.min(sr + 0.4, P.R - NOCK.bc - 0.05);
+      prof.push([sr, 0.4], [mouth, 0], [P.R - NOCK.bc, 0], [P.R, NOCK.bc]);
     }
-    // the ears: each a loft of slices, the arc of the head's circle beyond the slot's half-width at that height
-    const h0 = P.w / 2, hy = y => {                                                    // the slot's half-width at y
-      const c = Math.abs(y - yS) <= P.r ? Math.sqrt(Math.max(0, P.r * P.r - (y - yS) * (y - yS))) : 0;
-      let h = y >= yS ? Math.max(h0, c) : c;
-      if (y > top - NOCK.flare) h += (y - (top - NOCK.flare)) * Math.tan(30 * Math.PI / 180);   // the mouth opened out
-      return Math.min(h, R * 0.92);
+    prof.push([P.R, y0 + P.Ts], [0, y0 + P.Ts]);
+    out.push(revolve(prof, segs));
+    // the taper under the slot (with its flats), then each ear: slices of the outline (round, flattened either side of the slot, past
+    // the slot's half-width at that height), lofted
+    const N = 64, slice = (z, h, sg) => {                                              // sg 0: whole; ±1: the ear on that side of x
+      const r = nockR(P, z), F = nockF(P, z), L2 = [];
+      if (!sg){ for (let i = 0; i < N; i++){ const t = 2 * Math.PI * i / N, q = at(t, r, y0 + z); q[2] = Math.max(-F, Math.min(F, q[2])); L2.push(q); } return L2; }
+      const tm = Math.acos(Math.min(1, h / Math.max(1e-6, r))), M = 41;
+      for (let i = 0; i < M; i++){ const t = -tm + 2 * tm * i / (M - 1), x = r * Math.cos(t), zz = Math.max(-F, Math.min(F, r * Math.sin(t)));
+        L2.push([sg * x, y0 + z, sg > 0 ? -zz : zz]); }
+      return L2;
     };
-    const fT = Math.asin(Math.min(1, Math.sqrt(Math.max(0, P.r * P.r - h0 * h0)) / P.r)), ys = [];
-    for (let i = 0; i <= 12; i++) ys.push(yS + P.r * Math.sin(-Math.PI / 2 + (fT + Math.PI / 2) * i / 12));   // round the seat, by angle
-    ys.push(top - NOCK.flare, top);
-    const N = 33;
-    for (const sg of [1, -1]){
-      const loops = ys.map(y => { const h = hy(y), t0 = Math.asin(Math.min(0.999, h / R)), L2 = [];
-        for (let i = 0; i < N; i++){ const t = t0 + (Math.PI - 2 * t0) * i / (N - 1); L2.push([R * Math.cos(t), y, sg * R * Math.sin(t)]); }
-        return L2; });
-      out.push(loft(loops));
+    const steps = (a, b, d) => { const n = Math.max(1, Math.ceil((b - a) / d)), o = []; for (let i = 0; i <= n; i++) o.push(a + (b - a) * i / n); return o; };
+    const sb = P.slotBottom;
+    if (sb > P.Ts + 1e-6) out.push(loft(steps(P.Ts - 0.01, sb + 0.01, 0.5).map(z => slice(z, 0, 0))));
+    const yc = sb + P.w / 2, zt = yc + Math.sqrt(Math.max(0, P.w * P.w / 4 - P.ws * P.ws / 4));
+    let zs = [];
+    for (let i = 0; i <= 12; i++) zs.push(yc + P.w / 2 * Math.sin(-Math.PI / 2 + (Math.asin(Math.min(1, (zt - yc) / (P.w / 2))) + Math.PI / 2) * i / 12));
+    zs.push(...steps(zt, P.L - P.tipRound, 0.5), P.L - 2 * s.leadIn);
+    for (let i = 1; i <= 8; i++) zs.push(P.L - P.tipRound + P.tipRound * Math.sin(Math.PI / 2 * i / 8));
+    zs = [...new Set(zs.filter(z => z >= sb && z <= P.L).map(z => +z.toFixed(5)))].sort((a, b) => a - b);
+    const gone = zs.findIndex(z => nockH(P, z) >= nockR(P, z) - 1e-4); if (gone > 0) zs = zs.slice(0, gone + 1);   // an ear that runs out ends in a point
+    for (const sg of [1, -1]) out.push(loft(zs.map(z => slice(z, nockH(P, z), sg))));
+    // crush ribs: thin columns in the socket's wall, or on the pin
+    if (s.ribs > 0 && !P.taper) for (let k = 0; k < s.ribs; k++){
+      const phi = (k * 360 / s.ribs + 180 / s.ribs) * rad, rc = P.push ? (P.pinD + (step || 0)) / 2 - 0.4 + s.ribH : (P.socketD - (step || 0)) / 2 + 0.4 - s.ribH;
+      const c = at(phi, rc, 0), y1 = P.push ? P.base - 1 : P.depth - 1; if (y1 > 1.2) out.push(prismXZ(pCirc(0.4, c[0], c[2], 16), [], 1, y1));
     }
-    // the cock-feather mark: a ridge on one ear's outside, square to the string
-    if (s.index === "ridge") out.push(pBox(-0.6, 0.6, P.insert ? L + 0.4 : 0.6, top - 1.2, R - 0.3, R + 0.5));
-    // a fit test's number: bumps up the other ear
-    for (let k = 0; k < (marks || 0); k++){ const y = (P.insert ? L : 1) + 1 + k * 1.4; out.push(pBox(-0.5, 0.5, y, y + 0.8, -R - 0.5, -R + 0.3)); }
-    return mergeSolids(out.filter(Boolean));
+    // the cock-vane ridge: a rounded bead, flattened, along the side at the index angle
+    if (s.index){
+      const z0 = (P.push ? 1 : 2) + 0.6, z1 = (P.push ? sb : P.Ts) - 1 - 0.6;
+      if (z1 > z0){ const cap = []; for (let i = 0; i <= 8; i++){ const a = -Math.PI / 2 + Math.PI / 2 * i / 8; cap.push([0.6 * Math.cos(a), z0 + 0.6 * Math.sin(a)]); }
+        for (let i = 0; i <= 8; i++){ const a = Math.PI / 2 * i / 8; cap.push([0.6 * Math.cos(a), z1 + 0.6 * Math.sin(a)]); }
+        const bead = revolve([[0, z0 - 0.6], ...cap.filter(p => p[0] > 1e-6), [0, z1 + 0.6]], 24), phi = s.indexAngle * rad, c = Math.cos(phi), sn = Math.sin(phi);
+        out.push(affineSolid(bead, [0.8 * c, 0, sn, 0, 1, 0, -0.8 * sn, 0, c], [P.R * c, y0, -P.R * sn])); }   // squashed to 0.8 across, turned to its angle
+    }
+    // the label: letters along the side, opposite the ridge, reading up the axis
+    let raised = [], cutters = [], shrink = 1;
+    if (text){
+      const room = P.labelZ1 - P.labelZ0, zc = (P.labelZ0 + P.labelZ1) / 2, probe = strokeText(text, 0, 0, s.labelSize);
+      shrink = probe.width > room ? room / probe.width : 1;
+      const hgt = s.labelSize * shrink, segs2 = strokeText(text, 0, 0, hgt).segs, polys = strokePolys(segs2, Math.max(0.18, hgt * 0.11), Math.max(0.03, hgt / 60));
+      const phc = (s.indexAngle + 180) * rad;
+      // the glyph's x reads up the axis; its y (up the letter) goes round, to the reader's left
+      const map = (gx, gy, r) => at(phc - gy / P.R, r, y0 + zc + gx);
+      polys.forEach(pl => { raised.push(nockWrap(pl, map, P.R - 0.6, P.R + 0.45)); cutters.push(nockWrap(pl, map, P.R - P.engrave, P.R + 1)); });
+    }
+    return { solid:mergeSolids(out.filter(Boolean)), raised, cutters, shrink };
   }
   function nockMake(raw){
-    const s = nockClean(raw), P = nockPlan(s);
-    const test = s.make === "test", steps = test ? [-0.1, -0.05, 0, 0.05, 0.1] : null;
-    const one = nockSolid(P, 0, 0), printed = [];
-    if (test) steps.forEach((d, k) => printed.push({ key:"test" + (k + 1), name:`Fit test ${k + 1} (${d > 0 ? "+" : ""}${d.toFixed(2)} mm)`, solid:nockSolid(P, d, k + 1), step:d }));
-    else for (let k = 0; k < s.count; k++) printed.push({ key:"nock" + (k + 1), name:`Nock ${k + 1}`, solid:one });
-    // laid out in rows on the bed, 4 mm apart
-    const pitch = 2 * P.R + 5, per = Math.max(1, Math.ceil(Math.sqrt(printed.length)));
-    printed.forEach((p, k) => { const b = solidBounds(p.solid); p.at = [(k % per) * pitch, Math.floor(k / per) * pitch];   // where its axis is
-      p.solid = affineSolid(p.solid, PART_I, [p.at[0], -b.mn[1], p.at[1]]); });
-    const info = nockInfo(P, one);
-    return { settings:s, printed, info, plan:P };
+    const s = nockClean(raw), P = nockPlan(s), rad = Math.PI / 180;
+    const steps = s.fitTest ? [-0.1, -0.05, 0, 0.05, 0.1] : Array.from({ length:s.quantity }, () => 0);
+    const textOf = k => s.fitTest ? String(k + 1) : `${s.label}${s.number ? k + 1 : ""}`;
+    const a = { upright:0, tilt45:45, side:90 }[s.orientation] * rad, ca = Math.cos(a), sa = Math.sin(a);
+    const M = [1, 0, 0, 0, ca, -sa, 0, sa, ca];                                          // tipped over about x: the ears stay side by side
+    const raisedLabels = s.labelStyle === "raised";
+    const items = steps.map((st, k) => { const n = nockSolid(P, st, textOf(k)); return { k, st, n }; });
+    const upright = items[0].n.solid;
+    const printed = [];
+    let col = 0, row = 0, x = 0, z = 0, rowDepth = 0;
+    const per = Math.max(1, Math.ceil(Math.sqrt(items.length)));
+    items.forEach(({ k, st, n }) => {
+      const parts = [n.solid, ...(raisedLabels ? n.raised : [])], body = mergeSolids(parts), b0 = solidBounds(affineSolid(body, M, [0, 0, 0]));
+      const T = [0, -b0.mn[1], 0], tb = { mn:[b0.mn[0], 0, b0.mn[2]], mx:[b0.mx[0], b0.mx[1] - b0.mn[1], b0.mx[2]] };
+      if (col === per){ col = 0; x = 0; z += rowDepth + 4; rowDepth = 0; }
+      T[0] = x - tb.mn[0]; T[2] = z - tb.mn[2]; x += tb.mx[0] - tb.mn[0] + 4; rowDepth = Math.max(rowDepth, tb.mx[2] - tb.mn[2]); col++;
+      const place = sol => affineSolid(sol, M, T);
+      printed.push({ key:"nock" + (k + 1), name:s.fitTest ? `Fit test ${k + 1} (${st > 0 ? "+" : ""}${st.toFixed(2)} mm)` : `Nock ${k + 1}`, solid:place(body), step:st,
+        cutters:raisedLabels ? [] : n.cutters.map(place), raisedLetters:raisedLabels ? [] : n.raised.map(place), text:textOf(k), at:T });
+    });
+    const info = nockInfo(P, upright, items[0].n.shrink, textOf(0));
+    return { settings:s, printed, info, plan:P, shown:k => nockShown(k, s) };
   }
-  function nockInfo(P, one){
+  function nockInfo(P, one, shrink, text){
     const s = P.s, vol = signedVolume(one), g = vol * NOCK.petg, checks = [];
-    checks.push({ key:"ears", ok:P.ear >= 1.2, name:`Ears ${P.ear.toFixed(1)} mm thick beside the string`, why:"at least 1.2 mm, or they split" });
-    checks.push({ key:"snap", ok:s.snap <= 0.3, name:`The throat ${P.w.toFixed(2)} mm for a ${s.string} mm string`, why:"up to 0.3 mm narrower snaps on; more may not let the string in" });
-    if (P.insert) checks.push({ key:"collar", ok:P.R - P.rs >= 0.2, name:`A ${(P.R - P.rs).toFixed(2)} mm collar on the shaft's end`, why:"at least 0.2 mm, so it stops on the shaft" });
-    else checks.push({ key:"socket", ok:P.R - P.sock >= 0.8, name:`A ${(P.R - P.sock).toFixed(2)} mm wall round the shaft`, why:"at least 0.8 mm" });
-    const kind = { insert:"pushes into the shaft", taper:"slips onto the shaft's 11° taper (glue it)", over:"sleeves over the shaft's end (glue it)" }[s.fit];
+    checks.push({ key:"ears", ok:P.ear >= 1.2, name:`Ears ${P.ear.toFixed(2)} mm thick at the tips`, why:"at least 1.2 mm, or they split: a bigger tip diameter, or a narrower throat" });
+    if (!P.push) checks.push({ key:"between", ok:P.slotBottom - P.coneTop >= 1.5, name:`${(P.slotBottom - P.coneTop).toFixed(1)} mm of plastic between the socket and the throat`, why:"at least 1.5 mm" });
+    else checks.push({ key:"collar", ok:P.R - P.pinD / 2 >= 0.2, name:`A ${(P.R - P.pinD / 2).toFixed(2)} mm collar on the shaft's end`, why:"at least 0.2 mm, so it stops on the shaft" });
+    const kind = { slip:"slips over the shaft (glue it, or press it on with crush ribs)", tapered:"slips onto the shaft's taper (glue it)", pushin:"pushes into the shaft" }[s.mount];
+    const how = { upright:"standing upright: neat, but the ears are weakest this way", tilt45:"tilted 45°: the ears print strong and nothing needs support", side:"on its side: the strongest ears; the flat under the head may want a little support" }[s.orientation];
     const notes = [
-      `It ${kind}. Print it standing on the shaft's end, the groove up: no support. PETG or nylon, 0.12 mm layers, 100% infill (or 5 walls).`,
-      "Turn it so the ridge lines up with the cock feather (the odd-coloured one), square to the string.",
+      `It ${kind}. Print it ${how}. PETG or nylon, 0.12 mm layers, 100% infill (or 5 walls).`,
+      "Line the ridge up with the cock vane (the odd-coloured one), square to the string, so you can nock by feel.",
       "A nock is a wear part: check each one before you shoot, and replace any that is cracked or loose. A nock that breaks can make the bow dry-fire."
     ];
-    if (s.make === "test") notes.push("The fit test: five nocks 0.05 mm apart, numbered by the bumps on the side (1 the loosest). Push each onto a shaft and onto the string; use the step that grips firmly, and set Tighter or looser by it.");
-    const size = { across:+(2 * P.R).toFixed(2), long:+(s.shank + P.head).toFixed(1), grains:+(g * NOCK.grain).toFixed(1), grams:+g.toFixed(2) };
-    return { checks, ok:checks.every(q => q.ok), notes, size, warn:P.warn.slice() };
+    if (s.fitTest) notes.push("The fit test: five nocks 0.05 mm apart on the fit, numbered 1 (the loosest) to 5. Try each on a shaft and on the string, then set the clearance (or the pin's press fit) by the one that fits.");
+    if (s.orientation !== "upright") notes.push("Tilted or on its side, it stands on a small edge: add a brim (Export tab, Brim width) so it stays put while it prints.");
+    if (text && shrink < 0.999) notes.push(`The text is made ${Math.round(shrink * 100)}% of its size to fit the ${(P.labelZ1 - P.labelZ0).toFixed(1)} mm of side there is. Shorter text, or a longer nock, keeps it full size.`);
+    const size = { across:+(2 * P.R).toFixed(2), long:+(P.L + (P.push ? s.pinLen : 0)).toFixed(1), grains:+(g * NOCK.grain).toFixed(1), grams:+g.toFixed(2) };
+    return { checks, ok:checks.every(q => q.ok), notes, size, warn:P.warn.slice(), credit:"The owner's own design (arrow_nock.scad), made in Maker Forge" };
+  }
+
+
+  // ---------- the fume extractor (Session 95): the owner's "Sir Sucks-a-Lot" (Retr0Plus95/Solder-Fume-Extractor) as a maker: one or
+  // two fans in line in a printed duct, pulling the fumes through a mesh and a carbon pad in a tray behind the front grille; an
+  // electronics bay under the fans with the display, the speed knob and the switch on the front panel and the board on the rear cap ----------
+  // Built as it stands on the bench (Y up, Z towards you: air in at the front, out at the back), then each part turned to print:
+  // the duct on its back, the front panel on its face, the rear cap on its outside, the tray on its grid.
+  const FUME_FANS = { 80:{ hole:71.5 }, 92:{ hole:82.5 }, 120:{ hole:105 }, 140:{ hole:124.5 } };    // square fans, 25 mm thick; their screw holes' spacing
+  const FUME_DISPLAYS = { lcd1602:{ label:"1602 LCD (I²C)", w:80, h:36, win:[71.5, 24.5], holes:[75, 31], hd:3.2, deep:22 },
+    oled096:{ label:"0.96 inch OLED (I²C)", w:27.3, h:27.8, win:[25, 14], dy:2, holes:[23.5, 23.8], hd:2.2, deep:5 } };
+  const FUME_SWITCHES = { rocker:{ label:"Rocker switch (19 × 13 mm)", rect:[19.2, 12.9], cap:[21, 15] }, round:{ label:"Round rocker (20 mm)", dia:20.2, cap:[23, 23] },
+    toggle:{ label:"Mini toggle (6 mm)", dia:6.4, cap:[12, 12] } };
+  const FUME_SETTINGS = {
+    fan:{ opts:["80", "92", "120", "140"], def:"120", label:"Fan size (mm)" },
+    fans:{ opts:["1", "2"], def:"2", label:"Fans in line" },
+    pad:[10, 3, 25, 1, "Carbon pad (mm thick)"],
+    bay:{ opts:["below", "none"], def:"below", label:"Electronics bay" },
+    bayH:[80, 50, 110, 1, "Bay, inside (mm tall)"],
+    display:{ opts:["lcd1602", "oled096", "none"], def:"lcd1602", label:"Display" },
+    knob:{ opts:["pot", "none"], def:"pot", label:"Speed knob" },
+    sw:{ opts:["rocker", "round", "toggle", "none"], def:"rocker", label:"Power switch" },
+    power:{ opts:["barrel", "usbc", "none"], def:"barrel", label:"Power in (at the back)" },
+    boardW:[90, 30, 120, 1, "Board, wide (mm)"],
+    boardH:[70, 20, 110, 1, "Board, tall (mm)"],
+    grille:{ opts:["bars", "honeycomb"], def:"bars", label:"Grilles" },
+    wall:[2.4, 1.6, 4, 0.2, "Walls (mm)"],
+    feet:{ opts:["rails", "none"], def:"rails", label:"Feet" },
+    name:{ text:true, max:16, def:"", label:"Name on the side" }
+  };
+  // c: clearance round the fans and the tray; capT: the front panel and rear cap; rb: the corner bosses' radius (a 4 mm hole for an
+  // M3 heat insert at each end); gap: in front of the fans for the nuts on their bolts; rib: the tray's stop
+  const FUME = { c:0.5, capT:3, rb:3.75, bossIn:3, gap:4, rib:2, frame:2, grid:2, lip:4, chars:/[^0-9A-Z+\-\/.: ]/g };
+  function fumeClean(raw){
+    const r = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}, out = {};
+    for (const [k, sp] of Object.entries(FUME_SETTINGS)){
+      if (Array.isArray(sp)){ const v = +r[k], [d, lo, hi, st] = sp; out[k] = Number.isFinite(v) ? +Math.min(hi, Math.max(lo, Math.round(v / st) * st)).toFixed(4) : d; }
+      else if (sp.text) out[k] = typeof r[k] === "string" ? r[k].toUpperCase().replace(FUME.chars, "").slice(0, sp.max) : sp.def;
+      else out[k] = typeof r[k] === "string" && sp.opts.includes(r[k]) ? r[k] : sp.def;
+    }
+    return out;
+  }
+  // a polygon cut by the half-plane a·x + b·y <= c (Sutherland–Hodgman, one edge)
+  const fumeClip = (L, a, b, c) => { const out = []; for (let i = 0; i < L.length; i++){ const p = L[i], q = L[(i + 1) % L.length], fp = a * p[0] + b * p[1] - c, fq = a * q[0] + b * q[1] - c;
+    if (fp <= 0) out.push(p); if ((fp < 0) !== (fq < 0) && fp !== fq){ const t = fp / (fp - fq); out.push([p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])]); } } return out; };
+  // a square of side s round (cx, cy), its corners cut off by ch
+  const fumeOct = (s, ch, cx, cy) => { const h = s / 2, k = h - ch; return [[cx - k, cy - h], [cx + k, cy - h], [cx + h, cy - k], [cx + h, cy + k], [cx + k, cy + h], [cx - k, cy + h], [cx - h, cy + k], [cx - h, cy - k]]; };
+  const fumeRect = (x0, x1, y0, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+  const fumeRound = (w, h, r, y0) => { const L = [], n = 6; for (const [cx, cy, a0] of [[w / 2 - r, y0 + r, -90], [w / 2 - r, y0 + h - r, 0], [-w / 2 + r, y0 + h - r, 90], [-w / 2 + r, y0 + r, 180]])
+    for (let i = 0; i <= n; i++){ const a = (a0 + 90 * i / n) * Math.PI / 180; L.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); } return L; };
+  function fumePlan(s){
+    const fan = +s.fan, n = +s.fans, t = s.wall, warn = [], F = FUME_FANS[fan], c = FUME.c;
+    // the duct is 10 mm wider than the fan: the corner bosses then clear the fan's rounded corners (r 5) by a millimetre
+    const cw = fan + 10, bay = s.bay !== "none", bayH = bay ? s.bayH : 0;
+    const W = cw + 2 * t, H = t + (bay ? bayH + t : 0) + cw + t;
+    const yBay = t + bayH / 2, yC = t + (bay ? bayH + t : 0) + cw / 2;               // the bay's and the fans' middles
+    const trayD = s.pad + 1 + FUME.grid + 3, fanZ0 = 0.3, fanZ1 = fanZ0 + 25 * n;
+    const ribZ = fanZ1 + FUME.gap, trayZ0 = ribZ + FUME.rib, D = Math.ceil(trayZ0 + trayD + c);
+    const trayS = cw - 2 * c, trayCh = 12;                                          // the tray: corners cut to clear the bosses
+    // the bosses, in the inside's four corners (one where the divider meets a wall would cut through the divider: Session 95)
+    const bx = cw / 2 - FUME.bossIn, yTop = H - t - FUME.bossIn, yBot = t + FUME.bossIn, bosses = [];
+    for (const sx of [-1, 1]) bosses.push([sx * bx, yTop], [sx * bx, yBot]);
+    // what goes on the front panel's bay: the display on the left and the knob and switch beside it, or the display above them
+    const DS = bay && s.display !== "none" ? FUME_DISPLAYS[s.display] : null, SW = bay && s.sw !== "none" ? FUME_SWITCHES[s.sw] : null, knob = bay && s.knob === "pot";
+    const ctl = [knob ? { k:"knob", w:24, h:24 } : null, SW ? { k:"sw", w:SW.cap[0] + 3, h:SW.cap[1] + 3, SW } : null].filter(Boolean);
+    let lay = null, fits = true;
+    if (bay){
+      const xL = -cw / 2 + 4, xR = cw / 2 - 4, yL = t + 3, yH = t + bayH - 3;      // the free face, clear of the walls
+      const colH = ctl.reduce((a, q) => a + q.h, 0) + Math.max(0, ctl.length - 1) * 4, colW = Math.max(0, ...ctl.map(q => q.w));
+      if (!DS){ const x0 = -(ctl.reduce((a, q) => a + q.w, 0) + Math.max(0, ctl.length - 1) * 8) / 2; let x = x0;
+        lay = { ctl:ctl.map(q => { const o = { ...q, x:x + q.w / 2, y:yBay }; x += q.w + 8; return o; }) };
+        fits = ctl.reduce((a, q) => a + q.w, 0) + 8 * Math.max(0, ctl.length - 1) <= xR - xL && Math.max(0, ...ctl.map(q => q.h)) <= yH - yL; }
+      else if (xR - xL >= DS.w + 6 + colW && DS.h <= yH - yL && colH <= yH - yL){        // side by side
+        const xd = xL + DS.w / 2, xc = (xL + DS.w + 6 + xR) / 2; let y = yBay + colH / 2;
+        lay = { disp:{ x:xd, y:yBay }, ctl:ctl.map(q => { const o = { ...q, x:xc, y:y - q.h / 2 }; y -= q.h + 4; return o; }) };
+      } else if (DS.w <= xR - xL && DS.h + 6 + Math.max(0, ...ctl.map(q => q.h)) <= yH - yL){  // the display above, the controls in a row under it
+        const rowH = Math.max(0, ...ctl.map(q => q.h)), yd = yH - DS.h / 2, yr = yL + rowH / 2, rw = ctl.reduce((a, q) => a + q.w, 0) + 8 * Math.max(0, ctl.length - 1); let x = -rw / 2;
+        lay = { disp:{ x:0, y:yd }, ctl:ctl.map(q => { const o = { ...q, x:x + q.w / 2, y:yr }; x += q.w + 8; return o; }) };
+        fits = rw <= xR - xL;
+      } else { lay = { ctl:[] }; fits = false; }
+    }
+    // the board on standoffs on the rear cap, in the bay's middle; the power socket and the vents beside it
+    const bw = s.boardW, bh = s.boardH, board = bay ? { x:0, y:yBay, w:bw, h:bh } : null;
+    const boardFits = !bay || (bw <= cw - 2 * (FUME.bossIn + FUME.rb + 1) && bh <= bayH - 2);
+    const side = board ? (cw / 2 - bw / 2) : 0;                                      // room each side of the board
+    const jack = bay && s.power !== "none" ? { k:s.power, x:-(cw / 2 + bw / 2) / 2, y:yBay, d:s.power === "barrel" ? 8 : 0 } : null;
+    const jackFits = !jack || side >= (s.power === "barrel" ? 12 : 13);
+    const ventN = bay ? Math.max(0, Math.min(4, Math.floor((side - 6) / 6))) : 0;
+    if (!bay && (s.display !== "none" || s.knob !== "none" || s.sw !== "none" || s.power !== "none"))
+      warn.push("With no electronics bay there is nowhere for the display, the knob, the switch or the socket: they are left out, and the fans' cable leaves through a hole in the rear cap.");
+    if (bay && !fits) warn.push("The display, the knob and the switch don't all fit the bay: make the bay taller, use a bigger fan (a wider bay) or a smaller display.");
+    if (bay && !boardFits) warn.push(`The board is bigger than the bay (${cw - 2 * (FUME.bossIn + FUME.rb + 1)} × ${bayH - 2} mm at most): make it smaller or the bay taller.`);
+    if (bay && !jackFits) warn.push("The board leaves no room beside it for the power socket: make the board narrower.");
+    const depthNeed = bay ? 6 + 1.6 + 12 + (DS ? DS.deep : knob ? 12 : 0) : 0;
+    if (bay && D < depthNeed) warn.push(`At ${D} mm deep there is little room between the board and the ${DS ? "display" : "knob"} (${Math.ceil(depthNeed)} mm needed): use two fans or a thicker pad.`);
+    if (H > 256 || W > 256) warn.push(`At ${Math.ceil(W)} × ${Math.ceil(H)} mm the panels need a bed bigger than 256 mm.`);
+    return { s, fan, n, F, t, c, cw, bay, bayH, W, H, D, yBay, yC, trayD, trayS, trayCh, fanZ0, fanZ1, ribZ, trayZ0, bosses, DS, SW, knob, lay, fits, board, boardFits, jack, jackFits, ventN, depthNeed, warn };
+  }
+  // the grille over a fan: bars (slots) or hexagons, inside a circle; returns the holes and their open area
+  function fumeGrille(P, cy){
+    const R = P.fan / 2 - 3, holes = []; let area = 0;
+    if (P.s.grille === "honeycomb"){
+      const af = 7, web = 1.6, p = af + web, hr = af / Math.sqrt(3);
+      for (let j = -40; j <= 40; j++) for (let i = -40; i <= 40; i++){
+        const x = i * p + (j & 1 ? p / 2 : 0), y = j * p * Math.sqrt(3) / 2;
+        if (Math.hypot(x, y) + hr > R - 1) continue;
+        const L = []; for (let k = 0; k < 6; k++){ const a = (30 + 60 * k) * Math.PI / 180; L.push([x + hr * Math.cos(a), cy + y + hr * Math.sin(a)]); }
+        holes.push(L); area += af * af * Math.sqrt(3) / 2;
+      }
+    } else {
+      const w = 5, pitch = 8;
+      for (let k = -40; k <= 40; k++){
+        const y = k * pitch, e = Math.abs(y) + w / 2; if (e > R - 2) continue;
+        const hx = Math.sqrt(R * R - e * e) - 1; if (hx < 4) continue;
+        holes.push(fumeRect(-hx, hx, cy + y - w / 2, cy + y + w / 2)); area += 2 * hx * w;
+      }
+    }
+    return { holes, open:area / (Math.PI * R * R) };      // of the circle the blades turn in
+  }
+  // the duct: the walls round the fans and the bay, the divider between them (a notch at the back for the fans' cables), the
+  // corner bosses, the tray's stops, the feet and the name
+  function fumeBody(P){
+    const { t, cw, W, H, D, bay, bayH, yC } = P, out = [], outline = fumeRound(W, H, 3, 0);
+    const ch = fumeRect(-cw / 2, cw / 2, yC - cw / 2, yC + cw / 2), by = bay ? fumeRect(-cw / 2, cw / 2, t, t + bayH) : null;
+    if (bay){
+      const nx0 = cw / 2 - 30, nx1 = cw / 2 - 16, dy0 = t + bayH - 0.01, dy1 = t + bayH + t + 0.01, zN = 12;
+      // at the back, the divider has a notch: the chamber, the notch and the bay are one opening there
+      const one = [[-cw / 2, t], [cw / 2, t], [cw / 2, dy0 + 0.01], [nx1, dy0 + 0.01], [nx1, dy1 - 0.01], [cw / 2, dy1 - 0.01], [cw / 2, yC + cw / 2], [-cw / 2, yC + cw / 2], [-cw / 2, dy1 - 0.01], [nx0, dy1 - 0.01], [nx0, dy0 + 0.01], [-cw / 2, dy0 + 0.01]];
+      // its top pointed (55° each side), so the duct prints on its back with no support over the notch
+      const hw = (nx1 - nx0) / 2, mid = (nx0 + nx1) / 2, up = hw * 1.4;
+      out.push(prismXY(outline, [one], 0, zN + up + 2));
+      out.push(prismXZ([[nx0 - 0.01, zN], [mid, zN + up], [nx1 + 0.01, zN], [nx1 + 0.01, zN + up + 2.01], [nx0 - 0.01, zN + up + 2.01]], [], dy0, dy1));
+      out.push(prismXY(outline, [ch, by], zN + up + 2 - 0.01, D));
+    } else out.push(prismXY(outline, [ch], 0, D));
+    P.bosses.forEach(([x, y]) => out.push(prismXY(pCirc(FUME.rb, x, y, 24), [pCirc(PART_FASTENERS.M3.insert / 2, x, y, 16)], 0, D)));
+    // the tray's stops: a ledge along each side of the fan chamber, flat towards the tray, sloping 55° to the wall behind (no support)
+    const zr = P.ribZ + FUME.rib, r = FUME.rib, rz = r * 1.4, ylo = yC - cw / 2, yhi = yC + cw / 2, run = cw / 2 - FUME.bossIn - FUME.rb - 1.5;
+    for (const sx of [-1, 1]){ const x0 = sx * cw / 2;
+      out.push(prismXZ([[x0, zr], [x0 - sx * r, zr], [x0, zr - rz]], [], yC - run, yC + run)); }
+    for (const [yw, sy] of [[ylo, 1], [yhi, -1]]) out.push(prismZY([[zr, yw], [zr, yw + sy * r], [zr - rz, yw]], [], -run, run));
+    // feet: two rails along the bottom (they print standing, like the walls)
+    if (P.s.feet === "rails") for (const sx of [-1, 1]) out.push(prismXY(fumeRect(sx * (W / 2 - 18) - 4, sx * (W / 2 - 18) + 4, -2, 0.01), [], 0, D - 5));
+    // the name, raised on the right-hand side, reading from that side (along the side towards the back)
+    if (P.s.name){
+      let h = Math.min(18, D * 0.32); let tx = strokeText(P.s.name, 0, 0, h);
+      if (tx.width > D - 12){ h *= (D - 12) / tx.width; tx = strokeText(P.s.name, 0, 0, h); }
+      const polys = strokePolys(tx.segs, Math.max(0.45, h * 0.07)), map = L => L.map(([u, v]) => [D / 2 - u, yC + v]);
+      polys.forEach(pl => out.push(prismZY(map(pl.outer), (pl.holes || []).map(map), W / 2 - 0.01, W / 2 + 0.8)));
+    }
+    return mergeSolids(out);
+  }
+  // the front panel: the grille over the fans, the display's window and screw holes, the knob and the switch
+  function fumeFront(P){
+    const { W, H, D, cw } = P, g = fumeGrille(P, P.yC), holes = g.holes.slice(), z0 = D, z1 = D + FUME.capT;
+    P.bosses.forEach(([x, y]) => holes.push(pCirc(PART_FASTENERS.M3.clear / 2, x, y, 16)));
+    if (P.lay){
+      const d = P.lay.disp, DS = P.DS;
+      if (d && DS){ const [ww, wh] = DS.win, cy = d.y + (DS.dy || 0); holes.push(fumeRect(d.x - ww / 2, d.x + ww / 2, cy - wh / 2, cy + wh / 2));
+        for (const sx of [-1, 1]) for (const sy of [-1, 1]) holes.push(pCirc(DS.hd / 2, d.x + sx * DS.holes[0] / 2, d.y + sy * DS.holes[1] / 2, 12)); }
+      P.lay.ctl.forEach(q => {
+        if (q.k === "knob") holes.push(pCirc(3.65, q.x, q.y, 24));
+        else if (q.SW.rect) holes.push(fumeRect(q.x - q.SW.rect[0] / 2, q.x + q.SW.rect[0] / 2, q.y - q.SW.rect[1] / 2, q.y + q.SW.rect[1] / 2));
+        else holes.push(pCirc(q.SW.dia / 2, q.x, q.y, 32));
+      });
+    }
+    return { solid:prismXY(fumeRound(W, H, 3, 0), holes, z0, z1), open:g.open };
+  }
+  // the rear cap: the grille, the fan's bolt holes, the board's standoffs, the socket and the vents (or, with no bay, a cable hole)
+  function fumeRear(P){
+    const { W, H, cw, yC, F } = P, g = fumeGrille(P, yC), holes = g.holes.slice(), out = [], z0 = -FUME.capT;
+    P.bosses.forEach(([x, y]) => holes.push(pCirc(PART_FASTENERS.M3.clear / 2, x, y, 16)));
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) holes.push(pCirc(2.2, sx * F.hole / 2, yC + sy * F.hole / 2, 16));
+    if (P.jack){ const j = P.jack; holes.push(j.k === "barrel" ? pCirc(4, j.x, j.y, 32) : fumeRect(j.x - 4.7, j.x + 4.7, j.y - 1.8, j.y + 1.8)); }
+    if (P.board){ const b = P.board, xv = (cw / 2 + b.w / 2) / 2, vh = Math.min(P.bayH - 20, 40);
+      for (let i = 0; i < P.ventN; i++){ const x = xv + (i - (P.ventN - 1) / 2) * 6; holes.push(fumeRect(x - 1.5, x + 1.5, P.yBay - vh / 2, P.yBay + vh / 2)); } }
+    if (!P.bay) holes.push(pCirc(2.5, 0, yC - P.fan / 2 - 2.5, 16));
+    out.push(prismXY(fumeRound(W, H, 3, 0), holes, z0, 0));
+    if (P.board && P.boardFits){ const b = P.board, i = 3;
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]){ const x = b.x + sx * (b.w / 2 - i), y = b.y + sy * (b.h / 2 - i);
+        out.push(prismXY(pCirc(3, x, y, 20), [pCirc(PART_FASTENERS.M3.pilot / 2, x, y, 12)], -0.01, 6)); } }
+    return mergeSolids(out);
+  }
+  // the filter tray: a frame with its corners cut (to clear the bosses) and a grid on the side towards the fans
+  function fumeTray(P){
+    const { trayS:S, trayCh:chf, trayD, yC, trayZ0 } = P, f = FUME.frame, z0 = trayZ0 + 0.01, z1 = trayZ0 + trayD, out = [];
+    out.push(prismXY(fumeOct(S, chf, 0, yC), [fumeOct(S - 2 * f, chf - f * (2 - Math.SQRT2), 0, yC)], z0, z1));
+    // the grid: a lip round the inside, bars every 30 mm or so
+    const inner = S / 2 - FUME.lip, nC = Math.max(2, Math.round(2 * inner / 32)), bar = 2.4, cell = (2 * inner - (nC - 1) * bar) / nC, cut = S - chf - 6, cells = [];
+    for (let i = 0; i < nC; i++) for (let j = 0; j < nC; j++){
+      const x0 = -inner + i * (cell + bar), y0 = -inner + j * (cell + bar);
+      let L = fumeRect(x0, x0 + cell, y0, y0 + cell);
+      for (const [a, b] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) L = fumeClip(L, a, b, cut);
+      if (L.length >= 3 && Math.abs(L.reduce((s, p, k) => { const q = L[(k + 1) % L.length]; return s + p[0] * q[1] - q[0] * p[1]; }, 0)) > 20) cells.push(L.map(([x, y]) => [x, yC + y]));
+    }
+    out.push(prismXY(fumeOct(S - 2 * f + 0.02, chf - f * (2 - Math.SQRT2), 0, yC), cells, z0, z0 + FUME.grid));
+    return mergeSolids(out);
+  }
+  // turned to print: the duct, the rear cap and the tray stand on what is at the back; the front panel lies on its face
+  const FUME_BACK_DOWN = [1, 0, 0, 0, 0, 1, 0, -1, 0], FUME_FACE_DOWN = [1, 0, 0, 0, 0, -1, 0, 1, 0];
+  const fumeOnBed = (s, M) => { const r = affineSolid(s, M, [0, 0, 0]), b = solidBounds(r); return affineSolid(r, PART_I, [-(b.mn[0] + b.mx[0]) / 2, -b.mn[1], -(b.mn[2] + b.mx[2]) / 2]); };
+  function fumeMake(raw){
+    const s = fumeClean(raw), P = fumePlan(s);
+    const body = fumeBody(P), front = fumeFront(P), rear = fumeRear(P), tray = fumeTray(P);
+    const printed = [
+      { key:"body", name:"Duct body", solid:fumeOnBed(body, FUME_BACK_DOWN) },
+      { key:"front", name:"Front panel", solid:fumeOnBed(front.solid, FUME_FACE_DOWN) },
+      { key:"rear", name:"Rear cap", solid:fumeOnBed(rear, FUME_BACK_DOWN) },
+      { key:"tray", name:"Filter tray", solid:fumeOnBed(tray, FUME_BACK_DOWN) }
+    ];
+    const info = fumeInfo(P, front.open);
+    // put together, as it stands on the bench: the printed parts and what you buy, for the view (never printed)
+    const assembly = () => {
+      const parts = [{ name:"Duct body", role:"body", solid:body }, { name:"Front panel", role:"panel", solid:front.solid }, { name:"Rear cap", role:"panel", solid:rear }, { name:"Filter tray", role:"body", solid:tray }];
+      const box = (x0, x1, y0, y1, z0, z1) => prismXY(fumeRect(x0, x1, y0, y1), [], z0, z1), h = P.fan / 2;
+      for (let i = 0; i < P.n; i++){ const z0 = P.fanZ0 + 25 * i;
+        parts.push({ name:`Fan ${i + 1}`, role:"bought", colour:"#2b2f36", solid:prismXY(fumeOct(P.fan, 5, 0, P.yC), [pCirc(h - 4, 0, P.yC, 48)], z0, z0 + 25) });
+        parts.push({ name:`Fan ${i + 1}'s blades`, role:"bought", colour:"#3d434c", solid:prismXY(pCirc(h - 5, 0, P.yC, 48), [], z0 + 8, z0 + 17) }); }
+      const pz = P.trayZ0 + FUME.grid + 1;
+      parts.push({ name:"Carbon pad", role:"bought", colour:"#1b1d20", solid:prismXY(fumeOct(P.trayS - 2 * FUME.frame - 0.5, P.trayCh - 1, 0, P.yC), [], pz, pz + s.pad) });
+      if (P.board && P.boardFits) parts.push({ name:"Board", role:"bought", colour:"#2f7d4f", solid:box(P.board.x - P.board.w / 2, P.board.x + P.board.w / 2, P.board.y - P.board.h / 2, P.board.y + P.board.h / 2, 6, 7.6) });
+      if (P.lay && P.lay.disp && P.DS){ const d = P.lay.disp, DS = P.DS; parts.push({ name:"Display", role:"bought", colour:"#24508f", solid:box(d.x - DS.w / 2, d.x + DS.w / 2, d.y - DS.h / 2, d.y + DS.h / 2, P.D - Math.min(DS.deep, 8), P.D - 0.2) }); }
+      if (P.lay) P.lay.ctl.filter(q => q.k === "knob").forEach(q => parts.push({ name:"Knob", role:"bought", colour:"#1f2328", solid:prismXY(pCirc(11, q.x, q.y, 32), [], P.D + FUME.capT, P.D + FUME.capT + 14) }));
+      if (P.lay) P.lay.ctl.filter(q => q.k === "sw").forEach(q => { const [cw2, ch2] = q.SW.cap, z0 = P.D + FUME.capT;
+        parts.push({ name:"Switch", role:"bought", colour:"#b8312f", solid:q.SW.rect ? box(q.x - cw2 / 2, q.x + cw2 / 2, q.y - ch2 / 2, q.y + ch2 / 2, z0, z0 + 6) : prismXY(pCirc(cw2 / 2, q.x, q.y, 32), [], z0, z0 + (q.SW.dia > 10 ? 6 : 10)) }); });
+      return { parts };
+    };
+    return { settings:s, plan:P, printed, info, assembly, credit:"Retr0Plus95/Solder-Fume-Extractor" };
+  }
+  function fumeInfo(P, open){
+    const s = P.s, checks = [], bom = [], notes = [], steps = [];
+    const ok = (name, good, why) => checks.push({ name, ok:!!good, why });
+    // the fan's rounded corner (r 5) against the nearest boss
+    const fc = P.fan / 2 - 5, gapFan = Math.hypot(P.cw / 2 - FUME.bossIn - fc, P.cw / 2 - FUME.bossIn - fc) - 5 - FUME.rb;
+    ok("The fans fit the duct", gapFan >= 0.5, `${gapFan.toFixed(1)} mm between each fan's corner and the corner bosses`);
+    const L = P.trayS - P.trayCh, bc = 2 * (P.cw / 2 - FUME.bossIn), gapTray = (bc - L) / Math.SQRT2 - FUME.rb;
+    ok("The filter tray clears the corner bosses", gapTray >= 0.5, `its corners are cut ${P.trayCh} mm, ${gapTray.toFixed(1)} mm clear`);
+    ok("Air gets through the grilles", open >= 0.5, `${Math.round(open * 100)}% of the circle the blades turn in is open`);
+    if (P.bay){
+      ok("The display, the knob and the switch fit the bay", P.fits, P.fits ? "laid out on the front panel" : "see the note");
+      ok("The board fits the bay", P.boardFits, `${s.boardW} × ${s.boardH} mm on four standoffs on the rear cap`);
+      if (P.jack) ok("The power socket fits beside the board", P.jackFits, P.jackFits ? "on the rear cap, beside the board" : "the board leaves no room");
+      ok("Room between the board and the front panel", P.D >= P.depthNeed, `${P.D} mm deep, ${Math.ceil(P.depthNeed)} mm needed`);
+    }
+    const boltL = [30, 35, 40, 45, 50, 55, 60, 65, 70].find(v => v >= FUME.capT + 25 * P.n + 4.2) || 70;
+    bom.push([P.n, `${P.fan} mm fan${P.n > 1 ? "s" : ""}, 25 mm thick (12 V; 4-pin PWM ones let a board set the speed)`]);
+    bom.push([1, `activated carbon pad, ${s.pad} mm thick, cut ${Math.floor(P.trayS - 2 * FUME.frame - 1)} mm square with its corners cut off (${P.trayCh} mm)`]);
+    bom.push([1, "aluminium mesh pre-filter, cut to the same size"]);
+    bom.push([2 * P.bosses.length, "M3 heat inserts (one in each end of the corner bosses)"]);
+    bom.push([2 * P.bosses.length, "M3 × 10 mm screws (the front panel and the rear cap)"]);
+    bom.push([4, `M4 × ${boltL} mm bolts with nuts (the fan${P.n > 1 ? "s" : ""} to the rear cap)`]);
+    if (P.bay){
+      if (P.DS && P.lay && P.lay.disp) bom.push([1, `${P.DS.label} and four ${P.DS.hd > 3 ? "M3 × 10" : "M2 × 8"} mm screws with nuts`]);
+      if (P.knob) bom.push([1, "10 kΩ linear potentiometer (7 mm bushing) and a knob"]);
+      if (P.SW) bom.push([1, P.SW.label]);
+      if (P.jack) bom.push([1, P.jack.k === "barrel" ? "5.5 × 2.1 mm DC panel socket (8 mm hole) and a 12 V 2 A adapter" : "USB-C panel socket (9.4 × 3.6 mm) and a 12 V USB-C PD trigger"]);
+      bom.push([1, `board, ${s.boardW} × ${s.boardH} mm (a 7 × 9 cm perfboard is 70 × 90), and four M3 × 6 mm self-tapping screws`]);
+    } else bom.push([1, "12 V supply or fan controller, its cable through the hole in the rear cap"]);
+    if (s.feet === "none") bom.push([4, "rubber feet"]);
+    notes.push("The owner's own design, Sir Sucks-a-Lot (Retr0Plus95/Solder-Fume-Extractor), made in Maker Forge: their ATmega328P board, wiring and firmware are in that repository.");
+    notes.push("It reduces the fumes you breathe; it is not a substitute for airing the room. Keep it close to the joint, and change the carbon pad when the smell comes through.");
+    notes.push("Print the duct on its back with the panels and the tray flat, as they are laid out: no support. PLA is fine away from the iron; PETG takes the warmth better.");
+    notes.push("The fans pull the air through: their arrow points to the rear cap. The tray's grid faces the fans, so the pad can't be sucked in.");
+    steps.push("Press the heat inserts into both ends of each corner boss.");
+    steps.push(`Bolt the fan${P.n > 1 ? "s" : ""} to the inside of the rear cap with the M4 bolts, nuts in front${P.n > 1 ? " (through both fans)" : ""}, the cable towards the notch in the divider.`);
+    if (P.bay) steps.push("Screw the board onto the rear cap's standoffs; fit the power socket and wire it up (the switch, the fans, the display, the knob).");
+    if (P.bay) steps.push(`Fit the ${[P.DS && P.lay && P.lay.disp ? "display" : "", P.knob ? "knob" : "", P.SW ? "switch" : ""].filter(Boolean).join(", ") || "parts"} to the front panel.`);
+    steps.push("Screw the rear cap onto the duct's back.");
+    steps.push("Put the tray in from the front, grid first, then the mesh and the carbon pad.");
+    steps.push("Screw the front panel on.");
+    return { ok:checks.every(c => c.ok), checks, bom, notes, steps, warn:P.warn, open,
+      size:{ outside:[Math.ceil(P.W), Math.ceil(P.H), P.D + 2 * FUME.capT], tray:[Math.round(P.trayS), Math.round(P.trayS), Math.round(P.trayD)] } };
   }
 
   global.PRCore = {
@@ -8293,7 +8679,8 @@
     loft, sweep, shellSurface,
     flower:{ make:flowerMake, clean:flowerClean, settings:FLOWER_SETTINGS, styles:FLOWER_STYLES, sketch:flowerSketch, power:FLOWER_POWER, wall:FLOWER_WALL },
     bird:{ make:birdMake, clean:birdClean, settings:BIRD_SETTINGS, birds:BIRDS, solar:BIRD_SOLAR, sketch:birdSketch },
-    nock:{ make:nockMake, clean:nockClean, settings:NOCK_SETTINGS },
+    nock:{ make:nockMake, clean:nockClean, settings:NOCK_SETTINGS, presets:NOCK_PRESETS, shown:nockShown },
+    fume:{ make:fumeMake, clean:fumeClean, settings:FUME_SETTINGS, fans:FUME_FANS, displays:FUME_DISPLAYS, switches:FUME_SWITCHES },
     parts:{ list:partList, make:part, clean:partClean, snap, travel:partTravel, fourBarAngle, crankSliderX, overCentre, petalAngle, petalArm, servos:PART_SERVOS, bearings:PART_BEARINGS, fasteners:PART_FASTENERS, boards:PART_BOARDS, rings:PART_RINGS, clearance:PART_CLEARANCE },
     hexToRgb, rgbToHex, colorDist, luma, kmeans, buildCellMap, makeProjector, buildDecalSolids, weldSoup, parseSTL,
     prepareParts, make3MF, make3MF_BBL, makeSTL, makeOBJ, traceMask, groupLoops, rectUnion, triangulate, solidFromTris, buildVectorSolid,

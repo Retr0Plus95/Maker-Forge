@@ -348,6 +348,8 @@ function boot(file, opts = {}) {
   const dom = new JSDOM(html, {
     runScripts: "dangerously", pretendToBeVisual: true, url: "https://localhost/", virtualConsole: vc,
     beforeParse(win) {
+      // opts.storage: what this browser has saved already (preferences, a project), set before the page starts
+      if (opts.storage) for (const [k, v] of Object.entries(opts.storage)) { try { win.localStorage.setItem(k, v); } catch (e) {} }
       win.addEventListener("error", e => errors.push(String(e.error && e.error.stack || e.message)));
       win.addEventListener("unhandledrejection", e => errors.push("unhandled rejection: " + String(e.reason && e.reason.stack || e.reason)));
       const CP = win.HTMLCanvasElement.prototype;

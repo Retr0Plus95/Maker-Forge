@@ -68,7 +68,9 @@ Plus, depending on what changed:
   checked number by number against the old way (Session 28)
 - how the app starts (the `makerForge()` starter at the end of `src/app.html`, which loads the `prcore` script itself
   when a page's security policy blocks it, as the owner's website does) → `npm run check:browser`, and serve a copy
-  the way the website does (Session 28 in `HANDOFF.md`)
+  the way the website does (Session 28 in `HANDOFF.md`); the styles' release stamp (`:root{--mf-styles:…}`, written by `build.py`)
+  and `freshStyles`, which fetches the website's `app.css` again when a browser kept an older one → `node tools-stylecache-check.js index.html`
+  (Chromium, part of `check:browser`; `OLD=` an older `index.html` to use its styles as the kept copy)
 - new settings, `sanitizeProject`, `LIMITS` / `LIMITS_AT`, or `DEFAULTS` → `npm run test:project` (every quick start and object
   must come back unchanged from a saved project, and out-of-range values must not make a build run away)
 - after any generator change → `node tools-print-survey.js index.html` (look for new warnings) and `npm run fingerprint` (each object's and quick start's parts: triangles, volume and size against `tools-fingerprints.json`; it lists what moved. When the change is meant, `npm run fingerprint:update` and commit the file)
@@ -96,8 +98,17 @@ Plus, depending on what changed:
 - the bird house (`BIRDS`, `BIRD_SETTINGS`, `birdClean`, `birdPlan`, `birdBody`, `birdFront`, `birdLoft`, `birdRoof`, `birdMake`, `birdInfo`, `birdSketch` in `src/core.js`;
   `buildBirdhouse`, `birdFields`, `birdSceneMeshes` in `src/app.html`) → `npm run test:bird` (`CORE=1` for the library only: every setting at its ends for each bird,
   support-free parts, the hole, keyholes, side ports, lens window and roof screws checked with rays, nothing behind the back, the sketch) and `ONLY=birdhouse npm run check:browser`
-- arrow nocks (`NOCK_SETTINGS`, `nockClean`, `nockPlan`, `nockSolid`, `nockMake`, `nockInfo` in `src/core.js`; `buildNock`, `nockFields` in `src/app.html`) → `npm run test:nock`
-  (`CORE=1` for the library only: every setting at its ends for each fit, support-free, the groove, throat, seat and socket checked with rays, the fit test, the weight)
+- arrow nocks, the owner's own design (`NOCK_SETTINGS`, `NOCK_PRESETS`, `nockShown`, `nockClean`, `nockPlan`, `nockR`, `nockF`, `nockH`, `nockWrap`, `nockSolid`, `nockMake`, `nockInfo` in `src/core.js`;
+  `buildNock`, `cutNockLabels`, `nockFields` in `src/app.html`) → `npm run test:nock` (`CORE=1` for the library only: every setting at its ends for each mount and
+  orientation, support upright and tilted, the seat, throat, flats, socket, pin, ribs, grooves and ridge checked with rays, engraving with Manifold, the fit test, a 0.67 project)
+- the fume extractor (`FUME_SETTINGS`, `FUME_FANS`, `FUME_DISPLAYS`, `FUME_SWITCHES`, `fumeClean`, `fumePlan`, `fumeGrille`, `fumeBody`, `fumeFront`, `fumeRear`, `fumeTray`, `fumeMake`, `fumeInfo` in `src/core.js`;
+  `buildFume`, `fumeFields`, `fumeSceneMeshes` in `src/app.html`) → `npm run test:fume` (`CORE=1` for the library only: every setting at its ends, support-free parts,
+  the corner screws, the fans' bolts, the air's way, the display and the knob checked with rays) and `ONLY=fume npm run check:browser`
+- the owner's boxes as quick starts (the From the workshop entries in `PRESETS`, `PRESET_WORDS`), or a box's parts put on plates when they
+  don't fit the bed side by side → `npm run test:workshop` and `npm run test:enclosure`
+- colour schemes and Start from (`SCHEMES`, `BACKDROPS`, `lookFields`, the `prefs` loader and `applyPrefs`; `OBJECT_GROUPS`, `START_CATS`, `PRESET_CAT`,
+  `OBJECT_WORDS`, `WORKSHOP`, `NEW_OBJECTS`, `renderStarts`, `filterStarts`, `rememberStart` in `src/app.html`) → `npm run test:look` and `npm run check:browser`
+  (and `npm run screenshots` when Start from changes, for the manual's picture). Keep `#presetGallery button[data-k]`: the tools find the quick starts that way
 - photo frames and stands (`frameDims`, `buildPhotoFrame`, `slotStand`, `standFor`) → `npm run test:frame`; signs (`buildSign`, `signMounts`, `withHoles`) → `npm run test:sign`; a relief from a photo (`buildRelief`, `depthOf`, `depthField`,
   `AI_FIGURE.depth`, `ortRuntime`) → `npm run test:relief` (it runs the real depth model when `models/depth-anything-v2-small-int8.onnx`
   is there: not in the repository, 27 MB, the URL and SHA-256 are in `AI_FIGURE`) and `npm run test:photo` (the shared runtime);

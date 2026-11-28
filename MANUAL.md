@@ -64,6 +64,25 @@ The **Start from** sidebar has two kinds of button.
 - **Quick starts** set everything up for one product: the object, its size, the filaments that suit it and a tip on how to print it. *Car badge*, for example, makes a 95 × 32 mm plate and reminds you that PLA softens in a hot car.
 - **Objects** are the makers behind the quick starts: a flat shape, a name plate, a jigsaw, a lithophane and so on. Choosing one keeps your pictures and colours and changes only the object.
 
+Finding things (new in 0.69):
+
+- **Find** at the top: type what you want to make (*keychain*, *box*, *lamp*, *arrow*) and only what matches stays. **Enter** opens the first one.
+- The **chips** under it show one kind at a time: **Names and signs**, **From a picture**, **Gifts and décor**, **Electronics**, **Workshop
+  and repair**, **Hobbies and outdoors**, **Basic shapes**, or **From the workshop**: the maker's own projects (the flower lamp, the bird
+  house, the arrow nocks, the fume extractor (new in 0.71) and, new in 0.70, their boxes, below). **All** shows everything again.
+- **From the workshop's boxes** (new in 0.70) are the maker's own project boxes, exactly as they made them, to print or to change:
+  - **RGB lamp controller**: the box for their ESP32 RGB lamp controller ([Retr0Plus95/ESP32-LED-RGB-](https://github.com/Retr0Plus95/ESP32-LED-RGB-)),
+    171 × 91 × 50 mm, a 90 × 70 mm board on M2.5 posts, the IR receiver, a status light and the on/off button in front, USB, 12 V and the
+    LED strip's cable at the back;
+  - **Bench supply (left)** and **(right)**: the two halves of their four-channel bench supply's case
+    ([Retr0Plus95/FOUR-CHANNEL-PSU](https://github.com/Retr0Plus95/FOUR-CHANNEL-PSU)), each 151.5 × 222 × 122 mm, bolted together round a
+    big opening where they meet: the display, the channels' knobs, buttons and lights, the openings for four screwed-on output plates, the mains inlet, the switch and
+    two fans. Each half and its lid print on a plate of their own (they don't fit a 256 mm bed side by side). Search *psu* or *esp32*.
+
+![The owner's three boxes: the RGB lamp controller's box, and the bench supply's left and right halves with their lids](docs/images/workshop-boxes.jpg)
+- **Recently** at the top lists what you opened last in this browser, and the newest objects carry a **New** badge.
+- **Small pictures** (Settings) puts three to a row.
+
 ![The Start from sidebar, each button with a picture of its example](docs/manual/start-sidebar.jpg)
 
 ### The examples
@@ -511,29 +530,65 @@ It is dim inside a nest box: an OV2640 camera without its infrared filter (sold 
 LEDs takes clearer pictures without disturbing the birds. Put the house up before the nesting season, and check the hole size and
 the height to hang it for birds where you live.
 
+### The fume extractor
+
+New in 0.71: the owner's own solder fume extractor, *Sir Sucks-a-Lot* ([Retr0Plus95/Solder-Fume-Extractor](https://github.com/Retr0Plus95/Solder-Fume-Extractor)),
+as a maker (**Fume extractor** in the object list, under Workshop and repair, and From the workshop). One or two fans, one behind the other in
+a printed duct, pull the fumes through an aluminium mesh and an activated-carbon pad held in a tray behind the front grille. Under the fans,
+an electronics bay: the display, the speed knob and the power switch on the front panel, the board on standoffs on the rear cap, and the
+power socket and a few vents beside it. The owner's board, wiring and firmware (an ATmega328P that sets both fans' speed and reads their
+speed back on a 1602 display) are in their repository.
+
+- **Fan size** 80, 92, 120 or 140 mm, and **one or two fans**. The duct is 10 mm wider than the fans, so the corner screws clear the fans'
+  rounded corners.
+- **Carbon pad** thickness: the tray is made to hold it with the mesh.
+- **Electronics bay**: its height, the **display** (a 1602 LCD or a 0.96 inch OLED, or none), the **knob**, the **switch** (a rocker, a
+  round rocker or a mini toggle), **power in** at the back (a 5.5 × 2.1 mm DC socket or USB-C) and your **board's size**. The display goes
+  beside the knob and switch, or above them when the bay is narrow (with an 80 or 92 mm fan). No bay makes it shorter; the fans' cable
+  then leaves through a hole in the rear cap.
+- **Grilles**: bars or honeycomb; **feet**: two printed rails, or none for stick-on rubber feet; a **name** raised along the right-hand side.
+- **The extractor** shows it put together (with the fans, the pad, the board, the display, the knob and the switch); **Parts to print** shows
+  the four parts laid out: the duct on its back, the panels and the tray flat, none needing support. The front panel and rear cap print in
+  the **panels' filament**.
+- **Checks**: the fans and the tray clear the corner screws, the air gets through the grilles, the display, knob and switch fit the bay, the
+  board and socket fit, and there is room between the board and the display. **What you'll need** lists the fans, the pad and mesh, the
+  heat inserts and screws, the fans' M4 bolts, the display, the knob and the socket. The download has how-to-assemble.txt.
+
+![The fume extractor put together, orange with a white front panel, a 1602 display, a knob and a switch; and its four parts laid out to print](docs/images/fume-extractor.jpg)
+
+It reduces the fumes you breathe; it doesn't replace airing the room. Keep it close to the joint and change the pad when the smell comes through.
+
 ### Arrow nocks
 
-New in 0.67: nocks for the end of an arrow, made to your shafts and your bowstring (**Arrow nocks** in the object list, under
-Functional).
+New in 0.67, remade in 0.68 on the owner's own design (their parametric OpenSCAD nock): nocks for the end of an arrow, made to your
+shafts and your bowstring (**Arrow nocks** in the object list, under Functional). The settings are in the design's own groups, one page each.
 
-![Arrow nocks: one pushed into a carbon shaft, one on a wooden shaft's taper, one over a straight shaft, and a fit test of five, numbered by the bumps on their sides](docs/images/arrow-nocks.jpg)
+![Arrow nocks: a slip-over on a shaft, a tapered nock on a wooden shaft, a push-in nock in a carbon shaft, and a fit test of five with engraved numbers](docs/images/arrow-nocks.jpg)
 
-- **How it fits the arrow:** it **pushes into a hollow shaft** (carbon or aluminium), **slips onto a wooden shaft's 11° taper** (the
-  taper you cut with a taper tool), or **sleeves over the shaft's end**. Glue the last two on.
-- **The shaft's inside diameter** (for one that pushes in: measure it, or take it from the shaft's chart; often 4.2, 5.2 or 6.2 mm)
-  and **outside diameter**. **Tighter or looser** makes the fit on the shaft firmer or easier, 0.05 mm at a time.
-- **How far it goes onto the shaft**, the **bowstring's serving** (measure it with calipers where the nock sits), **Snap on the
-  string** (how much narrower the throat is than the string, so it clicks on and holds), the **groove depth** and the **head's
-  length** past the shaft.
-- **Cock-feather mark:** a ridge square to the string, to line up with the odd-coloured feather.
-- **Print:** the nocks (up to 24, laid out in rows), or a **fit test**: five nocks 0.05 mm apart, numbered by the bumps on their
-  sides (1 the loosest). Push each onto a shaft and onto the string, and set **Tighter or looser** by the one that grips firmly.
-- The panel says each nock's size and **weight in grains**, and checks the ears are thick enough, the snap isn't too tight and the
-  nock stops on the shaft.
+- **Arrow shaft:** a common **shaft size** (5 to 9.53 mm, with 9/32, 5/16, 11/32 and 3/8 in) or **Custom** and its outside diameter;
+  for a push-in nock, the shaft's **inside diameter**.
+- **Mount:** **slip-over** (glue it, or press it on), a **tapered socket** for wooden shafts (the taper's angle: usually 10 to 11°),
+  or **push-in** (a pin into a hollow shaft). A socket has its **clearance** (about 0.1 mm for glue), **depth** and **wall**, with a
+  chamfered mouth and a pointed ceiling so it prints without support inside. A pin has its **length** and **press fit**, and the
+  push-in nock its **head length**.
+- **Retention:** **crush ribs** inside the socket or on the pin, for a glue-free press fit, and **glue grooves** that hold glue
+  (not on a tapered socket).
+- **String throat:** its **width** (your string's centre serving), its **depth** from the ear tips, a **lead-in** chamfer so the
+  string slides in, and **snap**: the throat a little narrower just above the round seat, so the string clicks in.
+- **Shape:** the **overall length**, the **diameter at the ear tips** (the head tapers to it, with a rounded tip), and **flats**
+  on the taper either side of the slot.
+- **Cock vane index:** a raised **ridge** you can nock by feel, at any **angle** (0 is square to the string).
+- **Label:** **text along the side** (your initials) and **arrow numbers** (1, 2, 3…), **engraved** or **raised**, at a letter
+  height of your choice; text too long for the side is made smaller, and the panel says so. Engraved letters are cut in when the
+  cutting tool has loaded (the first time, a moment after the first build); until then they are shown raised.
+- **Print:** **upright** (neat, the weakest ears), **tilted 45°** (the design's choice: strong ears, no support), or **on its side**
+  (the strongest ears; the flat under the head may want a little support). **How many**, up to 24, or a **fit test** instead:
+  five nocks 0.05 mm apart on the fit, numbered 1 (the loosest) to 5.
+- The panel gives each nock's size and **weight in grains**, and checks the ears (at least 1.2 mm), the plastic between the socket
+  and the throat, and that a push-in nock stops on the shaft.
 
-They print standing on the shaft's end with the groove up, so the string's seat is smooth and nothing needs support. Use PETG or
-nylon, 0.12 mm layers and 100% infill. A nock is a wear part: check every one before you shoot and replace any that is cracked or
-loose, because a nock that breaks can make the bow dry-fire.
+Use PETG or nylon, 0.12 mm layers and 100% infill. A nock is a wear part: check every one before you shoot and replace any that is
+cracked or loose, because a nock that breaks can make the bow dry-fire.
 
 ## 4. Art: pictures and text
 
@@ -720,6 +775,21 @@ The view is only drawn again when something changes, so an open Maker Forge left
 - **Ctrl+S** (or **Save project** on the Export tab) downloads a project file (`.json`) with everything in it, pictures and imported models included. **Open project** opens one again. The last three projects you saved or downloaded files for are listed there too, to open with one click.
 - **Share a link** puts your design in a link to send to someone. Pictures are left out of links; send the project file for those.
 - **Start over** clears everything for a new project.
+
+### Colours and look (Settings ⚙ → Look)
+
+New in 0.69. These stay in this browser, for every project.
+
+- **Match system, Light or Dark.**
+- **Colours:** Maker Forge's own teal, **Retr0+ (the website)**: the deep violet, purple and gold of forge.retr0plus.se, always dark,
+  with faint scanlines over the view. Or **Forest**, **Sunset**, **Rose**, **Ocean**, **Graphite**, or **Your colour** from a colour picker
+  (the text on it turns dark or light to stay readable). The bed in the 3D view takes the colour too.
+- **Behind the model:** soft light (as before), **perfboard dots** (like the website), a **grid**, a **blueprint**, or plain.
+- **Big or small pictures** in Start from.
+
+![Maker Forge in the Retr0+ colours, with the perfboard behind the model](docs/images/look-retro.jpg)
+
+High contrast (Easy reading) works with every scheme; with Retr0+ it uses the website's own high-contrast colours.
 
 ## 10. Easy reading
 

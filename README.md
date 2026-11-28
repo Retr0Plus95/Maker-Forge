@@ -5,7 +5,7 @@
 Free and open source (MIT). One HTML file: no install, no account, no uploads. It runs on your own computer, tablet or phone, even offline.
 
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-2a9d8f)](LICENSE)
-[![Version 0.67.0](https://img.shields.io/badge/version-0.67.0-1f6f8b)](CHANGELOG.md)
+[![Version 0.71.0](https://img.shields.io/badge/version-0.71.0-1f6f8b)](CHANGELOG.md)
 [![Runs in the browser](https://img.shields.io/badge/runs%20in-your%20browser-e9c46a)](#get-started-in-a-minute)
 [![Exports 3MF, STL, OBJ](https://img.shields.io/badge/exports-3MF%20·%20STL%20·%20OBJ-d1495b)](#printers-and-slicers)
 
@@ -29,7 +29,7 @@ Every button in the **Start from** sidebar opens with a finished example, so you
 | **Gears, bolts and nuts, hinges, snap-fits** | A few numbers | Involute spur gears with the shafts' distance worked out; ISO metric threads M3 to M30 or your own; a hinge that prints already assembled; a snap-fit clip; a fit test that finds your printer's play, used by every part |
 | **Blooming flower lamps** | A few choices | Touch it and the petals open and light up; a tulip, a rose or a lotus; it holds itself open or closed with the servo off; four servos or your own; the board's USB, a USB-C socket, a DC jack or a battery with its charge board and switch; the sketch for the board |
 | **Bird houses with a camera** | The bird | Sized for blue tits to starlings, or an open front; the front slides out for cleaning; a loft under the roof for an ESP32-CAM looking down at the nest, a motion sensor, an 18650 battery or USB-C power and a solar panel; how long the battery lasts; the camera's sketch |
-| **Arrow nocks** | Your shafts and bowstring | Pushed into carbon or aluminium shafts, onto a wooden shaft's 11° taper, or over the shaft; the snap on the string; a cock-feather ridge; a fit test of five sizes; the weight in grains |
+| **Arrow nocks** (the owner's own design) | Your shafts and bowstring | Slip-over, tapered or push-in, shaft sizes from 5 mm to 3/8 in; crush ribs or glue grooves; the throat's snap and lead-in; flats and a tapered head; the cock-vane ridge at any angle; initials and arrow numbers, engraved or raised; upright, tilted or on its side; a fit test; the weight in grains |
 | **Fix-it parts** | Sizes from your calipers | Knobs for D or round shafts, leg caps and tube plugs, shelf supports, battery covers, cable clips, spacers and washers, an inline fuse holder, up to 24 at a time |
 | **Business cards** | Your name and details, and a logo | Bank-card size or any other; QR codes (a link, a contact card, Wi-Fi and more) read straight from the print; an NFC tag sealed inside; borders, bands and 15 patterns; flush colours face down, raised or engraved; a card for each name in a list |
 | **Iron-on and sew-on patches** | A logo or drawing | Thin and flexible in TPU |
@@ -84,8 +84,10 @@ Every button in the **Start from** sidebar opens with a finished example, so you
 | ![The Emma keychain with Svensson on a second line under the name](docs/images/fit-name.jpg) | ![The flower lamp: a tulip closed, the tulip open, a rose and a lotus open](docs/images/flower-lamp.jpg) |
 | **Bird house**: a camera in the loft looking down at the nest, solar charged | **The flower lamp's power**: a battery, its charge board and a switch in the base |
 | ![The bird house put together, its loft from above with the camera, battery and motion sensor, and cut down the middle](docs/images/birdhouse.jpg) | ![Inside two flower lamp bases: two 18650 cells with the charge board at the wall, and a DS3218 servo with a DC jack](docs/images/flower-power.jpg) |
-| **Arrow nocks**: into a carbon shaft, onto a wooden taper, over a shaft; a fit test of five | |
-| ![Three arrow nocks on their shafts, and a fit test of five nocks numbered by bumps](docs/images/arrow-nocks.jpg) | |
+| **Arrow nocks** (the owner's design): slip-over, tapered, push-in; a fit test numbered by engraving | **Colours**: Retr0+ (the website's purple board), five more, or your own |
+| ![Three arrow nocks on their shafts, and a fit test of five with engraved numbers](docs/images/arrow-nocks.jpg) | ![Maker Forge in the Retr0+ colours, with the perfboard behind the model](docs/images/look-retro.jpg) |
+| **From the workshop**: the owner's RGB lamp controller box and bench supply case, as quick starts | **Fume extractor**: the owner's Sir Sucks-a-Lot, one or two fans, a carbon filter, a display and a knob |
+| ![The owner's three boxes: the RGB lamp controller's box, and the bench supply's left and right halves with their lids](docs/images/workshop-boxes.jpg) | ![The fume extractor put together, orange with a white front panel, and its four parts laid out to print](docs/images/fume-extractor.jpg) |
 | **Phone case** with a picture inlaid in the back | **Paint** any model: a fade, stripes and bands |
 | ![A phone case turned over to show a retro sunset inlaid in its back](docs/images/phone-case-example.jpg) | ![The Paint tab with a vase painted in teal, gold and apricot](docs/manual/paint-tab.jpg) |
 | **Trace a part** from a photo on paper | **Lightbox** with a backlit colour panel, frame and stand |

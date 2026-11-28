@@ -4055,6 +4055,47 @@ false bed warning on a big box, the other plates' outline colour (and in 0.69.1 
 
 **Still to do (0.68 From the workshop):** the solder fume extractor (Sir Sucks-a-Lot) as a fan-and-filter box maker.
 
+## Session 95: the fume extractor (v0.71.0)
+
+The last of ROADMAP 0.68's From the workshop: the owner's solder fume extractor, Sir Sucks-a-Lot (`Retr0Plus95/Solder-Fume-Extractor`, read
+only: its README, build guide and the pictures of its four printed parts), as a maker. Their parts: a duct body 127 × 207 × 80 with a divider,
+a front panel with a bar grille, the LCD and the knob, a rear cap with a grille, the socket and vents, a filter tray 116 × 120 × 20 with a grid.
+
+**New** (`src/core.js`, `PRCore.fume`; `src/app.html`, the `fume` object):
+- `fumePlan`: the duct is the fan + 10 mm wide inside (the corner bosses, 7.5 mm round with a 4 mm hole for an M3 insert at each end, then
+  clear a fan's r 5 corners by 1.1 mm); the bay under it; the depth from the fans (25 mm each, bolted to the rear cap with M4 bolts, nuts in
+  front: a 4 mm gap), the tray's stops and the tray (pad + mesh + grid). Only four bosses: one where the divider meets a wall would cut
+  the divider (the first try had six; the test's ray through the screw hole found the divider in the way).
+- The front panel's bay: the display (1602 or 0.96 inch OLED, their windows and screw holes) beside a column with the knob and the switch,
+  or above a row of them when the bay is narrow; or it says what doesn't fit.
+- `fumeBody`: one prism for the walls and the divider, the bosses, the tray's stops (flat towards the tray, 55° behind), the cable notch
+  through the divider at the back with a pointed top (a flat one needed support; 45° counted as overhang too), feet rails from the bed
+  (starting 5 mm up, their ends needed support), the name raised on the right-hand side.
+- `fumeFront`, `fumeRear` (the fan's bolt holes at its own spacing, the board's standoffs, the socket, the vents, or a cable hole with no
+  bay), `fumeTray` (corners cut 12 mm to clear the bosses, the grid's cells clipped to them), `fumeGrille` (bars 5 on 8, or hexagons 7 mm
+  across with 1.6 webs: about 60% of the blades' circle open). Each part built standing as on the bench, then turned to print.
+- `fumeInfo`: checks, what you'll need (fans, pad and mesh cut to size, 8 inserts and screws, the M4 bolts' length, the display, knob,
+  switch, socket, board), notes (credit, safety, print, airflow), steps. `assembly()` for the view with the fans, pad, board, display, knob
+  and switch.
+- App: `buildFume` (the panels in `panelSlot`, the rest in the main filament, packed on plates), `fumeSceneMeshes`, `fumeFields` (the bay's
+  settings hidden with no bay), the panel's refresh signature, sanitizing, the download's how-to-assemble.txt and README line, Start from
+  (Workshop and repair, From the workshop, New, words).
+
+**Tested:** `tools-fume-test.js` (new, `npm run test:fume`): 48 extractors at every setting's ends, every part closed, outward, finite and
+on the bed, within a 256 mm bed (the 140 mm fan with the tallest bay says it needs more); nothing needs support (and the raised name
+none); with rays through the parts put together: every corner screw through both panels into its insert hole, the fan's bolt holes, the air
+straight through the front grille, the tray's grid and the rear grille, the walls closed, the display's window, the knob's and the switch's
+holes; the tray between its stops and the panel; the checks, warnings and list; cleaning. In the app: Start from, the panel, every slider
+at both ends and every choice changing the parts, no bay, the name, the plates and the picture, the panels' filament, a saved and a hostile
+project. Audit (no dead controls), fingerprints (only the new object), print survey (no support, no warnings), project, look and workshop
+tests, smoke, the browser check (the export's steps and plates).
+
+**The count:** improvement 30: the fume extractor (29 were the workshop boxes' words). That completes the owner's 30 improvements and 10
+bugs from Session 81.
+
+**Still to check:** a real print and a real fan's fit; the 1602 module's window position differs a little between makers (check yours
+against the holes).
+
 ## Next
 
 ### The new direction (Session 81, the owner): a mechanical parts library, then the blooming flower lamp

@@ -796,7 +796,7 @@ const CONSUMES_ART = { cutter:1, pcb:1, lightbox:1, tracer:1, jigsaw:1, lithopha
 // which of the picture's own settings each of those objects reads; the Art tab shows only these
 const ART_USED_BY = { cutter:["width","mirror","colours","smooth"], lightbox:["mirror","colours","smooth"], enclosure:["mirror","colours","smooth"], phonecase:["mirror","colours","smooth"], card:["mirror","colours","smooth"],
   jigsaw:["mirror","colours","smooth"], pcb:["mirror"], tracer:[], lithophane:["mirror"], canvas:["mirror","colours","smooth"] };
-const SHAPES = [["tracer","Photo to 3D tracer"],["lithophane","Lithophane"],["board","Flat shape"],["nameplate","Name plate & keychain"],["card","Business card"],["mech","Mechanisms"],["parts","Mechanical parts"],["flower","Blooming flower lamp"],["birdhouse","Bird house"],["nock","Arrow nocks"],["fixit","Fix-it parts"],["sign","Sign"],["relief","3D relief from a photo"],["canvas","Plastic canvas / mosaic"],["jigsaw","Jigsaw puzzle"],
+const SHAPES = [["tracer","Photo to 3D tracer"],["lithophane","Lithophane"],["board","Flat shape"],["nameplate","Name plate & keychain"],["card","Business card"],["mech","Mechanisms"],["parts","Mechanical parts"],["flower","Blooming flower lamp"],["birdhouse","Bird house"],["nock","Arrow nocks"],["fume","Fume extractor"],["fixit","Fix-it parts"],["sign","Sign"],["relief","3D relief from a photo"],["canvas","Plastic canvas / mosaic"],["jigsaw","Jigsaw puzzle"],
   ["bobble","Bobble head"],["cutter","Cookie cutter from artwork"],["turned","Turned shape (vase, egg, cone)"],
   ["pcb","Circuit board from a schematic"],["lightbox","Lightbox / shadow box"],["frame","Photo frame"],["shell","Tea light / lantern"],["box","Plaque / box"],["cylinder","Cylinder"],
   ["hex","Hex prism"],["sphere","Sphere"],["enclosure","Project box / enclosure"],["phonecase","Phone case"],["stl","Import a model"],["none","No object"]];
@@ -1085,6 +1085,7 @@ const DEFAULTS = () => ({
     parts:{ kind:"servoMount", clearance:0.2, set:{} },          // the mechanical parts library (Session 82)
     flower:{ set:C.flower.clean({}), clearance:0.2, show:"lamp", bloom:0, petalSlot:1 },
     birdhouse:{ set:C.bird.clean({}), show:"house", roofSlot:1 },
+    fume:{ set:C.fume.clean({}), show:"together", panelSlot:1 },   // the fume extractor (Session 95)
     nock:{ set:C.nock.clean({}) },   // arrow nocks (Session 90): every setting, cleaned by the library   // the bird house (Session 89): every setting, cleaned by the library   // the blooming flower lamp (Session 85): every setting, as a project brings it back
     mech:{ kind:"gears",
       gears:{ teeth1:24, teeth2:12, module:1.5, thick:6, bore:5, boreShape:"d", hub:true, hubDia:12, hubH:4, layout:"apart", angle:20 },
@@ -9429,6 +9430,66 @@ function birdFields(p){
     buttonRow(g2, [["Download birdhouse-camera.ino", ()=>offerDownload("birdhouse-camera.ino", I.sketch, "text/plain")], ["Copy it", ()=>copyText(I.sketch, "The sketch is on the clipboard.")]]);
   });
 }
+// ---- the fume extractor (Session 95): the owner's Sir Sucks-a-Lot (Retr0Plus95/Solder-Fume-Extractor), made by PRCore.fume: the duct and
+// the tray in the main filament, the front panel and the rear cap in the panels' filament; the extractor put together in the view ----
+let fumeInfo = null, renderedFumeSig = "", fumeView = { key:"", meshes:[], mats:{} };
+function fumeCleanSet(F){
+  if (!F.set || typeof F.set !== "object" || Array.isArray(F.set)) F.set = {};
+  const cl = C.fume.clean(F.set);
+  Object.keys(F.set).forEach(k => { if (!(k in cl)) delete F.set[k]; });
+  Object.assign(F.set, cl);
+}
+const fumePanelSlot = () => clamp(+state.base.fume.panelSlot || 0, 0, state.slots.length - 1);
+function buildFume(){
+  const F = state.base.fume; fumeCleanSet(F);
+  const r = C.fume.make(F.set);
+  fumeInfo = r; fumeView.key = "";
+  const body = clamp(state.base.slot || 0, 0, state.slots.length - 1), list = [];
+  r.printed.forEach(q => list.push({ name:q.name, slot:q.key === "front" || q.key === "rear" ? fumePanelSlot() : body, solid:q.solid, role:"part", key:q.key }));
+  // laid out on plates of the bed (the box maker's packer), so the files print as they are
+  encPackPlates(list, state.printer.bed || [256, 256, 256]);
+  list.forEach(q => { const o = q.layout; q.solid = C.transformSolid(q.solid, 1, o[0], o[1], o[2]); delete q.layout; });
+  return list;
+}
+// the extractor put together, drawn instead of the plates (never printed: the files are the plates)
+function fumeSceneMeshes(){
+  const key = `${fumeInfo ? JSON.stringify(fumeInfo.settings) : ""}|${state.slots.map(x => x.hex).join()}|${fumePanelSlot()}|${state.base.slot}`;
+  if (fumeView.key === key) return fumeView.meshes;
+  fumeView.meshes.forEach(m => m.geometry.dispose());
+  const A = fumeInfo.assembly(), body = clamp(state.base.slot || 0, 0, state.slots.length - 1);
+  const bought = c => fumeView.mats[c] || (fumeView.mats[c] = new THREE.MeshStandardMaterial({ color:c, roughness:0.6, metalness:0.1, flatShading:true }));
+  fumeView.meshes = A.parts.map(q => {
+    const mat = q.role === "panel" ? slotMat(fumePanelSlot()) : q.role === "body" ? slotMat(body) : bought(q.colour || "#9aa0a6");
+    const m = new THREE.Mesh(solidToGeometry(q.solid), mat); m.raycast = () => {}; m.userData.fumePart = q.name; return m;
+  });
+  fumeView.key = key;
+  return fumeView.meshes;
+}
+const FUME_LABELS = { fan:k => `${k} mm`, fans:k => k === "1" ? "One fan" : "Two fans, one behind the other", bay:k => k === "none" ? "None (the fans only)" : "Under the fans",
+  display:k => k === "none" ? "None" : C.fume.displays[k].label, knob:k => k === "none" ? "None" : "A potentiometer and a knob", sw:k => k === "none" ? "None" : C.fume.switches[k].label,
+  power:k => ({ barrel:"5.5 × 2.1 mm DC socket (12 V)", usbc:"USB-C socket (with a 12 V PD trigger)", none:"None" })[k], grille:k => k === "honeycomb" ? "Honeycomb" : "Bars",
+  feet:k => k === "none" ? "None (stick-on rubber feet)" : "Two printed rails" };
+// the electronics' settings mean nothing with no bay: they are hidden then
+const FUME_BAY_ONLY = { bayH:1, display:1, knob:1, sw:1, power:1, boardW:1, boardH:1 };
+function fumeFields(p){
+  const F = state.base.fume, spec = C.fume.settings; fumeCleanSet(F);
+  const S = F.set, I = fumeInfo && fumeInfo.info;
+  segField(p, [["together","The extractor"],["plates","Parts to print"]], ()=>F.show === "plates" ? "plates" : "together", v=>{ F.show = v; renderTab(); refreshScene(); }, "two");
+  note(p, "The owner's own fume extractor, Sir Sucks-a-Lot: fans pull the fumes through a mesh and a carbon pad. Their board, wiring and firmware are in <b>Retr0Plus95/Solder-Fume-Extractor</b>.");
+  for (const [k, sp] of Object.entries(spec)){
+    if (FUME_BAY_ONLY[k] && S.bay === "none") continue;
+    if (Array.isArray(sp)) numField(p, { label:sp[4], min:sp[1], max:sp[2], step:sp[3], get:()=>S[k], set:v=>S[k] = v, onChange:baseChanged });
+    else if (sp.text) textField(p, sp.label, ()=>S[k], v=>{ S[k] = v.toUpperCase().replace(/[^0-9A-Z+\-\/.: ]/g, ""); }, { max:sp.max, placeholder:"Raised along the right-hand side", onChange:baseChanged });
+    else selField(p, sp.label, sp.opts.map(o => [o, FUME_LABELS[k] ? FUME_LABELS[k](o) : o]), ()=>S[k], v=>{ S[k] = v; renderTab(); baseChanged(); });
+  }
+  if (state.slots.length > 1) selField(p, "Panels' filament", state.slots.map((x, i) => [String(i), `${i + 1}: ${x.name}`]), ()=>String(fumePanelSlot()), v=>{ F.panelSlot = +v; baseChanged(); });
+  if (!I) return;
+  I.warn.forEach(w => note(p, `<b>Note:</b> ${esc(w)}`));
+  note(p, `<b>Outside about ${I.size.outside.join(" × ")} mm; the filter tray ${I.size.tray.join(" × ")} mm.</b>`);
+  group(p, "Checks", g2 => I.checks.forEach(q => note(g2, `${q.ok ? "✓" : "✗"} ${esc(q.name)} (${esc(q.why)}).`)), true);
+  group(p, "What you'll need", g2 => note(g2, I.bom.map(([n, w]) => `${n} × ${esc(w)}`).join("<br>")), true);
+  group(p, "Print and put together", g2 => { I.notes.forEach(n => note(g2, esc(n))); note(g2, I.steps.map((t, k) => `${k + 1}. ${esc(t)}`).join("<br>")); });
+}
 // ---- arrow nocks (Sessions 90 and 91): the owner's own nock design (arrow_nock.scad), made by PRCore.nock; engraved labels are cut in
 // with the cutting tool after the build (cutNockLabels), or shown raised when it can't load ----
 let nockInfo = null, renderedNockSig = "", nockCut = { key:"", solids:[], failed:"" };
@@ -10137,7 +10198,7 @@ function heightOf(d, slot){
 // artwork cut into the object (Session 32): "engrave" cuts it in, "inlay" cuts it in and fills the cut with the
 // artwork's colours, flush with the surface. Its solids are then the cutters: from CUT_OUT above the surface (so the
 // whole surface is cut, also between the points it was laid on) to its depth below it
-const CUT_OUT = 0.6, NO_DECALS = { jigsaw:1, lithophane:1, enclosure:1, phonecase:1, card:1, mech:1, parts:1, flower:1, birdhouse:1, nock:1, fixit:1, sign:1, relief:1 };
+const CUT_OUT = 0.6, NO_DECALS = { jigsaw:1, lithophane:1, enclosure:1, phonecase:1, card:1, mech:1, parts:1, flower:1, birdhouse:1, nock:1, fume:1, fixit:1, sign:1, relief:1 };
 let cutBlocked = "";                                 // why artwork cannot be cut into this model ("open", "load"), or ""
 const cutWanted = d => d.enabled !== false && d.mode !== "relief" && (d.cut === "engrave" || d.cut === "inlay") && !NO_DECALS[state.base.type];
 const cutMode = d => baseSoup && !cutBlocked && cutWanted(d) ? d.cut : null;
@@ -12470,6 +12531,7 @@ async function rebuildAll(resetItems, mode){
     else if (t === "flower") parts = buildFlower();
     else if (t === "birdhouse") parts = buildBirdhouse();
     else if (t === "nock") parts = buildNock();
+    else if (t === "fume") parts = buildFume();
     else if (t === "fixit") parts = buildFixit();
     else if (t === "sign") parts = await buildSign();
     else if (t === "relief") parts = buildRelief();
@@ -12512,7 +12574,7 @@ async function rebuildAll(resetItems, mode){
       if (d.enabled === false){ d.solids = null; continue; }
       if (t === "jigsaw"){ d.solids = null; continue; }      // a decal across the pieces would glue them together
       if (t === "lithophane"){ d.solids = null; continue; }  // other artwork would only cast a shadow on it
-      if (t === "mech" || t === "parts" || t === "flower" || t === "birdhouse" || t === "nock" || t === "fixit" || t === "sign" || t === "relief"){ d.solids = null; continue; }   // parts that fit: a picture on them would spoil the fit
+      if (t === "mech" || t === "parts" || t === "flower" || t === "birdhouse" || t === "nock" || t === "fume" || t === "fixit" || t === "sign" || t === "relief"){ d.solids = null; continue; }   // parts that fit: a picture on them would spoil the fit
       if (t === "enclosure"){ d.solids = null; continue; }   // not stamped on boxes yet
       if (t === "phonecase"){ d.solids = null; continue; }   // a case takes its picture as an inlay in the back
       if (t === "card"){ d.solids = null; continue; }        // a card takes its picture as its logo
@@ -12575,6 +12637,12 @@ async function rebuildAll(resetItems, mode){
       if (sig !== renderedBirdSig){ const a = document.activeElement, inPanel = a && a.closest && a.closest("#panel") && a.matches("input,textarea,select");
         if (!inPanel){ renderedBirdSig = sig; renderTab(); } else a.addEventListener("blur", () => { if (tab === "make" && state.base.type === "birdhouse"){ renderedBirdSig = sig; renderTab(); } }, { once:true }); }
     }
+    // the fume extractor (Session 95): its checks, notes, sizes and list follow the settings
+    if (t === "fume" && tab === "make" && fumeInfo){
+      const I = fumeInfo.info, sig = JSON.stringify([I.checks, I.warn, I.size, I.bom]);
+      if (sig !== renderedFumeSig){ const a = document.activeElement, inPanel = a && a.closest && a.closest("#panel") && a.matches("input,textarea,select");
+        if (!inPanel){ renderedFumeSig = sig; renderTab(); } else a.addEventListener("blur", () => { if (tab === "make" && state.base.type === "fume"){ renderedFumeSig = sig; renderTab(); } }, { once:true }); }
+    }
     if (t === "enclosure" && tab === "make" && enclosureInfo){
       const sig = encPanelSig(enclosureInfo);
       if (sig !== renderedEncWarn){
@@ -12614,7 +12682,8 @@ function refreshScene(){
   const box = new THREE.Box3();
   const lampView = state.base.type === "flower" && flowerInfo && state.base.flower.show !== "plates" && !viewOpts.layout && modelParts.length;
   const houseView = state.base.type === "birdhouse" && birdInfo && state.base.birdhouse.show !== "plates" && !viewOpts.layout && modelParts.length;
-  if (lampView || houseView) (lampView ? flowerSceneMeshes() : birdSceneMeshes()).forEach(m => { m.geometry.computeBoundingBox(); box.union(m.geometry.boundingBox); modelGroup.add(m); });
+  const fumeShow = state.base.type === "fume" && fumeInfo && state.base.fume.show !== "plates" && !viewOpts.layout && modelParts.length;
+  if (lampView || houseView || fumeShow) (lampView ? flowerSceneMeshes() : houseView ? birdSceneMeshes() : fumeSceneMeshes()).forEach(m => { m.geometry.computeBoundingBox(); box.union(m.geometry.boundingBox); modelGroup.add(m); });
   else modelParts.forEach((p,i)=>{
     const mesh = new THREE.Mesh(p.geom, p.paint ? paintMat() : slotMat(p.slot));
     mesh.userData.part = i; mesh.raycast = boxedRaycast;
@@ -13606,7 +13675,7 @@ const OBJECT_GROUPS = [
   ["From a picture", [["tracer","📐"],["relief","🗿"],["lithophane","🌅"],["cutter","🍪"],["pcb","🔌"],["lightbox","💡"],["canvas","🧶"],["frame","🖼️"]], "picture"],
   ["Gifts and décor", [["bobble","🙂"],["shell","🕯️"],["turned","🏺"],["flower","🌷"],["jigsaw","🧩"]], "decor"],
   ["Electronics", [["enclosure","🧰"],["phonecase","📱"]], "electronics"],
-  ["Workshop and repair", [["mech","⚙️"],["parts","🔩"],["fixit","🔧"]], "repair"],
+  ["Workshop and repair", [["mech","⚙️"],["parts","🔩"],["fixit","🔧"],["fume","💨"]], "repair"],
   ["Hobbies and outdoors", [["birdhouse","🐦"],["nock","🏹"]], "hobby"],
   ["Basic shapes", [["cylinder","🥫"],["hex","⬢"],["sphere","⚪"]], "shapes"],
   ["Bring your own", [["stl","📦"],["none","✦"]], "own"]
@@ -13614,8 +13683,8 @@ const OBJECT_GROUPS = [
 const START_CATS = [["all","All"],["workshop","From the workshop"],["names","Names and signs"],["picture","From a picture"],["decor","Gifts and décor"],
   ["electronics","Electronics"],["repair","Workshop and repair"],["hobby","Hobbies and outdoors"],["shapes","Basic shapes"]];
 // the owner's own projects, brought into Maker Forge (the owner, Session 90)
-const WORKSHOP = { flower:1, birdhouse:1, nock:1 };
-const NEW_OBJECTS = { flower:1, birdhouse:1, nock:1 };
+const WORKSHOP = { flower:1, birdhouse:1, nock:1, fume:1 };
+const NEW_OBJECTS = { flower:1, birdhouse:1, nock:1, fume:1 };
 const PRESET_CAT = { "Name keychain":"names", "Double-sided tag":"names", "Iron-on patch":"names", "Car badge":"names", "Business card":"names", "Light-up letters":"names",
   "Neon sign":"names", "House number":"names", "Plastic canvas":"picture", "Cookie cutter":"picture", "Trace a part":"picture", "Lightbox":"picture", "Circuit board":"picture",
   "Photo frame":"picture", "Frame for a photo":"picture", "Lithophane":"picture", "Lithophane lamp":"picture", "Photo relief":"picture", "Ornament":"decor", "Tea light":"decor",
@@ -13630,7 +13699,7 @@ const OBJECT_WORDS = { nameplate:"name keychain key ring tag bag", card:"busines
   pcb:"circuit board pcb electronics art", lightbox:"shadow box light paper cut", canvas:"pixel mosaic stitch canvas", frame:"photo frame stand picture", bobble:"bobble head figure",
   shell:"tea light lantern candle", turned:"vase pot cup bowl egg", flower:"lamp flower servo light", jigsaw:"puzzle jigsaw kids game", enclosure:"box case electronics enclosure raspberry esp32 arduino project",
   phonecase:"phone case iphone galaxy pixel", mech:"gear bolt nut hinge thread screw", parts:"servo bracket gear parts mount", fixit:"knob repair spare replacement cap clip",
-  birdhouse:"bird nest box camera garden", nock:"arrow archery nock bow", cylinder:"cylinder tube", hex:"hexagon", sphere:"ball sphere", stl:"import model stl obj 3mf glb paint", none:"artwork only" };
+  birdhouse:"bird nest box camera garden", nock:"arrow archery nock bow", fume:"fume extractor solder smoke fan filter carbon bench", cylinder:"cylinder tube", hex:"hexagon", sphere:"ball sphere", stl:"import model stl obj 3mf glb paint", none:"artwork only" };
 let startQuery = "", startCat = "all";
 function rememberStart(key){ prefs.recent = [key, ...prefs.recent.filter(k => k !== key)].slice(0, 6); savePrefs(); }
 // paint belongs to one model: a new object or an imported file starts unpainted (Undo brings it back)
@@ -13734,7 +13803,7 @@ function tabMake(p){
   ({ nameplate:nameplateFields, canvas:canvasFields, bobble:bobbleFields, cutter:cutterFields, turned:turnedFields,
      pcb:pcbFields, lightbox:lightboxFields, tracer:tracerFields, jigsaw:jigsawFields, lithophane:lithophaneFields,
      board:boardFields, frame:frameFields, shell:shellFields, box:boxFields, cylinder:cylFields, hex:hexFields,
-     sphere:sphereFields, enclosure:enclosureFields, phonecase:phonecaseFields, card:cardFields, mech:mechFields, parts:partsFields, flower:flowerFields, birdhouse:birdFields, nock:nockFields, fixit:fixitFields, sign:signFields, relief:reliefFields, stl:stlFields, none:noneFields })[b.type](p);
+     sphere:sphereFields, enclosure:enclosureFields, phonecase:phonecaseFields, card:cardFields, mech:mechFields, parts:partsFields, flower:flowerFields, birdhouse:birdFields, nock:nockFields, fume:fumeFields, fixit:fixitFields, sign:signFields, relief:reliefFields, stl:stlFields, none:noneFields })[b.type](p);
   if (!["none","bobble","lightbox","jigsaw","enclosure"].includes(b.type))
     slotField(p, "Object filament", ()=>String(b.slot), v=>{ b.slot = +v; baseChanged(); });
   buttonRow(p, [["Change the object →", ()=>{ setSide("right", true); const el = $("#objectSel"); if (el) el.focus(); }]]);
@@ -19533,6 +19602,11 @@ function sanitizeProject(data){
     const Hp = st.base.birdhouse && typeof st.base.birdhouse === "object" && !Array.isArray(st.base.birdhouse) ? st.base.birdhouse : {};
     st.base.birdhouse = { set:C.bird.clean(Hp.set), show:Hp.show === "plates" ? "plates" : "house", roofSlot:Math.min(15, Math.max(0, Math.round(cleanNum(Hp.roofSlot, 1)))) };
   }
+  // the fume extractor (Session 95): the library cleans the settings
+  if (st.base && "fume" in st.base){
+    const Fp = st.base.fume && typeof st.base.fume === "object" && !Array.isArray(st.base.fume) ? st.base.fume : {};
+    st.base.fume = { set:C.fume.clean(Fp.set), show:Fp.show === "plates" ? "plates" : "together", panelSlot:Math.min(15, Math.max(0, Math.round(cleanNum(Fp.panelSlot, 1)))) };
+  }
   // arrow nocks (Session 90): the library cleans the settings
   if (st.base && "nock" in st.base){
     const Np = st.base.nock && typeof st.base.nock === "object" && !Array.isArray(st.base.nock) ? st.base.nock : {};
@@ -19900,6 +19974,8 @@ async function buildZip(parts, title, unjoined){
   const bh = state.base.type === "birdhouse" && birdInfo ? birdInfo.info : null;
   if (bh){ if (bh.sketch) zip.file("birdhouse-camera.ino", bh.sketch);
     zip.file("how-to-assemble.txt", [`How to put ${title} together`, "", ...bh.notes, "", ...bh.steps.map((t, k) => `${k + 1}. ${t}`), "", "What you'll need:", ...bh.bom.map(([n, w]) => `  ${n} x ${w}`)].join("\r\n")); }
+  const fu = state.base.type === "fume" && fumeInfo ? fumeInfo.info : null;
+  if (fu) zip.file("how-to-assemble.txt", [`How to put ${title} together`, "", ...fu.notes, "", ...fu.steps.map((t, k) => `${k + 1}. ${t}`), "", "What you'll need:", ...fu.bom.map(([n, w]) => `  ${n} x ${w}`)].join("\r\n"));
   const nk = state.base.type === "nock" && nockInfo ? nockInfo.info : null;
   if (nk) zip.file("how-to-print-and-use.txt", [`${title}`, "", `Each ${nk.size.across} mm across and ${nk.size.long} mm long, about ${nk.size.grains} grains in PETG.`, "", ...nk.notes].join("\r\n"));
   if (asm.length) zip.file("how-to-assemble.txt", [`How to put ${title} together`, "", ...asm.map((t, k) => `${k + 1}. ${t}`), "",
@@ -19931,6 +20007,7 @@ async function buildZip(parts, title, unjoined){
     ...(cardNfcText(title) ? ["An NFC tag goes inside: nfc-tag.txt says where to pause and put it in."] : []),
     ...(asm.length ? ["A project box: how-to-assemble.txt has the steps and what you'll need."] : []),
     ...(fl ? ["The flower lamp: how-to-assemble.txt has the steps and what you'll need; flower-lamp.ino is the sketch for the board."] : []),
+    ...(fu ? ["The fume extractor: how-to-assemble.txt has the steps and what you'll need."] : []),
     ...(nk ? ["Arrow nocks: how-to-print-and-use.txt says how to print them and how to check them before you shoot."] : []),
     ...(bh ? [`The bird house: how-to-assemble.txt has the steps and what you'll need${bh.sketch ? "; birdhouse-camera.ino is the sketch for the camera" : ""}.`] : []),
     ...(wiring ? ["wiring.txt lists every wire, end to end, with its colour and length."] : []),
@@ -20267,6 +20344,7 @@ window.MakerForge = {
   get flower(){ return flowerInfo; }, flowerAnimate,
   get birdhouse(){ return birdInfo; },
   get nock(){ return nockInfo; },
+  get fume(){ return fumeInfo; },
   get lithophane(){ return lithoInfo; },
   get print(){ return printFresh() ? printInfo : null; },
   printNow: runPrintability, optimize: optimizePrint, revertOptimize, exportParts,

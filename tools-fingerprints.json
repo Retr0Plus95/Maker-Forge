@@ -469,6 +469,48 @@
    ]
   }
  ],
+ "object fume": [
+  {
+   "name": "Duct body",
+   "tris": 1020,
+   "vol": 155937.5,
+   "size": [
+    134.8,
+    73,
+    219.2
+   ]
+  },
+  {
+   "name": "Front panel",
+   "tris": 988,
+   "vol": 63960.7,
+   "size": [
+    134.8,
+    3,
+    217.2
+   ]
+  },
+  {
+   "name": "Rear cap",
+   "tris": 1592,
+   "vol": 69683.6,
+   "size": [
+    134.8,
+    9,
+    217.2
+   ]
+  },
+  {
+   "name": "Filter tray",
+   "tris": 380,
+   "vol": 20680.6,
+   "size": [
+    129,
+    15.99,
+    129
+   ]
+  }
+ ],
  "object fixit": [
   {
    "name": "Knob",

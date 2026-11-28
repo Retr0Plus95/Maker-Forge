@@ -61,8 +61,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     check(shown("#presetGallery button").includes("RGB lamp controller"), "\"esp32\" finds the RGB lamp controller");
     await type("");
     all(".startchips button").find(b => b.dataset.cat === "workshop").click(); await sleep(20);
-    check(shown("#presetGallery button").join() === "RGB lamp controller,Bench supply (left),Bench supply (right)" && shown(".objcard").sort().join() === "birdhouse,flower,nock",
-      "From the workshop: the owner's three boxes and their three objects", `${shown("#presetGallery button")} | ${shown(".objcard")}`);
+    check(shown("#presetGallery button").join() === "RGB lamp controller,Bench supply (left),Bench supply (right)" && shown(".objcard").sort().join() === "birdhouse,flower,fume,nock",
+      "From the workshop: the owner's three boxes and their four objects", `${shown("#presetGallery button")} | ${shown(".objcard")}`);
     all(".startchips button").find(b => b.dataset.cat === "electronics").click(); await sleep(20);
     check(["RGB lamp controller", "Bench supply (left)", "Raspberry Pi case"].every(k => shown("#presetGallery button").includes(k)), "and among Electronics");
   }

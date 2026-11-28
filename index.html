@@ -16,6 +16,8 @@
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Maker Forge","applicationCategory":"DesignApplication","operatingSystem":"Any (web browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"license":"https://opensource.org/licenses/MIT","url":"https://github.com/Retr0Plus95/Maker-Forge","description":"Free, open-source multi-colour 3D print designer that runs in the browser and exports 3MF, STL and OBJ."}</script>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <style>
+/* which release these styles are from (build.py writes it): freshStyles() checks it against the page's own */
+:root{--mf-styles:"v0.69.1"}
 :root{
   --bg:#eef1f5; --panel:#ffffff; --panel2:#f4f6f9; --ink:#141b24; --muted:#63707f; --line:#e2e7ee;
   --accent:#1f6f8b; --accent-ink:#ffffff; --accent-soft:#e6f1f5;
@@ -539,7 +541,7 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
         <rect x="11.5" y="18" width="9" height="4" rx="2" fill="var(--accent-ink)" opacity=".7"/>
         <path d="M14 23.5h4l-2 3.2z" fill="var(--accent-ink)"/>
       </svg>
-      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.69.0</span>
+      <span>Maker&nbsp;Forge</span><span class="ver" id="verBadge">v0.69.1</span>
     </div>
     <nav class="toptabs" role="tablist" id="tabs"></nav>
     <div class="grow"></div>
@@ -22773,6 +22775,27 @@ function symbolField(parent, get, set){
 const TABS = [["make","Make","◈"],["art","Art","✦"],["colour","Colours","◉"],["paint","Paint","🖌"],["export","Export","↓"]];
 $("#tabs").innerHTML = TABS.map(([k,l,ico])=>`<button role="tab" data-k="${k}" aria-selected="${k===tab}"><span class="ico">${ico}</span>${l}</button>`).join("");
 const APP_VERSION = (document.getElementById("verBadge")||{}).textContent || "";
+// The website serves these styles as app.css under the same name each release and lets a browser keep it a week, while the
+// scripts get a new name each time: a page could run one release's code with the last one's styles (0.69's Find box and chips
+// in Start from showed as blank white boxes). The styles carry their release; when it isn't this page's, fetch them again
+// under an address the browser hasn't kept. The single file has its styles inside, so they always match.
+function freshStyles(doc){
+  try {
+    const got = getComputedStyle(doc.documentElement).getPropertyValue("--mf-styles").replace(/["'\s]/g, "");
+    if (!APP_VERSION || got === APP_VERSION) return 0;
+    let n = 0;
+    for (const l of doc.querySelectorAll('link[rel~="stylesheet"]')){
+      const href = l.getAttribute("href") || "";
+      if (!/(^|\/)app(\.[\w-]+)?\.css(\?|$)/.test(href) || l.dataset.fresh) continue;
+      const f = l.cloneNode(); f.dataset.fresh = "1";
+      f.setAttribute("href", href.replace(/\?.*$/, "") + "?v=" + encodeURIComponent(APP_VERSION.replace(/^v/, "")));
+      f.onload = () => l.remove(); l.after(f); n++;
+    }
+    if (n) console.warn(`Maker Forge: the styles in this browser were from ${got || "an older release"}, fetching ${APP_VERSION}'s`);
+    return n;
+  } catch (e) { return 0; }
+}
+freshStyles(document);
 $("#tabs").querySelectorAll("button").forEach(b=>b.onclick = ()=>{ tab = b.dataset.k; if (tab !== "paint" && !paintOps().length) paintPrepared = false; renderTab(); });
 // arrow keys walk the tabs and the page icons, like any list of tabs
 function arrowNav(box, sel, vertical){

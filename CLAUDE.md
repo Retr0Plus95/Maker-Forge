@@ -74,6 +74,8 @@ Plus, depending on what changed:
 - new settings, `sanitizeProject`, `LIMITS` / `LIMITS_AT`, or `DEFAULTS` → `npm run test:project` (every quick start and object
   must come back unchanged from a saved project, and out-of-range values must not make a build run away)
 - after any generator change → `node tools-print-survey.js index.html` (look for new warnings) and `npm run fingerprint` (each object's and quick start's parts: triangles, volume and size against `tools-fingerprints.json`; it lists what moved. When the change is meant, `npm run fingerprint:update` and commit the file)
+- writing HTML or starting a script or worker (`TT`, the Trusted Types policies at the top of the page's script), or how the website's rules
+  meet the app → `CSP=site npm run check:browser` (the website's rules with Trusted Types; any of the app's HTML the cleaner changes is an error)
 - anything visual, text or fonts, the 3D view or view tools → `npm run check:browser` (Chromium via Playwright;
   screenshots and `report.html` land in `browser-check/`, which is git-ignored)
 - an example (`src/examples.js`) or anything that changes how an example looks → `npm run thumbs` (then build again)

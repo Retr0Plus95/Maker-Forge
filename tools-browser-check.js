@@ -15,6 +15,8 @@
 //   MOBILE=1                   also check a phone-sized window (390 × 844)
 //   THEME=dark                 dark theme
 //   PRINT=1                    wait for the printability check on every quick start and report it
+//   CSP=site                   serve the page over http with forge.retr0plus.se's security rules and Trusted Types
+//                              (Session 91): any HTML the app writes that the cleaner had to change is an error
 //
 // Needs Playwright with Chromium: `npm i --no-save playwright && npx playwright install chromium`
 // (a globally installed playwright is found too). Screenshots and report.html go to out-dir.
@@ -51,6 +53,33 @@ const TYPES = { js: "application/javascript", mjs: "application/javascript", was
 const env = process.env, ONLY = env.ONLY ? env.ONLY.split(",") : null;
 fs.mkdirSync(OUT, { recursive: true });
 for (const f of fs.readdirSync(OUT)) if (/\.(png|html|json)$/.test(f)) fs.unlinkSync(path.join(OUT, f));
+
+// CSP=site: the rules the website sends with the app (the Website repository's tools/import-maker-forge.py, APP_CSP),
+// with Trusted Types asked for as there. Two differences, both because this serves index.html as it is rather than the
+// website's import: the inline scripts are allowed by their hashes (the import moves them into a file instead), and the
+// CDN the libraries come from is allowed (the import hosts them on the site).
+let siteServer = null, siteURL = null, expectBlocked = false;
+if (env.CSP === "site") {
+  const crypto = require("crypto"), http = require("http");
+  const html = fs.readFileSync(FILE, "utf8"), hashes = [];
+  for (const m of html.matchAll(/<script(?![^>]*\bsrc=)(?![^>]*type="application\/ld\+json")[^>]*>([\s\S]*?)<\/script>/g))
+    hashes.push(`'sha256-${crypto.createHash("sha256").update(m[1]).digest("base64")}'`);
+  const csp = ["default-src 'none'", `script-src 'self' blob: 'wasm-unsafe-eval' https://cdn.jsdelivr.net ${hashes.join(" ")}`,
+    "style-src 'self' 'unsafe-inline'", "img-src 'self' data: blob:", "font-src 'self' data:",
+    "connect-src 'self' data: blob: https://cdn.jsdelivr.net https://huggingface.co", "media-src 'self' data: blob:", "manifest-src 'self'",
+    "worker-src blob:", "base-uri 'none'", "form-action 'none'", "require-trusted-types-for 'script'",
+    "trusted-types default mf-url mf-xml mf-tpl"].join("; ");
+  siteServer = http.createServer((req, res) => {
+    const p = decodeURIComponent(req.url.split(/[?#]/)[0]);
+    // the files the app looks for in models/ first, as the website hosts them (from the repository or node_modules)
+    const m = /^\/models\/([\w.-]+)$/.exec(p), lib = m && LIBS.find(([, f]) => path.basename(f) === m[1]);
+    const file = m && [path.join(__dirname, "models", m[1]), lib && path.join(NM, lib[1])].find(f => f && fs.existsSync(f));
+    if (file) { res.writeHead(200, { "content-type": TYPES[m[1].split(".").pop()] || "application/octet-stream" }); return res.end(fs.readFileSync(file)); }
+    if (p !== "/") { res.writeHead(404); return res.end(); }
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8", "content-security-policy": csp });
+    res.end(html);
+  });
+}
 
 const shots = [], findings = [], notes = [];
 const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -137,9 +166,10 @@ function pageCoverage() {
 }
 
 (async () => {
+  if (siteServer) { await new Promise(r => siteServer.listen(0, "127.0.0.1", r)); siteURL = `http://127.0.0.1:${siteServer.address().port}/`; }
   const browser = await chromium.launch({
     args: ["--enable-unsafe-swiftshader", "--use-angle=swiftshader", "--ignore-gpu-blocklist"],
-    proxy: env.HTTPS_PROXY ? { server: env.HTTPS_PROXY } : undefined,
+    proxy: env.HTTPS_PROXY ? { server: env.HTTPS_PROXY, bypass: "127.0.0.1,localhost" } : undefined,
   });
   const errors = [];
   async function openPage(viewport, label, url) {
@@ -155,12 +185,14 @@ function pageCoverage() {
     // nor ask Google (or anyone) for fonts
     await page.route(/fonts\.(googleapis|gstatic)\.com/, r => { errors.push(`${label}: Google Fonts request ${r.request().url()}`); return r.abort(); });
     page.on("pageerror", e => errors.push(`${label}: page error: ${e.message}`));
-    page.on("console", m => { if (m.type() === "error") errors.push(`${label}: console: ${m.text()}`); });
+    page.on("console", m => { if (m.type() === "error" && !expectBlocked) errors.push(`${label}: console: ${m.text()}`); });
     page.on("requestfailed", r => { if (!/fonts\./.test(r.url())) errors.push(`${label}: request failed: ${r.url()} ${r.failure() && r.failure().errorText}`); });
     // a clean start: no saved project from an earlier run
     await page.addInitScript(() => { try { localStorage.clear(); } catch (e) {} });
-    await page.goto(url || "file://" + FILE);
-    await page.waitForFunction(() => window.MakerForge && window.MakerForge.rev > 0 && !window.MakerForge.busy, null, { timeout: 60000 });
+    if (siteServer) page.on("console", m => { if (!expectBlocked && /Trusted ?(Type|Script|HTML)|trusted-types|Content Security Policy/i.test(m.text())) errors.push(`${label}: ${m.text()}`); });
+    await page.goto(url || siteURL || "file://" + FILE);
+    await page.waitForFunction(() => window.MakerForge && window.MakerForge.rev > 0 && !window.MakerForge.busy, null, { timeout: 60000 })
+      .catch(e => { console.error(`${label}: the app did not start. Errors so far:\n  ${errors.slice(-15).join("\n  ") || "(none)"}`); throw e; });
     await page.evaluate(() => document.fonts.ready);
     return page;
   }
@@ -432,7 +464,10 @@ function pageCoverage() {
   }
   // ---------- business cards (Session 33): with real fonts, every QR code read back from the card's geometry ----------
   if (!ONLY || ONLY.includes("card")) {
-    await page.addScriptTag({ path: path.join(NM, "jsqr/dist/jsQR.js") });
+    // the QR reader is the check's own, not the app's: under CSP=site the page's rules (rightly) refuse a script tag
+    // written into it, so it is run from outside the page's rules instead
+    if (siteServer) await page.evaluate(fs.readFileSync(path.join(NM, "jsqr/dist/jsQR.js"), "utf8") + "\n;void 0");
+    else await page.addScriptTag({ path: path.join(NM, "jsqr/dist/jsQR.js") });
     const card = await page.evaluate(async () => {
       const MF = window.MakerForge, C = MF.core, sleep = ms => new Promise(q => setTimeout(q, ms));
       const settle = async () => { const r0 = MF.rev; for (let i = 0; i < 40 && MF.rev === r0 && !MF.busy; i++) await sleep(30); for (let i = 0; i < 1200; i++){ if (!MF.busy){ await sleep(60); if (!MF.busy) break; } await sleep(25); } };
@@ -778,12 +813,12 @@ function pageCoverage() {
     await settle(page);
     const aiClick = () => page.evaluate(() => { const b = [...document.querySelectorAll("#panel button")].find(b => /Find the figure with AI/.test(b.textContent)); if (b) b.click(); return !!b; });
     const aiIdle = () => page.waitForFunction(() => !/Downloading|Starting|Finding|Lining|Colouring/.test(document.querySelector("#statusLine").textContent), null, { timeout: 240000 }).catch(() => {});
-    // a model file that is not the right one is refused before it runs
+    // a model file that is not the right one is refused before it runs (from the CDN, or from models/ under CSP=site)
     const bad = r2 => r2.fulfill({ status: 200, contentType: "application/octet-stream", headers: { "access-control-allow-origin": "*" }, body: Buffer.from("not the model") });
-    await page.route(/gh\/Retr0Plus95\/Maker-Forge@[^/]+\/models\/u2netp\.onnx/, bad);
+    await page.route(/(gh\/Retr0Plus95\/Maker-Forge@[^/]+|127\.0\.0\.1:\d+)\/models\/u2netp\.onnx/, bad);
     const clicked = await aiClick(); await page.waitForTimeout(500); await aiIdle();
     const refused = await page.evaluate(() => ({ ai: !!window.MakerForge.paint.photo.op.views[0].ai, notice: document.querySelector("#notice").textContent }));
-    await page.unroute(/gh\/Retr0Plus95\/Maker-Forge@[^/]+\/models\/u2netp\.onnx/, bad);
+    await page.unroute(/(gh\/Retr0Plus95\/Maker-Forge@[^/]+|127\.0\.0\.1:\d+)\/models\/u2netp\.onnx/, bad);
     if (!clicked || refused.ai || !/was not the one it should be/.test(refused.notice)) findings.push({ where: "AI figure finder", what: `a wrong model file was not refused: ${JSON.stringify(refused)}` });
     // the real one: downloaded, checked, run in the browser
     const t1 = Date.now(); await aiClick(); await page.waitForTimeout(500);
@@ -971,6 +1006,34 @@ function pageCoverage() {
     }
     notes.push(`AI figure finder: a wrong model file ${refused.ai ? "WAS NOT" : "was"} refused; the real one found the figure in ${aiMs} ms with the download (outline ${Math.round(ai.match * 100)}%, ${ai.yaw}° round, size off ${(sizeOff * 100).toFixed(1)}%)`);
   }
+  if (siteServer) {
+    const tt = await page.evaluate(() => window.MakerForge.trustedTypes).catch(e => ({ error: e.message }));
+    if (!tt || !tt.on) errors.push(`Trusted Types were asked for but are not on: ${JSON.stringify(tt)}`);
+    else if (tt.stripped.length) errors.push(`the HTML cleaner removed markup the app wrote: ${tt.stripped.join(", ")}`);
+    else notes.push("Trusted Types on: every page, object and tool above ran under them, and the cleaner never had to change the app's own HTML");
+    // and HTML that would be dangerous is cleaned, wherever it is written
+    expectBlocked = true;   // what the page says it blocked, and the hostile picture that is not there, is what this step expects
+    const hostile = await page.evaluate(() => {
+      window.__hit = 0;
+      const d = document.createElement("div"), out = {};
+      d.innerHTML = `<b>kept</b><img src="x" onerror="window.__hit=1"><script>window.__hit=2<\/script><a href=" jAvA&#x09;script:window.__hit=3">a</a>` +
+        `<iframe srcdoc="<script>parent.__hit=4<\/script>"></iframe><svg><animate attributeName="href" to="javascript:alert(1)"/><foreignObject><p>x</p></foreignObject></svg>` +
+        `<form action="https://example.com"><button formaction="javascript:1">b</button></form><img src="data:image/png;base64,iVBORw0KGgo=">`;
+      out.html = d.innerHTML;
+      d.insertAdjacentHTML("beforeend", `<math><mi xlink:href="javascript:1">m</mi></math><object data="data:text/html,x"></object>`);
+      out.more = d.innerHTML.slice(out.html.length);
+      try { document.createElement("script").src = "https://example.com/x.js"; out.script = "allowed"; } catch (e) { out.script = "refused"; }
+      try { new Worker("data:text/javascript,1"); out.worker = "allowed"; } catch (e) { out.worker = "refused"; }
+      out.hit = window.__hit;
+      return out;
+    });
+    await page.waitForTimeout(300); expectBlocked = false;
+    const leaks = [/onerror/i, /<script/i, /javascript/i, /<iframe/i, /srcdoc/i, /<animate/i, /foreignObject/i, /<form/i, /formaction/i, /<math/i, /<object/i]
+      .filter(re => re.test(hostile.html + hostile.more));
+    if (leaks.length || !/<b>kept<\/b>/.test(hostile.html) || !/data:image\/png/.test(hostile.html) || hostile.script !== "refused" || hostile.worker !== "refused")
+      errors.push(`the HTML cleaner let something through: ${leaks.join(" ")} ${JSON.stringify(hostile)}`);
+    else notes.push(`Trusted Types: hostile HTML cleaned (${hostile.html.length + hostile.more.length} characters kept of it: the words and a picture), an outside script and a data: worker refused`);
+  }
   await page.context().close();
 
   // ---------- phone ----------
@@ -1022,6 +1085,7 @@ function pageCoverage() {
       await tp.context().close();
     }
   }
+  if (siteServer) siteServer.close();
   await browser.close();
 
   // ---------- report ----------

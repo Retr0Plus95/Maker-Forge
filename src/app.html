@@ -636,6 +636,57 @@ button.pchip.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:ins
  *  5 artwork     6 scene/rebuild   7 checks     8 interface   9 export
  */
 (function(){
+/* Trusted Types (Session 91): where a website asks for them (forge.retr0plus.se does, as Maker Forge Bench does
+   at the same address), the browser lets nothing start a script or write HTML into the page except through these
+   rules. Three named ones for the few places that need them: mf-url (a worker or script Maker Forge made itself,
+   from a blob: of this page), mf-xml (a data file read by DOMParser, whose documents never run anything) and
+   mf-tpl (the cleaner's own scratch copy). Everything else that writes HTML goes through "default", which cleans
+   it first: no scripts, frames, plugins, forms, styles or event handlers, no javascript: or data: links (pictures
+   excepted). The interface never needs any of those, so anything removed is counted in TT.stripped, and the
+   browser check (CSP=site) fails if it is not empty. Without Trusted Types (a file opened from disk, an older
+   browser) none of this runs and every page works as before. */
+const TT = (() => {
+  const out = { on:false, stripped:[], url:u => u, xml:s => s };
+  const tt = window.trustedTypes;
+  if (!tt || typeof tt.createPolicy !== "function") return out;
+  // a blob: this page made: blob:<its origin>/…, or blob:null/… for a page opened from disk (whose origin reads file://)
+  const own = location.protocol === "file:" || location.origin === "null" ? "blob:null/" : "blob:" + location.origin + "/";
+  const mine = u => { const s = String(u); return s.startsWith(own) ? s : null; };
+  const BAD_TAGS = new Set(["script","iframe","frame","frameset","object","embed","applet","base","link","meta","template","noscript",
+    "noembed","noframes","xmp","plaintext","portal","math","foreignobject","form","style","use","animate","set","animatemotion","animatetransform","handler","listener"]);
+  const URL_ATTRS = new Set(["href","src","xlink:href","action","formaction","poster","background","ping","srcset","data","codebase","cite","dynsrc","lowsrc"]);
+  const note = what => { if (out.stripped.length < 50) out.stripped.push(what); };
+  let url, xml, tpl, scratch = null;
+  try {
+    url = tt.createPolicy("mf-url", { createScriptURL: u => { const ok = mine(u); if (!ok) throw new TypeError("Maker Forge only starts scripts it made itself"); return ok; } });
+    xml = tt.createPolicy("mf-xml", { createHTML: s => s });
+    tpl = tt.createPolicy("mf-tpl", { createHTML: s => s });
+  } catch (e) { return out; }   // the page's rules don't allow these names: Trusted Types aren't asked for here
+  const clean = html => {
+    const s = String(html);
+    if (!/[<&]/.test(s)) return s;   // plain words: nothing to clean
+    // read in a document of its own with no window, so nothing in it loads or runs. (Chrome still says in the console
+    // that the page's rules blocked an on…="…" it read here: the app never writes one, so that only shows for HTML
+    // that came from somewhere it shouldn't.)
+    const box = (scratch = scratch || document.implementation.createHTMLDocument("")).createElement("div");
+    box.innerHTML = tpl.createHTML(s);
+    for (const el of [...box.querySelectorAll("*")]) {
+      const tag = el.localName.toLowerCase();
+      if (BAD_TAGS.has(tag)) { note("<" + tag + ">"); el.remove(); continue; }
+      for (const a of [...el.attributes]) {
+        const n = a.name.toLowerCase(), v = a.value.replace(/[\u0000- \u007f- ]+/g, "").toLowerCase();
+        const bad = n.startsWith("on") || n === "srcdoc" || n === "formaction" ||
+          (URL_ATTRS.has(n) && /^(javascript|vbscript|data|blob|filesystem):/.test(v) && !/^data:image\/(png|jpe?g|gif|webp|svg\+xml)[;,]/.test(v));
+        if (bad) { note(tag + " " + n); el.removeAttribute(a.name); }
+      }
+    }
+    return box.innerHTML;
+  };
+  try {
+    tt.createPolicy("default", { createHTML: clean, createScript: () => null, createScriptURL: () => null });
+  } catch (e) { return out; }
+  return Object.assign(out, { on:true, url:u => url.createScriptURL(u), xml:s => xml.createHTML(s) });
+})();
 function makerForge(){
 "use strict";
 const C = window.PRCore, $ = s => document.querySelector(s);
@@ -1359,7 +1410,7 @@ function loadImageFile(file){
    instead, and keep their real size when the file states it in mm, cm, in or pt. The file is only ever
    drawn through an <img>, so nothing in it can run. */
 async function loadSvgFile(file){
-  const text = await file.text(), doc = new DOMParser().parseFromString(text, "image/svg+xml"), svg = doc.documentElement;
+  const text = await file.text(), doc = new DOMParser().parseFromString(TT.xml(text), "image/svg+xml"), svg = doc.documentElement;
   if (!svg || svg.nodeName.toLowerCase() !== "svg" || doc.getElementsByTagName("parsererror").length) throw new Error(file.name + " is not a readable SVG file.");
   const len = v => { const m = String(v || "").trim().match(/^([0-9.]+(?:e[-+]?\d+)?)\s*(mm|cm|in|pt|pc|px)?$/i); return m && +m[1] > 0 ? { n:+m[1], unit:(m[2] || "px").toLowerCase() } : null; };
   const W = len(svg.getAttribute("width")), H = len(svg.getAttribute("height"));
@@ -3741,7 +3792,7 @@ function boardFromFeatures(label, pts, holes, parts){
 // box from its package's pads, SMDs and placement lines, turned and placed; M in its rot is the bottom side
 function eagleParse(text){
   if (typeof text !== "string" || !/<eagle[\s>]/.test(text.slice(0, 5000))) return { ok:false, why:"That is not an Eagle board file (.brd)." };
-  let doc; try { doc = new DOMParser().parseFromString(text.slice(0, 20e6), "application/xml"); } catch (e) { return { ok:false, why:"That Eagle file could not be read." }; }
+  let doc; try { doc = new DOMParser().parseFromString(TT.xml(text.slice(0, 20e6)), "application/xml"); } catch (e) { return { ok:false, why:"That Eagle file could not be read." }; }
   const board = doc.querySelector("board"); if (!board) return { ok:false, why:"That Eagle file has no board (a schematic?)." };
   const n = (el, a) => { const v = parseFloat(el.getAttribute(a)); return isFinite(v) ? v : 0; }, pts = [], holes = [], parts = [];
   board.querySelectorAll("plain > wire").forEach(wr => { if (wr.getAttribute("layer") === "20") pts.push([n(wr, "x1"), n(wr, "y1")], [n(wr, "x2"), n(wr, "y2")]); });
@@ -10423,7 +10474,7 @@ function helperWorker(){
   try {
     if (typeof Worker !== "function" || typeof Blob !== "function" || !URL.createObjectURL) throw new Error("no workers here");
     if (!helper.url){ const src = document.getElementById("prcore").textContent + "\n;(" + helperMain.toString() + ")();"; helper.url = URL.createObjectURL(new Blob([src], { type:"text/javascript" })); }
-    const w = new Worker(helper.url);
+    const w = new Worker(TT.url(helper.url));
     w.onmessage = e => { const j = helper.jobs.get(e.data.id); if (!j) return; helper.jobs.delete(e.data.id); helper.kinds.delete(e.data.id); helper.done++;
       if (e.data.err) j.reject(new Error(e.data.err)); else j.resolve(e.data.r); };
     w.onerror = e => { e.preventDefault && e.preventDefault(); helperStop(true, "The helper thread stopped: " + (e.message || "error")); };
@@ -10468,7 +10519,7 @@ function joinerWorker(){
   if (joiner.w || joiner.failed) return joiner.w;
   try {
     if (!helperWorker() || !helper.url) throw new Error("no workers here");
-    const w = new Worker(helper.url);
+    const w = new Worker(TT.url(helper.url));
     w.onmessage = e => { const j = joiner.jobs.get(e.data.id); if (!j) return; joiner.jobs.delete(e.data.id);
       if (e.data.err) j.reject(new Error(e.data.err)); else j.resolve(e.data.r); };
     w.onerror = e => { e.preventDefault && e.preventDefault(); joinerStop("The joining thread stopped: " + (e.message || "error")); };
@@ -20327,6 +20378,7 @@ window.MakerForge = {
   get parts(){ return modelParts; },
   get checks(){ return lastChecks; },
   floatingGroups,
+  get trustedTypes(){ return { on:TT.on, stripped:TT.stripped.slice() }; },
   get rev(){ return buildRev; },
   get busy(){ return busy || queued || rebuildPending || exampleBusy > 0 || photoJobsOut > 0 || photoFitting > 0 || photoBusy > 0; },
   thumb: modelThumb,
@@ -20418,7 +20470,7 @@ window.MakerForge = {
     const el = document.getElementById("prcore"), text = el && el.textContent;
     if (!text || !text.trim() || typeof Blob !== "function" || !URL.createObjectURL) return fail();
     const sc = document.createElement("script");
-    sc.src = URL.createObjectURL(new Blob([text], { type:"text/javascript" }));
+    sc.src = TT.url(URL.createObjectURL(new Blob([text], { type:"text/javascript" })));
     sc.onload = () => window.PRCore ? makerForge() : fail();
     sc.onerror = fail;
     document.head.appendChild(sc);
